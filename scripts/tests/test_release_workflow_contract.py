@@ -274,3 +274,36 @@ def test_shared_workflow_permissions_and_fresh_checkout_prerequisites():
     )
     assert steps[browsers]['working-directory'] == 'java/tests/playwright'
     assert setup < gate and browsers < gate
+
+
+def test_quality_prepares_clean_runner_without_weakening_gate_isolation():
+    workflow = yaml.safe_load((ROOT / '.github/workflows/quality.yml').read_text())
+    job = workflow['jobs']['python-quality']
+    assert job['env']['PLAYWRIGHT_BROWSERS_PATH'] == (
+        '${{ github.workspace }}/.local/playwright-browsers'
+    )
+    steps = job['steps']
+    gate = next(i for i, step in enumerate(steps) if step['name'] == 'Unified quality gates')
+    install = next(
+        i
+        for i, step in enumerate(steps)
+        if step.get('run') == './java/gradlew -p java :java:app-cli:installDist --no-daemon'
+    )
+    wrapper = steps[install]['run'].split()[0]
+    assert (ROOT / wrapper).is_file(), f'Gradle wrapper does not exist: {wrapper}'
+    java = next(i for i, step in enumerate(steps) if step['name'] == 'Set up JDK 25')
+    browsers = next(
+        i
+        for i, step in enumerate(steps)
+        if step.get('run') == 'npx playwright install --with-deps chromium'
+    )
+    assert java < install < gate
+    assert browsers < gate
+    for step in steps:
+        assert 'PLAYWRIGHT_BROWSERS_PATH' not in step.get('env', {})
+        assert 'XDG_CACHE_HOME' not in step.get('env', {})
+    for index in (install, browsers, gate):
+        assert 'if' not in steps[index]
+        assert not steps[index].get('continue-on-error', False)
+    assert 'XDG_CACHE_HOME' not in job['env']
+    assert 'python3 scripts/gates/cli.py run --mode full' in steps[gate]['run']

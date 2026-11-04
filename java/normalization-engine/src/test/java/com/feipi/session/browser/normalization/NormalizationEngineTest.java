@@ -686,10 +686,11 @@ class NormalizationEngineTest {
           ENGINE.normalize(NormalizedAgent.CLAUDE_CODE, List.of(), List.of(), List.of(file));
 
       assertThat(artifact.sourceUnitCatalog()).hasSize(1);
-      assertThat(artifact.sourceUnitCatalog()).containsKey("/path/to/session.jsonl");
-      SourceUnitCatalogEntry entry = artifact.sourceUnitCatalog().get("/path/to/session.jsonl");
-      assertThat(entry.unitKey()).isEqualTo("/path/to/session.jsonl");
-      assertThat(entry.originPath()).isEqualTo("/path/to/session.jsonl");
+      String expectedPath = Path.of("/path/to/session.jsonl").toString();
+      assertThat(artifact.sourceUnitCatalog()).containsKey(expectedPath);
+      SourceUnitCatalogEntry entry = artifact.sourceUnitCatalog().get(expectedPath);
+      assertThat(entry.unitKey()).isEqualTo(expectedPath);
+      assertThat(entry.originPath()).isEqualTo(expectedPath);
       assertThat(entry.unitType()).isEqualTo("transcript");
       assertThat(entry.direction()).isEqualTo(SourceUnitDirection.REQUEST);
     }
@@ -715,8 +716,8 @@ class NormalizationEngineTest {
               NormalizedAgent.CLAUDE_CODE, List.of(), List.of(), List.of(file1, file2));
 
       assertThat(artifact.sourceUnitCatalog()).hasSize(2);
-      assertThat(artifact.sourceUnitCatalog()).containsKey("/path/a.jsonl");
-      assertThat(artifact.sourceUnitCatalog()).containsKey("/path/b.jsonl");
+      assertThat(artifact.sourceUnitCatalog()).containsKey(Path.of("/path/a.jsonl").toString());
+      assertThat(artifact.sourceUnitCatalog()).containsKey(Path.of("/path/b.jsonl").toString());
     }
   }
 

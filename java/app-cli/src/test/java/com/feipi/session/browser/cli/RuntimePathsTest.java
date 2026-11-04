@@ -257,21 +257,16 @@ class RuntimePathsTest {
     }
 
     @Test
-    @DisplayName("数据目录不可写时 ensureDirectories 抛出 IOException")
-    void unwritableDataDirThrows() throws IOException {
-      Path dataDir = tempDir.resolve("readonly-data");
-      Files.createDirectories(dataDir);
-      dataDir.toFile().setWritable(false);
+    @DisplayName("数据目录被普通文件阻断时 ensureDirectories 抛出 IOException")
+    void unavailableDataDirThrows() throws IOException {
+      // 普通文件不能作为父目录；不依赖 POSIX 权限、Windows ACL 或执行用户身份。
+      Path blocker = Files.createFile(tempDir.resolve("data-parent-file"));
+      Path dataDir = blocker.resolve("data");
+      RuntimePaths paths =
+          new RuntimePaths(dataDir, tempDir.resolve("logs"), tempDir.resolve("cache"));
 
-      try {
-        RuntimePaths paths =
-            new RuntimePaths(dataDir, tempDir.resolve("logs"), tempDir.resolve("cache"));
-
-        assertThatThrownBy(paths::ensureDirectories).isInstanceOf(IOException.class);
-      } finally {
-        // 恢复权限，确保 TempDir 清理可以执行
-        dataDir.toFile().setWritable(true);
-      }
+      assertThat(blocker).isRegularFile();
+      assertThatThrownBy(paths::ensureDirectories).isInstanceOf(IOException.class);
     }
   }
 

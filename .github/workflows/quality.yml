@@ -21,6 +21,8 @@ concurrency:
 jobs:
   python-quality:
     runs-on: ubuntu-latest
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.local/playwright-browsers
 
     steps:
       - name: Checkout
@@ -64,6 +66,9 @@ jobs:
 
       - name: Prepare empty ignored OpenSpec workspace for a fresh checkout
         run: mkdir -p openspec/changes
+
+      - name: Prepare installed CLI for clean runner contract tests
+        run: ./java/gradlew -p java :java:app-cli:installDist --no-daemon
 
       - name: Unified quality gates
         shell: bash

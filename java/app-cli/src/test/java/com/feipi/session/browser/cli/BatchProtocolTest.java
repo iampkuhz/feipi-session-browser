@@ -2,6 +2,8 @@ package com.feipi.session.browser.cli;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -59,7 +61,7 @@ class BatchProtocolTest {
     String input = "{\"sourceId\":\"UNKNOWN\",\"rootPath\":\"/tmp/nonexistent\"}\n";
     String stdout = runBatch(input);
     // 版本头必须在第一行
-    String firstLine = stdout.split("\n")[0];
+    String firstLine = stdout.split("\\R")[0];
     assertThat(firstLine).contains("\"protocol\":\"normalized-batch\"");
     assertThat(firstLine).contains("\"version\":\"1.0\"");
   }
@@ -69,7 +71,7 @@ class BatchProtocolTest {
   void endSummaryContainsTotalRequests() throws Exception {
     String input = "{\"sourceId\":\"UNKNOWN\",\"rootPath\":\"/tmp/nonexistent\"}\n";
     String stdout = runBatch(input);
-    String[] lines = stdout.split("\n");
+    String[] lines = stdout.split("\\R");
     // 最后一行必须是 end summary
     String lastLine = lines[lines.length - 1];
     assertThat(lastLine).contains("\"type\":\"end\"");
@@ -103,13 +105,16 @@ class BatchProtocolTest {
         "{\"requestId\":\"req-1\",\"sourceId\":\"UNKNOWN\",\"rootPath\":\"/tmp/a\"}\n"
             + "not-json-at-all\n";
     String stdout = runBatch(input);
-    for (String line : stdout.split("\n")) {
+    ObjectMapper mapper = new ObjectMapper().enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
+    assertThat(stdout).isNotBlank();
+    for (String line : stdout.split("\\R")) {
       if (line.isBlank()) {
         continue;
       }
       // 每行必须能被 JSON 解析
       assertThat(line).startsWith("{");
       assertThat(line).endsWith("}");
+      assertThat(mapper.readTree(line).isObject()).isTrue();
     }
   }
 }

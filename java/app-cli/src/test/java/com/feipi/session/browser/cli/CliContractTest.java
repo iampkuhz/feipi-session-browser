@@ -73,7 +73,21 @@ class CliContractTest {
    * @return CLI 启动脚本的绝对路径
    */
   private Path cliScript() {
-    return installDir.resolve("bin").resolve("app-cli");
+    return installDir.resolve("bin").resolve(isWindows() ? "app-cli.bat" : "app-cli");
+  }
+
+  private static boolean isWindows() {
+    return System.getProperty("os.name").startsWith("Windows");
+  }
+
+  /** 使用本机脚本解释器运行实际发行 launcher，不绕过脚本直接调用 Java。 */
+  private static ProcessBuilder launcherProcess(Path script, String argument) {
+    String executable = script.toAbsolutePath().toString();
+    if (isWindows()) {
+      return new ProcessBuilder("cmd.exe", "/d", "/c", executable, argument);
+    }
+    script.toFile().setExecutable(true);
+    return new ProcessBuilder(executable, argument);
   }
 
   // ===== help 契约 =====
@@ -281,9 +295,7 @@ class CliContractTest {
     void distHelpFromArbitraryCwd() throws Exception {
       Path script = cliScript();
       assertThat(script).as("installDist 必需产物").isRegularFile();
-      script.toFile().setExecutable(true);
-
-      ProcessBuilder pb = new ProcessBuilder(script.toAbsolutePath().toString(), "--help");
+      ProcessBuilder pb = launcherProcess(script, "--help");
       pb.directory(Files.createTempDirectory("cli-test-cwd").toFile());
       pb.redirectErrorStream(false);
       Process process = pb.start();
@@ -345,11 +357,10 @@ class CliContractTest {
         }
       }
 
-      Path relocatedScript = spaceBin.resolve("app-cli");
-      relocatedScript.toFile().setExecutable(true);
+      Path relocatedScript = spaceBin.resolve(script.getFileName());
+      assertThat(relocatedScript).as("重定位后的本机 launcher").isRegularFile();
 
-      ProcessBuilder pb =
-          new ProcessBuilder(relocatedScript.toAbsolutePath().toString(), "--version");
+      ProcessBuilder pb = launcherProcess(relocatedScript, "--version");
       pb.directory(Files.createTempDirectory("cli-test-cwd").toFile());
       pb.redirectErrorStream(false);
       Process process = pb.start();

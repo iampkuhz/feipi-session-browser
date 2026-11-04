@@ -15,6 +15,7 @@ import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.util.Optional;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -31,6 +32,7 @@ class SessionDetailRepositoryTest {
 
   @TempDir Path tempDir;
 
+  private Connection writerConnection;
   private IndexConnection indexConnection;
   private SqliteSessionDetailRepository repository;
 
@@ -38,14 +40,28 @@ class SessionDetailRepositoryTest {
   void setUp() throws Exception {
     Path dbFile = tempDir.resolve("test-qa050-detail.db");
     String jdbcUrl = "jdbc:sqlite:" + dbFile.toAbsolutePath();
-    Connection writerConn = DriverManager.getConnection(jdbcUrl);
-    PragmaConfig.DEFAULTS.apply(writerConn);
-    indexConnection = IndexConnection.create(writerConn, PragmaConfig.DEFAULTS, jdbcUrl);
+    writerConnection = DriverManager.getConnection(jdbcUrl);
+    PragmaConfig.DEFAULTS.apply(writerConnection);
+    indexConnection = IndexConnection.create(writerConnection, PragmaConfig.DEFAULTS, jdbcUrl);
     IndexSchema.withDefaults().ensureSchema(indexConnection.writerConnection());
     insertTestData();
     SqliteSessionQueryRepository sessionQueryRepo =
         new SqliteSessionQueryRepository(indexConnection);
     repository = new SqliteSessionDetailRepository(sessionQueryRepo);
+  }
+
+  @AfterEach
+  void tearDown() throws Exception {
+    try {
+      if (indexConnection != null) {
+        indexConnection.close();
+      }
+    } finally {
+      // setup 部分失败时仍关闭原始连接；重复 close 对 JDBC 连接安全。
+      if (writerConnection != null) {
+        writerConnection.close();
+      }
+    }
   }
 
   private void insertTestData() throws Exception {

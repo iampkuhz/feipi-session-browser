@@ -24,6 +24,7 @@ import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.util.Optional;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -40,19 +41,34 @@ class SessionQueryRepositoryTest {
 
   @TempDir Path tempDir;
 
+  private Connection writerConnection;
   private IndexConnection indexConnection;
 
   @BeforeEach
   void setUp() throws Exception {
     Path dbFile = tempDir.resolve("test-qa030.db");
     String jdbcUrl = "jdbc:sqlite:" + dbFile.toAbsolutePath();
-    Connection writerConn = DriverManager.getConnection(jdbcUrl);
-    PragmaConfig.DEFAULTS.apply(writerConn);
-    indexConnection = IndexConnection.create(writerConn, PragmaConfig.DEFAULTS, jdbcUrl);
+    writerConnection = DriverManager.getConnection(jdbcUrl);
+    PragmaConfig.DEFAULTS.apply(writerConnection);
+    indexConnection = IndexConnection.create(writerConnection, PragmaConfig.DEFAULTS, jdbcUrl);
     // 初始化 schema
     IndexSchema.withDefaults().ensureSchema(indexConnection.writerConnection());
     // 插入测试数据
     insertTestData();
+  }
+
+  @AfterEach
+  void tearDown() throws Exception {
+    try {
+      if (indexConnection != null) {
+        indexConnection.close();
+      }
+    } finally {
+      // setup 部分失败时仍关闭原始连接；重复 close 对 JDBC 连接安全。
+      if (writerConnection != null) {
+        writerConnection.close();
+      }
+    }
   }
 
   private void insertTestData() throws Exception {
@@ -741,19 +757,20 @@ class SessionQueryRepositoryTest {
       // 使用独立的空数据库
       Path emptyDb = tempDir.resolve("empty.db");
       String jdbcUrl = "jdbc:sqlite:" + emptyDb.toAbsolutePath();
-      Connection writerConn = DriverManager.getConnection(jdbcUrl);
-      PragmaConfig.DEFAULTS.apply(writerConn);
-      try (IndexConnection emptyIc =
-          IndexConnection.create(writerConn, PragmaConfig.DEFAULTS, jdbcUrl)) {
-        IndexSchema.withDefaults().ensureSchema(emptyIc.writerConnection());
-        SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(emptyIc);
+      try (Connection writerConn = DriverManager.getConnection(jdbcUrl)) {
+        PragmaConfig.DEFAULTS.apply(writerConn);
+        try (IndexConnection emptyIc =
+            IndexConnection.create(writerConn, PragmaConfig.DEFAULTS, jdbcUrl)) {
+          IndexSchema.withDefaults().ensureSchema(emptyIc.writerConnection());
+          SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(emptyIc);
 
-        assertThat(repo.getSession("any:key")).isEmpty();
-        assertThat(repo.listSessions(SessionListFilter.defaults()).isEmpty()).isTrue();
-        assertThat(repo.countSessions(SessionListFilter.defaults())).isEqualTo(0);
-        SessionListAggregate agg = repo.listAggregate(SessionListFilter.defaults());
-        assertThat(agg.sessionCount()).isEqualTo(0);
-        assertThat(agg.totalTokens()).isEqualTo(0);
+          assertThat(repo.getSession("any:key")).isEmpty();
+          assertThat(repo.listSessions(SessionListFilter.defaults()).isEmpty()).isTrue();
+          assertThat(repo.countSessions(SessionListFilter.defaults())).isEqualTo(0);
+          SessionListAggregate agg = repo.listAggregate(SessionListFilter.defaults());
+          assertThat(agg.sessionCount()).isEqualTo(0);
+          assertThat(agg.totalTokens()).isEqualTo(0);
+        }
       }
     }
   }

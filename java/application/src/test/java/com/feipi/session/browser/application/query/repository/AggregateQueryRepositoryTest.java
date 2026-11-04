@@ -30,6 +30,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -46,6 +47,7 @@ class AggregateQueryRepositoryTest {
 
   @TempDir Path tempDir;
 
+  private Connection writerConnection;
   private IndexConnection indexConnection;
   private SqliteAggregateQueryRepository repo;
 
@@ -53,12 +55,26 @@ class AggregateQueryRepositoryTest {
   void setUp() throws Exception {
     Path dbFile = tempDir.resolve("test-qa040.db");
     String jdbcUrl = "jdbc:sqlite:" + dbFile.toAbsolutePath();
-    Connection writerConn = DriverManager.getConnection(jdbcUrl);
-    PragmaConfig.DEFAULTS.apply(writerConn);
-    indexConnection = IndexConnection.create(writerConn, PragmaConfig.DEFAULTS, jdbcUrl);
+    writerConnection = DriverManager.getConnection(jdbcUrl);
+    PragmaConfig.DEFAULTS.apply(writerConnection);
+    indexConnection = IndexConnection.create(writerConnection, PragmaConfig.DEFAULTS, jdbcUrl);
     IndexSchema.withDefaults().ensureSchema(indexConnection.writerConnection());
     insertTestData();
     repo = new SqliteAggregateQueryRepository(indexConnection);
+  }
+
+  @AfterEach
+  void tearDown() throws Exception {
+    try {
+      if (indexConnection != null) {
+        indexConnection.close();
+      }
+    } finally {
+      // setup 部分失败时仍关闭原始连接；重复 close 对 JDBC 连接安全。
+      if (writerConnection != null) {
+        writerConnection.close();
+      }
+    }
   }
 
   private void insertTestData() throws Exception {
@@ -756,56 +772,57 @@ class AggregateQueryRepositoryTest {
     void emptyDbReturnsZerosAndEmpty() throws Exception {
       Path emptyDb = tempDir.resolve("empty-qa040.db");
       String jdbcUrl = "jdbc:sqlite:" + emptyDb.toAbsolutePath();
-      Connection writerConn = DriverManager.getConnection(jdbcUrl);
-      PragmaConfig.DEFAULTS.apply(writerConn);
-      try (IndexConnection emptyIc =
-          IndexConnection.create(writerConn, PragmaConfig.DEFAULTS, jdbcUrl)) {
-        IndexSchema.withDefaults().ensureSchema(emptyIc.writerConnection());
-        SqliteAggregateQueryRepository emptyRepo = new SqliteAggregateQueryRepository(emptyIc);
+      try (Connection writerConn = DriverManager.getConnection(jdbcUrl)) {
+        PragmaConfig.DEFAULTS.apply(writerConn);
+        try (IndexConnection emptyIc =
+            IndexConnection.create(writerConn, PragmaConfig.DEFAULTS, jdbcUrl)) {
+          IndexSchema.withDefaults().ensureSchema(emptyIc.writerConnection());
+          SqliteAggregateQueryRepository emptyRepo = new SqliteAggregateQueryRepository(emptyIc);
 
-        // 项目统计
-        ProjectStats emptyProject = emptyRepo.projectStats("any");
-        assertThat(emptyProject.totalSessions()).isEqualTo(0);
+          // 项目统计
+          ProjectStats emptyProject = emptyRepo.projectStats("any");
+          assertThat(emptyProject.totalSessions()).isEqualTo(0);
 
-        // 项目计数
-        assertThat(emptyRepo.countProjects(ProjectListFilter.defaults())).isEqualTo(0);
+          // 项目计数
+          assertThat(emptyRepo.countProjects(ProjectListFilter.defaults())).isEqualTo(0);
 
-        // 项目列表
-        assertThat(emptyRepo.listProjects(ProjectListFilter.defaults()).isEmpty()).isTrue();
+          // 项目列表
+          assertThat(emptyRepo.listProjects(ProjectListFilter.defaults()).isEmpty()).isTrue();
 
-        // Dashboard 全局统计
-        DashboardStats dash = emptyRepo.dashboardStats(AgentFilter.NONE);
-        assertThat(dash.totalSessions()).isEqualTo(0);
-        assertThat(dash.totalTokens()).isEqualTo(0);
+          // Dashboard 全局统计
+          DashboardStats dash = emptyRepo.dashboardStats(AgentFilter.NONE);
+          assertThat(dash.totalSessions()).isEqualTo(0);
+          assertThat(dash.totalTokens()).isEqualTo(0);
 
-        // Token 分类统计
-        TokenBreakdown tokens = emptyRepo.tokenBreakdown();
-        assertThat(tokens.totalFreshInput()).isEqualTo(0);
+          // Token 分类统计
+          TokenBreakdown tokens = emptyRepo.tokenBreakdown();
+          assertThat(tokens.totalFreshInput()).isEqualTo(0);
 
-        // 分布查询
-        assertThat(emptyRepo.modelDistribution()).isEmpty();
-        assertThat(emptyRepo.agentDistribution()).isEmpty();
-        assertThat(emptyRepo.toolDistribution(10)).isEmpty();
+          // 分布查询
+          assertThat(emptyRepo.modelDistribution()).isEmpty();
+          assertThat(emptyRepo.agentDistribution()).isEmpty();
+          assertThat(emptyRepo.toolDistribution(10)).isEmpty();
 
-        // Top-N 排行
-        assertThat(emptyRepo.topProjectsByTokens(10)).isEmpty();
-        assertThat(emptyRepo.topSlowestSessions(10)).isEmpty();
-        assertThat(emptyRepo.topFailedToolSessions(10)).isEmpty();
-        assertThat(emptyRepo.topHighCacheReadSessions(10)).isEmpty();
+          // Top-N 排行
+          assertThat(emptyRepo.topProjectsByTokens(10)).isEmpty();
+          assertThat(emptyRepo.topSlowestSessions(10)).isEmpty();
+          assertThat(emptyRepo.topFailedToolSessions(10)).isEmpty();
+          assertThat(emptyRepo.topHighCacheReadSessions(10)).isEmpty();
 
-        // 衍生指标
-        AggregateMetrics metrics = emptyRepo.aggregateMetrics();
-        assertThat(metrics.inputSideTotal()).isEqualTo(0);
-        assertThat(metrics.cacheReuseRatio()).isNull();
-        assertThat(metrics.toolsPerRound()).isNull();
+          // 衍生指标
+          AggregateMetrics metrics = emptyRepo.aggregateMetrics();
+          assertThat(metrics.inputSideTotal()).isEqualTo(0);
+          assertThat(metrics.cacheReuseRatio()).isNull();
+          assertThat(metrics.toolsPerRound()).isNull();
 
-        // Agent 效率
-        assertThat(emptyRepo.agentEfficiency()).isEmpty();
+          // Agent 效率
+          assertThat(emptyRepo.agentEfficiency()).isEmpty();
 
-        // 趋势
-        TrendFilter tf = TrendFilter.ofDays(30);
-        assertThat(emptyRepo.trendData(tf)).isEmpty();
-        assertThat(emptyRepo.activityTrend(tf)).isEmpty();
+          // 趋势
+          TrendFilter tf = TrendFilter.ofDays(30);
+          assertThat(emptyRepo.trendData(tf)).isEmpty();
+          assertThat(emptyRepo.activityTrend(tf)).isEmpty();
+        }
       }
     }
   }
