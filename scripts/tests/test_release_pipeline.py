@@ -188,6 +188,40 @@ def test_launcher_model_executes_launcher_not_java(tmp_path):
     assert result.launcher_version_output == '0.4'
 
 
+def test_launcher_decodes_real_utf8_output_independently_of_locale(tmp_path, monkeypatch):
+    help_output = 'Usage: app-cli scan serve 中文：功能说明'
+    package = _model_runtime(tmp_path)
+    (package / 'bin/run').write_bytes(
+        (
+            '#!/bin/sh\ncase "$1" in --version) echo "0.4 版本";; '
+            f'--help) echo "{help_output}";; esac\n'
+            'printf "诊断信息" >&2\n'
+        ).encode()
+    )
+    monkeypatch.setenv('LC_ALL', 'C')
+    result = h.run_launcher_smoke_test(tmp_path, h.host_platform(), '0.4')
+    assert result.success, result.error
+    assert result.launcher_version_output == '0.4 版本'
+    assert result.launcher_help_output == help_output
+
+
+@pytest.mark.parametrize('argument', ['--version', '--help'])
+@pytest.mark.parametrize('stream', ['stdout', 'stderr'])
+def test_launcher_rejects_real_invalid_utf8_output(tmp_path, argument, stream):
+    package = _model_runtime(tmp_path)
+    launcher = package / 'bin/run'
+    redirect = ' >&2' if stream == 'stderr' else ''
+    launcher.write_bytes(
+        launcher.read_bytes().replace(
+            b'exit 0', f'if [ "$1" = "{argument}" ]; then printf "\\377"{redirect}; fi'.encode()
+        )
+    )
+    result = h.run_launcher_smoke_test(tmp_path, h.host_platform(), '0.4')
+    assert not result.success
+    assert 'utf-8' in result.error
+    assert 'invalid start byte' in result.error
+
+
 def _candidate(root):
     root.mkdir()
     for platform in sorted(h.NATIVE_PLATFORMS | {'generic'}):

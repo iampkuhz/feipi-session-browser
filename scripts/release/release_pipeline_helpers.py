@@ -367,13 +367,15 @@ def run_launcher_smoke_test(
                     cwd=root,
                     env=env,
                     capture_output=True,
-                    text=True,
                     timeout=60,
                     check=False,
                 )
+                # JDK 管道输出按 UTF-8 严格解码，不依赖 Windows ANSI locale。
+                stdout = completed.stdout.decode('utf-8')
+                stderr = completed.stderr.decode('utf-8')
                 if completed.returncode:
-                    raise ValueError(f'launcher {argument} failed: {completed.stderr.strip()}')
-                outputs.append(completed.stdout.strip())
+                    raise ValueError(f'launcher {argument} failed: {stderr.strip()}')
+                outputs.append(stdout.strip())
             if not _valid_outputs(*outputs, expected_version):
                 raise ValueError('launcher version/help output mismatch')
             result.launcher_version_output, result.launcher_help_output = outputs
