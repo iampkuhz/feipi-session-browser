@@ -416,3 +416,20 @@ def test_stable_portability_runner_preserves_both_native_macos_architectures():
         ('windows-2025', 'windows-x64', 'x64'),
     }
     assert len(targets) == 4
+
+
+def test_windows_cli_smoke_calls_each_batch_and_stops_at_first_failure():
+    workflow = yaml.safe_load((ROOT / '.github/workflows/java-quality.yml').read_text())
+    job = workflow['jobs']['java-portability']
+    step = next(item for item in job['steps'] if item['name'] == 'CLI smoke test (Windows)')
+    assert step['shell'] == 'cmd'
+    assert step['if'] == "runner.os == 'Windows'"
+    assert 'continue-on-error' not in step
+    assert step['run'].splitlines() == [
+        r'call .\java\gradlew.bat -p java :java:app-cli:installDist',
+        'if not "%errorlevel%"=="0" exit /b %errorlevel%',
+        r'call java\app-cli\build\install\app-cli\bin\app-cli.bat --help',
+        'if not "%errorlevel%"=="0" exit /b %errorlevel%',
+        r'call java\app-cli\build\install\app-cli\bin\app-cli.bat --version',
+        'if not "%errorlevel%"=="0" exit /b %errorlevel%',
+    ]

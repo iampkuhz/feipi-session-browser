@@ -88,9 +88,12 @@ jobs:
         if: runner.os == 'Windows'
         shell: cmd
         run: |
-          .\java\gradlew.bat -p java :java:app-cli:installDist
-          java\app-cli\build\install\app-cli\bin\app-cli.bat --help
-          java\app-cli\build\install\app-cli\bin\app-cli.bat --version
+          call .\java\gradlew.bat -p java :java:app-cli:installDist
+          if not "%errorlevel%"=="0" exit /b %errorlevel%
+          call java\app-cli\build\install\app-cli\bin\app-cli.bat --help
+          if not "%errorlevel%"=="0" exit /b %errorlevel%
+          call java\app-cli\build\install\app-cli\bin\app-cli.bat --version
+          if not "%errorlevel%"=="0" exit /b %errorlevel%
 
       # 上传测试结果 artifact（有限 retention）
       - name: Upload test results

@@ -188,6 +188,41 @@ def test_launcher_model_executes_launcher_not_java(tmp_path):
     assert result.launcher_version_output == '0.4'
 
 
+def test_launcher_accepts_sgr_but_preserves_original_receipt_output(tmp_path):
+    version = '\x1b[1m0.4\x1b[21m'
+    help_output = '\x1b[1mUsage:\x1b[0m app-cli \x1b[39mscan\x1b[m \x1b[31;1mserve\x1b[0m'
+    _model_runtime(tmp_path, output=version, help_output=help_output)
+    result = h.run_launcher_smoke_test(tmp_path, h.host_platform(), '0.4')
+    assert result.success, result.error
+    assert result.launcher_version_output == version
+    assert result.launcher_help_output == help_output
+
+
+@pytest.mark.parametrize(
+    'version,help_output',
+    [
+        ('\x1b[1m0.40\x1b[0m', 'Usage: app-cli scan serve'),
+        ('0.4', '\x1b[1mWrong:\x1b[0m app-cli scan serve'),
+        ('0.4', 'Usage: app-cli \x1b[1mscan\x1b[0m'),
+        ('0.4', 'Usage: app-cli \x1b[1mserve\x1b[0m'),
+        ('0.4', 'Usage: app-cli sc\x1b[2Jan serve'),
+        ('0.4', 'Usage: app-cli sc\x1b]0;title\x07an serve'),
+    ],
+)
+def test_sgr_normalization_keeps_original_output_requirements(version, help_output):
+    assert not h._valid_outputs(version, help_output, '0.4')
+
+
+@pytest.mark.parametrize('fail', [False, True])
+def test_launcher_failure_diagnostics_do_not_echo_output(tmp_path, fail):
+    private = 'synthetic-private-output'
+    _model_runtime(tmp_path, help_output=private, fail=fail)
+    result = h.run_launcher_smoke_test(tmp_path, h.host_platform(), '0.4')
+    assert not result.success
+    assert private not in result.error
+    assert 'chars' in result.error
+
+
 def test_launcher_decodes_real_utf8_output_independently_of_locale(tmp_path, monkeypatch):
     help_output = 'Usage: app-cli scan serve 中文：功能说明'
     package = _model_runtime(tmp_path)

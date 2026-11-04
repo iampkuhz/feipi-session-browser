@@ -308,6 +308,8 @@ def _structure(extracted, platform, version):
 
 
 def _valid_outputs(version_output, help_output, version):
+    version_output = re.sub(r'\x1b\[[0-9;]*m', '', version_output)
+    help_output = re.sub(r'\x1b\[[0-9;]*m', '', help_output)
     return (
         bool(re.search(rf'(?<![\w.]){re.escape(version)}(?![\w.-])', version_output))
         and 'Usage:' in help_output
@@ -374,10 +376,23 @@ def run_launcher_smoke_test(
                 stdout = completed.stdout.decode('utf-8')
                 stderr = completed.stderr.decode('utf-8')
                 if completed.returncode:
-                    raise ValueError(f'launcher {argument} failed: {stderr.strip()}')
+                    raise ValueError(
+                        f'launcher {argument} failed: returncode={completed.returncode}, '
+                        f'stdout_chars={len(stdout)}, stderr_chars={len(stderr)}'
+                    )
                 outputs.append(stdout.strip())
             if not _valid_outputs(*outputs, expected_version):
-                raise ValueError('launcher version/help output mismatch')
+                diagnostics = {
+                    'version_chars': len(outputs[0]),
+                    'help_chars': len(outputs[1]),
+                    'version_sgr': len(re.findall(r'\x1b\[[0-9;]*m', outputs[0])),
+                    'help_sgr': len(re.findall(r'\x1b\[[0-9;]*m', outputs[1])),
+                    'version_matches': _valid_outputs(
+                        outputs[0], 'Usage: scan serve', expected_version
+                    ),
+                    'help_matches': _valid_outputs(expected_version, outputs[1], expected_version),
+                }
+                raise ValueError(f'launcher version/help output mismatch: {diagnostics}')
             result.launcher_version_output, result.launcher_help_output = outputs
             result.success = True
     except (ValueError, OSError, subprocess.SubprocessError) as error:
