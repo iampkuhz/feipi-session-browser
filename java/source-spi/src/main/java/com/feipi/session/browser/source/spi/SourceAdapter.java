@@ -3,6 +3,7 @@ package com.feipi.session.browser.source.spi;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -85,6 +86,19 @@ public interface SourceAdapter {
    * @return 文件指纹
    */
   SourceFingerprint fingerprint(Path filePath);
+
+  /**
+   * 只读取指定文件的权威计量元数据，不执行发现或读取邻居、sidecar。
+   *
+   * <p>旧适配器默认不提供证据，消费者保持 unknown；不得从归一化后的零值推断字段存在性。
+   *
+   * @param filePath 已校验的单个来源文件
+   * @return 四段计量来源及同范围估算数值，未提供时为空映射
+   * @throws IOException 文件读取失败
+   */
+  default Map<String, String> singleFileMetadata(Path filePath) throws IOException {
+    return Map.of();
+  }
 
   /**
    * 解析指定候选项的会话数据。

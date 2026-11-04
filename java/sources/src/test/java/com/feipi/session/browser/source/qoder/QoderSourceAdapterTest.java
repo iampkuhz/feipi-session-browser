@@ -41,6 +41,85 @@ class QoderSourceAdapterTest {
     adapter = new QoderSourceAdapter();
   }
 
+  @Test
+  void missingUsageKeepsEstimatesButMarksCacheAsUnavailable() throws IOException {
+    Path project = Files.createDirectories(tempDir.resolve("projects/example"));
+    Files.writeString(
+        project.resolve("estimated.jsonl"),
+        """
+        {"type":"user","message":{"content":"synthetic visible context"}}
+        {"type":"assistant","message":{"content":[{"type":"text","text":"synthetic reply"}]}}
+        """);
+    Candidate candidate = adapter.discover(tempDir).orderedItems().getFirst();
+    assertThat(candidate.metadata())
+        .containsEntry("freshInputTokenPrecision", "estimated")
+        .containsEntry("outputTokenPrecision", "estimated")
+        .containsEntry("cacheReadTokenPrecision", "unavailable")
+        .containsEntry("cacheWriteTokenPrecision", "unavailable")
+        .containsEntry("tokenEstimationMethod", "visible_context_v1");
+    assertThat(Long.parseLong(candidate.metadata().get("freshInputTokens"))).isPositive();
+  }
+
+  @Test
+  void reportedZeroPreventsEstimationAndPreservesFieldPresence() throws IOException {
+    Path project = Files.createDirectories(tempDir.resolve("projects/example"));
+    Files.writeString(
+        project.resolve("zero.jsonl"),
+        """
+        {"type":"user","message":{"content":"synthetic context must not be estimated"}}
+        {"type":"assistant","message":{"usage":{"input_tokens":0,"output_tokens":0,"cache_read_input_tokens":0},"content":[{"type":"text","text":"synthetic reply"}]}}
+        """);
+    Candidate candidate = adapter.discover(tempDir).orderedItems().getFirst();
+    assertThat(candidate.metadata())
+        .containsEntry("freshInputTokenPrecision", "provider_reported")
+        .containsEntry("outputTokenPrecision", "provider_reported")
+        .containsEntry("cacheReadTokenPrecision", "provider_reported")
+        .containsEntry("cacheWriteTokenPrecision", "unavailable")
+        .doesNotContainKey("tokenEstimationMethod")
+        .doesNotContainKey("freshInputTokens");
+  }
+
+  @Test
+  void cacheTranscriptUsesItsNamedEstimateWithoutInventingCacheUsage() throws IOException {
+    Path project = Files.createDirectories(tempDir.resolve("cache/projects/example"));
+    Files.writeString(
+        project.resolve("cache-estimate.jsonl"),
+        """
+        {"role":"user","content":"synthetic cached question"}
+        {"role":"assistant","content":"synthetic cached response"}
+        """);
+    Candidate candidate = adapter.discover(tempDir).orderedItems().getFirst();
+    assertThat(candidate.metadata())
+        .containsEntry("freshInputTokenPrecision", "estimated")
+        .containsEntry("outputTokenPrecision", "estimated")
+        .containsEntry("cacheReadTokenPrecision", "unavailable")
+        .containsEntry("cacheWriteTokenPrecision", "unavailable")
+        .containsEntry("tokenEstimationMethod", "cache_transcript_v1");
+    assertThat(Long.parseLong(candidate.metadata().get("freshInputTokens"))).isPositive();
+    assertThat(Long.parseLong(candidate.metadata().get("outputTokens"))).isPositive();
+  }
+
+  @Test
+  void partiallyReportedSegmentsRemainMixedWithoutReplacingRealUsage() throws IOException {
+    Path project = Files.createDirectories(tempDir.resolve("projects/example"));
+    Files.writeString(
+        project.resolve("partial.jsonl"),
+        """
+        {"type":"user","message":{"content":"synthetic question"}}
+        {"type":"assistant","message":{"usage":{"input_tokens":12,"output_tokens":0,"cache_read_input_tokens":0},"content":"first"}}
+        {"type":"assistant","message":{"usage":{"input_tokens":8,"output_tokens":0},"content":"second"}}
+        """);
+    Candidate candidate = adapter.discover(tempDir).orderedItems().getFirst();
+    assertThat(candidate.metadata())
+        .containsEntry("freshInputTokenPrecision", "provider_reported")
+        .containsEntry("outputTokenPrecision", "provider_reported")
+        .containsEntry("cacheReadTokenPrecision", "mixed")
+        .containsEntry("cacheWriteTokenPrecision", "unavailable")
+        .containsEntry("tokenContainsUnavailable", "true")
+        .doesNotContainKey("tokenEstimationMethod")
+        .doesNotContainKey("freshInputTokens");
+  }
+
   @Nested
   @DisplayName("sourceId")
   class SourceIdTests {

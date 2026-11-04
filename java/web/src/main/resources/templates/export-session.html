@@ -27,6 +27,7 @@
         .sd-metric { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 0.375rem; padding: 0.75rem; text-align: center; }
         .sd-metric__value { display: block; font-size: 1.25rem; font-weight: 700; color: #0f172a; }
         .sd-metric__label { display: block; font-size: 0.75rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
+        .measurement-note { color: #64748b; font-size: 0.8rem; margin: 0.75rem 0; }
 
         /* Token bar */
         .tokenbar { display: flex; height: 0.5rem; border-radius: 0.25rem; overflow: hidden; margin: 1rem 0; background: #e2e8f0; }
@@ -72,6 +73,7 @@
         .payload-section { margin: 2rem 0; }
         .payload-section h2 { font-size: 1.25rem; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid #e2e8f0; }
         .payload-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+        .payload-table td:nth-child(1), .payload-table td:nth-child(3), .payload-table td:nth-child(4) { overflow-wrap: anywhere; }
         .payload-table th { text-align: left; padding: 0.5rem 0.75rem; background: #f8fafc; border-bottom: 2px solid #e2e8f0; color: #64748b; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; }
         .payload-table td { padding: 0.375rem 0.75rem; border-bottom: 1px solid #f1f5f9; }
         .payload-kind { display: inline-block; padding: 0.0625rem 0.375rem; border-radius: 0.125rem; font-size: 0.7rem; font-weight: 600; }
@@ -93,6 +95,21 @@
     </style>
 </head>
 <body>
+
+{% macro token_value(value, precision, estimated) %}
+    {% if precision == 'unavailable' %}Not reported
+    {% elseif precision == 'provider_reported' %}{{ value | format_compact_token }}
+    {% elseif precision == 'estimated' %}≈{{ value | format_compact_token }} · Estimated
+    {% elseif precision == 'mixed' %}{% if value > 0 %}{% if estimated %}≈{% endif %}{{ value | format_compact_token }}{% else %}N/A{% endif %} · Partial{% if estimated %} · Estimated{% endif %}
+    {% else %}{% if value > 0 %}{{ value | format_compact_token }}{% else %}N/A{% endif %} · Unknown
+    {% endif %}
+{% endmacro %}
+
+{% set provenance = session_metrics.token_provenance %}
+{% set total_precision = provenance.freshInput == provenance.cacheRead and provenance.freshInput == provenance.cacheWrite and provenance.freshInput == provenance.output ? provenance.freshInput : 'mixed' %}
+{% set has_estimated = provenance.estimatedSessionCount > 0 or provenance.freshInput == 'estimated' or provenance.cacheRead == 'estimated' or provenance.cacheWrite == 'estimated' or provenance.output == 'estimated' %}
+{% set has_unavailable = provenance.unavailableSessionCount > 0 or provenance.freshInput == 'unavailable' or provenance.cacheRead == 'unavailable' or provenance.cacheWrite == 'unavailable' or provenance.output == 'unavailable' %}
+{% set has_unknown = provenance.unknownSessionCount > 0 or provenance.freshInput == 'unknown' or provenance.cacheRead == 'unknown' or provenance.cacheWrite == 'unknown' or provenance.output == 'unknown' %}
 
 {# 中文说明：维护当前模板结构说明，原注释作为代码上下文保留：`── Export header ──` #}
 <div class="export-header">
@@ -124,13 +141,13 @@
 
     {# 中文说明：维护当前模板结构说明，原注释作为代码上下文保留：`── Metrics ──` #}
     <div class="sd-metrics">
-        <div class="sd-metric" title="Total tokens">
-            <span class="sd-metric__value">{{ session_metrics.total_tokens | format_compact_token }}</span>
+        <div class="sd-metric" title="Total tokens" data-export-metric="total">
+            <span class="sd-metric__value">{{ token_value(session_metrics.total_tokens, total_precision, has_estimated) }}</span>
             <span class="sd-metric__label">Tokens</span>
         </div>
-        <div class="sd-metric" title="Duration">
-            <span class="sd-metric__value">{{ session_metrics.duration_seconds | format_duration }}</span>
-            <span class="sd-metric__label">Duration</span>
+        <div class="sd-metric" title="Wall-clock duration, including idle time" data-export-metric="duration">
+            <span class="sd-metric__value">{% if session_metrics.timing.wallSeconds is not null and (session_metrics.timing.wallPrecision == 'measured' or session_metrics.timing.wallPrecision == 'partial') %}{{ session_metrics.timing.wallSeconds | format_duration }}{% if session_metrics.timing.wallPrecision == 'partial' %} · Partial{% endif %}{% else %}N/A · Unknown{% endif %}</span>
+            <span class="sd-metric__label">Wall Duration</span>
         </div>
         <div class="sd-metric" title="Rounds">
             <span class="sd-metric__value">{{ round_count }}</span>
@@ -148,20 +165,20 @@
             <span class="sd-metric__value">{{ session_metrics.subagent_instance_count }}</span>
             <span class="sd-metric__label">Subagents</span>
         </div>
-        <div class="sd-metric" title="Output tokens">
-            <span class="sd-metric__value">{{ session_metrics.output_tokens | format_compact_token }}</span>
+        <div class="sd-metric" title="Output tokens" data-export-metric="output">
+            <span class="sd-metric__value">{{ token_value(session_metrics.output_tokens, provenance.output, has_estimated) }}</span>
             <span class="sd-metric__label">Output</span>
         </div>
-        <div class="sd-metric" title="Cache read tokens">
-            <span class="sd-metric__value">{{ session_metrics.cache_read_tokens | format_compact_token }}</span>
+        <div class="sd-metric" title="Cache read tokens" data-export-metric="cacheRead">
+            <span class="sd-metric__value">{{ token_value(session_metrics.cache_read_tokens, provenance.cacheRead, has_estimated) }}</span>
             <span class="sd-metric__label">Cache Read</span>
         </div>
-        <div class="sd-metric" title="Cache write tokens">
-            <span class="sd-metric__value">{{ session_metrics.cache_write_tokens | format_compact_token }}</span>
+        <div class="sd-metric" title="Cache write tokens" data-export-metric="cacheWrite">
+            <span class="sd-metric__value">{{ token_value(session_metrics.cache_write_tokens, provenance.cacheWrite, has_estimated) }}</span>
             <span class="sd-metric__label">Cache Write</span>
         </div>
-        <div class="sd-metric" title="Fresh input tokens">
-            <span class="sd-metric__value">{{ session_metrics.fresh_input_tokens | format_compact_token }}</span>
+        <div class="sd-metric" title="Fresh input tokens" data-export-metric="freshInput">
+            <span class="sd-metric__value">{{ token_value(session_metrics.fresh_input_tokens, provenance.freshInput, has_estimated) }}</span>
             <span class="sd-metric__label">Fresh Input</span>
         </div>
         <div class="sd-metric" title="User messages">
@@ -173,10 +190,19 @@
             <span class="sd-metric__label">Asst Msgs</span>
         </div>
     </div>
+    {% if total_precision != 'provider_reported' %}
+    <p class="measurement-note" data-export-token-provenance>
+        {% if total_precision == 'mixed' %}Partial / mixed measurement. {% endif %}
+        {% if has_estimated %}Estimated. {% endif %}
+        {% if has_unavailable %}Not reported. {% endif %}
+        {% if has_unknown or provenance is empty %}Unknown source. {% endif %}
+        Token composition is unavailable unless all four segments are provider reported.
+    </p>
+    {% endif %}
 
     {# 中文说明：维护当前模板结构说明，原注释作为代码上下文保留：`── Token composition bar ──` #}
     {% set total = session_metrics.fresh_input_tokens + session_metrics.cache_read_tokens + session_metrics.cache_write_tokens + session_metrics.output_tokens %}
-    {% if total > 0 %}
+    {% if total > 0 and total_precision == 'provider_reported' %}
     <div class="tokenbar">
         <span class="tokenbar__seg tokenbar__seg--fresh" style="--seg-pct: {{ (session_metrics.fresh_input_tokens / total * 100) | round(1) }}%"></span>
         <span class="tokenbar__seg tokenbar__seg--read" style="--seg-pct: {{ (session_metrics.cache_read_tokens / total * 100) | round(1) }}%"></span>

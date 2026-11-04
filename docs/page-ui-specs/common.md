@@ -3,7 +3,7 @@
 ## Shell
 
 - 所有页面使用统一 app shell：Sidebar、Topbar、Main、Content、Footer 结构稳定。
-- Sidebar 目标主导航只包含 Dashboard、Sessions、Projects，并高亮当前页面。
+- Sidebar 主导航包含 Dashboard、Sessions、Projects、导入分析，并高亮当前页面。导入分析与前三者的个人数据范围隔离，不将导入记录列入个人统计。
 - 单 agent 深度信息通过 Dashboard agent scope selector 展示；Agent Detail 不作为目标页面。
 - Token Glossary 是辅助 reference 入口，不作为核心业务主导航。
 - Topbar 展示面包屑和必要操作，不承载长说明文案。
@@ -114,7 +114,15 @@
 - `Tokenbar` 总宽度固定为 88px；高度固定为 6px；圆角固定为 999px。
 - `Tokenbar` tooltip 固定展示 Fresh、Cache Read、Cache Write、Output 的数量和占比，并展示 total tokens。
 - token 字段缺失时 `Token Cell` 显示 `N/A`，tooltip 固定说明缺失字段和来源。
-- total tokens 为 0 时 `Tokenbar` 显示空轨道，tooltip 展示四类 token 均为 0。
+- 只有 `provider_reported` 的真实 0 才按实测 0 展示；缺来源、未上报的 0 不能解释为实测 0。
+
+### Token Measurement Provenance
+
+- Dashboard、Sessions、Projects、Project Detail、Session Detail 共用 API `tokens.provenance`，四段状态独立于数值；不按 agent 名称、非零值或 session 总量推断 round/call 精度。
+- `provider_reported` 显示上报值；`estimated` 数值带 `≈`，并常驻 `Estimated` 和估算法；`unavailable` 显示 `Not reported`；缺 provenance 或 `unknown` 显示 `Unknown`（非零 observed 值可保留，零显示 `N/A`）。
+- `mixed`/不同四段精度显示 `Partial`，常驻估算、未上报、未知覆盖会话数。覆盖数可重叠，不能相加当作总会话数。
+- Cache Read Ratio 仅在全部输入段为 `provider_reported` 且分母大于 0 时显示精确百分比；其余显示 `N/A` 和 `Partial`/`Not reported`/`Unknown`，不补 0% 折线、不触发低缓存信号。
+- 必要精度说明不能仅放 tooltip。缩略数值、分段、趋势、平均值、贡献比较使用同一语义；导入页只使用当前 import API，不从个人 API 补 provenance。
 
 ### Chart Tooltip
 
@@ -149,8 +157,11 @@
 - 长路径、session id、model 使用 mono；token 数值使用 tabular number。
 - `Created` 固定表示 session created_at；created_at 缺失时使用 first event timestamp，并在 tooltip 标注 fallback。
 - `Updated` 固定表示 session 最新 indexed event timestamp。
-- `Duration` 固定表示最后一个可见输出 timestamp 减去 `Created`；无可见输出时使用 `Updated - Created`，并在 tooltip 标注 fallback。
-- `Process Time` 固定表示主动处理耗时合计；每段从 user message timestamp 开始，到该轮最后一个 assistant output、tool result、subagent output timestamp 结束；等待下一次用户输入和人工反馈的间隔不计入。
+- `Wall Duration` 使用 typed `timing.wallSeconds/wallPrecision`，表示源可见墙钟跨度，不代表执行；缺来源显示 `N/A`。
+- `Task Active` 使用 `timing.activeTaskSeconds`，仅 MAIN 源任务窗口的 union，包含工具/等待，不是模型推理时间；不从 transcript 首末跨度或 legacy `processSeconds` 补值。
+- `Agent Turn` 使用 `timing.agentTurnSeconds`，是 MAIN agent turn 累计 workload，独立于 Task Active，不能代替 task/wall 时间。
+- 所有 timing 字段独立遵守 `measured | partial | unknown`；`unknown`/null 显示 `N/A`，真实 measured 0 显示 `0s`，partial 常驻标记 `Partial`。
+- `Model Execution`、`Tool Execution` 仅显示相应 typed timing，不以 legacy 0 或 `wall - tool` 猜值。只有 wall/task 均 measured 才派生 `Non-task Wall Time`，且不得称为用户等待。
 - 无数据页面展示明确空态和可执行下一步；过滤无结果展示当前条件和清除入口。
 - 404、Error、空态页使用统一状态组件，不使用营销式 hero。
 

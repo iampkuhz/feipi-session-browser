@@ -2,15 +2,17 @@
 
 ## Requirements
 
-### Requirement: 受控顶层保持 14 项
+### Requirement: 受控顶层保持 13 项
 
-仓库 SHALL 仅保留 11 个受控顶层目录：`.agents/`、`.claude/`、`.codex/`、`.github/`、`.qoder/`、`docs/`、`harness/`、`java/`、`openspec/`、`scripts/`、`skills/`，以及 `.gitignore`、`AGENTS.md`、`README.md` 三个文件。旧入口 SHALL NOT 通过副本、转发文件或软链接恢复。
+仓库 SHALL 仅保留 10 个受控顶层目录：`.agents/`、`.claude/`、`.codex/`、`.github/`、`docs/`、`harness/`、`java/`、`openspec/`、`scripts/`、`skills/`，以及 `.gitignore`、`AGENTS.md`、`README.md` 三个文件。旧入口 SHALL NOT 通过副本、转发文件或软链接恢复。
+
+工程 `.qoder/` SHALL NOT 作为受维护客户端入口或 parity 要求；整个 `/.qoder/` SHALL 保持 ignored，删除仅限 tracked 工程文件，不清理个人数据。通用安全保护及产品 Qoder session 支持 SHALL 保留。
 
 #### Scenario: 验证未提交的目录迁移
 
 - **Given** Git index 可能仍包含已移除的旧路径
 - **When** 验证受控工作树布局
-- **Then** 检查 SHALL 包含实际存在的 tracked 文件与未被忽略的新文件，顶层集合精确为 14 项
+- **Then** 检查 SHALL 包含实际存在的 tracked 文件与未被忽略的新文件，顶层集合精确为 13 项
 - **And** Git 元数据、ignored 本地数据、venv、依赖缓存与其他 worktree SHALL 不因顶层计数被删除
 
 ### Requirement: 测试与配置按职责拥有

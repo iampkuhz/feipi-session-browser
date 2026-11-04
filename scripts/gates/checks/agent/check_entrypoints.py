@@ -35,7 +35,6 @@ class RuntimeInputs:
     skills: dict[str, str]
     claude_allowlist: str
     settings: object
-    qoder_settings: object
 
 
 def _read_text(path: Path) -> str:
@@ -64,9 +63,6 @@ def _load_runtime_inputs(root: Path = ROOT) -> RuntimeInputs:
                 )
     codex_paths = {str(path.relative_to(root)) for path in (root / '.codex/agents').glob('*.toml')}
     entry_paths.update(codex_paths)
-    entry_paths.update(
-        str(path.relative_to(root)) for path in (root / '.qoder/agents').glob('*.md')
-    )
     entries = {relative: _read_text(root / relative) for relative in sorted(entry_paths)}
     codex_agents = {relative: tomllib.loads(entries[relative]) for relative in sorted(codex_paths)}
     return RuntimeInputs(
@@ -76,7 +72,6 @@ def _load_runtime_inputs(root: Path = ROOT) -> RuntimeInputs:
         skills={relative: _read_text(root / relative) for relative in sorted(skill_paths)},
         claude_allowlist=_read_text(root / '.claude/agents/qwen-main-default.md'),
         settings=json.loads(_read_text(root / '.claude/settings.json')),
-        qoder_settings=json.loads(_read_text(root / '.qoder/settings.json')),
     )
 
 
@@ -117,60 +112,6 @@ def _check_codex_entry(name: str, relative: str, data: object, skill: str) -> li
     return errors
 
 
-def _check_qoder(name: str, relative: str, text: str, skill: str) -> list[str]:
-    """检查 Qoder 薄入口的名称、使用说明和共享 Skill 引用。"""
-    errors: list[str] = []
-    match = _qoder_frontmatter(text)
-    body = match.group(2) if match else text
-    if not body.startswith(f'# {name}\n') or '## When To Use' not in body:
-        errors.append(f'{relative} missing Qoder name/When To Use metadata')
-    if skill not in body or len(body.splitlines()) > 12:
-        errors.append(f'{relative} is not a thin shared Skill entry')
-    return errors
-
-
-def _qoder_frontmatter(text: str) -> re.Match[str] | None:
-    """按独立分隔行识别客户端 frontmatter，避免把正文横线误当元数据。"""
-    return re.fullmatch(r'---\n(.*?)\n---(?:\n|$)(.*)', text, flags=re.DOTALL)
-
-
-def _check_qoder_configuration(inputs: RuntimeInputs) -> list[str]:
-    """检查全部项目入口及默认引用，不依赖领域 manifest 是否登记该文件。"""
-    errors: list[str] = []
-    names: set[str] = set()
-    for relative, text in inputs.entries.items():
-        if not relative.startswith('.qoder/agents/'):
-            continue
-        match = _qoder_frontmatter(text)
-        if not match:
-            errors.append(f'{relative}: missing Qoder frontmatter')
-            continue
-        try:
-            metadata = yaml.safe_load(match.group(1))
-        except yaml.YAMLError:
-            errors.append(f'{relative}: invalid Qoder YAML metadata')
-            continue
-        if not isinstance(metadata, dict):
-            errors.append(f'{relative}: Qoder metadata must be object')
-            continue
-        name = metadata.get('name')
-        if name != Path(relative).stem:
-            errors.append(f'{relative}: Qoder name must match filename')
-        else:
-            names.add(name)
-        description = metadata.get('description')
-        if not isinstance(description, str) or not description.strip():
-            errors.append(f'{relative}: Qoder description must be non-empty string')
-        if 'model' in metadata and metadata['model'] != 'inherit':
-            errors.append(f'{relative}: Qoder model must inherit, not be pinned')
-    settings = inputs.qoder_settings
-    if not isinstance(settings, dict):
-        errors.append('.qoder/settings.json must be object')
-    elif not isinstance(settings.get('agent'), str) or settings['agent'] not in names:
-        errors.append('.qoder/settings.json default agent must reference a project agent')
-    return errors
-
-
 def _check_agent_entries(inputs: RuntimeInputs | None = None) -> list[str]:
     """按已加载的 manifest 唯一映射验证领域 Agent 薄入口。"""
 
@@ -187,7 +128,7 @@ def _check_agent_entries(inputs: RuntimeInputs | None = None) -> list[str]:
         if skill not in current.skills:
             errors.append(f'{name} shared Skill missing: {skill}')
         entries = config.get('entries', {})
-        for platform in ('claude', 'codex', 'qoder'):
+        for platform in ('claude', 'codex'):
             relative = str(entries.get(platform) or '') if isinstance(entries, dict) else ''
             text = current.entries.get(relative)
             if text is None:
@@ -201,8 +142,6 @@ def _check_agent_entries(inputs: RuntimeInputs | None = None) -> list[str]:
                         str(name), relative, current.codex_agents.get(relative), skill
                     )
                 )
-            else:
-                errors.extend(_check_qoder(str(name), relative, text, skill))
             errors.extend(
                 f'{relative} duplicates Skill section: {heading}'
                 for heading in DOMAIN_HEADINGS
@@ -310,7 +249,6 @@ def check(arguments: list[str]) -> CheckResult:
         return CheckResult.from_errors([f'Agent runtime 配置内容无效: {exc}'])
     errors = [
         *_check_agent_entries(inputs),
-        *_check_qoder_configuration(inputs),
         *(
             f'Claude main allowlist missing specialist: {name}'
             for name in _manifest_agents(inputs)

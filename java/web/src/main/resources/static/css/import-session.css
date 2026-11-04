@@ -1,0 +1,94 @@
+/* 导入分析页独立 ownership；不改变个人列表或详情布局。 */
+.import-session {
+  display: grid;
+  gap: var(--space-xl);
+  min-width: 0;
+}
+.import-session__panel {
+  max-width: 860px;
+  padding: var(--space-xl);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+}
+.import-session__panel h2,
+.import-session__notes h2 {
+  margin: 0 0 var(--space-md);
+  font-size: var(--text-xl);
+}
+.import-session__scope {
+  color: var(--text-secondary);
+  margin: 0 0 var(--space-xl);
+  line-height: var(--lh-loose);
+}
+.import-session__form {
+  display: grid;
+  gap: var(--space-xl);
+  min-width: 0;
+}
+.import-session__field {
+  display: grid;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+.import-session__field label {
+  font-weight: 700;
+}
+.import-session__field select,
+.import-session__field input {
+  box-sizing: border-box;
+  max-width: 100%;
+  width: 100%;
+  min-width: 0;
+  padding: var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+}
+.import-session__help,
+.import-session__filename {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+.import-session__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+}
+.import-session__status {
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.import-session__error {
+  padding: var(--space-lg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+  overflow-wrap: anywhere;
+}
+.import-session__error h3 {
+  margin: 0 0 var(--space-sm);
+  font-size: var(--text-base);
+}
+.import-session__error p {
+  margin: 0 0 var(--space-md);
+}
+.import-session__notes {
+  max-width: 860px;
+  color: var(--text-secondary);
+  line-height: var(--lh-loose);
+}
+.import-session__notes ul {
+  margin: 0;
+  padding-left: var(--space-xl);
+}
+@media (max-width: 1023px) {
+  .import-session__panel {
+    padding: var(--space-lg);
+  }
+}

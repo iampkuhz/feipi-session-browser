@@ -676,11 +676,11 @@ class AggregateQueryRepositoryTest {
     @DisplayName("P95 时长正确计算")
     void p95Duration() throws Exception {
       List<AgentEfficiency> rows = repo.agentEfficiency();
-      // claude-3-opus 有 2 个会话: 3600.0 和 5400.0
-      // P95 最近秩：index = int(0.95 * 1) = 0，排序后首值 = 3600.0
+      // claude-3-opus 的正时长升序为 [3600.0, 5400.0]，共 2 个会话。
+      // P95 最近秩为 ceil(0.95 * 2) = 2（从 1 起），index = 1，对应 5400.0。
       AgentEfficiency claude =
           rows.stream().filter(r -> r.model().equals("claude-3-opus")).findFirst().orElseThrow();
-      assertThat(claude.p95Duration()).isEqualTo(3600.0);
+      assertThat(claude.p95Duration()).isEqualTo(5400.0);
       // 平均时长 = (3600 + 5400) / 2 = 4500.0
       assertThat(claude.avgDuration()).isEqualTo(4500.0);
     }

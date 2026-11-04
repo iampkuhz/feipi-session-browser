@@ -1,0 +1,32 @@
+/* Shared token measurement disclosure owns only token-provenance* classes. */
+.token-provenance {
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.4;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.token-provenance-value[data-token-measurement] {
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  line-height: 1.25;
+}
+.token-provenance-group[data-token-disclosure] {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.token-provenance-primary[data-token-disclosure] {
+  grid-template-rows: auto auto;
+}
+.token-provenance-flow[data-token-disclosure] {
+  flex-wrap: wrap;
+}
+.token-provenance-flow > .token-provenance {
+  flex-basis: 100%;
+}

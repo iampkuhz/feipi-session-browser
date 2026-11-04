@@ -11,6 +11,11 @@ public final class TokenAccountant {
   /** 防止实例化。 */
   private TokenAccountant() {}
 
+  /** 判断 Codex 新旧 usage 记录是否是响应末尾的调用边界。 */
+  static boolean isUsageClosingFrame(String callId) {
+    return callId.startsWith("token_count:") || callId.startsWith("token_usage_record:");
+  }
+
   /**
    * 从源中性记录提取 token 用量。
    *

@@ -11,7 +11,6 @@ ROOT_DIRECTORIES = {
     '.claude',
     '.codex',
     '.github',
-    '.qoder',
     'docs',
     'harness',
     'java',
@@ -40,7 +39,7 @@ OLD_ENTRIES = (
 )
 
 
-def test_controlled_root_has_only_eleven_directories_and_three_files() -> None:
+def test_controlled_root_has_only_ten_directories_and_three_files() -> None:
     result = subprocess.run(
         ['git', 'ls-files', '--cached', '--others', '--exclude-standard', '-z'],
         cwd=ROOT,

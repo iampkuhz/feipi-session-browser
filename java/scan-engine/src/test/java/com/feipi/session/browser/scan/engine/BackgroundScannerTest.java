@@ -35,11 +35,13 @@ class BackgroundScannerTest {
             new TierConfig(300, 120), // hot: 120 秒间隔
             new TierConfig(86400, 3600), // warm: 3600 秒间隔
             scanLock,
+            token -> hotCount.incrementAndGet(),
+            token -> warmCount.incrementAndGet(),
             () -> {
-              hotCount.incrementAndGet();
+              // 摘要回调位于调度时间戳更新之后；动作返回前不能视作整个 tick 完成。
               hotCompleted.countDown();
+              return null;
             },
-            warmCount::incrementAndGet,
             clock);
 
     try {

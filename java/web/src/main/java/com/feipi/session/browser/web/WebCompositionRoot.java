@@ -1,11 +1,13 @@
 package com.feipi.session.browser.web;
 
 import com.feipi.session.browser.application.QueryCompositionRoot;
+import com.feipi.session.browser.application.imports.ImportedSessionUseCase;
 import com.feipi.session.browser.index.api.IndexQueryException;
 import com.feipi.session.browser.web.api.ApiResponses.ApiErrorResponse;
 import com.feipi.session.browser.web.api.DashboardApiHandler;
 import com.feipi.session.browser.web.api.ExportApiHandler;
 import com.feipi.session.browser.web.api.GlossaryApiHandler;
+import com.feipi.session.browser.web.api.ImportedSessionApiHandler;
 import com.feipi.session.browser.web.api.PageApiDtos.PageStateModel;
 import com.feipi.session.browser.web.api.PageApiDtos.SafeErrorDetails;
 import com.feipi.session.browser.web.api.ProjectDetailApiHandler;
@@ -19,20 +21,24 @@ import com.feipi.session.browser.web.api.SessionsApiHandler;
 import com.feipi.session.browser.web.export.ExportHandler;
 import com.feipi.session.browser.web.page.DashboardPage;
 import com.feipi.session.browser.web.page.GlossaryPage;
+import com.feipi.session.browser.web.page.ImportedSessionPage;
 import com.feipi.session.browser.web.page.ProjectsPage;
 import com.feipi.session.browser.web.page.SessionDetailPage;
 import com.feipi.session.browser.web.page.SessionsPage;
 import com.feipi.session.browser.web.template.PebbleEnvironment;
 import io.javalin.Javalin;
+import io.javalin.config.SizeUnit;
 import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
 import io.javalin.http.staticfiles.Location;
+import java.io.IOException;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -64,6 +70,8 @@ public final class WebCompositionRoot {
   private final WebConfig config;
   private final PebbleEnvironment templates;
   private final SessionApiService apiService;
+  private final ImportedSessionUseCase imports;
+  private final AtomicBoolean importsClosed = new AtomicBoolean();
 
   /**
    * 创建 Composition Root。
@@ -74,11 +82,26 @@ public final class WebCompositionRoot {
    * @param config Web 服务器配置
    */
   public WebCompositionRoot(QueryCompositionRoot queryRoot, WebConfig config) {
+    this(queryRoot, config, null);
+  }
+
+  /**
+   * 创建带独立文件分析的 Web 入口，个人查询入口保持原有职责。
+   *
+   * @param queryRoot 个人只读查询入口
+   * @param config Web 配置
+   * @param imports 独立导入用例；为 null 时不开放导入路由
+   */
+  public WebCompositionRoot(
+      QueryCompositionRoot queryRoot, WebConfig config, ImportedSessionUseCase imports) {
     this.queryRoot = Objects.requireNonNull(queryRoot, "queryRoot 不得为 null");
     this.config = Objects.requireNonNull(config, "config 不得为 null");
+    this.imports = imports;
     this.templates = new PebbleEnvironment();
     this.apiService = new SessionApiService(queryRoot.sessionDetail());
-    this.app = createAndConfigureJavalin(queryRoot, config, templates, apiService);
+    this.app =
+        createAndConfigureJavalin(
+            queryRoot, config, templates, apiService, imports, this::closeImportsSafely);
     LOG.debug("Web Composition Root 初始化完成");
   }
 
@@ -88,18 +111,32 @@ public final class WebCompositionRoot {
    * @param queryRoot 查询 composition root
    * @param config Web 服务器配置
    * @param templates Pebble 模板环境
+   * @param apiService 个人详情 API 服务
+   * @param imports 可选的独立文件分析用例
+   * @param closeImports 生命周期终止时的资源清理
    * @return 配置完成的 Javalin 实例
    */
   private static Javalin createAndConfigureJavalin(
       QueryCompositionRoot queryRoot,
       WebConfig config,
       PebbleEnvironment templates,
-      SessionApiService apiService) {
+      SessionApiService apiService,
+      ImportedSessionUseCase imports,
+      Runnable closeImports) {
     return Javalin.create(
         javalinConfig -> {
           configureHttp(javalinConfig);
+          if (imports != null) {
+            javalinConfig.events.serverStopped(closeImports::run);
+            javalinConfig.events.serverStartFailed(closeImports::run);
+            long maxFile = imports.limits().maxFileBytes();
+            long maxRequest = Math.addExact(maxFile, 64L * 1024);
+            javalinConfig.http.maxRequestSize = maxRequest;
+            javalinConfig.jetty.multipartConfig.maxFileSize(maxFile, SizeUnit.BYTES);
+            javalinConfig.jetty.multipartConfig.maxTotalRequestSize(maxRequest, SizeUnit.BYTES);
+          }
           configureStaticFiles(javalinConfig, config);
-          registerRoutes(javalinConfig, queryRoot, templates, apiService);
+          registerRoutes(javalinConfig, queryRoot, templates, apiService, imports);
           registerExceptionHandlers(javalinConfig, templates);
         });
   }
@@ -131,7 +168,8 @@ public final class WebCompositionRoot {
       io.javalin.config.JavalinConfig javalinConfig,
       QueryCompositionRoot queryRoot,
       PebbleEnvironment templates,
-      SessionApiService apiService) {
+      SessionApiService apiService,
+      ImportedSessionUseCase imports) {
 
     // 访问日志：记录开始时间
     javalinConfig.routes.before(RuntimeAccessLog::before);
@@ -167,6 +205,17 @@ public final class WebCompositionRoot {
           sessionDetailPage.handle(ctx, agentParam, sessionIdParam);
         });
     javalinConfig.routes.get("/glossary", glossaryPage::handle);
+
+    if (imports != null) {
+      ImportedSessionPage importPage =
+          new ImportedSessionPage(imports, templates, sessionDetailPage);
+      ImportedSessionApiHandler importApi = new ImportedSessionApiHandler(imports);
+      javalinConfig.routes.get("/imports", importPage::handleIndex);
+      javalinConfig.routes.get("/imports/{importId}", importPage::handleDetail);
+      javalinConfig.routes.post("/api/imports", importApi::handleCreate);
+      javalinConfig.routes.delete("/api/imports/{importId}", importApi::handleDelete);
+      javalinConfig.routes.get("/api/imports/{importId}/*", importApi::handleResource);
+    }
 
     // JSON API 路由
     registerApiRoutes(javalinConfig, queryRoot, apiService);
@@ -424,6 +473,25 @@ public final class WebCompositionRoot {
   public void invalidateCache() {
     queryRoot.invalidateCache();
     apiService.invalidateCache();
+  }
+
+  /**
+   * 释放独立分析资源，可在启动失败或退出清理时重复调用，不关闭个人索引。
+   *
+   * @throws IOException 导入资源清理失败
+   */
+  public void closeImports() throws IOException {
+    if (imports != null && importsClosed.compareAndSet(false, true)) {
+      imports.close();
+    }
+  }
+
+  private void closeImportsSafely() {
+    try {
+      closeImports();
+    } catch (IOException e) {
+      LOG.warn("独立导入资源清理失败: {}", e.getClass().getSimpleName());
+    }
   }
 
   /**

@@ -50,13 +50,23 @@ class IndexSchemaTest {
     }
 
     @Test
-    @DisplayName("sessions 表包含全部 28 列")
+    @DisplayName("sessions 表包含数值与 provenance 列")
     void sessionsTableHasAllColumns() throws SQLException {
       IndexSchema schema = IndexSchema.withDefaults();
       schema.ensureSchema(conn);
 
       Set<String> columns = getTableColumns("sessions");
-      assertThat(columns).hasSize(28);
+      assertThat(columns).hasSize(37);
+      assertThat(columns)
+          .contains(
+              "fresh_input_token_precision",
+              "cache_read_token_precision",
+              "cache_write_token_precision",
+              "output_token_precision",
+              "token_estimation_method",
+              "token_contains_estimated",
+              "token_contains_unavailable",
+              "token_contains_unknown");
       assertThat(columns)
           .contains(
               "session_key",
@@ -96,6 +106,34 @@ class IndexSchemaTest {
         rs.next();
         assertThat(rs.getInt(1)).isZero();
       }
+    }
+  }
+
+  @Test
+  void existingRowsStayUnknownWhenPrecisionColumnsAreAdded() throws SQLException {
+    MigrationRunner.withAllMigrations().applyAll(conn);
+    try (Statement stmt = conn.createStatement()) {
+      stmt.execute(
+          "INSERT INTO sessions (session_key, agent, session_id, project_key, ended_at,"
+              + " fresh_input_tokens) VALUES ('legacy', 'qoder', 'legacy', 'example', '2026-01-01',"
+              + " 12)");
+    }
+    IndexSchema.withDefaults().ensureSchema(conn);
+    IndexSchema.withDefaults().ensureSchema(conn);
+    try (Statement stmt = conn.createStatement();
+        ResultSet rs =
+            stmt.executeQuery(
+                "SELECT fresh_input_tokens, fresh_input_token_precision,"
+                    + " cache_read_token_precision, token_contains_unknown,"
+                    + " token_contains_estimated, timing_json FROM sessions WHERE"
+                    + " session_key='legacy'")) {
+      assertThat(rs.next()).isTrue();
+      assertThat(rs.getLong("fresh_input_tokens")).isEqualTo(12);
+      assertThat(rs.getString("fresh_input_token_precision")).isEqualTo("unknown");
+      assertThat(rs.getString("cache_read_token_precision")).isEqualTo("unknown");
+      assertThat(rs.getLong("token_contains_unknown")).isEqualTo(1);
+      assertThat(rs.getLong("token_contains_estimated")).isZero();
+      assertThat(rs.getString("timing_json")).isEqualTo("{}");
     }
   }
 
@@ -161,7 +199,17 @@ class IndexSchemaTest {
 
       // 验证全部列已存在
       Set<String> columns = getTableColumns("sessions");
-      assertThat(columns).hasSize(28);
+      assertThat(columns).hasSize(37);
+      assertThat(columns)
+          .contains(
+              "fresh_input_token_precision",
+              "cache_read_token_precision",
+              "cache_write_token_precision",
+              "output_token_precision",
+              "token_estimation_method",
+              "token_contains_estimated",
+              "token_contains_unavailable",
+              "token_contains_unknown");
       assertThat(columns).contains("title", "model", "total_tokens", "file_path", "indexed_at");
     }
 
@@ -185,7 +233,17 @@ class IndexSchemaTest {
 
       // V001 用 IF NOT EXISTS 不报错，repairMissingColumns 补充缺失列
       Set<String> columns = getTableColumns("sessions");
-      assertThat(columns).hasSize(28);
+      assertThat(columns).hasSize(37);
+      assertThat(columns)
+          .contains(
+              "fresh_input_token_precision",
+              "cache_read_token_precision",
+              "cache_write_token_precision",
+              "output_token_precision",
+              "token_estimation_method",
+              "token_contains_estimated",
+              "token_contains_unavailable",
+              "token_contains_unknown");
 
       // schema_migrations 记录 V1
       assertThat(schema.currentVersion(conn).version()).isEqualTo(1);

@@ -93,7 +93,9 @@ Dashboard 不再跳转到独立 Agent Detail 页面。所有 agent 汇总和单 
 - 每张 chart card 的内容布局固定为顶部标题栏加全宽图表，不渲染静态明细表。
 - `Session Trend`、`Token Trend`、`Prompt Activity Trend` 的标题栏右侧固定显示 `Latest` 和 `Range total` 两个紧凑 stat；`Cache Health` 的标题栏右侧固定显示 `Latest ratio`、`Lowest ratio` 两个紧凑 stat。
 - 所有 chart card 不展示 subtitle，也不展示 title 旁 info icon；图表口径、维度解释和注意事项使用卡片左上角的小字 `chart note` 常驻展示。
-- `chart note` 文案必须跟随当前 scope 和时间粒度变化，不得写成 “按当前 Day、Week 或 Month” 这类泛化说明；例如 `All agents + Day` 显示 `按天新增的 session 总数，按照不同 agent 堆叠。`，`Claude Code + Month` 显示 `按月新增的 Claude Code session 数量。`。
+- `chart note` 文案必须跟随当前 scope 和时间粒度变化，不得写成 “按当前 Day、Week 或 Month” 这类泛化说明；例如 `All agents + Day` 说明按 UTC 开始日统计 All agents 每天新增会话，`Claude Code + Month` 说明按 UTC 开始日统计 Claude Code 每自然月新增会话。
+- 日期口径固定为 `started_at` 转 UTC 的新增会话 cohort，不使用最后活动日或浏览器本地时区；未知或非法开始日期排除，不归入今天。Project token trend 使用同一 UTC 开始日期口径。
+- Tokens、user prompts 和相关辅助计数是该批开始会话的整段累计量，不代表逐事件实际发生日或逐次真实消费日；平均 prompts 的分母必须为同 scope、同开始日期桶的会话数。归桶合并不得把 Estimated、Partial、Unknown 或未上报变为精确上报。
 - `chart note` 必须放在 chart card 标题栏下方，并使用卡片内容可用宽度；不得放在标题栏左侧 flex 区域内，也不得设置过窄固定最大宽度导致宽屏下过早换行。
 - 每张 chart card 的图表宽度占卡片内容宽度 100%；图表绘图区高度固定为 240px 到 280px。
 - 每张 chart card 的 y 轴只显示刻度值；不得显示可见的 `Y-axis: <metric name> (<unit>)` 纵向标题文字。
@@ -101,11 +103,11 @@ Dashboard 不再跳转到独立 Agent Detail 页面。所有 agent 汇总和单 
 - 宽屏 `>=1440px` 时 chart card 固定为 2 列 2 行；标准桌面和窄宽兜底优先每行 2 张，空间不足时再降为单列，任何断点下文字不得溢出或重叠。
 - 时间粒度控制固定影响三张 trend card、Cache Health 区和 all agents 占比柱状图。
 - 时间粒度的数据窗口固定如下：
-  - `Day`：最近 30 个自然日，x 轴标签格式 `MM-DD`。
-  - `Week`：最近 20 个 ISO week，x 轴标签格式 `YYYY-Www`，tooltip 显示完整日期范围。
-  - `Month`：最近 12 个自然月，x 轴标签格式 `YYYY-MM`。
-- `Latest` stat 展示当前可见窗口最后一个 range point 的 y 轴真实值。
-- `Range total` stat 展示当前可见窗口内所有 range point 的 y 轴真实值合计。
+  - `Day`：最近 30 个 UTC 自然日，x 轴标签格式 `MM-DD`。
+  - `Week`：最近 20 个 UTC ISO week，x 轴标签使用 ISO week-year 格式 `YYYY-Www`，不得使用浏览器本地日期或普通日历年错分跨年周。
+  - `Month`：最近 12 个 UTC 自然月，x 轴标签格式 `YYYY-MM`。
+- `Latest` stat 展示当前可见窗口最后一个同粒度 cohort 桶的值；Week/Month 不得误用 API 最后一天的值。
+- `Range total` stat 展示当前可见窗口内同 scope、同 cohort 桶的合计，与图内数据一致；无效日期同时从图和 header 排除，token 数值继续携带计量来源。
 - Hover 图表点必须高亮当前 range point，并在最近的 range point 处显示一条竖向虚线参考线；tooltip 使用 `Chart Tooltip` 的 header、label、value、share 三列布局，并展示该点的 y 轴真实值、占比、辅助指标。
 - 折线图和面积图的 marker、hover target、竖向虚线必须与 SVG path 使用同一套 x/y 坐标基准；marker 必须落在折线真实相交点上，不得相对折线左偏或右偏。
 - 折线图的 x 坐标必须落在对应 range point 的 label 中心；不得使用 plot 两端 0%/100% 作为首尾点位导致折线、marker、hover 竖线与 x 轴文字错位。
@@ -289,7 +291,7 @@ Cache Health 固定作为 Trend 总览区第二行右侧 chart card；`Token Tre
 #### 单 agent 模式：Model Efficiency Detail
 
 - `Model Efficiency Detail` 表固定展示在三张分析卡下方。
-- 表格列固定为 `Model`、`Sessions`、`Avg Tokens`、`Avg Process Time`、`Cache Read`、`Tool Calls / Session`、`Failure`、`Notes`。
+- 表格列固定为 `Model`、`Sessions`、`Avg Tokens`、`Avg Wall Duration`、`Cache Read`、`Tool Calls / Session`、`Failure`、`Notes`。
 - 表格排序固定为 `Sessions` 降序。
 - `Notes` 只显示固定标签：`Primary model`、`High input`、`Low cache reuse`、`High failure`、`Low sample`、`Normal`。
 - 每行点击跳转到 `/sessions?agent=<agent>&model=<model>`。
@@ -297,7 +299,7 @@ Cache Health 固定作为 Trend 总览区第二行右侧 chart card；`Token Tre
   - `Model`：模型名称；示例值 `opus-4.1`。
   - `Sessions`：该 model 在当前 agent 下的 session 数；示例值 `42`。
   - `Avg Tokens`：平均 total tokens per session，使用 K/M/B 缩写；示例值 `63.8K`。
-  - `Avg Process Time`：平均 session 处理耗时，只计算 `model_execution_seconds + tool_execution_seconds`，不使用 session 生命周期 duration；示例值 `9m 42s`。
+  - `Avg Wall Duration`：平均 session 墙钟跨度，使用 API `avgDurationSeconds`；不是 Task Active 或模型执行，不从 model/tool 差值推导。
   - `Cache Read`：cache read ratio；示例值 `54.0%`。
   - `Tool Calls / Session`：tool calls per session；示例值 `14.2`。
   - `Failure`：failed tools per session；示例值 `0.21 / session`。
@@ -363,6 +365,10 @@ Cache Health 固定作为 Trend 总览区第二行右侧 chart card；`Token Tre
 - 未能映射到固定候选的 agent 不进入 Dashboard 主指标；该类数据在 tooltip 中显示为 `Excluded unknown agent data` 并给出数量。
 
 ### Token
+
+- Cache KPI secondary 使用当前 API `cacheReadStatistics` 的可计量子集：仅三段输入均 `provider_reported` 且输入总量大于 0 的 session。`eligibleSessions`/`lowReadSessions` 的真实 0 为计数，0 eligible 时 `p50SessionRatio` 显示 `N/A`；常驻显示 excluded sessions，不以混合总量比例或旧 SSR 值补 distribution。
+
+- KPI、Token Trend、Agent Contribution、model efficiency 的 token 值遵循 `common.md` 的 `Token Measurement Provenance`；部分计量和覆盖说明常驻展示，Cache Health 不以 agent 身份推断精度。
 
 - `Input-side Tokens = Fresh + Cache Read + Cache Write`。
 - `Total Tokens = Fresh + Cache Read + Cache Write + Output`。

@@ -191,31 +191,35 @@
   function applySessionMetrics(metrics) {
     if (!metrics || !metrics.tokens) return;
     var parity = metrics.parity || {};
-    setKpi('Total Tokens', formatSessionCompact(metrics.tokens.total), [
-      tokenShareSubline('Fresh', metrics.tokens.fresh, metrics.tokens.total, parity.freshShare),
-      tokenShareSubline('Cache Read', metrics.tokens.cacheRead, metrics.tokens.total, parity.cacheReadShare),
-      tokenShareSubline('Cache Write', metrics.tokens.cacheWrite, metrics.tokens.total, parity.cacheWriteShare),
-      tokenShareSubline('Output', metrics.tokens.output, metrics.tokens.total, parity.outputShare)
+    setKpi('Total Tokens', TokenProvenance.total(metrics.tokens, formatSessionCompact), [
+      measuredTokenSubline('Fresh', metrics.tokens, 'fresh', parity.freshShare),
+      measuredTokenSubline('Cache Read', metrics.tokens, 'cacheRead', parity.cacheReadShare),
+      measuredTokenSubline('Cache Write', metrics.tokens, 'cacheWrite', parity.cacheWriteShare),
+      measuredTokenSubline('Output', metrics.tokens, 'output', parity.outputShare)
     ]);
+    TokenProvenance.attach(qs(document, '.sd-kpi[aria-label="Total Tokens"]'), metrics.tokens);
     var inputSide = Number(metrics.tokens.fresh || 0) + Number(metrics.tokens.cacheRead || 0) + Number(metrics.tokens.cacheWrite || 0);
-    setKpi('Cache Health', parity.cacheReuse || pctLabel(metrics.tokens.cacheRead, inputSide), [
-      subline('Input-side Tokens', formatSessionCompact(parity.inputSideTokens || inputSide)),
-      subline('Low-cache Rounds', formatNumber(parity.lowCacheRounds || 0)),
+    var measuredInput = TokenProvenance.measuredInput(metrics.tokens);
+    setKpi('Cache Health', TokenProvenance.ratio(metrics.tokens, metrics.cacheReadRatio), [
+      subline('Input-side Tokens', measuredInput ? formatSessionCompact(inputSide) : 'N/A · Partial'),
+      subline('Low-cache Rounds', measuredInput && parity.lowCacheRoundsAvailable === true && typeof parity.lowCacheRounds === 'number' ? formatNumber(parity.lowCacheRounds) : 'N/A'),
       subline('Fresh Spike Rounds', formatNumber(parity.freshSpikeRounds || 0))
     ]);
+    TokenProvenance.attach(qs(document, '.sd-kpi[aria-label="Cache Health"]'), metrics.tokens);
     setKpi('Workload', formatNumber(parity.workloadCalls || (Number(metrics.userMessages || 0) + Number(metrics.assistantMessages || 0))), [
       subline('Main Calls', formatNumber(parity.mainCalls || metrics.assistantMessages)),
       subline('Subagent Calls', formatNumber(parity.subagentCalls || 0)),
       subline('Tool Calls', formatNumber(parity.toolCalls || metrics.toolCalls)),
       subline('Subagent Runs', formatNumber(parity.subagentRuns || metrics.subagents))
     ]);
-    var activeSeconds = Number(parity.activeSeconds || 0);
-    setKpi('Active Time', formatDuration(activeSeconds), [
-      subline('Duration', formatDuration(metrics.durationSeconds)),
-      subline('Waiting Time', formatDuration(parity.waitingSeconds || Math.max(Number(metrics.durationSeconds || 0) - activeSeconds, 0))),
-      subline('Model Time', parity.modelTimeAvailable ? formatDuration(metrics.modelExecutionSeconds) : 'N/A'),
-      subline('Tool Time', parity.toolTimeAvailable ? formatDuration(metrics.toolExecutionSeconds) : 'N/A')
+    var timingCard = qs(document, '[data-session-timing], .sd-kpi[aria-label="Source Task Active"], .sd-kpi[aria-label="Active Time"]');
+    setKpi(timingCard ? timingCard.getAttribute('aria-label') : 'Active Time', SessionTiming.value(metrics.timing, 'activeTaskSeconds'), [
+      subline('Wall Duration', SessionTiming.value(metrics.timing, 'wallSeconds')),
+      subline('Agent Turn', SessionTiming.value(metrics.timing, 'agentTurnSeconds')),
+      subline('Model Execution', SessionTiming.value(metrics.timing, 'modelExecutionSeconds')),
+      subline('Tool Execution', SessionTiming.value(metrics.timing, 'toolExecutionSeconds'))
     ]);
+    SessionTiming.applyDetail(timingCard, metrics.timing);
     document.body.setAttribute('data-session-api-total-tokens', String(metrics.tokens.total || 0));
     document.body.setAttribute('data-session-api-failed-tools', String(metrics.failedTools || 0));
   }
@@ -296,7 +300,7 @@
     var tokens = round.tokens || {};
     var parity = round.parity || {};
     var inputSide = Number(tokens.fresh || 0) + Number(tokens.cacheRead || 0) + Number(tokens.cacheWrite || 0);
-    var isLowCache = Boolean(parity.isLowCache) || (inputSide > 0 && (Number(tokens.cacheRead || 0) / inputSide) < 0.2);
+    var isLowCache = TokenProvenance.measuredInput(tokens) && (Boolean(parity.isLowCache) || (inputSide > 0 && (Number(tokens.cacheRead || 0) / inputSide) < 0.2));
     var hasIssues = Boolean(parity.hasIssues) || (round.status || '') === 'failed' || Number(round.failedToolCount || 0) > 0;
     var isUserInput = Boolean(parity.isUserInput);
     var visualStatus = hasIssues ? 'failed' : (isUserInput ? 'user' : (round.status || 'ok'));
@@ -328,6 +332,7 @@
       '<td class="status-col">', statusBadges(round, hasIssues, isLowCache), '</td>',
       '<td class="time-col"><span class="round-time">', escapeHtml(parity.time || '未记录'), '</span></td>'
     ].join(''));
+    TokenProvenance.attach(tr.querySelector('.metric-cell'), tokens);
     return tr;
   }
 
@@ -399,7 +404,7 @@
         + escapeHtml(row.sessionIdDisplay || '—') + '</span> <button type="button" class="sd-subagent-copy-btn" data-action="copy" data-copy-text="'
         + escapeHtml(row.sessionId || '') + '" aria-label="Copy session id" title="Copy full session id">Copy</button></td>'
         + '<td title="' + (scope === 'main' ? 'Main agent LLM calls' : 'Subagent internal LLM calls') + '">' + formatNumber(row.llmCalls) + ' LLM</td>'
-        + '<td title="' + escapeHtml(row.tokens || '0') + ' · ' + escapeHtml(row.tokenShare || 'N/A') + '">' + escapeHtml(row.tokens || '0') + ' · ' + escapeHtml(row.tokenShare || 'N/A') + '</td>'
+        + '<td>' + escapeHtml(diagnosticAgentTokens(row)) + '</td>'
         + '<td>' + formatNumber(row.tools) + ' tools</td>'
         + '<td><b class="sd-rate' + rateClass + '">' + escapeHtml(failureLabel) + '</b></td>'
         + '</tr>';
@@ -423,15 +428,22 @@
       + escapeHtml(subagentId) + '" data-agent-scope="' + escapeHtml(scope) + '"' + (active ? '' : ' hidden') + '>'
       + '<div class="sd-subagent-timeline__head"><div><b>' + escapeHtml(agent.agent || 'agent') + '</b><span>'
       + escapeHtml((agent.shortId || scope) + (scope === 'main' ? ' · session rounds' : ' · subagent rounds')) + '</span></div><small>'
-      + formatNumber(agent.llmCalls) + ' LLM · ' + escapeHtml(agent.tokens || '0') + ' tokens · '
+      + formatNumber(agent.llmCalls) + ' LLM · ' + escapeHtml(diagnosticAgentTokens(agent)) + ' tokens · '
       + formatNumber(agent.tools) + ' tools · ' + formatNumber(agent.failures) + ' failures</small></div>'
       + timeline + '</section>';
   }
 
   // 折线与 tooltip 共用输入侧口径，不包含输出 token。
+  function diagnosticAgentTokens(agent) {
+    if (agent.tokenSegments && typeof agent.tokenSegments === 'object') return TokenProvenance.total(agent.tokenSegments, formatSessionCompact);
+    if (agent.tokens && typeof agent.tokens === 'object') return TokenProvenance.total(agent.tokens, formatSessionCompact);
+    return (agent.tokens || 'N/A') + ' · Unknown source';
+  }
+
   function roundCacheReadRatio(tokens) {
+    if (!TokenProvenance.measuredInput(tokens)) return null;
     var inputSide = Number(tokens.fresh || 0) + Number(tokens.cacheRead || 0) + Number(tokens.cacheWrite || 0);
-    return inputSide > 0 ? Math.max(0, Math.min(100, Number(tokens.cacheRead || 0) / inputSide * 100)) : 0;
+    return inputSide > 0 ? Math.max(0, Math.min(100, Number(tokens.cacheRead || 0) / inputSide * 100)) : null;
   }
 
   function tokenRoundChartHtml(rounds, label) {
@@ -440,11 +452,17 @@
     }
     var maxTotal = Math.max(1, sessionDetailState.maxRoundTokens || 1);
     var plotWidth = Math.max(320, rounds.length * 32 + 44);
-    var points = rounds.map(function (round, idx) {
+    var pointGroups = [];
+    var currentPoints = [];
+    rounds.forEach(function (round, idx) {
       var tokens = round.tokens || {};
       var ratio = roundCacheReadRatio(tokens);
-      return (idx * 32) + ',' + (100 - Math.max(0, Math.min(100, ratio))).toFixed(1);
-    }).join(' ');
+      if (ratio == null) {
+        if (currentPoints.length) pointGroups.push(currentPoints.join(' '));
+        currentPoints = [];
+      } else currentPoints.push((idx * 32) + ',' + (100 - Math.max(0, Math.min(100, ratio))).toFixed(1));
+    });
+    if (currentPoints.length) pointGroups.push(currentPoints.join(' '));
     var buttons = rounds.map(function (round) {
       var tokens = round.tokens || {};
       var total = Number(tokens.total || 0);
@@ -456,7 +474,7 @@
       var parity = round.parity || {};
       var tags = [];
       if (round.status === 'failed' || parity.hasIssues) tags.push('issue');
-      if (parity.isLowCache) tags.push('low cache');
+      if (TokenProvenance.measuredInput(tokens) && parity.isLowCache) tags.push('low cache');
       if (parity.isFreshSpike) tags.push('fresh spike');
       return '<button type="button" class="sd-token-round" data-action="jump-round" data-round="' + escapeHtml(round.roundIndex) + '" aria-label="R' + escapeHtml(round.roundIndex) + ' token timeline">'
         + '<span class="sd-token-round__bar" aria-label="R' + escapeHtml(round.roundIndex) + '" style="--bar-height-px:' + height.toFixed(1) + 'px">'
@@ -466,39 +484,71 @@
         + '<span class="sd-token-round__seg sd-token-round__seg--out" style="--seg-height:' + out + '%"></span></span>'
         + '<span class="sd-token-round-tooltip" role="tooltip"><b>R' + escapeHtml(round.roundIndex) + ' · ' + escapeHtml(parity.time || '未记录') + '</b>'
         + '<div>Token shares below use Total, including Output.</div>'
-        + '<span><i class="sd-tooltip-mark sd-tooltip-mark--fresh"></i><small>Fresh</small><em>' + formatSessionCompact(tokens.fresh) + '</em><strong>' + fresh + '%</strong></span>'
-        + '<span><i class="sd-tooltip-mark sd-tooltip-mark--read"></i><small>Cache Read</small><em>' + formatSessionCompact(tokens.cacheRead) + '</em><strong>' + read + '%</strong></span>'
-        + '<span><i class="sd-tooltip-mark sd-tooltip-mark--write"></i><small>Cache Write</small><em>' + formatSessionCompact(tokens.cacheWrite) + '</em><strong>' + write + '%</strong></span>'
-        + '<span><i class="sd-tooltip-mark sd-tooltip-mark--out"></i><small>Output</small><em>' + formatSessionCompact(tokens.output) + '</em><strong>' + out + '%</strong></span>'
-        + '<span class="sd-token-round-tooltip__total"><i></i><small>Total</small><em>' + formatSessionCompact(total) + '</em><strong>100.0%</strong></span>'
-        + '<span class="sd-token-round-tooltip__tags"><i class="sd-tooltip-mark sd-tooltip-mark--line"></i><small>Cache Read / Input</small><em>' + roundCacheReadRatio(tokens).toFixed(1) + '%</em></span>'
-        + '<div>Line = Cache Read / (Fresh + Cache Read + Cache Write). Excludes Output; no input = 0%.</div>'
+        + '<span><i class="sd-tooltip-mark sd-tooltip-mark--fresh"></i><small>Fresh</small><em>' + escapeHtml(TokenProvenance.value(tokens, 'fresh', formatSessionCompact)) + '</em><strong>' + measuredShare(tokens, fresh) + '</strong></span>'
+        + '<span><i class="sd-tooltip-mark sd-tooltip-mark--read"></i><small>Cache Read</small><em>' + escapeHtml(TokenProvenance.value(tokens, 'cacheRead', formatSessionCompact)) + '</em><strong>' + measuredShare(tokens, read) + '</strong></span>'
+        + '<span><i class="sd-tooltip-mark sd-tooltip-mark--write"></i><small>Cache Write</small><em>' + escapeHtml(TokenProvenance.value(tokens, 'cacheWrite', formatSessionCompact)) + '</em><strong>' + measuredShare(tokens, write) + '</strong></span>'
+        + '<span><i class="sd-tooltip-mark sd-tooltip-mark--out"></i><small>Output</small><em>' + escapeHtml(TokenProvenance.value(tokens, 'output', formatSessionCompact)) + '</em><strong>' + measuredShare(tokens, out) + '</strong></span>'
+        + '<span class="sd-token-round-tooltip__total"><i></i><small>Total</small><em>' + escapeHtml(TokenProvenance.total(tokens, formatSessionCompact)) + '</em><strong>' + measuredShare(tokens, total > 0 ? 100 : 0) + '</strong></span>'
+        + '<span class="sd-token-round-tooltip__tags"><i class="sd-tooltip-mark sd-tooltip-mark--line"></i><small>Cache Read / Input</small><em>' + escapeHtml(TokenProvenance.ratio(tokens)) + '</em></span>'
+        + '<div>' + escapeHtml(TokenProvenance.note(tokens)) + '</div>'
         + (tags.length ? '<span class="sd-token-round-tooltip__tags"><i class="sd-tooltip-mark sd-tooltip-mark--spike"></i><small>Badge Text</small><em>' + escapeHtml(tags.join(', ')) + '</em></span>' : '')
         + '</span><span class="sd-token-round__signal-slot" aria-hidden="true">' + (tags.length ? '<span class="sd-token-round__spike"></span>' : '') + '</span>'
         + '<span class="sd-token-round__label">R' + escapeHtml(round.roundIndex) + '</span></button>';
     }).join('');
     return '<div><small><i class="sd-tooltip-mark sd-tooltip-mark--line" aria-hidden="true"></i> Black line: Cache Read / Input (0–100%, excludes Output). Bars: token totals.</small></div>'
+      + '<div><small>Only provider-reported input forms the ratio. Not reported / Unknown / Estimated: N/A, not 0%.</small></div>'
       + '<div class="sd-token-round-chart" aria-label="' + escapeHtml(label || 'agent') + ' token composition">'
       + '<div class="sd-token-round-plot" style="--plot-width:' + plotWidth + 'px; --ratio-line-left:22px; --ratio-line-width:' + Math.max(0, plotWidth - 44) + 'px">'
       + '<svg class="sd-token-ratio-line" viewBox="0 0 ' + Math.max(1, plotWidth - 44) + ' 100" preserveAspectRatio="none" aria-label="Agent cache read ratio line">'
-      + '<polyline points="' + escapeHtml(points) + '"></polyline></svg>' + buttons + '</div></div>';
+      + pointGroups.map(function (points) { return '<polyline points="' + escapeHtml(points) + '"></polyline>'; }).join('') + '</svg>' + buttons + '</div></div>';
   }
 
   function contextBudgetHtml(segments) {
     if (!segments.length) return '<div class="sd-card-empty">No context budget available</div>';
+    function measurement(segment) {
+      var precision = segment.precision || 'unknown';
+      var numeric = typeof segment.tokens === 'number' && Number.isFinite(segment.tokens) && segment.tokens >= 0;
+      var observed = numeric ? formatSessionCompact(segment.tokens) : (segment.tokensLabel || 'N/A');
+      var tokens = 'N/A · Unknown';
+      if (precision === 'provider_reported') tokens = observed + ' · Provider reported';
+      else if (precision === 'estimated') tokens = '≈' + observed.replace(/^[~≈]/, '') + ' · Estimated';
+      else if (precision === 'unavailable') tokens = 'Not reported';
+      else if (precision === 'mixed') tokens = (numeric && segment.tokens > 0 ? observed : 'N/A') + ' · Partial';
+      else if ((numeric && segment.tokens > 0) || (!numeric && observed !== '0' && observed !== 'N/A')) tokens = observed + ' · Unknown';
+      var known = ['provider_reported', 'estimated', 'mixed'].indexOf(precision) !== -1;
+      var available = segment.includedInUsage === true && known
+        && ['available', 'partial'].indexOf(segment.shareStatus) !== -1
+        && typeof segment.shareValue === 'number' && Number.isFinite(segment.shareValue)
+        && segment.shareValue >= 0 && segment.shareValue <= 100;
+      var share = 'N/A';
+      if (available) {
+        var partial = segment.shareStatus === 'partial' || precision !== 'provider_reported';
+        share = (partial ? '≈' : '') + String(Math.round(segment.shareValue * 10) / 10) + '%' + (partial ? ' · Partial' : '');
+      }
+      if (segment.includedInUsage === false) share = 'N/A · Not in usage';
+      else if (segment.includedInUsage !== true) share = 'N/A · Usage inclusion unknown';
+      return { tokens: tokens, share: share, available: available };
+    }
     var bars = segments.map(function (segment, idx) {
+      var measured = measurement(segment);
+      if (!measured.available) return '';
       return '<span class="sd-context-segment sd-context-segment--' + (idx + 1) + ' sd-context-segment--' + escapeHtml(segment.status || 'available')
-        + '" style="--seg-width:' + escapeHtml(segment.shareValue || 0) + '%"><span class="sd-context-segment__label">'
-        + escapeHtml(segment.label || '') + '</span><span class="sd-context-segment__pct">' + escapeHtml(segment.share || 'N/A') + '</span></span>';
+        + '" style="--seg-width:' + escapeHtml(segment.shareValue) + '%"><span class="sd-context-segment__label">'
+        + escapeHtml(segment.label || '') + '</span><span class="sd-context-segment__pct">' + escapeHtml(measured.share) + '</span></span>';
     }).join('');
     var legend = segments.map(function (segment, idx) {
+      var measured = measurement(segment);
       return '<div class="sd-context-budget__item sd-context-budget__item--' + escapeHtml(segment.status || 'available') + '"><i class="sd-context-budget__dot sd-context-budget__dot--'
         + (idx + 1) + '" aria-hidden="true"></i><span>' + escapeHtml(segment.label || '') + '</span><b>'
-        + escapeHtml(segment.tokensLabel || 'N/A') + ' · ' + escapeHtml(segment.share || 'N/A') + '</b></div>';
+        + escapeHtml(measured.tokens) + '<br>' + escapeHtml(measured.share) + '</b></div>';
     }).join('');
     return '<div class="sd-context-segmented" aria-label="Context budget segmented bar">' + bars + '</div>'
-      + '<div class="sd-context-budget">' + legend + '</div>'
-      + '<div class="sd-context-note">Unavailable segments are not treated as 0%; tool result tokens are local estimates from transcript result length.</div>';
+      + '<div class="sd-context-note" aria-label="Context budget measurements">' + legend + '</div>'
+      + '<div class="sd-context-note">Usage composition includes only explicitly included segments with available shares. Partial shares are approximate, not provider-exact. Unknown or unavailable measurements are not 0%; tool results are local estimates outside usage composition.</div>';
+  }
+
+  function measuredShare(tokens, share) {
+    return TokenProvenance.state(tokens) === 'provider_reported' ? share + '%' : 'N/A';
   }
 
   function toolImpactHtml(toolImpact) {
@@ -582,6 +632,15 @@
     };
   }
 
+  function measuredTokenSubline(label, tokens, key, shareLabel) {
+    var line = tokenShareSubline(label, tokens[key], tokens.total, shareLabel);
+    if (TokenProvenance.state(tokens) !== 'provider_reported') {
+      line.value = TokenProvenance.value(tokens, key, formatSessionCompact);
+      line.title = TokenProvenance.note(tokens);
+    }
+    return line;
+  }
+
   function rateSubline(label, failures, total, rateLabel) {
     var tone = rateTone(failures, total);
     return {
@@ -612,25 +671,25 @@
 
   function tokenbarHtml(tokens, maxRoundTokens) {
     var total = Number(tokens && tokens.total || 0);
-    if (total <= 0) return '';
+    if (total <= 0) return '<span class="metric-token">' + escapeHtml(TokenProvenance.total(tokens, formatSessionCompact)) + '</span>';
     var fresh = pct(tokens.fresh, total);
     var read = pct(tokens.cacheRead, total);
     var write = pct(tokens.cacheWrite, total);
     var out = pct(tokens.output, total);
     var scale = maxRoundTokens > 0 ? Math.max(2, Math.min(100, Math.round((total / maxRoundTokens) * 1000) / 10)) : 100;
     var scaleLabel = scale + '% of max round tokens';
-    return '<div class="token-group"><span class="metric-token">' + formatSessionCompact(total) + '</span>'
+    return '<div class="token-group"><span class="metric-token">' + escapeHtml(TokenProvenance.total(tokens, formatSessionCompact)) + '</span>'
       + '<span class="tokenbar-wrap" tabindex="0" title="' + escapeHtml(scaleLabel) + '" aria-label="' + escapeHtml(scaleLabel) + '" style="--token-total-width:' + scale + '%;">'
       + '<span class="tokenbar"><span class="tokenbar-seg fresh" style="--segment-width:' + fresh + '%"></span>'
       + '<span class="tokenbar-seg read" style="--segment-width:' + read + '%"></span>'
       + '<span class="tokenbar-seg write" style="--segment-width:' + write + '%"></span>'
       + '<span class="tokenbar-seg out" style="--segment-width:' + out + '%"></span></span>'
       + '<div class="token-tooltip" aria-hidden="true"><div class="token-tooltip__title">Token Breakdown</div>'
-      + '<div class="token-tooltip__row"><span>Fresh</span><span class="token-tooltip__value">' + formatSessionCompact(tokens.fresh) + '</span></div>'
-      + '<div class="token-tooltip__row"><span>Cache Read</span><span class="token-tooltip__value">' + formatSessionCompact(tokens.cacheRead) + '</span></div>'
-      + '<div class="token-tooltip__row"><span>Cache Write</span><span class="token-tooltip__value">' + formatSessionCompact(tokens.cacheWrite) + '</span></div>'
-      + '<div class="token-tooltip__row"><span>Output</span><span class="token-tooltip__value">' + formatSessionCompact(tokens.output) + '</span></div>'
-      + '<div class="token-tooltip__sep"></div><div class="token-tooltip__row token-tooltip__total"><span>Total</span><span class="token-tooltip__value">' + formatSessionCompact(total) + '</span></div>'
+      + '<div class="token-tooltip__row"><span>Fresh</span><span class="token-tooltip__value">' + escapeHtml(TokenProvenance.value(tokens, 'fresh', formatSessionCompact)) + '</span></div>'
+      + '<div class="token-tooltip__row"><span>Cache Read</span><span class="token-tooltip__value">' + escapeHtml(TokenProvenance.value(tokens, 'cacheRead', formatSessionCompact)) + '</span></div>'
+      + '<div class="token-tooltip__row"><span>Cache Write</span><span class="token-tooltip__value">' + escapeHtml(TokenProvenance.value(tokens, 'cacheWrite', formatSessionCompact)) + '</span></div>'
+      + '<div class="token-tooltip__row"><span>Output</span><span class="token-tooltip__value">' + escapeHtml(TokenProvenance.value(tokens, 'output', formatSessionCompact)) + '</span></div>'
+      + '<div class="token-tooltip__sep"></div><div class="token-tooltip__row token-tooltip__total"><span>Total</span><span class="token-tooltip__value">' + escapeHtml(TokenProvenance.total(tokens, formatSessionCompact)) + '</span></div>'
       + '<div class="token-tooltip__row"><span>Scale</span><span class="token-tooltip__value">' + escapeHtml(scaleLabel) + '</span></div>'
       + '</div></span></div>';
   }

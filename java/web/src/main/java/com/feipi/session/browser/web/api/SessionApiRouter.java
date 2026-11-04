@@ -75,6 +75,24 @@ public final class SessionApiRouter {
   public void route(Context ctx) {
     String path = ctx.path();
     String[] parts = path.split("/", -1);
+    routeParts(ctx, parts);
+  }
+
+  /**
+   * 在调用方已确定的独立身份下复用资源路由，不重新读取个人 URL。
+   *
+   * @param ctx 请求上下文
+   * @param agent 已验证的来源
+   * @param sessionId 当前范围内的资源 ID
+   * @param resourcePath 资源后缀
+   */
+  public void routeResource(Context ctx, String agent, String sessionId, String resourcePath) {
+    String path = "/api/sessions/" + agent + "/" + sessionId + "/" + resourcePath;
+    routeParts(ctx, path.split("/", -1));
+  }
+
+  /** 使用同一段数和数值校验分发个人与导入资源。 */
+  private void routeParts(Context ctx, String[] parts) {
 
     // 最小长度校验：至少 prefix + agent + sessionId + resource = 6
     if (parts.length < API_PREFIX_PARTS + 3) {

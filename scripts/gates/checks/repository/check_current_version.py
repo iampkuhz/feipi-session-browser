@@ -20,6 +20,7 @@ INTERNAL_VERSION_SUFFIX = re.compile(
 TEXT_SUFFIXES = frozenset({'.css', '.js', '.html', '.py', '.md', '.sh', '.yaml', '.json', '.txt'})
 EXCLUDED_DIRECTORY_NAMES = {
     '.git',
+    '.qoder',
     'node_modules',
     '__pycache__',
     '.pytest_cache',
@@ -29,7 +30,7 @@ EXCLUDED_DIRECTORY_NAMES = {
     'venv',
     '.local',
 }
-CLIENT_CONFIG_ROOTS = {'.claude', '.codex', '.qoder'}
+CLIENT_CONFIG_ROOTS = {'.claude', '.codex'}
 EXCLUDED_FILE_NAMES = {'check_current_version.py', 'test_current_version.py'}
 
 

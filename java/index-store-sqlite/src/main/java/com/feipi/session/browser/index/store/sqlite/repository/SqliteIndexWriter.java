@@ -1,11 +1,14 @@
 package com.feipi.session.browser.index.store.sqlite.repository;
 
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
+import com.feipi.session.browser.domain.normalized.TokenProvenance;
 import com.feipi.session.browser.index.api.write.IndexWriteException;
 import com.feipi.session.browser.index.api.write.IndexWriterPort;
 import com.feipi.session.browser.index.api.write.MissingTranscriptSession;
 import com.feipi.session.browser.index.api.write.StoredSessionFingerprint;
 import com.feipi.session.browser.index.store.sqlite.mapper.ArtifactRowMapper;
+import com.feipi.session.browser.index.store.sqlite.mapper.SessionTimingSqlMapper;
+import com.feipi.session.browser.index.store.sqlite.mapper.TokenProvenanceSqlMapper;
 import com.feipi.session.browser.index.store.sqlite.row.SessionArtifactRow;
 import com.feipi.session.browser.index.store.sqlite.row.SessionRow;
 import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
@@ -33,7 +36,9 @@ public final class SqliteIndexWriter implements IndexWriterPort {
           + "user_message_count, assistant_message_count, tool_call_count, "
           + "output_tokens, fresh_input_tokens, cache_read_tokens, cache_write_tokens, "
           + "total_tokens, failed_tool_count, subagent_instance_count, "
-          + "indexed_at, file_mtime, file_path"
+          + "indexed_at, file_mtime, file_path, "
+          + TokenProvenanceSqlMapper.COLUMNS
+          + ", timing_json"
           + ") VALUES (";
 
   private static final String ARTIFACT_INSERT_PREFIX =
@@ -297,7 +302,17 @@ public final class SqliteIndexWriter implements IndexWriterPort {
     sb.append(row.subagentInstanceCount()).append(", ");
     sb.append(row.indexedAt()).append(", ");
     sb.append(row.fileMtime()).append(", ");
-    appendSqlValue(sb, row.filePath());
+    appendSqlValue(sb, row.filePath()).append(", ");
+    TokenProvenance provenance = row.tokenProvenance();
+    appendSqlValue(sb, provenance.freshInput()).append(", ");
+    appendSqlValue(sb, provenance.cacheRead()).append(", ");
+    appendSqlValue(sb, provenance.cacheWrite()).append(", ");
+    appendSqlValue(sb, provenance.output()).append(", ");
+    appendSqlValue(sb, provenance.estimationMethod()).append(", ");
+    sb.append(provenance.estimatedSessionCount() > 0 ? 1 : 0).append(", ");
+    sb.append(provenance.unavailableSessionCount() > 0 ? 1 : 0).append(", ");
+    sb.append(provenance.unknownSessionCount() > 0 ? 1 : 0).append(", ");
+    appendSqlValue(sb, SessionTimingSqlMapper.encode(row.timing()));
     sb.append(")");
     batch.add(sb.toString());
   }

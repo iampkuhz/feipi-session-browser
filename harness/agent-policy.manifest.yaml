@@ -71,90 +71,29 @@ subagent_instance_protocol:
     - main agent 只能聚合同一 client/session_id 的 subagent evidence。
     - subagent 返回 FAIL 或 BLOCKED 时，main agent 不得静默跳过 validation。
   skipped_semantics: required validation 出现 skipped、not-run、unavailable 或 excluded 均不得描述为 PASS。
-qoder_delegation:
-  applies_when:
-    - Codex 担任主调度时生效。
-  default_implementer: qoder
-  default_permission_mode: bypass_permissions
-  permission_authorization: 用户明确授权默认跳过 Qoder 工具审批；可显式降权，不绕过 OS 权限。
-  max_active_runs: 1
-  scheduling:
-    overflow: queue
-    next_run_requires_confirmed_completion: true
-    unknown_status_blocks_dispatch: true
-    short_overlap_by_default: false
-    codex_independent_work_allowed: true
-    enforcement: process-preflight-best-effort
-  default_scope:
-    - 功能实现
-    - 修复
-    - 重构
-    - 测试
-    - 脚本
-    - 配置
-    - 文档
-  exceptions_codex_keeps:
-    - 极小修改
-    - 设计决策
-    - Qoder 不可用
-    - 权限不足
-    - 两轮返工不收敛
-  task_granularity:
-    - 单一可验收目标
-    - 实现与关联测试一起交付
-    - 跨模块先定边界再拆分
-    - 只读查询按同一主题批处理
-  max_rework_rounds: 2
-  visible_dispatch_card:
-    - task_id
-    - goal_or_source
-    - allowed_files
-    - forbidden_files
-    - required_context
-    - acceptance_criteria
-    - permission_mode
-    - failure_policy
-    - change_version
-  post_dispatch_fields:
-    - run_id
-    - result_path
-  parallel_constraints:
-    - 仅允许 Codex 与单个 Qoder 并行；多个 Qoder 任务串行，不能通过另开 session 绕过。
-    - 写写冲突
-    - 读写冲突
-    - 接口变更冲突
-    - 运行输出冲突
-    - 集成验证串行
-  identity_rules:
-    - 保留各 client/session 来源。
-    - Codex 独立复核和产出验收证据。
-    - Qoder 不得递归委派给自身。
-  completion_callback:
-    transport: codex-queue
-    target: exact-parent-session-uuid
-    completion_record_first: true
-    automatic_retry: false
-    queued_is_delivery_proof: false
+native_delegation:
+  implementation: current-agent-native-subagents
+  handoff_protocol: subagent_instance_protocol
+  model_routing:
+    important_implementation: gpt-6.1-sol
+    complex_analysis: gpt-6.1-sol
+    independent_validation: gpt-6.1-sol
+    lightweight_lookup: gpt-6-luna
+  host_constraints:
+    - 使用宿主原生 API 的模型和上下文参数约束，不固定所有角色模型。
+    - 模型覆盖若要求 fork_turns=none，显式传入必要上下文，不依赖隐式历史。
+    - 原生能力不可用或模型受限时如实报告，由 main 接管或调整范围。
   lifecycle:
-    dispatch_handoff_in_final_reply: true
-    end_turn_after_dispatch: true
-    llm_polling_forbidden: true
-    per_run_watchdog: true
-    watchdog_initial_delay_seconds: 300
-    watchdog_interval_seconds: 600
-    watchdog_max_lifetime_seconds: 86400
-    watchdog_no_llm: true
-    explicit_ack_required: true
-    ack_identity_check: exact-parent-session-uuid-and-codex-thread-id
-    ack_idempotent: true
-    ack_is_not_pass: true
-    supersession_on_confirmed_startup: true
-    result_and_status_read_only: true
-  no_auto_features:
-    - 无自动重发
-    - 无取消
-    - 无 OS 沙箱
-    - 不因失败自动扩大权限
-    - 不降低 Gate
-    - 无全局 daemon 或队列
-    - 无可靠 queue 撤回承诺
+    - 直接使用 spawn_agent/followup_task 和原生等待/完成事件，不轮询仓库状态。
+    - main 负责单一目标拆分、独立复核与串行集成；修改型任务写范围互斥。
+    - 不新增 CLI、调度器、队列、receipt、callback、watchdog、ack 或仓库状态机。
+  permissions:
+    - 保持当前环境权限，不继承 Qoder bypass_permissions 默认值。
+    - 不因失败升级权限，不降低 Gate，不回滚他人修改。
+  retired_evidence:
+    - 旧 Qoder PASS 不得作为原生子任务或本次验收证据。
+    - 若收到旧 Qoder callback，只识别为已退役，不恢复或重新执行旧调度链。
+  validation:
+    - 子任务 PASS 不替代 main 独立运行 required checks。
+    - required checks 的 failed、warning、skipped、not-run、unavailable 均不得称 PASS。
+  product_boundary: 仅退役工程 Qoder 派发，保留产品 Qoder session 支持和安全保护；不清理 ignored 个人数据。

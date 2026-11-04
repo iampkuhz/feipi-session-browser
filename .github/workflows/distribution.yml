@@ -1,0 +1,147 @@
+# 唯一四平台构建入口；每次运行仅汇总本 run/attempt 的五包。
+name: Distribution
+on:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        default: ''
+permissions:
+  contents: read
+jobs:
+  quality:
+    uses: ./.github/workflows/quality.yml
+    with:
+      full-mode: true
+  build:
+    needs: quality
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            platform: macos-arm64
+            arch: arm64
+          - os: macos-15-intel
+            platform: macos-x64
+            arch: x64
+          - os: ubuntu-24.04
+            platform: linux-x64
+            arch: x64
+          - os: windows-2025
+            platform: windows-x64
+            arch: x64
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      EXPECTED_ARCH: ${{ matrix.arch }}
+      PLATFORM: ${{ matrix.platform }}
+      REQUESTED_VERSION: ${{ inputs.version }}
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+      - name: Validate Gradle Wrapper
+        uses: gradle/actions/wrapper-validation@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
+      - name: Set up native JDK 25
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: zulu
+          java-version: '25'
+          architecture: ${{ matrix.arch }}
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
+        with:
+          cache-read-only: true
+          build-scan-publish: false
+      - name: Assert actual CPU, JDK and version
+        run: |
+          set -euo pipefail
+          python - <<'PYTHON_CODE'
+          import os, pathlib, platform, re, subprocess
+          normalize = lambda value: {'aarch64': 'arm64', 'arm64': 'arm64', 'amd64': 'x64', 'x86_64': 'x64', 'x64': 'x64'}.get(value.lower(), value.lower())
+          assert normalize(platform.machine()) == os.environ['EXPECTED_ARCH'], platform.machine()
+          result = subprocess.run(['java', '-XshowSettings:properties', '-version'], capture_output=True, text=True, check=True)
+          text = result.stdout + result.stderr
+          assert re.search(r'java.version = 25(?:[.\s+]|$)', text), text
+          assert normalize(re.search(r'os.arch = (\S+)', text)[1]) == os.environ['EXPECTED_ARCH'], text
+          version = pathlib.Path('java/gradle/VERSION').read_text().strip()
+          assert not os.environ['REQUESTED_VERSION'] or version == os.environ['REQUESTED_VERSION']
+          with open(os.environ['GITHUB_ENV'], 'a') as stream:
+              stream.write('VERSION=' + version + '\n')
+          PYTHON_CODE
+      - name: Build native runtime (POSIX)
+        if: runner.os != 'Windows'
+        run: ./java/gradlew -p java :java:app-cli:runtimeDistTar --no-daemon
+      - name: Build native runtime (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: .\java\gradlew.bat -p java :java:app-cli:runtimeDistZip --no-daemon
+      - name: Build the single generic package
+        if: matrix.platform == 'linux-x64'
+        run: ./java/gradlew -p java :java:app-cli:distZip --no-daemon
+      - name: Prepare and launch actual native archive without external JDK
+        run: |
+          set -euo pipefail
+          identity=(--version "$VERSION" --source-sha "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT")
+          python scripts/release/release_pipeline_helpers.py prepare --dist-dir java/app-cli/build/distributions --output-dir prepared-native --platform "$PLATFORM" "${identity[@]}"
+          extension=tar.gz
+          if [[ "$PLATFORM" == windows-x64 ]]; then extension=zip; fi
+          python scripts/release/release_pipeline_helpers.py verify-archive --archive "prepared-native/app-cli-$VERSION-runtime-$PLATFORM.$extension" --platform "$PLATFORM" "${identity[@]}"
+      - name: Prepare the single generic package
+        if: matrix.platform == 'linux-x64'
+        run: |
+          python scripts/release/release_pipeline_helpers.py prepare --dist-dir java/app-cli/build/distributions --output-dir prepared-generic --platform generic --version "$VERSION" --source-sha "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT"
+      - name: Upload native group including provenance and real smoke receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: candidate-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}
+          path: prepared-native/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload generic group once
+        if: matrix.platform == 'linux-x64'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: candidate-${{ github.run_id }}-${{ github.run_attempt }}-generic
+          path: prepared-generic/
+          if-no-files-found: error
+          retention-days: 14
+  verify:
+    needs: [quality, build]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - name: Download exact run and attempt groups without flattening
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: candidate-${{ github.run_id }}-${{ github.run_attempt }}-*
+          path: candidate-groups/
+          merge-multiple: false
+      - name: Verify complete candidate and seal the unique artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < java/gradle/VERSION)"
+          python scripts/release/release_pipeline_helpers.py create-verified --candidate-dir candidate-groups --output-dir verified-candidate --version "$version" --source-sha "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT"
+      - name: Upload the sole verified candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: verified-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: verified-candidate/
+          if-no-files-found: error
+          retention-days: 14

@@ -21,9 +21,9 @@ import org.junit.jupiter.api.Test;
 /**
  * SQLite index schema 契约测试。
  *
- * <p>验证 Java migration 产出的 schema 与 Python schema.py 定义一致： 表结构、列名、索引、外键约束和 PRAGMA 配置。
+ * <p>验证当前 Java index schema：表结构、精确列名、计量来源/计时默认值与必要索引。
  */
-@DisplayName("Schema 契约测试：Java migration 与 Python schema 一致")
+@DisplayName("Schema 契约测试：当前 Java index schema")
 class SchemaContractTest {
 
   private Connection conn;
@@ -49,15 +49,15 @@ class SchemaContractTest {
   }
 
   @Test
-  @DisplayName("sessions 表包含 28 列，与 Python 定义一致")
-  void sessionsTableMatchesPythonDefinition() throws SQLException {
+  @DisplayName("sessions 表精确包含 37 列，含 provenance 与 typed timing")
+  void sessionsTableMatchesCurrentJavaDefinition() throws SQLException {
     IndexSchema schema = IndexSchema.withDefaults();
     schema.ensureSchema(conn);
 
     Set<String> columns = getTableColumns("sessions");
-    assertThat(columns).as("sessions 表应包含 28 列，与 Python schema.py 一致").hasSize(28);
+    assertThat(columns).as("sessions 表应包含原28列、8个provenance列与timing_json").hasSize(37);
 
-    // 验证关键字段
+    // 全列精确比对，不允许静默缺失或添加字段。
     assertThat(columns)
         .containsExactlyInAnyOrder(
             "session_key",
@@ -87,7 +87,50 @@ class SchemaContractTest {
             "subagent_instance_count",
             "indexed_at",
             "file_mtime",
-            "file_path");
+            "file_path",
+            "fresh_input_token_precision",
+            "cache_read_token_precision",
+            "cache_write_token_precision",
+            "output_token_precision",
+            "token_estimation_method",
+            "token_contains_estimated",
+            "token_contains_unavailable",
+            "token_contains_unknown",
+            "timing_json");
+  }
+
+  @Test
+  @DisplayName("未提供计量来源与计时时默认 unknown，而不是 provider 上报或实测零")
+  void measurementColumnsDefaultToUnknown() throws SQLException {
+    IndexSchema.withDefaults().ensureSchema(conn);
+    try (Statement statement = conn.createStatement()) {
+      statement.executeUpdate(
+          """
+          INSERT INTO sessions(session_key, agent, session_id, project_key, ended_at)
+          VALUES ('claude_code:synthetic', 'claude_code', 'synthetic', 'synthetic', '2026-01-01T00:00:00Z')
+          """);
+      try (ResultSet row =
+          statement.executeQuery(
+              """
+              SELECT fresh_input_token_precision, cache_read_token_precision,
+                     cache_write_token_precision, output_token_precision, token_estimation_method,
+                     token_contains_estimated, token_contains_unavailable, token_contains_unknown,
+                     timing_json FROM sessions
+              """)) {
+        assertThat(row.next()).isTrue();
+        assertThat(List.of(row.getString(1), row.getString(2), row.getString(3), row.getString(4)))
+            .containsExactly("unknown", "unknown", "unknown", "unknown");
+        assertThat(row.getString("token_estimation_method")).isEmpty();
+        assertThat(
+                List.of(
+                    row.getInt("token_contains_estimated"),
+                    row.getInt("token_contains_unavailable"),
+                    row.getInt("token_contains_unknown")))
+            .containsExactly(0, 0, 1);
+        assertThat(row.getString("timing_json")).isEqualTo("{}");
+        assertThat(row.next()).isFalse();
+      }
+    }
   }
 
   @Test

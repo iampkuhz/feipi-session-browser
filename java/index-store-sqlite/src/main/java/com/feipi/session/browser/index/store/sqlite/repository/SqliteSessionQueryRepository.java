@@ -7,6 +7,7 @@ import com.feipi.session.browser.index.api.query.SessionQueryPort;
 import com.feipi.session.browser.index.api.query.SessionRecord;
 import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
 import com.feipi.session.browser.index.store.sqlite.mapper.SqliteSessionResultSetMapper;
+import com.feipi.session.browser.index.store.sqlite.mapper.TokenProvenanceSqlMapper;
 import com.feipi.session.browser.index.store.sqlite.row.ProjectOptionRow;
 import com.feipi.session.browser.index.store.sqlite.row.SessionListAggregate;
 import com.feipi.session.browser.index.store.sqlite.row.SessionListSummaryRow;
@@ -49,6 +50,13 @@ import java.util.Optional;
  * <p>读事务短生命周期：每个方法在 try-with-resources 中使用 {@link ReadTransaction}， 查询完成即释放。
  */
 public final class SqliteSessionQueryRepository implements SessionQueryPort {
+
+  private static final String ACTIVE_TASK_SORT_VALUE =
+      "CASE WHEN json_valid(timing_json) THEN CASE WHEN "
+          + "json_extract(timing_json, '$.activeTaskPrecision') IN ('measured', 'partial') "
+          + "AND json_type(timing_json, '$.activeTaskSeconds') IN ('integer', 'real') "
+          + "AND json_extract(timing_json, '$.activeTaskSeconds') >= 0 "
+          + "THEN json_extract(timing_json, '$.activeTaskSeconds') END END";
 
   private static final String CANONICAL_PROJECT_KEY_EXPR =
       """
@@ -181,6 +189,17 @@ public final class SqliteSessionQueryRepository implements SessionQueryPort {
     Sort sort = filter.sort();
     PageRequest page = filter.page();
 
+    String orderBy =
+        "active_task_seconds".equals(sort.sortKey())
+            ? "("
+                + ACTIVE_TASK_SORT_VALUE
+                + ") IS NULL, "
+                + ACTIVE_TASK_SORT_VALUE
+                + " "
+                + sort.order().getValue()
+                + ", session_key ASC"
+            : sort.toSqlFragment();
+
     // 列表查询：SELECT + WHERE + ORDER BY + LIMIT + OFFSET
     String listSql =
         "SELECT "
@@ -188,7 +207,7 @@ public final class SqliteSessionQueryRepository implements SessionQueryPort {
             + " FROM sessions "
             + clauses.whereFragment()
             + " ORDER BY "
-            + sort.toSqlFragment()
+            + orderBy
             + " LIMIT ? OFFSET ?";
 
     try (ReadTransaction rt = indexConnection.readTransaction()) {
@@ -259,6 +278,8 @@ public final class SqliteSessionQueryRepository implements SessionQueryPort {
             + " COALESCE(SUM(cache_write_tokens), 0) AS cache_write_tokens,"
             + " COALESCE(SUM(output_tokens), 0) AS output_tokens,"
             + " COALESCE(SUM(failed_tool_count), 0) AS failed_tool_count"
+            + ", "
+            + TokenProvenanceSqlMapper.aggregateColumns()
             + " FROM sessions "
             + clauses.whereFragment();
 
@@ -279,7 +300,8 @@ public final class SqliteSessionQueryRepository implements SessionQueryPort {
             cacheWrite,
             output,
             fresh + cacheRead + cacheWrite + output,
-            rs.getLong("failed_tool_count"));
+            rs.getLong("failed_tool_count"),
+            TokenProvenanceSqlMapper.read(rs));
       }
     }
   }
@@ -379,6 +401,8 @@ public final class SqliteSessionQueryRepository implements SessionQueryPort {
             + CANONICAL_PROJECT_KEY_EXPR
             + ") AS project_count,"
             + " COALESCE(SUM(total_tokens), 0) AS total_tokens"
+            + ", "
+            + TokenProvenanceSqlMapper.aggregateColumns()
             + " FROM sessions "
             + clauses.whereFragment();
 
@@ -388,7 +412,10 @@ public final class SqliteSessionQueryRepository implements SessionQueryPort {
       try (ResultSet rs = ps.executeQuery()) {
         rs.next();
         return new SessionListAggregate(
-            rs.getLong("session_count"), rs.getLong("project_count"), rs.getLong("total_tokens"));
+            rs.getLong("session_count"),
+            rs.getLong("project_count"),
+            rs.getLong("total_tokens"),
+            TokenProvenanceSqlMapper.read(rs));
       }
     }
   }

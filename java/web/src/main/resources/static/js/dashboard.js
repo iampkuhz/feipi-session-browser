@@ -167,12 +167,23 @@
             { key: 'output_tokens', cls: 'out', label: 'Output' }
         ];
 
+        /** 解析 UTC cohort 日期；未知日期不回退为今天，也不使用浏览器本地时区。 */
+        function utcDateKey(dateStr) {
+            if (typeof dateStr !== 'string' || !/^\d{4}-\d{2}-\d{2}(?:$|T)/.test(dateStr)) return '';
+            var value = dateStr;
+            if (value.length > 10 && !/(?:Z|[+-]\d{2}:\d{2})$/i.test(value)) value += 'Z';
+            var date = new Date(value);
+            if (isNaN(date.getTime())) return '';
+            var key = date.toISOString().substring(0, 10);
+            return dateStr.length === 10 && key !== dateStr ? '' : key;
+        }
+
         function weekKey(dateStr) {
-            if (!dateStr) return '';
-            if (dateStr.indexOf('-W') > 0) return dateStr;
-            var d = new Date(dateStr);
-            if (isNaN(d.getTime())) return dateStr;
-            var tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+            if (/^\d{4}-W(?:0[1-9]|[1-4]\d|5[0-3])$/.test(dateStr || '')) return dateStr;
+            var key = utcDateKey(dateStr);
+            if (!key) return '';
+            var d = new Date(key + 'T00:00:00Z');
+            var tmp = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
             var day = tmp.getUTCDay() || 7;
             tmp.setUTCDate(tmp.getUTCDate() + 4 - day);
             var yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
@@ -181,7 +192,7 @@
         }
 
         function monthKey(dateStr) {
-            return (dateStr || '').substring(0, 7);
+            return utcDateKey(dateStr).substring(0, 7);
         }
 
         function aggregateByKey(data, fields, keyFn, dateFn) {
@@ -197,8 +208,15 @@
                 fields.forEach(function(f) {
                     map[key][f] = (map[key][f] || 0) + (d[f] || 0);
                 });
+                Object.keys(d).forEach(function(f) {
+                    if (f === 'provenance' || /_provenance$/.test(f)) {
+                        map[key][f] = TokenProvenance.merge(map[key][f], d[f]);
+                    } else if (/_cache_metric_known$/.test(f)) {
+                        map[key][f] = map[key][f] !== false && d[f] === true;
+                    }
+                });
             });
-            return order.map(function(k) { return map[k]; });
+            return order.sort().map(function(k) { return map[k]; });
         }
 
         function getGrain() {
@@ -226,7 +244,11 @@
 
         function applyScope(data, fields) {
             var grain = getGrain();
-            var sliced = data.slice(-getDaysForGrain(grain));
+            var dated = data.map(function(point) {
+                var date = utcDateKey(point.date);
+                return date ? Object.assign({}, point, { date: date }) : null;
+            }).filter(function(point) { return point !== null; });
+            var sliced = dated.slice(-getDaysForGrain(grain));
             if (!sliced.length) return [];
             if (grain === 'week') {
                 return aggregateByKey(sliced, fields, weekKey, function(k) { return k; });
@@ -234,7 +256,7 @@
             if (grain === 'month') {
                 return aggregateByKey(sliced, fields, monthKey, function(k) { return k + '-01'; });
             }
-            return sliced;
+            return aggregateByKey(sliced, fields, utcDateKey);
         }
 
         function getTrendFields() {
@@ -411,7 +433,8 @@
         }
 
         function cacheMetricKnown(d, prefix) {
-            return d[prefix + '_cache_metric_known'] !== false;
+            return d[prefix + '_cache_metric_known'] === true
+                && TokenProvenance.measuredInput({ provenance: d[prefix + '_provenance'] });
         }
 
         function cacheRatio(d, prefix) {
@@ -422,11 +445,6 @@
         }
 
         function normalizeCacheMetricFlags(data) {
-            data.forEach(function(d) {
-                var qoderKnownInput = inputSide(d, 'qoder');
-                var qoderUnreported = d.qoder_unreported_input_side_tokens || 0;
-                d.qoder_cache_metric_known = !(qoderUnreported > 0 && qoderKnownInput <= 0);
-            });
             return data;
         }
 
@@ -486,15 +504,23 @@
         function buildTokenTooltip(label, d, rangeTotal, previous) {
             var rows = [];
             var total = totalTokens(d);
+            var measurement = trendMeasurement(d);
             TOKEN_LAYERS.forEach(function(layer) {
                 var value = d[layer.key] || 0;
-                rows.push(tooltipRow(layer.cls, layer.label, formatTokens(value), share(value, total)));
+                var key = { fresh: 'fresh', read: 'cacheRead', write: 'cacheWrite', out: 'output' }[layer.cls];
+                rows.push(tooltipRow(layer.cls, layer.label, TokenProvenance.value(measurement, key, formatTokens), TokenProvenance.state(measurement) === 'provider_reported' ? share(value, total) : 'N/A'));
             });
-            rows.push(tooltipRow('total', 'Total', formatTokens(total), share(total, rangeTotal), 'tooltip-row--total'));
+            rows.push(tooltipRow('total', 'Total', TokenProvenance.total(measurement, formatTokens), share(total, rangeTotal), 'tooltip-row--total'));
+            rows.push(tooltipRow('total', 'Measurement', TokenProvenance.note(measurement) || 'Provider reported', ''));
             var prevTotal = previous ? totalTokens(previous) : null;
             var delta = prevTotal == null ? 'N/A' : formatSignedTokens(total - prevTotal);
             rows.push(tooltipRow('total', 'Delta', delta, ''));
             return tooltipShell(label, rows);
+        }
+
+        function trendMeasurement(d) {
+            return { total: totalTokens(d), fresh: d.fresh_input_tokens, cacheRead: d.cache_read_tokens,
+                cacheWrite: d.cache_write_tokens, output: d.output_tokens, provenance: d.provenance };
         }
 
         function buildPromptTooltip(label, d, trendPoint) {
@@ -613,8 +639,12 @@
 
             var legend = TOKEN_LAYERS.map(function(layer) {
                 var value = data.reduce(function(sum, d) { return sum + (d[layer.key] || 0); }, 0);
+                var p = data.reduce(function(previous, d) { return TokenProvenance.merge(previous, d.provenance); }, null);
+                var key = { fresh: 'fresh', read: 'cacheRead', write: 'cacheWrite', out: 'output' }[layer.cls];
+                var tokens = { provenance: p };
+                tokens[key] = value;
                 return '<span class="chart-legend__item"><i class="chart-legend__dot chart-legend__dot--' + layer.cls + '"></i>' +
-                    escapeHtml(layer.label) + ' ' + escapeHtml(formatTokens(value)) + ' ' + escapeHtml(share(value, rangeTotal)) + '</span>';
+                    escapeHtml(layer.label) + ' ' + escapeHtml(TokenProvenance.value(tokens, key, formatTokens)) + ' ' + escapeHtml(TokenProvenance.state(tokens) === 'provider_reported' ? share(value, rangeTotal) : 'N/A') + '</span>';
             }).join('');
 
             setChartMarkup(container, '<div class="chart">' + yHtml +
@@ -691,9 +721,12 @@
             } else {
                 rows.push(tooltipRow('total', 'Input-side Tokens', formatTokens(input), '', 'tooltip-row--total'));
             }
-            rows.push(tooltipRow('fresh', 'Fresh', formatTokens(d[highlightPrefix + '_fresh_input_tokens'] || 0), ''));
-            rows.push(tooltipRow('read', 'Cache Read', formatTokens(d[highlightPrefix + '_cache_read_tokens'] || 0), ''));
-            rows.push(tooltipRow('write', 'Cache Write', formatTokens(d[highlightPrefix + '_cache_write_tokens'] || 0), ''));
+            var tokens = { fresh: d[highlightPrefix + '_fresh_input_tokens'], cacheRead: d[highlightPrefix + '_cache_read_tokens'],
+                cacheWrite: d[highlightPrefix + '_cache_write_tokens'], provenance: d[highlightPrefix + '_provenance'] };
+            rows.push(tooltipRow('fresh', 'Fresh', TokenProvenance.value(tokens, 'fresh', formatTokens), ''));
+            rows.push(tooltipRow('read', 'Cache Read', TokenProvenance.value(tokens, 'cacheRead', formatTokens), ''));
+            rows.push(tooltipRow('write', 'Cache Write', TokenProvenance.value(tokens, 'cacheWrite', formatTokens), ''));
+            rows.push(tooltipRow('total', 'Measurement', TokenProvenance.note(tokens), ''));
             return tooltipShell(label, rows);
         }
 
@@ -820,21 +853,63 @@
             if (!summary) return;
             setKpiValue('Sessions', formatNumber(summary.sessionCount));
             setKpiValue('Projects', formatNumber(summary.projectCount));
-            setKpiValue('Total Tokens', formatTokens(summary.tokens && summary.tokens.total));
+            setKpiValue('Total Tokens', TokenProvenance.total(summary.tokens, formatTokens), summary.tokens);
             setKpiValue('User Prompts', formatNumber(summary.userMessages));
             setKpiValue('Failed Tools', formatNumber(summary.failedTools));
-            setKpiValue('Cache Read Ratio', summary.cacheReadRatio && summary.cacheReadRatio.value != null
-                ? formatPct(summary.cacheReadRatio.value * 100)
-                : 'N/A');
+            setKpiValue('Cache Read Ratio', TokenProvenance.ratio(summary.tokens, summary.cacheReadRatio), summary.tokens);
+            applyCacheReadStatistics(summary.cacheReadStatistics);
         }
 
-        function setKpiValue(label, value) {
+        function applyCacheReadStatistics(statistics) {
+            var card = Array.from(document.querySelectorAll('.metric-card--kpi')).find(function(item) {
+                var label = item.querySelector('.metric-card__label');
+                return label && label.textContent.trim() === 'Cache Read Ratio';
+            });
+            if (!card) return;
+            var validBasis = statistics && statistics.basis === 'provider_reported_input';
+            function count(key) {
+                var value = validBasis && statistics[key];
+                return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? formatNumber(value) : 'N/A';
+            }
+            var median = validBasis && Number(statistics.eligibleSessions) > 0 ? statistics.p50SessionRatio : null;
+            var values = [count('eligibleSessions'), typeof median === 'number' && median >= 0 && median <= 1 ? formatPct(median * 100) : 'N/A', count('lowReadSessions')];
+            card.querySelectorAll('.metric-card__secondary-value').forEach(function(value, index) {
+                value.textContent = values[index] || 'N/A';
+            });
+            var note = card.querySelector('[data-cache-measurement]') || document.createElement('p');
+            note.setAttribute('data-cache-measurement', '');
+            note.className = 'token-provenance';
+            note.textContent = validBasis ? 'Measured subset: provider-reported input with >0 tokens. Excluded: ' + count('excludedSessions') + ' sessions.'
+                : 'Cache session distribution not reported by API; measurable subset is unknown.';
+            if (!note.parentElement) (card.querySelector('.metric-card__body') || card).appendChild(note);
+        }
+
+        function setKpiValue(label, value, tokens) {
             var cards = document.querySelectorAll('.metric-card--kpi');
             for (var i = 0; i < cards.length; i++) {
                 var labelEl = cards[i].querySelector('.metric-card__label');
                 if (!labelEl || labelEl.textContent.trim() !== label) continue;
                 var valueEl = cards[i].querySelector('.metric-card__value');
                 if (valueEl) valueEl.textContent = value;
+                if (tokens) TokenProvenance.attach(cards[i], tokens);
+                if (tokens && label === 'Total Tokens') {
+                    cards[i].querySelectorAll('.metric-card__secondary-row').forEach(function(row) {
+                        var secondaryLabel = row.querySelector('.metric-card__secondary-label');
+                        var key = { Fresh: 'fresh', 'Cache Read': 'cacheRead', 'Cache Write': 'cacheWrite', Output: 'output' }[secondaryLabel ? secondaryLabel.textContent.trim() : ''];
+                        var value = row.querySelector('.metric-card__secondary-value');
+                        if (value && key) value.textContent = TokenProvenance.value(tokens, key, formatTokens);
+                    });
+                }
+                if (label === 'Cache Read Ratio' && !TokenProvenance.measuredInput(tokens || {})) {
+                    cards[i].querySelectorAll('.metric-card__secondary-value').forEach(function(value) {
+                        value.textContent = 'N/A';
+                    });
+                    cards[i].querySelectorAll('.metric-card__badge').forEach(function(badge) {
+                        badge.textContent = 'N/A';
+                        badge.removeAttribute('data-kpi-badge-tooltip');
+                        badge.removeAttribute('data-tooltip-def');
+                    });
+                }
             }
         }
 
@@ -852,6 +927,7 @@
             (tokenResp && tokenResp.points || []).forEach(function(point) {
                 byDate[point.date] = byDate[point.date] || { date: point.date };
                 var tokens = point.tokens || {};
+                byDate[point.date].provenance = tokens.provenance || {};
                 byDate[point.date].fresh_input_tokens = tokens.fresh || 0;
                 byDate[point.date].cache_read_tokens = tokens.cacheRead || 0;
                 byDate[point.date].cache_write_tokens = tokens.cacheWrite || 0;
@@ -894,25 +970,37 @@
             target[prefix + '_fresh_input_tokens'] = tuple.fresh || 0;
             target[prefix + '_cache_read_tokens'] = tuple.cacheRead || 0;
             target[prefix + '_cache_write_tokens'] = tuple.cacheWrite || 0;
-            target[prefix + '_cache_metric_known'] = !(tuple.ratio && tuple.ratio.value == null);
+            target[prefix + '_provenance'] = tuple.provenance || tuple.ratio && tuple.ratio.provenance || {};
+            target[prefix + '_cache_metric_known'] = !!(tuple.ratio && tuple.ratio.value != null)
+                && TokenProvenance.measuredInput({ provenance: target[prefix + '_provenance'] });
         }
 
         function updateChartStats(sessions, tokens, prompts, cache) {
-            var latestSession = lastPoint(sessions);
-            var latestToken = lastPoint(tokens);
-            var latestPrompt = lastPoint(prompts);
+            var cohort = applyScope(rawData, getTrendFields());
+            var promptCohort = applyScope(promptRawData, getPromptFields());
+            var latestSession = cohort.length ? cohort[cohort.length - 1] : null;
+            var latestPrompt = promptCohort.length ? promptCohort[promptCohort.length - 1] : null;
+            var rangeTokens = cohort.reduce(function(total, point) {
+                total.total += totalTokens(point);
+                total.provenance = TokenProvenance.merge(total.provenance, point.provenance);
+                return total;
+            }, { total: 0, provenance: null });
             setStatText('latest-sessions', 'Latest: ' + (latestSession
-                ? formatNumber(latestSession.totalCount)
+                ? formatNumber(latestSession.total_count)
                 : 'N/A'));
-            setStatText('latest-tokens', 'Latest: ' + (latestToken
-                ? formatTokens(latestToken.tokens && latestToken.tokens.total)
+            setStatText('latest-tokens', 'Latest: ' + (latestSession
+                ? TokenProvenance.total(trendMeasurement(latestSession), formatTokens)
                 : 'N/A'));
             setStatText('latest-prompts', 'Latest: ' + (latestPrompt
-                ? formatNumber(latestPrompt.totalPrompts)
+                ? formatNumber(latestPrompt.total_prompts)
                 : 'N/A'));
-            setStatText('range-total-sessions', 'Range total: ' + formatNumber(sessions && sessions.rangeTotal));
-            setStatText('range-total-tokens', 'Range total: ' + formatTokens(tokens && tokens.rangeTotals && tokens.rangeTotals.total));
-            setStatText('range-total-prompts', 'Range total: ' + formatNumber(prompts && prompts.rangeTotalPrompts));
+            setStatText('range-total-sessions', 'Range total: ' + formatNumber(cohort.reduce(function(sum, point) { return sum + (point.total_count || 0); }, 0)));
+            setStatText('range-total-tokens', 'Range total: ' + TokenProvenance.total(rangeTokens, formatTokens));
+            var tokenChart = document.getElementById('token-trend-chart');
+            TokenProvenance.attach(tokenChart && tokenChart.parentElement, rangeTokens);
+            var cacheChart = document.getElementById('cache-health-chart');
+            TokenProvenance.attach(cacheChart && cacheChart.parentElement, { provenance: cache && cache.latestRatio && cache.latestRatio.provenance });
+            setStatText('range-total-prompts', 'Range total: ' + formatNumber(promptCohort.reduce(function(sum, point) { return sum + (point.total_prompts || 0); }, 0)));
             setStatText('latest-ratio', 'Latest ratio: ' + ratioText(cache && cache.latestRatio));
             setStatText('lowest-ratio', 'Lowest ratio: ' + ratioText(cache && cache.lowestRatio));
         }
@@ -923,7 +1011,7 @@
         }
 
         function ratioText(ratio) {
-            return ratio && ratio.value != null ? formatPct(ratio.value * 100) : 'N/A';
+            return TokenProvenance.ratio(null, ratio);
         }
 
         function setStatText(name, text) {
@@ -945,11 +1033,14 @@
                 return '<tr class="agent-row" data-action="switch-agent-scope" data-scope="' + escapeHtml(scope) + '">' +
                     '<td data-sort-value="' + escapeHtml(row.label) + '"><span class="agent-badge agent-badge--' + escapeHtml(row.agent) + '">' + escapeHtml(row.label) + '</span></td>' +
                     '<td class="numeric" data-sort-value="' + escapeHtml(row.sessionCount) + '">' + formatNumber(row.sessionCount) + ' <span class="muted">· ' + formatPct(row.sessionShare) + '</span></td>' +
-                    '<td class="numeric token-cell" data-sort-value="' + escapeHtml(row.tokens && row.tokens.total) + '">' + formatTokens(row.tokens && row.tokens.total) + ' <span class="muted">· ' + formatPct(row.tokenShare) + '</span></td>' +
+                    '<td class="numeric token-cell" data-sort-value="' + escapeHtml(row.tokens && row.tokens.total) + '">' + escapeHtml(TokenProvenance.total(row.tokens, formatTokens)) + ' <span class="muted">· ' + formatPct(row.tokenShare) + '</span></td>' +
                     '<td class="numeric" data-sort-value="' + escapeHtml(row.prompts) + '">' + formatNumber(row.prompts) + ' <span class="muted">· ' + formatPct(row.promptShare) + '</span></td>' +
                     '<td class="numeric" data-sort-value="' + escapeHtml(row.projectCount) + '">' + formatNumber(row.projectCount) + '</td>' +
                     '<td class="numeric" data-sort-value="' + escapeHtml(row.failedTools) + '">' + formatNumber(row.failedTools) + ' failed <span class="muted">· ' + (Number(row.prompts) > 0 ? (Number(row.failedTools || 0) / Number(row.prompts)).toFixed(2) : 'N/A') + ' / prompt</span></td></tr>';
             }).join(''));
+            Array.from(tbody.rows).forEach(function(tr, index) {
+                TokenProvenance.attach(tr.querySelector('.token-cell'), resp.rows[index].tokens);
+            });
         }
 
         function renderContributionBar(name, rows, valueKey, shareKey, formatter) {
@@ -970,7 +1061,9 @@
                     var dot = document.createElement('span');
                     dot.className = 'hbar-legend__dot hbar-legend__dot--' + row.agent;
                     dot.setAttribute('aria-hidden', 'true');
-                    item.append(dot, document.createTextNode(row.label + ' · ' + formatter(valueOf(row, valueKey)) + ' · ' + formatPct(row[shareKey] || 0)));
+                    var displayValue = name === 'token-share' ? TokenProvenance.total(row.tokens, formatter) : formatter(valueOf(row, valueKey));
+                    item.append(dot, document.createTextNode(row.label + ' · ' + displayValue + ' · ' + formatPct(row[shareKey] || 0)));
+                    if (name === 'token-share') TokenProvenance.attach(item, row.tokens);
                     legend.append(item);
                 });
             }
@@ -986,6 +1079,7 @@
                 var tbody = table.querySelector('tbody');
                 if (tbody) {
                     setTableBodyMarkup(tbody, allResp.rows.map(efficiencyRowHtml).join(''));
+                    attachEfficiencyProvenance(tbody, allResp.rows, 3);
                 }
             }
             var modelMixTable = document.querySelector('section[data-chart-card="model-mix"] table.data-table tbody');
@@ -996,11 +1090,19 @@
                         '<h2 class="empty-state__title">No model mix data</h2>' +
                         '<p class="empty-state__text">No model rows are available for this agent and time range.</p>' +
                         '</div></td></tr>');
+                attachEfficiencyProvenance(modelMixTable, deepResp.rows, 2);
             }
             var detailTable = document.querySelector('section[aria-label="Model Efficiency Detail"] table.data-table tbody');
             if (detailTable && deepResp && Array.isArray(deepResp.rows)) {
                 setTableBodyMarkup(detailTable, deepResp.rows.map(efficiencyDetailRowHtml).join(''));
+                attachEfficiencyProvenance(detailTable, deepResp.rows, 2);
             }
+        }
+
+        function attachEfficiencyProvenance(body, rows, column) {
+            Array.from(body.rows).forEach(function(tr, index) {
+                if (rows[index]) TokenProvenance.attach(tr.cells[column], { provenance: rows[index].provenance });
+            });
         }
 
         function modelMixRowHtml(row) {
@@ -1008,8 +1110,8 @@
             return '<tr class="clickable-row" data-action="go-sessions-agent-model" data-agent="' + escapeHtml(scope) + '" data-model="' + escapeHtml(row.model) + '">' +
                 '<td class="mono">' + escapeHtml(row.model) + '</td>' +
                 '<td class="numeric">' + formatNumber(row.sessionCount) + '</td>' +
-                '<td class="numeric">' + formatTokens(row.avgTokensPerSession) + '</td>' +
-                '<td class="numeric">' + (row.cacheReuseRatio == null ? 'N/A' : formatPct(row.cacheReuseRatio * 100)) + '</td></tr>';
+                '<td class="numeric">' + escapeHtml(TokenProvenance.total({ total: row.avgTokensPerSession, provenance: row.provenance }, formatTokens)) + '</td>' +
+                '<td class="numeric">' + escapeHtml(TokenProvenance.ratio(null, { value: row.cacheReuseRatio, provenance: row.provenance })) + '</td></tr>';
         }
 
         function efficiencyRowHtml(row) {
@@ -1018,8 +1120,8 @@
                 '<td data-sort-value="' + escapeHtml(row.agent) + '"><span class="agent-badge agent-badge--' + escapeHtml(row.agent) + '">' + escapeHtml(row.agent) + '</span></td>' +
                 '<td class="mono" data-sort-value="' + escapeHtml(row.model) + '">' + escapeHtml(row.model) + '</td>' +
                 '<td class="numeric" data-sort-value="' + escapeHtml(row.sessionCount) + '">' + formatNumber(row.sessionCount) + '</td>' +
-                '<td class="numeric" data-sort-value="' + escapeHtml(row.avgTokensPerSession) + '">' + formatTokens(row.avgTokensPerSession) + '</td>' +
-                '<td class="numeric" data-sort-value="' + escapeHtml(row.cacheReuseRatio || 0) + '">' + (row.cacheReuseRatio == null ? 'N/A' : formatPct(row.cacheReuseRatio * 100)) + '</td>' +
+                '<td class="numeric" data-sort-value="' + escapeHtml(row.avgTokensPerSession) + '">' + escapeHtml(TokenProvenance.total({ total: row.avgTokensPerSession, provenance: row.provenance }, formatTokens)) + '</td>' +
+                '<td class="numeric" data-sort-value="' + escapeHtml(row.cacheReuseRatio || 0) + '">' + escapeHtml(TokenProvenance.ratio(null, { value: row.cacheReuseRatio, provenance: row.provenance })) + '</td>' +
                 '<td class="numeric" data-sort-value="' + escapeHtml(row.failedPerSession || 0) + '">' + (row.failedPerSession == null ? '0.0' : row.failedPerSession.toFixed(1)) + '</td></tr>';
         }
 
@@ -1027,12 +1129,12 @@
             var scope = row.agent === 'claude_code' ? 'claude-code' : row.agent;
             return '<tr class="clickable-row" data-action="go-sessions-agent-model" data-agent="' + escapeHtml(scope) + '" data-model="' + escapeHtml(row.model) + '">' +
                 '<td class="mono">' + escapeHtml(row.model) + '</td><td class="numeric">' + formatNumber(row.sessionCount) + '</td>' +
-                '<td class="numeric">' + formatTokens(row.avgTokensPerSession) + '</td>' +
+                '<td class="numeric">' + escapeHtml(TokenProvenance.total({ total: row.avgTokensPerSession, provenance: row.provenance }, formatTokens)) + '</td>' +
                 '<td class="numeric">' + formatDuration(row.avgDurationSeconds) + '</td>' +
-                '<td class="numeric">' + (row.cacheReuseRatio == null ? 'N/A' : formatPct(row.cacheReuseRatio * 100)) + '</td>' +
+                '<td class="numeric">' + escapeHtml(TokenProvenance.ratio(null, { value: row.cacheReuseRatio, provenance: row.provenance })) + '</td>' +
                 '<td class="numeric">' + (row.avgToolsPerSession == null ? '0.0' : row.avgToolsPerSession.toFixed(1)) + '</td>' +
                 '<td class="numeric">' + (row.failedPerSession == null ? '0.0' : row.failedPerSession.toFixed(1)) + '</td>' +
-                '<td><span class="badge badge-info">API contract</span></td></tr>';
+                '<td>' + escapeHtml(TokenProvenance.note({ provenance: row.provenance }) || 'Provider reported') + '</td></tr>';
         }
 
         function renderAll() {

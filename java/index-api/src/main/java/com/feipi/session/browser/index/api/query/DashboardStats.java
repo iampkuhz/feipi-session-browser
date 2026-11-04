@@ -1,5 +1,7 @@
 package com.feipi.session.browser.index.api.query;
 
+import com.feipi.session.browser.domain.normalized.TokenProvenance;
+
 /** 索引查询端口暴露的 dashboard 聚合统计。 */
 public interface DashboardStats {
   /** 返回会话总数。 */
@@ -43,4 +45,9 @@ public interface DashboardStats {
 
   /** 返回助手消息总数。 */
   long totalAssistantMessages();
+
+  /** 返回相同查询范围的四段计量来源；旧实现不推断为 provider 上报。 */
+  default TokenProvenance tokenProvenance() {
+    return TokenProvenance.unknown(totalSessions());
+  }
 }

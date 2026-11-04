@@ -8,7 +8,7 @@
 
 # ── 个人配置与环境变量 ──
 /.claude/settings.local.json
-/.qoder/settings.local.json
+/.qoder/
 .mcp.json
 .env
 
@@ -46,16 +46,3 @@ __pycache__/
 
 # ── 客户端运行状态 ──
 /.claude/worktrees/
-/.qoder/task-packs/
-
-# ── Qoder Agent 入口白名单 ──
-# 忽略生成文件，仅保留以下共享入口；增加入口时同步维护此清单。
-/.qoder/agents/*
-!/.qoder/agents/qoder-main-default.md
-!/.qoder/agents/runtime-isolation-diagnoser.md
-!/.qoder/agents/quality-gate-diagnoser.md
-!/.qoder/agents/java-backend-implementer.md
-!/.qoder/agents/session-ingestion-specialist.md
-!/.qoder/agents/ui-implementation-specialist.md
-!/.qoder/agents/mhtml-export-specialist.md
-!/.qoder/agents/privacy-reviewer.md

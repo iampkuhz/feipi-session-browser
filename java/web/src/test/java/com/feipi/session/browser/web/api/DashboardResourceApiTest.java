@@ -15,6 +15,8 @@ import io.javalin.testtools.JavalinTest;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import org.assertj.core.data.Offset;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,6 +33,8 @@ class DashboardResourceApiTest {
 
   @TempDir Path tempDir;
   private IndexConnection indexConnection;
+  private String firstFixtureDay;
+  private String secondFixtureDay;
 
   @BeforeEach
   void setUp() throws Exception {
@@ -41,6 +45,36 @@ class DashboardResourceApiTest {
     indexConnection = IndexConnection.create(writerConn, PragmaConfig.DEFAULTS, jdbcUrl);
     IndexSchema.withDefaults().ensureSchema(indexConnection.writerConnection());
     ApiContractFixture.insertThreeSessionFixture(indexConnection);
+
+    // 趋势查询使用 SQLite 的 UTC 当前窗口；仅移动本测试日期，保留分组、时刻和精确指标。
+    LocalDate firstDay = LocalDate.now(ZoneOffset.UTC).minusDays(2);
+    firstFixtureDay = firstDay.toString();
+    secondFixtureDay = firstDay.plusDays(1).toString();
+    try (var statement =
+        indexConnection
+            .writerConnection()
+            .prepareStatement(
+                """
+                UPDATE sessions
+                SET started_at =
+                    (CASE WHEN session_key = 'claude_code:s-alpha-002'
+                          THEN ? ELSE ? END) || substr(started_at, 11),
+                    fresh_input_token_precision = 'provider_reported',
+                    cache_read_token_precision = 'provider_reported',
+                    cache_write_token_precision = 'provider_reported',
+                    output_token_precision = 'provider_reported', token_contains_unknown = 0,
+                    ended_at =
+                    (CASE WHEN session_key = 'claude_code:s-alpha-002'
+                          THEN ? ELSE ? END) || substr(ended_at, 11)
+                WHERE session_key IN
+                    ('claude_code:s-alpha-001', 'codex:s-beta-001', 'claude_code:s-alpha-002')
+                """)) {
+      statement.setString(1, secondFixtureDay);
+      statement.setString(2, firstFixtureDay);
+      statement.setString(3, secondFixtureDay);
+      statement.setString(4, firstFixtureDay);
+      assertThat(statement.executeUpdate()).isEqualTo(3);
+    }
   }
 
   @AfterEach
@@ -48,6 +82,73 @@ class DashboardResourceApiTest {
     if (indexConnection != null) {
       indexConnection.close();
     }
+  }
+
+  @Test
+  @DisplayName("已上报输入的 Dashboard SSR 保留实测 cache ratio badge")
+  void reportedInputKeepsCacheRatioBadge() {
+    JavalinTest.test(
+        createWebRoot().app(),
+        (testApp, client) -> {
+          var response = client.get("/dashboard");
+          assertThat(response.code()).isEqualTo(200);
+          assertThat(response.body().string())
+              .contains("data-kpi-badge-tooltip=\"Cache Read Ratio\"");
+        });
+  }
+
+  @Test
+  @DisplayName("输入来源未知时 Dashboard SSR 不显示精确 cache ratio 变化")
+  void unknownInputDoesNotInventCacheRatioDelta() throws Exception {
+    try (var statement = indexConnection.writerConnection().createStatement()) {
+      assertThat(
+              statement.executeUpdate(
+                  "UPDATE sessions SET cache_read_token_precision = 'unknown',"
+                      + " token_contains_unknown = 1 WHERE session_key = 'codex:s-beta-001'"))
+          .isEqualTo(1);
+    }
+    JavalinTest.test(
+        createWebRoot().app(),
+        (testApp, client) -> {
+          var response = client.get("/dashboard");
+          assertThat(response.code()).isEqualTo(200);
+          assertThat(response.body().string())
+              .doesNotContain("data-kpi-badge-tooltip=\"Cache Read Ratio\"");
+        });
+  }
+
+  @Test
+  @DisplayName("All 与各 agent 的 Day/Week/Month notes 明确 UTC 开始会话整段累计口径")
+  void chartNotesFollowStartedCohortScopeAndGrain() {
+    JavalinTest.test(
+        createWebRoot().app(),
+        (testApp, client) -> {
+          for (String scope : new String[] {"all", "claude-code", "codex", "qoder"}) {
+            String scopeLabel =
+                switch (scope) {
+                  case "claude-code" -> "Claude Code";
+                  case "codex" -> "Codex";
+                  case "qoder" -> "Qoder";
+                  default -> "All agents";
+                };
+            for (String grain : new String[] {"day", "week", "month"}) {
+              String grainLabel =
+                  switch (grain) {
+                    case "week" -> "ISO 周";
+                    case "month" -> "自然月";
+                    default -> "天";
+                  };
+              var response = client.get("/dashboard?agent=" + scope + "&grain=" + grain);
+              assertThat(response.code()).isEqualTo(200);
+              assertThat(response.body().string())
+                  .contains("按 UTC 开始日，按" + grainLabel + "统计 " + scopeLabel + " 新增会话")
+                  .contains("该批 " + scopeLabel + " 会话的整段累计 tokens")
+                  .contains("该批 " + scopeLabel + " 会话的整段累计 user prompts")
+                  .contains("平均 prompts 的分母为同一批开始会话")
+                  .contains("不是逐次真实消费日");
+            }
+          }
+        });
   }
 
   @Test
@@ -110,9 +211,9 @@ class DashboardResourceApiTest {
 
           assertThat(body.get("rangeTotal").asLong()).isEqualTo(3);
           assertThat(body.get("points")).hasSize(2);
-          assertThat(body.at("/points/0/date").asText()).isEqualTo("2026-06-01");
+          assertThat(body.at("/points/0/date").asText()).isEqualTo(firstFixtureDay);
           assertThat(body.at("/points/0/totalCount").asLong()).isEqualTo(2);
-          assertThat(body.at("/points/1/date").asText()).isEqualTo("2026-06-02");
+          assertThat(body.at("/points/1/date").asText()).isEqualTo(secondFixtureDay);
           assertThat(sum(body.get("points"), "totalCount"))
               .isEqualTo(body.get("rangeTotal").asLong());
         });

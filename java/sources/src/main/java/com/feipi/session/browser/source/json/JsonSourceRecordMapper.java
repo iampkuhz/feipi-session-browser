@@ -3,12 +3,15 @@ package com.feipi.session.browser.source.json;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.feipi.session.browser.domain.source.SourceRecord;
 import com.feipi.session.browser.domain.source.SourceRecordUsage;
+import com.feipi.session.browser.domain.source.SourceTiming;
 import com.feipi.session.browser.domain.source.SourceToolCall;
 import com.feipi.session.browser.source.common.JsonNodeReaders;
 import com.feipi.session.browser.source.common.ToolFailureClassifier;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalLong;
 
 /**
  * JSON 事件到源中性记录的映射器。
@@ -77,7 +80,9 @@ public final class JsonSourceRecordMapper {
         com.feipi.session.browser.domain.source.SourceRecordRelation.empty(),
         extractContent(event),
         extractResponseMessageId(event, normalizedEventType),
-        extractResponseStopReason(event, normalizedEventType));
+        extractResponseStopReason(event, normalizedEventType),
+        extractTiming(event),
+        isMetaContext(event));
   }
 
   private static SourceRecord createBlockRecord(
@@ -116,7 +121,64 @@ public final class JsonSourceRecordMapper {
         toolName,
         toolError,
         com.feipi.session.browser.domain.source.SourceRecordRelation.empty(),
-        content.toString());
+        content.toString(),
+        Optional.empty(),
+        Optional.empty(),
+        extractTiming(event),
+        isMetaContext(event));
+  }
+
+  private static boolean isMetaContext(JsonNode event) {
+    JsonNode value = event.get("isMeta");
+    return value != null && value.isBoolean() && value.booleanValue();
+  }
+
+  /** 只提取显式任务/agent-turn计时；外层timestamp是写出时间，不能代替任务边界。 */
+  public static SourceTiming extractTiming(JsonNode event) {
+    String type = event.path("type").asText("");
+    JsonNode fields = "event_msg".equals(type) ? event.path("payload") : event;
+    String kind = "event_msg".equals(type) ? fields.path("type").asText("") : type;
+    if ("system".equals(type) && "turn_duration".equals(event.path("subtype").asText())) {
+      kind = "turn_duration";
+    }
+    if (!List.of("task_started", "task_complete", "turn_aborted", "turn_duration").contains(kind)) {
+      return SourceTiming.empty();
+    }
+    return new SourceTiming(
+        kind,
+        fields.path("turn_id").asText(""),
+        explicitTime(fields.get("started_at")),
+        explicitTime(fields.get("completed_at")),
+        explicitMillis(fields.get("turn_duration".equals(kind) ? "durationMs" : "duration_ms")),
+        OptionalLong.empty(),
+        OptionalLong.empty(),
+        firstText(event, "uuid", "id").orElse(""));
+  }
+
+  private static Optional<String> explicitTime(JsonNode value) {
+    if (value == null || value.isNull()) {
+      return Optional.empty();
+    }
+    try {
+      if (value.isIntegralNumber() && value.canConvertToLong()) {
+        return Optional.of(Instant.ofEpochSecond(value.longValue()).toString());
+      }
+      if (value.isTextual()) {
+        return Optional.of(Instant.parse(value.textValue()).toString());
+      }
+    } catch (java.time.DateTimeException e) {
+      return Optional.empty();
+    }
+    return Optional.empty();
+  }
+
+  private static OptionalLong explicitMillis(JsonNode value) {
+    return value != null
+            && value.isIntegralNumber()
+            && value.canConvertToLong()
+            && value.longValue() >= 0
+        ? OptionalLong.of(value.longValue())
+        : OptionalLong.empty();
   }
 
   private static String normalizeEventType(JsonNode event, String eventType) {

@@ -21,7 +21,7 @@ on:
         default: false
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ inputs.version || github.ref_name }}
   cancel-in-progress: false
 
 permissions:
@@ -39,8 +39,9 @@ jobs:
       publish: ${{ steps.resolve.outputs.publish }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          ref: ${{ github.sha }}
           fetch-depth: 0
 
       - name: 解析版本与发布模式
@@ -88,310 +89,186 @@ jobs:
           echo "publish=$publish" >> "$GITHUB_OUTPUT"
           echo "发布版本: $version, 正式发布: $publish"
 
-  # ============================================================
-  # 阶段 2：质量门禁 —— 测试和静态检查
-  # ============================================================
-  quality:
-    runs-on: ubuntu-latest
+  distribution:
     needs: validate
+    uses: ./.github/workflows/distribution.yml
+    with:
+      version: ${{ needs.validate.outputs.version }}
+
+  release-candidate:
+    needs: [validate, distribution]
+    runs-on: ubuntu-24.04
+    environment:
+      name: release-candidate
+      url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    permissions:
+      contents: read
+      deployments: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Validate Gradle Wrapper
-        uses: gradle/actions/wrapper-validation@v4
-
-      - name: Set up JDK 25
-        uses: actions/setup-java@v4
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          distribution: zulu
-          java-version: '25'
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+          ref: ${{ github.sha }}
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
-          cache-read-only: true
-          build-scan-publish: false
-
-      - name: 运行全部测试与质量检查
-        run: ./java/gradlew -p java check --no-daemon
-
-  # ============================================================
-  # 阶段 3：四平台并行构建
-  # 每平台产出 distribution archive + checksum manifest。
-  # ============================================================
-  build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-14
-            platform: macos
-            arch: arm64
-            artifact-suffix: macos-arm64
-            archive-ext: tar.gz
-          - os: macos-13
-            platform: macos
-            arch: x64
-            artifact-suffix: macos-x64
-            archive-ext: tar.gz
-          - os: ubuntu-latest
-            platform: linux
-            arch: x64
-            artifact-suffix: linux-x64
-            archive-ext: tar.gz
-          - os: windows-latest
-            platform: windows
-            arch: x64
-            artifact-suffix: windows-x64
-            archive-ext: zip
-    runs-on: ${{ matrix.os }}
-    needs: quality
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Validate Gradle Wrapper
-        uses: gradle/actions/wrapper-validation@v4
-
-      - name: Set up JDK 25
-        uses: actions/setup-java@v4
+          python-version: '3.12'
+      - name: Download the sole verified candidate
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          distribution: zulu
-          java-version: '25'
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          cache-read-only: true
-          build-scan-publish: false
-
-      # 构建 distribution（含 jlink runtime image）
-      - name: Build distribution (POSIX)
-        if: runner.os != 'Windows'
+          name: verified-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: verified-candidate/
+      - name: Reverify RC at the native Environment deployment boundary
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
         run: |
-          ./java/gradlew -p java :java:app-cli:runtimeDistTar :java:app-cli:distZip --no-daemon
+          python scripts/release/release_pipeline_helpers.py verify-candidate --candidate-dir verified-candidate --version "$VERSION" --source-sha "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT"
 
-      - name: Build distribution (Windows)
-        if: runner.os == 'Windows'
-        shell: cmd
-        run: |
-          .\java\gradlew.bat -p java :java:app-cli:runtimeDistZip :java:app-cli:distZip --no-daemon
-
-      # Smoke test：验证产物可运行
-      - name: Smoke test (POSIX)
-        if: runner.os != 'Windows'
-        run: |
-          ./java/gradlew -p java :java:app-cli:installDist --no-daemon
-          ./java/app-cli/build/install/app-cli/bin/app-cli --version
-          ./java/app-cli/build/install/app-cli/bin/app-cli --help
-
-      - name: Smoke test (Windows)
-        if: runner.os == 'Windows'
-        shell: cmd
-        run: |
-          .\java\gradlew.bat -p java :java:app-cli:installDist --no-daemon
-          java\app-cli\build\install\app-cli\bin\app-cli.bat --version
-          java\app-cli\build\install\app-cli\bin\app-cli.bat --help
-
-      # Checksum：生成 SHA-256 manifest
-      - name: Generate checksums
-        shell: bash
-        run: |
-          bash scripts/release/generate-checksums.sh java/app-cli/build/distributions
-
-      # 上传产物
-      - name: Upload distribution artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist-${{ matrix.artifact-suffix }}
-          path: |
-            java/app-cli/build/distributions/*
-          retention-days: 30
-          if-no-files-found: error
-
-      - name: Upload checksum manifest
-        uses: actions/upload-artifact@v4
-        with:
-          name: checksum-${{ matrix.artifact-suffix }}
-          path: java/app-cli/build/distributions/MANIFEST.SHA256
-          retention-days: 30
-          if-no-files-found: error
-
-  # ============================================================
-  # 阶段 4：汇总校验 + 升级/回滚 drill
-  # 所有平台构建成功后才执行；失败时不进入发布阶段。
-  # ============================================================
-  verify-and-drill:
-    runs-on: ubuntu-latest
-    needs: [validate, build]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Set up JDK 25
-        uses: actions/setup-java@v4
-        with:
-          distribution: zulu
-          java-version: '25'
-
-      - name: Download all distributions
-        uses: actions/download-artifact@v4
-        with:
-          pattern: dist-*
-          path: release-candidate/
-          merge-multiple: false
-
-      - name: Download all checksums
-        uses: actions/download-artifact@v4
-        with:
-          pattern: checksum-*
-          path: checksums/
-          merge-multiple: false
-
-      # 汇总并展示 checksum manifest
-      - name: 汇总 checksum manifest
-        run: |
-          echo "===== Release Candidate Checksum Summary ====="
-          find checksums/ -name 'MANIFEST.SHA256' -exec sh -c '
-            echo "--- $(dirname {} | xargs basename) ---"
-            grep -v "^#" {}
-            echo
-          ' \;
-
-      # 验证 checksum 一致性：每平台 manifest 与对应 dist 文件交叉校验
-      - name: 验证 checksum
-        run: |
-          set -euo pipefail
-          total=0
-          for checksum_dir in checksums/checksum-*/; do
-            platform="$(basename "$checksum_dir" | sed 's/^checksum-//')"
-            manifest="$checksum_dir/MANIFEST.SHA256"
-            [[ -f "$manifest" ]] || continue
-
-            # 对应平台 distribution 目录
-            dist_dir="release-candidate/dist-${platform}"
-            if [[ ! -d "$dist_dir" ]]; then
-              echo "::error::未找到平台 $platform 的 distribution 产物" >&2
-              exit 1
-            fi
-
-            # 复制到临时目录进行验证
-            verify_dir="$(mktemp -d)"
-            cp "$dist_dir"/* "$verify_dir/" 2>/dev/null || true
-            cp "$manifest" "$verify_dir/MANIFEST.SHA256"
-
-            if bash scripts/release/generate-checksums.sh "$verify_dir" --verify; then
-              echo "PASS: $platform checksum 验证通过"
-            else
-              echo "::error::FAIL: $platform checksum 验证失败" >&2
-              exit 1
-            fi
-            rm -rf "$verify_dir"
-            total=$((total + 1))
-          done
-          if [[ "$total" -eq 0 ]]; then
-            echo "::error::未找到任何 checksum manifest" >&2
-            exit 1
-          fi
-          echo "全部 $total 个平台 checksum 验证通过"
-
-      # 验证无 secret 泄漏
-      - name: 验证无 secret 泄漏
-        run: |
-          if grep -rEi '(password|secret|token|api.?key)\s*[:=]\s*\S+' checksums/ release-candidate/ 2>/dev/null | grep -v '.class' | grep -v '.jar'; then
-            echo "::error::发行产物中疑似包含 secret" >&2
-            exit 1
-          fi
-          echo "Secret 泄漏检查通过"
-
-      # 升级/回滚 drill：使用脱敏旧版本数据验证迁移安全性
-      - name: 升级/回滚 drill
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "===== 升级/回滚 Drill ====="
-          # 验证 drill 脚本存在且可执行
-          if [[ -x scripts/release/drill-upgrade-rollback.sh ]]; then
-            bash scripts/release/drill-upgrade-rollback.sh \
-              --candidate-dir release-candidate \
-              --version "${{ needs.validate.outputs.version || '0.4' }}"
-          else
-            echo "::warning::drill 脚本不可执行，跳过升级/回滚 drill"
-          fi
-
-  # ============================================================
-  # 阶段 5：创建 GitHub Release
-  # 仅当全部前置阶段通过且 publish=true 时执行。
-  # 失败原子停止：任一前置阶段失败都不会到达此步骤。
-  # ============================================================
   publish-release:
-    runs-on: ubuntu-latest
-    needs: [validate, verify-and-drill]
-    if: always() && needs.validate.result == 'success' && needs.verify-and-drill.result == 'success' && needs.validate.outputs.publish == 'true'
+    needs: [validate, distribution, release-candidate]
+    if: needs.validate.outputs.publish == 'true'
+    runs-on: ubuntu-24.04
+    concurrency:
+      group: publish-version-${{ needs.validate.outputs.version }}
+      cancel-in-progress: false
+    environment:
+      name: github-release
+      url: ${{ github.server_url }}/${{ github.repository }}/releases/tag/v${{ needs.validate.outputs.version }}
     permissions:
       contents: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: 下载全部发行产物
-        uses: actions/download-artifact@v4
+      - name: Checkout exact approved source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          pattern: dist-*
-          path: release-assets/
-          merge-multiple: true
-
-      - name: 下载全部 checksum
-        uses: actions/download-artifact@v4
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
-          pattern: checksum-*
-          path: checksum-platforms/
-          merge-multiple: false
-
-      - name: 发布 GitHub Release
+          python-version: '3.12'
+      - name: Download only the verified candidate from this run and attempt
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: verified-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: verified-candidate/
+      - name: Verify candidate again after manual approval
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          python scripts/release/release_pipeline_helpers.py verify-candidate --candidate-dir verified-candidate --version "$VERSION" --source-sha "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT"
+      - name: Verify existing remote tag still targets the exact approved SHA
         shell: bash
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF_TYPE" == tag && "$GITHUB_REF_NAME" == "v$VERSION" ]]
+          [[ "$(tr -d '[:space:]' < java/gradle/VERSION)" == "$VERSION" ]]
+          # gh supplies authentication without persisting a write token in checkout.
+          gh auth setup-git
+          remote_refs="$(git ls-remote origin "refs/tags/v$VERSION" "refs/tags/v$VERSION^{}")"
+          remote_sha="$(printf '%s\n' "$remote_refs" | awk '$2 ~ /\^\{\}$/ {print $1}')"
+          if [[ -z "$remote_sha" ]]; then
+            remote_sha="$(printf '%s\n' "$remote_refs" | awk 'NF == 2 {print $1}')"
+          fi
+          [[ "$remote_sha" == "$GITHUB_SHA" ]]
+      - name: Create draft, upload and redownload every asset, then make public
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ needs.validate.outputs.version }}
+        shell: bash
         run: |
           set -euo pipefail
+          python - <<'PYTHON_CODE'
+          import hashlib
+          import json
+          import os
+          import re
+          from pathlib import Path
+          import urllib.error
+          import urllib.parse
+          import urllib.request
 
-          # 收集所有发行文件
-          assets=()
-          for f in release-assets/*.tar.gz release-assets/*.zip; do
-            [[ -f "$f" ]] && assets+=("$f")
-          done
+          token = os.environ['GH_TOKEN']
+          api = os.environ['GITHUB_API_URL']
+          repository = os.environ['GITHUB_REPOSITORY']
+          tag = 'v' + os.environ['VERSION']
+          root = api + '/repos/' + repository
+          headers = {'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28'}
 
-          if [[ "${#assets[@]}" -eq 0 ]]; then
-            echo "::error::未找到发行归档文件" >&2
-            exit 1
-          fi
+          class ReleaseRedirectHandler(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, response_headers, newurl):
+                  redirected = super().redirect_request(req, fp, code, msg, response_headers, newurl)
+                  if redirected is not None:
+                      def origin(url):
+                          parsed = urllib.parse.urlsplit(url)
+                          port = parsed.port or (443 if parsed.scheme == 'https' else 80)
+                          return parsed.scheme.lower(), parsed.hostname, port
+                      if origin(req.full_url) != origin(newurl):
+                          redirected.remove_header('Authorization')
+                  return redirected
 
-          # 合并所有平台 checksum 到单一 manifest（每平台 manifest 文件名相同，需分开读取）
-          merged_manifest="MANIFEST.SHA256"
-          {
-            echo "# Feipi Session Browser v${VERSION} Distribution Manifest"
-            echo "# Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            echo "# Format: SHA256  SIZE  FILENAME"
-            echo "#"
-          } > "$merged_manifest"
-          for m in checksum-platforms/*/MANIFEST.SHA256; do
-            [[ -f "$m" ]] && grep -v "^#" "$m" >> "$merged_manifest"
-          done
-          assets+=("$merged_manifest")
+          opener = urllib.request.build_opener(ReleaseRedirectHandler())
 
-          # Release notes
-          notes_file="docs/release/notes/v${VERSION}.md"
-          notes_args=(--generate-notes)
-          if [[ -f "$notes_file" ]]; then
-            notes_args=(--notes-file "$notes_file")
-          fi
+          def request(url, method='GET', payload=None, binary=False):
+              current_headers = dict(headers)
+              if binary:
+                  current_headers['Accept'] = 'application/octet-stream'
+              data = None
+              if isinstance(payload, bytes):
+                  data = payload
+                  current_headers['Content-Type'] = 'application/octet-stream'
+              elif payload is not None:
+                  data = json.dumps(payload).encode()
+                  current_headers['Content-Type'] = 'application/json'
+              req = urllib.request.Request(url, data=data, headers=current_headers, method=method)
+              with opener.open(req, timeout=180) as response:
+                  body = response.read()
+              return body if binary else json.loads(body)
 
-          gh release create "v${VERSION}" \
-            "${assets[@]}" \
-            --verify-tag \
-            --title "v${VERSION}" \
-            "${notes_args[@]}"
-
-          echo "GitHub Release v${VERSION} 已发布"
+          # A foreign or public release is never overwritten. Even an old draft
+          # requires explicit human recovery rather than silent asset clobbering.
+          page = 1
+          while True:
+              existing = request(root + '/releases?per_page=100&page=' + str(page))
+              if any(item['tag_name'] == tag for item in existing):
+                  raise RuntimeError('Release or draft already exists; refusing to overwrite ' + tag)
+              if len(existing) < 100:
+                  break
+              page += 1
+          assets = {path.name: path.read_bytes() for path in Path('verified-candidate').iterdir() if path.is_file()}
+          if len(assets) != 15:
+              raise RuntimeError('Expected all 15 verified candidate assets')
+          notes = Path('docs/release/notes') / (tag + '.md')
+          # Only pure numeric X.Y / X.Y.Z versions are stable and eligible for latest.
+          prerelease = re.fullmatch(r'[0-9]+\.[0-9]+(?:\.[0-9]+)?', os.environ['VERSION']) is None
+          payload = {'tag_name': tag, 'target_commitish': os.environ['GITHUB_SHA'], 'name': tag, 'draft': True, 'prerelease': prerelease, 'make_latest': 'false' if prerelease else 'true'}
+          if notes.is_file():
+              payload['body'] = notes.read_text()
+          else:
+              payload['generate_release_notes'] = True
+          release = request(root + '/releases', 'POST', payload)
+          release_url = root + '/releases/' + str(release['id'])
+          print('Created non-public draft: ' + release['html_url'], flush=True)
+          upload_url = release['upload_url'].split('{', 1)[0]
+          for name, data in sorted(assets.items()):
+              request(upload_url + '?name=' + urllib.parse.quote(name, safe=''), 'POST', data)
+          remote = request(release_url)
+          if remote['draft'] is not True or remote['tag_name'] != tag:
+              raise RuntimeError('Draft identity or visibility changed')
+          remote_assets = request(release_url + '/assets?per_page=100')
+          if len(remote_assets) != len(assets) or {asset['name'] for asset in remote_assets} != set(assets):
+              raise RuntimeError('Remote asset names do not exactly match verified candidate')
+          for asset in remote_assets:
+              expected = assets[asset['name']]
+              downloaded = request(asset['url'], binary=True)
+              if asset['size'] != len(expected) or len(downloaded) != len(expected) or hashlib.sha256(downloaded).digest() != hashlib.sha256(expected).digest():
+                  raise RuntimeError('Remote size/hash mismatch: ' + asset['name'])
+          # Only this final operation exposes the already complete draft.
+          published = request(release_url, 'PATCH', {'draft': False})
+          if published['draft'] is not False:
+              raise RuntimeError('Release did not become public')
+          print('Published verified release: ' + published['html_url'])
+          PYTHON_CODE

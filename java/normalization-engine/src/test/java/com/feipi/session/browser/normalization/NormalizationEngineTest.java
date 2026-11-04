@@ -14,6 +14,11 @@ import com.feipi.session.browser.domain.normalized.NormalizedSourceFile;
 import com.feipi.session.browser.domain.normalized.SourceFileRole;
 import com.feipi.session.browser.domain.normalized.SourceUnitCatalogEntry;
 import com.feipi.session.browser.domain.normalized.SourceUnitDirection;
+import com.feipi.session.browser.domain.source.SourceRecord;
+import com.feipi.session.browser.domain.source.SourceRecordRelation;
+import com.feipi.session.browser.domain.source.SourceRecordUsage;
+import com.feipi.session.browser.domain.source.SourceTiming;
+import com.feipi.session.browser.domain.source.SourceToolCall;
 import com.feipi.session.browser.source.spi.ParseIssueType;
 import com.feipi.session.browser.source.spi.ParseSeverity;
 import com.feipi.session.browser.source.spi.SourceDiagnostic;
@@ -22,6 +27,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.OptionalLong;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -36,6 +42,128 @@ class NormalizationEngineTest {
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
   private static final NormalizationEngine ENGINE = new NormalizationEngine();
+
+  @Test
+  @DisplayName("MAIN meta 不计人类 prompt，原输入与 sidecar 上下文仍保持顺序和作用域")
+  void metaContextIsNotHumanPromptButRemainsInItsOwnRequestScope() {
+    String main = "synthetic/main.jsonl#event[";
+    String child = "synthetic/main/subagents/agent-synthetic.jsonl#event[";
+    SourceRecord human = SourceRecord.of(main + "0]", 0, "user").withContent("human prompt");
+    SourceRecord meta =
+        metaContext(SourceRecord.of(main + "1]", 1, "user").withContent("  meta context\n"));
+    SourceRecord childMeta =
+        metaContext(SourceRecord.of(child + "0]", 0, "user").withContent("child meta"));
+    SourceRecord childTask = SourceRecord.of(child + "1]", 1, "user").withContent("child task");
+    SourceRecord mainAnswer =
+        SourceRecord.of(main + "2]", 2, "assistant").withContent("main answer");
+    SourceRecord childAnswer =
+        SourceRecord.of(child + "2]", 2, "assistant").withContent("child answer");
+    var artifact =
+        ENGINE.normalize(
+            NormalizedAgent.CLAUDE_CODE,
+            List.of(human, meta, childMeta, childTask, mainAnswer, childAnswer),
+            List.of(),
+            List.of());
+
+    assertThat(artifact.session()).containsEntry("userMessageCount", 1L);
+    assertThat(artifact.calls()).hasSize(2);
+    assertThat(artifact.calls().get(0).sourceUnits())
+        .extracting(unit -> unit.get("text"))
+        .containsExactly("human prompt", "  meta context\n", "main answer");
+    assertThat(artifact.calls().get(0).sourceUnits().get(0)).doesNotContainKey("isMeta");
+    assertThat(artifact.calls().get(0).sourceUnits().get(1))
+        .containsEntry("type", "user")
+        .containsEntry("role", "user")
+        .containsEntry("isMeta", true);
+    assertThat(artifact.calls().get(1).sourceUnits())
+        .extracting(unit -> unit.get("text"))
+        .containsExactly("child meta", "child task", "child answer");
+    assertThat(artifact.calls().get(1).sourceUnits().get(0)).containsEntry("isMeta", true);
+  }
+
+  @Test
+  @DisplayName("Claude response 合并保留一致 meta/timing，冲突 meta 不伪造合并归因")
+  void claudeResponseCopiesPreserveMetaAndTimingWithoutMixingEvidence() {
+    SourceRecord assistant =
+        new SourceRecord(
+            "synthetic.jsonl#event[0]",
+            0,
+            "assistant",
+            Optional.of("synthetic-call"),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty(),
+            SourceRecordUsage.empty(),
+            List.of(),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty(),
+            SourceRecordRelation.empty(),
+            "first",
+            Optional.of("synthetic-message"),
+            Optional.of("end_turn"),
+            new SourceTiming(
+                "turn_duration",
+                "synthetic-turn",
+                Optional.empty(),
+                Optional.empty(),
+                OptionalLong.of(17),
+                OptionalLong.of(0),
+                OptionalLong.empty(),
+                "synthetic-event"),
+            true);
+    SourceRecord second = metaContext(assistant.withContent("second"));
+    List<SourceRecord> merged = ClaudeResponseRecords.merge(List.of(assistant, second));
+    assertThat(merged).hasSize(1);
+    assertThat(merged.getFirst().metaContext()).isTrue();
+    assertThat(merged.getFirst().timing()).isEqualTo(assistant.timing());
+    assertThat(merged.getFirst().content()).isEqualTo("first\nsecond");
+    SourceRecord ordinary =
+        new SourceRecord(
+            assistant.locator(),
+            assistant.eventIndex(),
+            assistant.eventType(),
+            assistant.callId(),
+            assistant.model(),
+            assistant.timestamp(),
+            assistant.turnId(),
+            assistant.usage(),
+            assistant.toolCalls(),
+            assistant.toolUseId(),
+            assistant.toolName(),
+            assistant.toolError(),
+            assistant.relation(),
+            "ordinary",
+            assistant.responseMessageId(),
+            assistant.responseStopReason(),
+            assistant.timing());
+    List<SourceRecord> distinct = ClaudeResponseRecords.merge(List.of(assistant, ordinary));
+    assertThat(distinct).containsExactly(assistant, ordinary);
+    assertThat(ClaudeResponseRecords.merge(List.of(assistant, ordinary, second)))
+        .containsExactly(assistant, ordinary, second);
+  }
+
+  private static SourceRecord metaContext(SourceRecord record) {
+    return new SourceRecord(
+        record.locator(),
+        record.eventIndex(),
+        record.eventType(),
+        record.callId(),
+        record.model(),
+        record.timestamp(),
+        record.turnId(),
+        record.usage(),
+        record.toolCalls(),
+        record.toolUseId(),
+        record.toolName(),
+        record.toolError(),
+        record.relation(),
+        record.content(),
+        record.responseMessageId(),
+        record.responseStopReason(),
+        record.timing(),
+        true);
+  }
 
   @Nested
   @DisplayName("空事件")
@@ -177,6 +305,110 @@ class NormalizationEngineTest {
   class TokenUsageTests {
 
     @Test
+    @DisplayName("Claude 流块按源文件/message 合并调用，四段 token 与 session 守恒且原始时间保留")
+    void claudeStreamCallsConserveFinalUsageAndOriginalTimeline() {
+      SourceRecordUsage mainUsage = new SourceRecordUsage(11, 0, 2407, 73);
+      SourceRecordUsage sideUsage = new SourceRecordUsage(5, 311, 0, 19);
+      List<SourceRecord> records =
+          List.of(
+              claudeFragment(
+                  "main.jsonl",
+                  0,
+                  "shared-message",
+                  "2026-07-02T10:00:00Z",
+                  mainUsage,
+                  "first fragment",
+                  List.of()),
+              claudeFragment(
+                  "main.jsonl",
+                  1,
+                  "shared-message",
+                  "2026-07-02T10:01:00Z",
+                  mainUsage,
+                  "middle fragment",
+                  List.of(new SourceToolCall("stream-tool", "Read", "{}"))),
+              claudeFragment(
+                  "main.jsonl",
+                  2,
+                  "shared-message",
+                  "2026-07-02T10:03:00Z",
+                  mainUsage,
+                  "last fragment",
+                  List.of(
+                      new SourceToolCall("stream-tool", "Read", "{\"path\":\"synthetic.txt\"}"))),
+              claudeFragment(
+                  "main/subagents/agent-worker.jsonl",
+                  0,
+                  "shared-message",
+                  "2026-07-02T10:00:30Z",
+                  sideUsage,
+                  "side fragment",
+                  List.of()),
+              claudeFragment(
+                  "main/subagents/agent-worker.jsonl",
+                  1,
+                  "shared-message",
+                  "2026-07-02T10:02:00Z",
+                  sideUsage,
+                  "side final",
+                  List.of()));
+
+      NormalizedSessionArtifact artifact =
+          ENGINE.normalize(NormalizedAgent.CLAUDE_CODE, records, List.of(), List.of());
+
+      assertThat(artifact.calls()).hasSize(2);
+      assertThat(artifact.calls().getFirst().usage().fresh()).isEqualTo(11);
+      assertThat(artifact.calls().getFirst().usage().cacheWrite()).isEqualTo(2407);
+      assertThat(artifact.calls().getFirst().usage().output()).isEqualTo(73);
+      assertThat(artifact.calls().getFirst().response().toolCallIds())
+          .containsExactly("stream-tool");
+      assertThat(artifact.calls().getFirst().sourceUnits().toString())
+          .contains("first fragment", "middle fragment", "last fragment", "synthetic.txt");
+      assertThat(artifact.toolExecutions()).hasSize(1);
+      assertThat(artifact.calls().getLast().usage().fresh()).isEqualTo(5);
+      assertThat(artifact.calls().getLast().subagentId()).hasValue("agent-worker");
+      assertThat(artifact.session())
+          .containsEntry("eventCount", 5)
+          .containsEntry("assistantMessageCount", 1L)
+          .containsEntry("freshInputTokens", 16L)
+          .containsEntry("cacheReadTokens", 311L)
+          .containsEntry("cacheWriteTokens", 2407L)
+          .containsEntry("outputTokens", 92L)
+          .containsEntry("totalTokens", 2826L)
+          .containsEntry("started_at", "2026-07-02T10:00:00Z")
+          .containsEntry("ended_at", "2026-07-02T10:03:00Z");
+      assertThat(artifact.calls().stream().mapToLong(call -> call.usage().total()).sum())
+          .isEqualTo(2826);
+    }
+
+    private SourceRecord claudeFragment(
+        String file,
+        int index,
+        String messageId,
+        String timestamp,
+        SourceRecordUsage usage,
+        String content,
+        List<SourceToolCall> tools) {
+      return new SourceRecord(
+          file + "#event[" + index + "]",
+          index,
+          "assistant",
+          Optional.of(file + ":chunk-" + index),
+          Optional.of("synthetic-model"),
+          Optional.of(timestamp),
+          Optional.of(messageId),
+          usage,
+          tools,
+          Optional.empty(),
+          Optional.empty(),
+          Optional.empty(),
+          SourceRecordRelation.empty(),
+          content,
+          Optional.of(messageId),
+          Optional.empty());
+    }
+
+    @Test
     @DisplayName("token 用量从事件中正确提取")
     void tokenUsageExtractedFromEvents() {
       ObjectNode event = MAPPER.createObjectNode();
@@ -215,6 +447,47 @@ class NormalizationEngineTest {
       assertThat(artifact.calls().get(0).usage().fresh()).isZero();
       assertThat(artifact.calls().get(0).usage().output()).isZero();
     }
+  }
+
+  @Test
+  @DisplayName("现代与legacy Codex usage closing frames 均纳入LLM调用计数")
+  void codexModernAndLegacyClosingFramesBothCountAsCalls() {
+    ObjectNode legacy =
+        MAPPER.createObjectNode().put("type", "assistant").put("id", "token_count:17");
+    ObjectNode modern =
+        MAPPER
+            .createObjectNode()
+            .put("type", "assistant")
+            .put("id", "token_usage_record:synthetic-response");
+    ObjectNode message =
+        MAPPER
+            .createObjectNode()
+            .put("type", "event_msg")
+            .put("turnId", "agent_message")
+            .put("timestamp", "2026-07-15T10:00:00Z");
+    ObjectNode child =
+        MAPPER
+            .createObjectNode()
+            .put("type", "assistant")
+            .put("id", "token_usage_record:synthetic-child")
+            .put("locator", "main/subagents/agent-worker.jsonl#event[0]");
+    ObjectNode childUser =
+        MAPPER
+            .createObjectNode()
+            .put("type", "user")
+            .put("content", "child input")
+            .put("locator", "main/subagents/agent-worker.jsonl#event[1]");
+
+    NormalizedSessionArtifact artifact =
+        ENGINE.normalize(
+            NormalizedAgent.CODEX,
+            TestSourceRecords.records(legacy, modern, message, child, childUser),
+            List.of(),
+            List.of());
+
+    assertThat(artifact.session()).containsEntry("assistantMessageCount", 2L);
+    assertThat(artifact.session()).containsEntry("userMessageCount", 0L);
+    assertThat(artifact.calls()).hasSize(3);
   }
 
   @Nested
@@ -551,8 +824,13 @@ class NormalizationEngineTest {
               List.of());
 
       assertThat(artifact.session()).containsEntry("assistantMessageCount", 2L);
-      // activeSpan = 16:00:00 - 02:15:00 = 49500s，无工具执行时长，全部归入 modelExecutionSeconds
-      assertThat(artifact.session()).containsEntry("modelExecutionSeconds", 49500.0);
+      // 两次调用间隔不是模型执行；无显式计量时旧数字键为0，typed timing明确unknown。
+      assertThat(artifact.session()).containsEntry("modelExecutionSeconds", 0.0);
+      assertThat(
+              com.feipi.session.browser.domain.normalized.SessionTiming.fromMetadata(
+                      artifact.session())
+                  .modelExecutionPrecision())
+          .isEqualTo("unknown");
       assertThat(artifact.session()).containsEntry("toolExecutionSeconds", 0.0);
     }
 

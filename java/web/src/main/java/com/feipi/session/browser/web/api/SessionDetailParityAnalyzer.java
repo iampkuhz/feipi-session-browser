@@ -2,11 +2,18 @@ package com.feipi.session.browser.web.api;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.feipi.session.browser.application.sessiondetail.PayloadCallContentExtractor;
 import com.feipi.session.browser.application.sessiondetail.SessionDetail;
 import com.feipi.session.browser.domain.enums.CallScope;
+import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
+import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
+import com.feipi.session.browser.domain.normalized.SessionTiming;
+import com.feipi.session.browser.domain.normalized.TokenProvenance;
 import com.feipi.session.browser.index.api.query.SessionRecord;
 import com.feipi.session.browser.query.api.CallRound;
+import com.feipi.session.browser.web.api.DashboardApiResponses.RatioDto;
+import com.feipi.session.browser.web.api.PageApiDtos.TokenSegments;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -48,7 +55,6 @@ final class SessionDetailParityAnalyzer {
   private static final Pattern ASCII = Pattern.compile("[\\x20-\\x7e]");
   private static final Pattern CODE_PUNCT =
       Pattern.compile("[{}()\\[\\]\\\"'\\\\;:,.<>+=~`/@#$%^&*|]");
-  private static final String REFERENCE_SESSION_ID = "019f308e-971a-7641-90e1-758f7e877a18";
   private static final String FIELD_CONTENT = "content";
   private static final String FIELD_FAILED_TOOLS = "failedTools";
   private static final String FIELD_FAILED_TOOLS_RATE = "failedToolsRate";
@@ -71,68 +77,81 @@ final class SessionDetailParityAnalyzer {
 
   /** 构建 Session Detail parity 结果。 */
   static Result analyze(SessionDetail detail, NormalizedSessionArtifact artifact) {
+    return analyze(detail, artifact, true);
+  }
+
+  /** 导入分析仅信任已归一化的上传内容，不探测本机原路径或相邻会话。 */
+  static Result analyze(
+      SessionDetail detail, NormalizedSessionArtifact artifact, boolean allowSourceFiles) {
     Objects.requireNonNull(detail, "detail must not be null");
     SessionRecord row = detail.sessionRow();
-    String sourcePath = resolveSessionFilePath(detail, row, artifact);
+    String sourcePath = allowSourceFiles ? resolveSessionFilePath(detail, row, artifact) : "";
     RolloutStats parent = RolloutStats.empty(sourcePath);
-    if (!sourcePath.isBlank()) {
+    if (artifact == null && !sourcePath.isBlank()) {
       parent = parseRollout(Path.of(sourcePath), SCOPE_MAIN, SCOPE_MAIN, false);
     }
     List<RolloutStats> children =
-        !sourcePath.isBlank()
+        artifact == null && !sourcePath.isBlank()
             ? discoverChildRollouts(Path.of(sourcePath), row.sessionId()).stream()
                 .map(path -> parseRollout(path, SCOPE_SUBAGENT, row.sessionId(), true))
                 .filter(stats -> !stats.sessionId.isBlank())
                 .toList()
             : List.of();
+    if (artifact != null) {
+      // 查询冻结制品时不能重读持续变化的原文件，或从相邻文件注入未索引的子会话。
+      children = populateArtifactStats(parent, artifact, row.sessionId(), allowSourceFiles);
+    }
 
     Map<String, RolloutStats> childrenById = new HashMap<>();
     for (RolloutStats child : children) {
       childrenById.put(child.sessionId, child);
     }
     for (ToolEvent tool : parent.tools.values()) {
-      String childId = extractAgentId(tool.output);
-      if (!childId.isBlank() && childrenById.containsKey(childId)) {
-        tool.subagentId = childId;
+      if (artifact == null) {
+        String childId = extractAgentId(tool.output);
+        if (!childId.isBlank() && childrenById.containsKey(childId)) {
+          tool.subagentId = childId;
+        }
       }
     }
 
     Map<Integer, RoundParity> rounds =
-        buildRoundParity(detail.rounds(), parent, row.sessionId(), artifact);
+        buildRoundParity(
+            detail.rounds(), parent, row.sessionId(), artifact, measuredCacheInput(row));
     long subagentCalls = children.stream().mapToLong(child -> child.llmCalls).sum();
     long mainCalls = parent.llmCalls > 0 ? parent.llmCalls : detail.roundCount();
     if (artifact != null) {
       // 计数必须与 Trace 使用同一归一化集合，不能再把累计 usage 的响应分片算作多次调用。
       mainCalls = artifact.calls().stream().filter(call -> call.scope() == CallScope.MAIN).count();
       subagentCalls = artifact.calls().size() - mainCalls;
-      for (RolloutStats child : children) {
-        child.llmCalls =
-            artifact.calls().stream()
-                .filter(call -> call.subagentId().filter(child.sessionId::equals).isPresent())
-                .count();
-      }
     }
     long workload = mainCalls + subagentCalls;
-    long rawToolCount =
-        parent.tools.size() + children.stream().mapToLong(child -> child.tools.size()).sum();
-    long rawFailedTools = parent.tools.values().stream().filter(tool -> tool.failed).count();
-    long totalTools = rawToolCount > 0 ? rawToolCount : row.toolCallCount();
-    long failedTools = rawToolCount > 0 ? rawFailedTools : row.failedToolCount();
-    long subagentRuns = children.isEmpty() ? row.subagentInstanceCount() : children.size();
+    long totalTools =
+        artifact == null
+            ? row.toolCallCount()
+            : parent.tools.size() + children.stream().mapToLong(child -> child.tools.size()).sum();
+    long failedTools =
+        artifact == null
+            ? row.failedToolCount()
+            : parent.tools.values().stream().filter(tool -> tool.failed).count()
+                + children.stream()
+                    .flatMap(child -> child.tools.values().stream())
+                    .filter(tool -> tool.failed)
+                    .count();
+    long subagentRuns = artifact == null ? row.subagentInstanceCount() : children.size();
     long inputSide = row.freshInputTokens() + row.cacheReadTokens() + row.cacheWriteTokens();
     long lowCacheRounds = rounds.values().stream().filter(round -> round.lowCache).count();
     long freshSpikeRounds = rounds.values().stream().filter(round -> round.freshSpike).count();
 
-    long payloadGaps = failedTools * 2;
-    int issueRounds = (int) rounds.values().stream().filter(round -> round.hasIssues()).count();
-    if (REFERENCE_SESSION_ID.equals(row.sessionId()) && failedTools == 48) {
-      payloadGaps = 105;
-      issueRounds = 57;
-      markReferencePayloadGapPadding(rounds, issueRounds);
-    }
+    List<IssueSeed> issues = buildIssues(rounds);
+    long payloadGaps = issues.stream().filter(seed -> ISSUE_PAYLOAD_GAP.equals(seed.issue)).count();
+    int issueRounds =
+        (int)
+            rounds.values().stream()
+                .filter(round -> round.hasIssues() || !round.issueSeeds.isEmpty())
+                .count();
     long attributionGaps = 0;
 
-    List<IssueSeed> issues = buildIssues(row.sessionId(), parent, rounds, payloadGaps);
     RunIssueSummary issueSummary =
         new RunIssueSummary(
             totalTools, failedTools, payloadGaps, attributionGaps, issueRounds, issues);
@@ -154,6 +173,76 @@ final class SessionDetailParityAnalyzer {
                 issueSummary));
     Map<String, Object> meta = metaMap(row, sourcePath);
     return new Result(meta, metrics, diagnostics, rounds);
+  }
+
+  private static List<RolloutStats> populateArtifactStats(
+      RolloutStats parent,
+      NormalizedSessionArtifact artifact,
+      String sessionId,
+      boolean allowSourceFiles) {
+    parent.sessionId = sessionId;
+    Map<String, RolloutStats> children = new LinkedHashMap<>();
+    Map<String, RolloutStats> callOwners = new HashMap<>();
+    for (NormalizedCall call : artifact.calls()) {
+      RolloutStats owner =
+          call.scope() == CallScope.MAIN
+              ? parent
+              : artifactChild(children, call.subagentId().orElse(""), sessionId);
+      owner.llmCalls++;
+      owner.llmTokens += call.usage().total();
+      owner.addUsage(
+          new UsageDelta(
+              call.usage().fresh(),
+              call.usage().cacheRead(),
+              call.usage().cacheWrite(),
+              call.usage().output()),
+          TokenProvenance.fromMetadata(call.usageSource()));
+      owner.tokenUsageBasis = "artifact_call_usage";
+      owner.inputSideTokens +=
+          call.usage().fresh() + call.usage().cacheRead() + call.usage().cacheWrite();
+      if (call.scope() == CallScope.SUBAGENT) {
+        owner.agentType = call.parentToolName().orElse(SCOPE_SUBAGENT);
+      }
+      callOwners.put(call.callId(), owner);
+    }
+    Map<String, String> outputs = PayloadCallContentExtractor.extractToolResultContents(artifact);
+    for (NormalizedToolExecution execution : artifact.toolExecutions()) {
+      RolloutStats owner = parent;
+      if (execution.scope() == CallScope.SUBAGENT) {
+        owner = callOwners.get(execution.declaredByCallId());
+        if (owner == null || Objects.equals(owner, parent)) {
+          owner = artifactChild(children, execution.subagentId().orElse(""), sessionId);
+        }
+      }
+      ToolEvent tool = new ToolEvent(execution.toolCallId(), execution.name(), owner.scope, "", 0);
+      tool.failed = hasFailedStatus(execution);
+      tool.output = outputs.getOrDefault(execution.toolCallId(), "");
+      tool.resultTokens = estimateTokens(tool.output);
+      owner.tools.putIfAbsent(tool.id, tool);
+    }
+    if (allowSourceFiles) {
+      for (var sourceFile : artifact.sourceFiles()) {
+        RolloutStats child = children.get(sourceFile.subagentId().orElse(null));
+        if (child != null) child.path = sourceFile.path().toString();
+      }
+    }
+    return List.copyOf(children.values());
+  }
+
+  private static RolloutStats artifactChild(
+      Map<String, RolloutStats> children, String childId, String sessionId) {
+    return children.computeIfAbsent(
+        childId,
+        id -> {
+          RolloutStats child = new RolloutStats("", SCOPE_SUBAGENT, sessionId);
+          child.sessionId = id;
+          return child;
+        });
+  }
+
+  private static boolean hasFailedStatus(NormalizedToolExecution execution) {
+    return execution.status().filter(status -> !status.isBlank()).isPresent()
+        || execution.exitCode().filter(code -> code != 0).isPresent();
   }
 
   private static String resolveSessionFilePath(
@@ -335,7 +424,8 @@ final class SessionDetailParityAnalyzer {
                   } else if (resultContent.isTextual()) {
                     tool.output = resultContent.asText("");
                   }
-                  tool.failed = isFailedOutput(tool.output);
+                  tool.failed =
+                      part.path("is_error").asBoolean(false) || isFailedOutput(tool.output);
                   tool.resultTokens = estimateTokens(tool.output);
                 }
               }
@@ -416,7 +506,7 @@ final class SessionDetailParityAnalyzer {
     }
     for (ToolEvent tool : stats.tools.values()) {
       tool.resultTokens = estimateTokens(tool.output);
-      tool.failed = isFailedOutput(tool.output);
+      tool.failed |= isFailedOutput(tool.output);
     }
     return stats;
   }
@@ -446,6 +536,7 @@ final class SessionDetailParityAnalyzer {
     stats.llmCalls++;
     stats.inputSideTokens += usage.fresh + usage.cacheRead + usage.cacheWrite;
     stats.llmTokens += usage.total;
+    stats.addUsage(usage, TokenProvenance.unknown());
     String summary = firstNonBlank(pendingUser, pendingAssistant);
     if (summary.isBlank()) {
       summary = toolSummaryLabel(pendingToolNames, pendingToolInputPreviews);
@@ -503,15 +594,23 @@ final class SessionDetailParityAnalyzer {
       List<CallRound> detailRounds,
       RolloutStats parent,
       String sessionId,
-      NormalizedSessionArtifact artifact) {
+      NormalizedSessionArtifact artifact,
+      boolean measuredInput) {
     List<Long> freshValues =
         detailRounds.stream().map(CallRound::freshInputTokens).sorted().toList();
     double medianFresh = median(freshValues);
+    Set<String> recordedResults = artifact == null ? Set.of() : recordedToolResultIds(artifact);
     Set<String> failedIds = new HashSet<>();
     for (ToolEvent tool : parent.tools.values()) {
       if (tool.failed) {
         failedIds.add(tool.id);
       }
+    }
+    if (artifact != null) {
+      artifact.toolExecutions().stream()
+          .filter(SessionDetailParityAnalyzer::hasFailedStatus)
+          .map(NormalizedToolExecution::toolCallId)
+          .forEach(failedIds::add);
     }
     Map<Integer, RoundParity> result = new LinkedHashMap<>();
     for (CallRound round : detailRounds) {
@@ -521,12 +620,16 @@ final class SessionDetailParityAnalyzer {
               : RoundIndexProjection.project(round, artifact).toolCallIds();
       List<String> failedInRound =
           executionIds.stream()
-              .filter(id -> failedIds.contains(id) || round.failedToolCallIds().contains(id))
+              .filter(
+                  id ->
+                      failedIds.contains(id)
+                          || (artifact == null && round.failedToolCallIds().contains(id)))
               .distinct()
               .toList();
       long inputSide =
           round.freshInputTokens() + round.cacheReadTokens() + round.cacheWriteTokens();
-      boolean lowCache = inputSide > 0 && (round.cacheReadTokens() * 100.0 / inputSide) < 20.0;
+      boolean lowCache =
+          measuredInput && inputSide > 0 && (round.cacheReadTokens() * 100.0 / inputSide) < 20.0;
       boolean freshSpike = medianFresh > 0 && round.freshInputTokens() > medianFresh * 2.0;
       RawRoundSummary raw = parent.roundSummary(round.roundIndex());
       RoundParity parity = new RoundParity(round.roundIndex());
@@ -542,31 +645,17 @@ final class SessionDetailParityAnalyzer {
       parity.lowCache = lowCache;
       parity.freshSpike = freshSpike;
       parity.failedToolIds.addAll(failedInRound);
-      if (!failedInRound.isEmpty()) {
+      if (artifact != null) {
+        addArtifactIssues(parity, round, artifact, sessionId, recordedResults);
+      } else if (!failedInRound.isEmpty()) {
         parity.signals.add("Failed");
-        parity.signals.add("Payload Gap");
-        parity.payloadGap = true;
         for (String failedId : failedInRound) {
           parity.issueSeeds.add(
               new IssueSeed(
                   "Tool failure",
-                  parent.toolName(failedId) + " exit 1",
+                  parent.toolName(failedId) + " · failed",
                   round.roundIndex(),
                   sessionId + " + R" + round.roundIndex() + " + " + failedId,
-                  TONE_CRITICAL));
-          parity.issueSeeds.add(
-              new IssueSeed(
-                  ISSUE_PAYLOAD_GAP,
-                  "LLM Call #" + round.roundIndex() + " · error",
-                  round.roundIndex(),
-                  sessionId + " + llm-R" + round.roundIndex() + "-IX" + round.roundIndex(),
-                  TONE_CRITICAL));
-          parity.issueSeeds.add(
-              new IssueSeed(
-                  ISSUE_PAYLOAD_GAP,
-                  "Tool Result · " + parent.toolName(failedId) + " · error",
-                  round.roundIndex(),
-                  sessionId + " + tool-R" + round.roundIndex(),
                   TONE_CRITICAL));
         }
       }
@@ -575,36 +664,115 @@ final class SessionDetailParityAnalyzer {
     return result;
   }
 
-  private static void markReferencePayloadGapPadding(
-      Map<Integer, RoundParity> rounds, int issueRounds) {
-    long current = rounds.values().stream().filter(RoundParity::hasIssues).count();
-    if (current >= issueRounds) {
-      return;
-    }
-    List<Integer> candidates = rounds.keySet().stream().sorted(Comparator.reverseOrder()).toList();
-    for (Integer rid : candidates) {
-      if (current >= issueRounds) {
-        break;
-      }
-      RoundParity round = rounds.get(rid);
-      if (round.hasIssues()) {
-        continue;
-      }
-      round.payloadGap = true;
-      round.signals.add("Payload Gap");
-      round.issueSeeds.add(
+  private static void addArtifactIssues(
+      RoundParity parity,
+      CallRound round,
+      NormalizedSessionArtifact artifact,
+      String sessionId,
+      Set<String> recordedResults) {
+    Set<String> failureIds = new HashSet<>();
+    for (NormalizedToolExecution execution : artifact.toolExecutions()) {
+      if (!round.calls().contains(execution.declaredByCallId())
+          || !hasFailedStatus(execution)
+          || !failureIds.add(execution.toolCallId())) continue;
+      boolean child = execution.scope() == CallScope.SUBAGENT;
+      String signal = child ? "Subagent failed" : "Failed";
+      if (!parity.signals.contains(signal)) parity.signals.add(signal);
+      parity.issueSeeds.add(
           new IssueSeed(
-              ISSUE_PAYLOAD_GAP,
-              "LLM Call #" + rid + " · missing",
-              rid,
-              REFERENCE_SESSION_ID + " + llm-R" + rid + "-IX" + rid,
-              "warning"));
-      current++;
+              "Tool failure",
+              (child ? "Subagent · " : "")
+                  + execution.name()
+                  + " · "
+                  + execution.status().filter(status -> !status.isBlank()).orElse("failed")
+                  + execution.exitCode().map(code -> " · exit " + code).orElse(""),
+              round.roundIndex(),
+              sessionId + " + " + execution.declaredByCallId() + " + " + execution.toolCallId(),
+              TONE_CRITICAL));
+    }
+    Set<String> displayedCalls =
+        Set.copyOf(RoundIndexProjection.project(round, artifact).callIds());
+    for (NormalizedCall call : artifact.calls()) {
+      if (!round.calls().contains(call.callId())) continue;
+      Set<String> missingRefs = missingSourceRefs(call, artifact);
+      for (String resultId : call.request().toolResultIds()) {
+        if (!recordedResults.contains(resultId)) missingRefs.add("tool-result:" + resultId);
+      }
+      for (String missing : missingRefs) {
+        boolean displayed = displayedCalls.contains(call.callId());
+        parity.payloadGap |= displayed;
+        String signal = displayed ? "Payload Gap" : "Subagent payload gap";
+        if (!parity.signals.contains(signal)) parity.signals.add(signal);
+        parity.issueSeeds.add(
+            new IssueSeed(
+                ISSUE_PAYLOAD_GAP,
+                call.callKey() + " · payload reference missing",
+                round.roundIndex(),
+                sessionId + " + " + call.callId() + " + " + missing,
+                "warning"));
+      }
     }
   }
 
-  private static List<IssueSeed> buildIssues(
-      String sessionId, RolloutStats parent, Map<Integer, RoundParity> rounds, long payloadGaps) {
+  private static Set<String> recordedToolResultIds(NormalizedSessionArtifact artifact) {
+    Set<String> ids = new HashSet<>();
+    for (NormalizedCall call : artifact.calls()) {
+      call.sourceUnits().forEach(unit -> collectToolResultIds(unit, ids));
+    }
+    for (var entry : artifact.sourceUnitCatalog().values()) {
+      if (isToolResultType(entry.unitType())) entry.label().ifPresent(ids::add);
+      collectToolResultIds(entry.payload(), ids);
+    }
+    return ids;
+  }
+
+  private static void collectToolResultIds(Object value, Set<String> ids) {
+    if (value instanceof Map<?, ?> map) {
+      if (isToolResultType(String.valueOf(map.get(FIELD_TYPE)))) {
+        for (String field : List.of("tool_call_id", "tool_use_id", "call_id")) {
+          if (map.get(field) instanceof String id && !id.isBlank()) {
+            ids.add(id);
+            break;
+          }
+        }
+      }
+      map.values().forEach(nested -> collectToolResultIds(nested, ids));
+    } else if (value instanceof List<?> list) {
+      list.forEach(nested -> collectToolResultIds(nested, ids));
+    }
+  }
+
+  private static boolean isToolResultType(String type) {
+    return List.of("tool_result", "function_call_output", "custom_tool_call_output").contains(type);
+  }
+
+  private static Set<String> missingSourceRefs(
+      NormalizedCall call, NormalizedSessionArtifact artifact) {
+    Set<String> missing = new LinkedHashSet<>();
+    for (var range : call.sourceUnitRefRanges()) {
+      if (!range.refs().isEmpty()) {
+        for (String ref : range.refs()) {
+          if (!artifact.sourceUnitCatalog().containsKey(ref)) missing.add(ref);
+        }
+      } else if (range.sequence().isPresent()) {
+        String name = range.sequence().get();
+        List<String> sequence = artifact.sourceUnitSequences().getOrDefault(name, List.of());
+        // 越界范围是一项不可解析引用，不能按不可信的end扩展出任意数量的伪payload。
+        if (range.end() > Math.max(range.start(), sequence.size())) {
+          missing.add(
+              name + "[" + Math.max(range.start(), sequence.size()) + ":" + range.end() + "]");
+        }
+        for (int index = range.start(); index < Math.min(range.end(), sequence.size()); index++) {
+          if (!artifact.sourceUnitCatalog().containsKey(sequence.get(index))) {
+            missing.add(sequence.get(index));
+          }
+        }
+      }
+    }
+    return missing;
+  }
+
+  private static List<IssueSeed> buildIssues(Map<Integer, RoundParity> rounds) {
     List<IssueSeed> critical = new ArrayList<>();
     List<IssueSeed> warnings = new ArrayList<>();
     for (RoundParity round : rounds.values()) {
@@ -620,17 +788,6 @@ final class SessionDetailParityAnalyzer {
     warnings.sort(Comparator.comparingInt(seed -> seed.roundId));
     List<IssueSeed> all = new ArrayList<>(critical);
     all.addAll(warnings);
-    while (all.stream().filter(seed -> ISSUE_PAYLOAD_GAP.equals(seed.issue)).count()
-        < payloadGaps) {
-      int round = rounds.keySet().stream().findFirst().orElse(1);
-      all.add(
-          new IssueSeed(
-              ISSUE_PAYLOAD_GAP,
-              "LLM Call #" + round + " · missing",
-              round,
-              sessionId + " + payload-gap-" + all.size(),
-              "warning"));
-    }
     return List.copyOf(all);
   }
 
@@ -641,6 +798,13 @@ final class SessionDetailParityAnalyzer {
     map.put("date", localDate(row.startedAt()));
     map.put("updatedLocal", localDateTime(row.endedAt()));
     return map;
+  }
+
+  private static boolean measuredCacheInput(SessionRecord row) {
+    var precision = row.tokenProvenance();
+    return "provider_reported".equals(precision.freshInput())
+        && "provider_reported".equals(precision.cacheRead())
+        && "provider_reported".equals(precision.cacheWrite());
   }
 
   private static Map<String, Object> metricsMap(MetricsInput input) {
@@ -656,7 +820,7 @@ final class SessionDetailParityAnalyzer {
             + row.cacheReadTokens()
             + row.cacheWriteTokens()
             + row.outputTokens();
-    double activeSeconds = row.modelExecutionSeconds() + row.toolExecutionSeconds();
+    SessionTiming timing = row.timing();
     Map<String, Object> map = new LinkedHashMap<>();
     map.put("mainCalls", input.mainCalls);
     map.put("subagentCalls", input.subagentCalls);
@@ -666,7 +830,10 @@ final class SessionDetailParityAnalyzer {
     map.put(FIELD_FAILED_TOOLS_RATE, ratioLabel(failedTools, totalTools));
     map.put("subagentRuns", input.subagentRuns);
     map.put("inputSideTokens", inputSide);
-    map.put("lowCacheRounds", input.lowCacheRounds);
+    map.put("lowCacheRoundsAvailable", measuredCacheInput(row));
+    if (measuredCacheInput(row)) {
+      map.put("lowCacheRounds", input.lowCacheRounds);
+    }
     map.put("freshSpikeRounds", input.freshSpikeRounds);
     map.put("payloadGaps", payloadGaps);
     map.put("attributionGaps", attributionGaps);
@@ -676,15 +843,43 @@ final class SessionDetailParityAnalyzer {
         hasRunIssues(failedTools, payloadGaps, attributionGaps)
             ? "Completed with issue signals"
             : "Completed");
-    map.put("waitingSeconds", Math.max(row.durationSeconds() - activeSeconds, 0));
-    map.put("activeSeconds", activeSeconds);
-    map.put("modelTimeAvailable", row.modelExecutionSeconds() > 0);
-    map.put("toolTimeAvailable", row.toolExecutionSeconds() > 0);
+    Double active =
+        ApiSessionTimings.available(timing.activeTaskSeconds(), timing.activeTaskPrecision());
+    map.put("activeTimeAvailable", active != null);
+    if (active != null) {
+      map.put("activeSeconds", active);
+      if ("measured".equals(timing.activeTaskPrecision()) && timing.wallSeconds() != null) {
+        map.put(
+            "nonTaskWallSeconds", Math.max(timing.wallSeconds() - timing.activeTaskSeconds(), 0));
+      }
+    }
+    map.put(
+        "modelTimeAvailable",
+        ApiSessionTimings.available(
+                timing.modelExecutionSeconds(), timing.modelExecutionPrecision())
+            != null);
+    map.put(
+        "toolTimeAvailable",
+        ApiSessionTimings.available(timing.toolExecutionSeconds(), timing.toolExecutionPrecision())
+            != null);
     map.put("freshShare", ratioLabel(row.freshInputTokens(), totalTokens));
     map.put("cacheReadShare", ratioLabel(row.cacheReadTokens(), totalTokens));
     map.put("cacheWriteShare", ratioLabel(row.cacheWriteTokens(), totalTokens));
     map.put("outputShare", ratioLabel(row.outputTokens(), totalTokens));
-    map.put("cacheReuse", ratioLabel(row.cacheReadTokens(), inputSide));
+    RatioDto cacheRatio =
+        RatioDto.of(
+            inputSide > 0 ? row.cacheReadTokens() / (double) inputSide : null,
+            row.tokenProvenance());
+    map.put(
+        "cacheReuse",
+        cacheRatio.value() == null
+            ? "N/A"
+            : String.format(
+                Locale.ROOT,
+                "%.1f%%%s",
+                cacheRatio.value() * 100,
+                cacheRatio.reason().isEmpty() ? "" : " · Partial"));
+    map.put("cacheReuseReason", cacheRatio.reason());
     map.put("updatedLocal", localDateTime(row.endedAt()));
     return map;
   }
@@ -732,10 +927,57 @@ final class SessionDetailParityAnalyzer {
         parent.tools.values().stream()
             .filter(tool -> tool.failed && tool.subagentId.isBlank())
             .count();
-    long allToolTokens = totalToolResultTokens(parent, children);
-    long subagentContext = children.stream().mapToLong(child -> child.inputSideTokens).sum();
+    // 会话聚合包含子会话，不能当作主会话用量；仅单一作用域缺逐次用量时可回退到会话估算。
+    if (children.isEmpty()
+        && row.subagentInstanceCount() == 0
+        && (parent.tokenSegments == null
+            || (parent.llmTokens == 0 && row.tokenProvenance().estimatedSessionCount() > 0))) {
+      parent.tokenSegments =
+          TokenSegments.of(
+              row.freshInputTokens(),
+              row.cacheReadTokens(),
+              row.cacheWriteTokens(),
+              row.outputTokens(),
+              row.tokenProvenance());
+      parent.llmTokens = row.totalTokens();
+      parent.tokenUsageBasis =
+          row.tokenProvenance().estimatedSessionCount() > 0 ? "session_estimate" : "session_usage";
+    }
     long shareDenominator =
-        Math.max(row.totalTokens(), (row.totalTokens() * 2) + allToolTokens + subagentContext);
+        parent.llmTokens + children.stream().mapToLong(child -> child.llmTokens).sum();
+    TokenProvenance workloadPrecision =
+        parent.tokenSegments == null
+            ? TokenProvenance.unknown()
+            : parent.tokenSegments.provenance();
+    for (RolloutStats child : children) {
+      workloadPrecision =
+          workloadPrecision.plus(
+              child.tokenSegments == null
+                  ? TokenProvenance.unknown()
+                  : child.tokenSegments.provenance());
+    }
+    boolean reportedUsage =
+        List.of(
+                workloadPrecision.freshInput(),
+                workloadPrecision.cacheRead(),
+                workloadPrecision.cacheWrite(),
+                workloadPrecision.output())
+            .stream()
+            .allMatch("provider_reported"::equals);
+    String shareStatus =
+        shareDenominator <= 0
+            ? "unavailable"
+            : !reportedUsage
+                    || shareDenominator != row.totalTokens()
+                    || workloadPrecision.estimatedSessionCount() > 0
+                    || workloadPrecision.unavailableSessionCount() > 0
+                    || workloadPrecision.unknownSessionCount() > 0
+                ? "partial"
+                : STATUS_AVAILABLE;
+    String shareBasis =
+        "session_estimate".equals(parent.tokenUsageBasis)
+            ? "session_estimate"
+            : "observed_agent_usage";
     List<Map<String, Object>> rows = new ArrayList<>();
     rows.add(
         agentRow(
@@ -747,15 +989,20 @@ final class SessionDetailParityAnalyzer {
                 sourcePath,
                 row.sessionId(),
                 mainCalls,
-                row.totalTokens(),
-                ratioLabel(row.totalTokens(), shareDenominator),
+                parent.llmTokens,
+                ratioLabel(parent.llmTokens, shareDenominator),
+                parent.tokenSegments,
+                parent.tokenUsageBasis,
+                shareDenominator,
+                shareStatus,
+                shareBasis,
                 mainTools,
                 mainFailures,
                 ratioLabel(mainFailures, mainTools))));
     List<RolloutStats> sortedChildren =
         children.stream()
             .sorted(
-                Comparator.<RolloutStats>comparingLong(child -> childAgentFootprint(parent, child))
+                Comparator.comparingLong(SessionDetailParityAnalyzer::childAgentFootprint)
                     .reversed())
             .toList();
     for (RolloutStats child : sortedChildren) {
@@ -764,7 +1011,12 @@ final class SessionDetailParityAnalyzer {
               .filter(tool -> child.sessionId.equals(tool.subagentId))
               .count();
       long tools = child.tools.size() + parentTools;
-      long footprint = childAgentFootprint(parent, child);
+      long failures =
+          child.tools.values().stream().filter(tool -> tool.failed).count()
+              + parent.tools.values().stream()
+                  .filter(tool -> tool.failed && child.sessionId.equals(tool.subagentId))
+                  .count();
+      long footprint = childAgentFootprint(child);
       rows.add(
           agentRow(
               new AgentRowInput(
@@ -777,24 +1029,21 @@ final class SessionDetailParityAnalyzer {
                   child.llmCalls,
                   footprint,
                   ratioLabel(footprint, shareDenominator),
+                  child.tokenSegments,
+                  child.tokenUsageBasis,
+                  shareDenominator,
+                  shareStatus,
+                  shareBasis,
                   tools,
-                  0,
-                  ratioLabel(0, tools))));
+                  failures,
+                  ratioLabel(failures, tools))));
     }
     return List.copyOf(rows);
   }
 
-  private static long childAgentFootprint(RolloutStats parent, RolloutStats child) {
-    long parentResultTokens =
-        parent.tools.values().stream()
-            .filter(tool -> child.sessionId.equals(tool.subagentId))
-            .mapToLong(SessionDetailParityAnalyzer::simpleResultTokens)
-            .sum();
-    long childResultTokens =
-        child.tools.values().stream()
-            .mapToLong(SessionDetailParityAnalyzer::simpleResultTokens)
-            .sum();
-    return child.llmTokens + childResultTokens + (parentResultTokens * 2);
+  private static long childAgentFootprint(RolloutStats child) {
+    // 工具结果上下文已包含在模型输入中，不能作为额外用量重复累计。
+    return child.llmTokens;
   }
 
   private static Map<String, Object> agentRow(AgentRowInput input) {
@@ -809,7 +1058,14 @@ final class SessionDetailParityAnalyzer {
     row.put("sessionIdDisplay", compactId(input.sessionId));
     row.put("llmCalls", input.llmCalls);
     row.put(FIELD_TOKENS, compact(input.tokens));
+    row.put("tokenSegments", input.tokenSegments);
+    row.put("tokenUsageBasis", input.tokenUsageBasis);
     row.put("tokenShare", input.tokenShare);
+    row.put(
+        "tokenShareValue",
+        input.shareDenominator <= 0 ? null : ratioValue(input.tokens, input.shareDenominator));
+    row.put("tokenShareBasis", input.shareBasis);
+    row.put("tokenShareStatus", input.shareStatus);
     row.put("tools", input.tools);
     row.put("failures", input.failures);
     row.put("failureRate", input.failureRate);
@@ -820,37 +1076,55 @@ final class SessionDetailParityAnalyzer {
   private static List<Map<String, Object>> contextSegments(
       SessionRecord row, RolloutStats parent, List<RolloutStats> children) {
     long toolResultTokens = totalToolResultTokens(parent, children);
-    long subagentContextTokens = children.stream().mapToLong(child -> child.inputSideTokens).sum();
+    var precision = row.tokenProvenance();
     List<Segment> segments =
         List.of(
             new Segment("System", -1, "unavailable"),
-            new Segment("Provider Cached Input", row.cacheReadTokens(), STATUS_AVAILABLE),
-            new Segment("Current User Input", row.freshInputTokens(), STATUS_AVAILABLE),
-            new Segment("Tool Results", toolResultTokens, STATUS_AVAILABLE),
-            new Segment("Subagent Context", subagentContextTokens, STATUS_AVAILABLE),
-            new Segment("Output", row.outputTokens(), STATUS_AVAILABLE));
-    long denominator = segments.stream().filter(s -> s.tokens >= 0).mapToLong(s -> s.tokens).sum();
+            new Segment("Provider Cached Input", row.cacheReadTokens(), precision.cacheRead()),
+            new Segment("Fresh Input", row.freshInputTokens(), precision.freshInput()),
+            new Segment("Cache Write", row.cacheWriteTokens(), precision.cacheWrite()),
+            new Segment("Output", row.outputTokens(), precision.output()),
+            new Segment("Tool Results", toolResultTokens, "estimated"));
+    long denominator = row.totalTokens();
+    boolean partial =
+        !List.of(
+                    precision.freshInput(),
+                    precision.cacheRead(),
+                    precision.cacheWrite(),
+                    precision.output())
+                .stream()
+                .allMatch("provider_reported"::equals)
+            || precision.estimatedSessionCount() > 0
+            || precision.unavailableSessionCount() > 0
+            || precision.unknownSessionCount() > 0;
     List<Map<String, Object>> rows = new ArrayList<>();
     for (Segment segment : segments) {
+      boolean usage = segment.tokens >= 0 && !"Tool Results".equals(segment.label);
+      boolean known = !"unknown".equals(segment.status) && !"unavailable".equals(segment.status);
       Map<String, Object> rowMap = new LinkedHashMap<>();
       rowMap.put("label", segment.label);
       rowMap.put(FIELD_TOKENS, segment.tokens);
       rowMap.put(
           "tokensLabel",
-          segment.tokens < 0 ? "N/A" : estimatePrefix(segment.label, compact(segment.tokens)));
+          !known
+              ? "N/A"
+              : ("estimated".equals(segment.status) ? "~" : "") + compact(segment.tokens));
       rowMap.put(
-          "share", segment.tokens < 0 ? "unavailable" : ratioLabel(segment.tokens, denominator));
-      rowMap.put("shareValue", segment.tokens < 0 ? 0.0 : ratioValue(segment.tokens, denominator));
-      rowMap.put("status", segment.status);
+          "share", !usage || !known ? "unavailable" : ratioLabel(segment.tokens, denominator));
+      rowMap.put("shareValue", !usage || !known ? 0.0 : ratioValue(segment.tokens, denominator));
+      rowMap.put(
+          "status", "provider_reported".equals(segment.status) ? STATUS_AVAILABLE : segment.status);
+      rowMap.put("precision", segment.status);
+      rowMap.put("includedInUsage", usage);
+      rowMap.put("shareBasis", usage ? "session_workload_usage" : "not_usage");
+      rowMap.put(
+          "shareStatus",
+          !usage || !known || denominator <= 0
+              ? "unavailable"
+              : partial ? "partial" : STATUS_AVAILABLE);
       rows.add(rowMap);
     }
     return List.copyOf(rows);
-  }
-
-  private static String estimatePrefix(String label, String value) {
-    return ("Tool Results".equals(label) || "Subagent Context".equals(label)) && !"0".equals(value)
-        ? "~" + value
-        : value;
   }
 
   private static Map<String, Object> toolImpact(
@@ -1013,11 +1287,6 @@ final class SessionDetailParityAnalyzer {
     int other = Math.max(0, text.length() - cjk - ascii);
     double estimate = cjk / 1.8 + punct / 3.0 + asciiNonCode / 4.0 + other / 2.5;
     return Math.max(1, (int) Math.round(estimate));
-  }
-
-  private static long simpleResultTokens(ToolEvent tool) {
-    String output = tool == null ? "" : tool.output;
-    return output == null || output.isBlank() ? 0 : Math.max(output.length() / 4L, 0L);
   }
 
   private static int regexCount(Pattern pattern, String text) {
@@ -1324,7 +1593,7 @@ final class SessionDetailParityAnalyzer {
 
   /** 表示单个 rollout 文件解析出的会话统计。 */
   private static final class RolloutStats {
-    final String path;
+    String path;
     final String scope;
     final String parentSessionId;
     final Map<String, ToolEvent> tools = new LinkedHashMap<>();
@@ -1335,6 +1604,8 @@ final class SessionDetailParityAnalyzer {
     long llmCalls;
     long llmTokens;
     long inputSideTokens;
+    TokenSegments tokenSegments;
+    String tokenUsageBasis = "raw_rollout_usage";
 
     RolloutStats(String path, String scope, String parentSessionId) {
       this.path = path == null ? "" : path;
@@ -1344,6 +1615,41 @@ final class SessionDetailParityAnalyzer {
 
     static RolloutStats empty(String path) {
       return new RolloutStats(path, SCOPE_MAIN, "");
+    }
+
+    void addUsage(UsageDelta usage, TokenProvenance incoming) {
+      TokenSegments previous = tokenSegments;
+      TokenProvenance combined = incoming;
+      if (previous != null) {
+        TokenProvenance current = previous.provenance();
+        Set<String> methods = new LinkedHashSet<>();
+        for (String method :
+            (current.estimationMethod() + "," + incoming.estimationMethod()).split(",")) {
+          if (!method.isBlank()) methods.add(method);
+        }
+        // 多次调用属于同一会话：合并来源状态及覆盖标记，不重复累计会话数。
+        combined =
+            new TokenProvenance(
+                mergePrecision(current.freshInput(), incoming.freshInput()),
+                mergePrecision(current.cacheRead(), incoming.cacheRead()),
+                mergePrecision(current.cacheWrite(), incoming.cacheWrite()),
+                mergePrecision(current.output(), incoming.output()),
+                String.join(",", methods),
+                Math.max(current.estimatedSessionCount(), incoming.estimatedSessionCount()),
+                Math.max(current.unavailableSessionCount(), incoming.unavailableSessionCount()),
+                Math.max(current.unknownSessionCount(), incoming.unknownSessionCount()));
+      }
+      tokenSegments =
+          TokenSegments.of(
+              usage.fresh + (previous == null ? 0 : previous.fresh()),
+              usage.cacheRead + (previous == null ? 0 : previous.cacheRead()),
+              usage.cacheWrite + (previous == null ? 0 : previous.cacheWrite()),
+              usage.output + (previous == null ? 0 : previous.output()),
+              combined);
+    }
+
+    private static String mergePrecision(String left, String right) {
+      return left.equals(right) ? left : "mixed";
     }
 
     String shortId() {
@@ -1568,6 +1874,11 @@ final class SessionDetailParityAnalyzer {
     final long llmCalls;
     final long tokens;
     final String tokenShare;
+    final TokenSegments tokenSegments;
+    final String tokenUsageBasis;
+    final long shareDenominator;
+    final String shareStatus;
+    final String shareBasis;
     final long tools;
     final long failures;
     final String failureRate;
@@ -1582,6 +1893,11 @@ final class SessionDetailParityAnalyzer {
         long llmCalls,
         long tokens,
         String tokenShare,
+        TokenSegments tokenSegments,
+        String tokenUsageBasis,
+        long shareDenominator,
+        String shareStatus,
+        String shareBasis,
         long tools,
         long failures,
         String failureRate) {
@@ -1594,6 +1910,11 @@ final class SessionDetailParityAnalyzer {
       this.llmCalls = llmCalls;
       this.tokens = tokens;
       this.tokenShare = tokenShare;
+      this.tokenSegments = tokenSegments;
+      this.tokenUsageBasis = tokenUsageBasis;
+      this.shareDenominator = shareDenominator;
+      this.shareStatus = shareStatus;
+      this.shareBasis = shareBasis;
       this.tools = tools;
       this.failures = failures;
       this.failureRate = failureRate;

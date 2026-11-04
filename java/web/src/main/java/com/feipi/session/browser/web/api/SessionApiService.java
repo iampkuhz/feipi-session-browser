@@ -31,7 +31,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class SessionApiService {
 
-  private final SessionDetailUseCase detailUseCase;
+  private final ContextLoader contextLoader;
   private final ConcurrentHashMap<String, VersionedContext> contextCache =
       new ConcurrentHashMap<>();
   private final java.util.concurrent.atomic.AtomicLong cacheVersion =
@@ -46,7 +46,31 @@ public final class SessionApiService {
    * @param detailUseCase 会话详情 use case
    */
   public SessionApiService(SessionDetailUseCase detailUseCase) {
-    this.detailUseCase = Objects.requireNonNull(detailUseCase, "detailUseCase 不得为 null");
+    this(Objects.requireNonNull(detailUseCase, "detailUseCase 不得为 null")::getDetailContext);
+  }
+
+  /**
+   * 创建使用独立数据范围的服务，不共享个人会话缓存。
+   *
+   * @param contextLoader 当前范围内的详情加载器
+   */
+  public SessionApiService(ContextLoader contextLoader) {
+    this.contextLoader = Objects.requireNonNull(contextLoader, "contextLoader 不得为 null");
+  }
+
+  /** 允许个人索引或独立导入提供同一详情投影。 */
+  @FunctionalInterface
+  public interface ContextLoader {
+    /**
+     * 加载当前数据范围内的详情。
+     *
+     * @param sessionKey 当前范围内的会话键
+     * @param visibility 载荷可见性
+     * @return 已加载的详情
+     * @throws IOException 载荷加载失败
+     */
+    Optional<SessionDetailUseCase.DetailContext> load(
+        String sessionKey, PayloadVisibility visibility) throws IOException;
   }
 
   /**
@@ -80,7 +104,7 @@ public final class SessionApiService {
     SessionDetailUseCase.DetailContext context;
     try {
       Optional<SessionDetailUseCase.DetailContext> loaded =
-          detailUseCase.getDetailContext(sessionKey, visibility);
+          contextLoader.load(sessionKey, visibility);
       if (loaded.isEmpty()) {
         return Optional.empty();
       }

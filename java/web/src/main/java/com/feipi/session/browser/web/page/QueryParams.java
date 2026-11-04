@@ -34,7 +34,7 @@ public final class QueryParams {
           Map.entry("updated", "ended_at"),
           Map.entry("created", "started_at"),
           Map.entry("duration", "duration_seconds"),
-          Map.entry("process-time", "model_execution_seconds"),
+          Map.entry("process-time", "active_task_seconds"),
           Map.entry("tokens", "total_tokens"),
           Map.entry("total-tokens", "total_tokens"),
           Map.entry("rounds", "assistant_message_count"),

@@ -10,6 +10,40 @@
   border-bottom: 1px solid rgba(216,226,239,.88);
   backdrop-filter: saturate(160%) blur(12px);
 }
+/* 导入范围提示归属于详情 Page Head，不由异步 metadata chips 替换。 */
+.sd-import-scope {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  border: 1px solid var(--sd-line);
+  border-radius: var(--sd-radius-panel);
+  background: var(--sd-panel);
+  color: var(--sd-text-2);
+}
+.sd-import-scope__summary {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.sd-import-scope__filename {
+  font-family: var(--sd-mono);
+  overflow-wrap: anywhere;
+}
+.sd-import-scope__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.sd-import-kpi-scope {
+  color: var(--sd-text-2);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
 .sd-btn {
   display: inline-flex;
   align-items: center;

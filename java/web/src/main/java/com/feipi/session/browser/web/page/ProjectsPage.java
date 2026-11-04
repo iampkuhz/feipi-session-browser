@@ -274,10 +274,9 @@ public final class ProjectsPage {
             .toList();
     List<Double> processTimes =
         sessions.stream()
-            .mapToDouble(
-                session -> session.modelExecutionSeconds() + session.toolExecutionSeconds())
-            .filter(v -> v > 0)
-            .boxed()
+            .filter(session -> "measured".equals(session.timing().activeTaskPrecision()))
+            .map(session -> session.timing().activeTaskSeconds())
+            .filter(Objects::nonNull)
             .toList();
     return orderedMap(
         "today",
@@ -287,7 +286,7 @@ public final class ProjectsPage {
         "median_duration",
         formatSeconds(median(durations)),
         "median_process_time",
-        formatSeconds(median(processTimes)));
+        processTimes.isEmpty() ? "N/A" : formatSeconds(median(processTimes)));
   }
 
   private static Map<String, Object> buildAgentsKpi(List<SessionRecord> sessions) {

@@ -22,15 +22,26 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Function;
 
 /** Session Detail 页面的资源 API。 */
 public final class SessionDetailApiHandler {
 
-  private final QueryCompositionRoot queryRoot;
+  private final Function<Context, LoadedDetail> detailLoader;
 
   /** 创建对应对象。 */
   public SessionDetailApiHandler(QueryCompositionRoot queryRoot) {
-    this.queryRoot = Objects.requireNonNull(queryRoot, "queryRoot must not be null");
+    Objects.requireNonNull(queryRoot, "queryRoot must not be null");
+    this.detailLoader = ctx -> loadPersonal(ctx, queryRoot);
+  }
+
+  /**
+   * 使用当前分析范围的加载器创建资源处理器。
+   *
+   * @param detailLoader 不访问其他范围的详情加载器
+   */
+  public SessionDetailApiHandler(Function<Context, LoadedDetail> detailLoader) {
+    this.detailLoader = Objects.requireNonNull(detailLoader, "detailLoader 不得为 null");
   }
 
   /** 处理 /api/sessions/{agent}/{sessionId}/meta 的 GET 请求。 */
@@ -42,7 +53,8 @@ public final class SessionDetailApiHandler {
     SessionDetail detail = loaded.annotated().detail();
     SessionRecord row = detail.sessionRow();
     SessionDetailParityAnalyzer.Result parity =
-        SessionDetailParityAnalyzer.analyze(detail, loaded.annotated().artifact());
+        SessionDetailParityAnalyzer.analyze(
+            detail, loaded.annotated().artifact(), loaded.allowSourceFiles());
     ctx.json(
         new SessionMetaResponse(
             ApiResponses.SCHEMA_VERSION,
@@ -73,7 +85,8 @@ public final class SessionDetailApiHandler {
     SessionDetail detail = loaded.annotated().detail();
     SessionRecord row = detail.sessionRow();
     SessionDetailParityAnalyzer.Result parity =
-        SessionDetailParityAnalyzer.analyze(detail, loaded.annotated().artifact());
+        SessionDetailParityAnalyzer.analyze(
+            detail, loaded.annotated().artifact(), loaded.allowSourceFiles());
     Map<String, Object> parityMetrics = parity.metrics;
     ctx.json(
         new SessionMetricsResponse(
@@ -83,15 +96,19 @@ public final class SessionDetailApiHandler {
                 row.freshInputTokens(),
                 row.cacheReadTokens(),
                 row.cacheWriteTokens(),
-                row.outputTokens()),
+                row.outputTokens(),
+                row.tokenProvenance()),
             row.userMessageCount(),
             row.assistantMessageCount(),
             longMetric(parityMetrics, "toolCalls", row.toolCallCount()),
             longMetric(parityMetrics, "failedTools", row.failedToolCount()),
             longMetric(parityMetrics, "subagentRuns", row.subagentInstanceCount()),
             row.durationSeconds(),
-            row.modelExecutionSeconds(),
-            row.toolExecutionSeconds(),
+            ApiSessionTimings.available(
+                row.timing().modelExecutionSeconds(), row.timing().modelExecutionPrecision()),
+            ApiSessionTimings.available(
+                row.timing().toolExecutionSeconds(), row.timing().toolExecutionPrecision()),
+            row.timing(),
             detail.roundCount(),
             detail.payloadSourceCount(),
             parity.metrics,
@@ -107,7 +124,7 @@ public final class SessionDetailApiHandler {
     SessionAnomalySummary anomalies = loaded.annotated().anomalies();
     SessionDetailParityAnalyzer.Result parity =
         SessionDetailParityAnalyzer.analyze(
-            loaded.annotated().detail(), loaded.annotated().artifact());
+            loaded.annotated().detail(), loaded.annotated().artifact(), loaded.allowSourceFiles());
     List<AnomalyDto> rows =
         anomalies.anomalies().stream().map(SessionDetailApiHandler::anomaly).toList();
     ctx.json(
@@ -132,7 +149,8 @@ public final class SessionDetailApiHandler {
     }
     SessionDetail detail = loaded.annotated().detail();
     SessionDetailParityAnalyzer.Result parity =
-        SessionDetailParityAnalyzer.analyze(detail, loaded.annotated().artifact());
+        SessionDetailParityAnalyzer.analyze(
+            detail, loaded.annotated().artifact(), loaded.allowSourceFiles());
     String traceStatus = ApiQueryParams.normalizeAll(ctx.queryParam("trace_status"));
     List<RoundIndexDto> rows =
         RoundIndexProjection.pageDtos(detail, loaded.annotated().artifact(), parity).stream()
@@ -156,10 +174,7 @@ public final class SessionDetailApiHandler {
     String payloadStatus = ApiQueryParams.normalizeAll(ctx.queryParam("status"));
     List<PayloadIndexDto> rows =
         loaded.annotated().detail().payloadSources().stream()
-            .map(
-                source ->
-                    SessionDetailApiResponses.payloadIndexDto(
-                        source, loaded.echo().agent(), loaded.echo().sessionId()))
+            .map(source -> SessionDetailApiResponses.payloadIndexDto(source, loaded.apiBase()))
             .filter(payload -> payloadStatusMatches(payloadStatus, payload.status()))
             .toList();
     ctx.json(
@@ -172,6 +187,10 @@ public final class SessionDetailApiHandler {
   }
 
   private LoadedDetail load(Context ctx) {
+    return detailLoader.apply(ctx);
+  }
+
+  private static LoadedDetail loadPersonal(Context ctx, QueryCompositionRoot queryRoot) {
     String agent =
         ApiQueryParams.canonicalAgent(ApiResponses.decodePathParam(ctx.pathParam("agent")));
     String sessionId = ApiResponses.decodePathParam(ctx.pathParam("sessionId"));
@@ -184,7 +203,12 @@ public final class SessionDetailApiHandler {
             annotated ->
                 new LoadedDetail(
                     new SessionDetailFilterEcho(agent, sessionId, visibility.getValue(), "", ""),
-                    annotated))
+                    annotated,
+                    "/api/sessions/"
+                        + ApiQueryParams.url(agent)
+                        + "/"
+                        + ApiQueryParams.url(sessionId),
+                    true))
         .orElse(null);
   }
 
@@ -259,7 +283,12 @@ public final class SessionDetailApiHandler {
    *
    * @param echo 该字段在 API 响应中的业务值。
    * @param annotated 带注解的 session 数据。
+   * @param apiBase 当前分析范围的 API 基址。
+   * @param allowSourceFiles 是否允许个人会话的本机源文件补充分析。
    */
-  private record LoadedDetail(
-      SessionDetailFilterEcho echo, SessionDetailUseCase.AnnotatedDetailContext annotated) {}
+  public record LoadedDetail(
+      SessionDetailFilterEcho echo,
+      SessionDetailUseCase.AnnotatedDetailContext annotated,
+      String apiBase,
+      boolean allowSourceFiles) {}
 }

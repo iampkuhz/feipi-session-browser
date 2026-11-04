@@ -13,11 +13,12 @@
 - `pages/05_project_detail.md`：Project Detail，单项目统计和项目内 sessions。
 - `pages/07_token_glossary.md`：Token Glossary，术语、token 口径和 provider 映射。
 - `pages/08_state_pages.md`：404、Error、默认空态、过滤无结果状态页。
+- `pages/09_imports.md`：导入分析，单个外部 JSONL 的独立上传与详情分析。
 
 ## 非目标页面
 
 - 目标结构不提供独立 Agents 列表页；agent 汇总和单 agent 深度信息都放到 Dashboard。
-- Sidebar 主导航目标只保留 Dashboard、Sessions、Projects；Glossary 可作为辅助入口但不作为核心业务导航。
+- Sidebar 主导航包含 Dashboard、Sessions、Projects、导入分析；前三者保持个人统计范围，导入分析独立。Glossary 可作为辅助入口但不作为核心业务导航。
 
 ## 使用方式
 

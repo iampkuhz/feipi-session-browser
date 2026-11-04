@@ -20,7 +20,7 @@ class SessionDetailParityAnalyzerTest {
   @TempDir Path tempDir;
 
   @Test
-  @DisplayName("Codex raw rollout 补齐 custom tool、失败工具和 subagent 指标")
+  @DisplayName("Codex raw rollout 补齐 trace，工具总量保留索引行口径")
   void codexRawRolloutCompletesParityMetrics() throws Exception {
     Path parent = tempDir.resolve("rollout-2026-07-06T10-00-00-parent.jsonl");
     Path child = tempDir.resolve("rollout-2026-07-06T10-01-00-child-00000001.jsonl");
@@ -46,13 +46,13 @@ class SessionDetailParityAnalyzerTest {
             "codex",
             1,
             2,
-            1,
+            4,
             30,
             70,
             100,
             0,
             200,
-            0,
+            1,
             1,
             1,
             1,
@@ -80,10 +80,11 @@ class SessionDetailParityAnalyzerTest {
         .containsEntry("mainCalls", 2L)
         .containsEntry("workloadCalls", 3L)
         .containsEntry("subagentRuns", 1L);
-    assertThat(result.diagnostics).containsEntry("payloadGaps", 2L);
+    // 非零退出码是执行失败，不表示请求或结果载荷缺失。
+    assertThat(result.diagnostics).containsEntry("payloadGaps", 0L);
     assertThat(result.diagnostics).containsEntry("issueRounds", 1);
     assertThat(result.round(1).failedToolIds).containsExactly("tool-failed");
-    assertThat(result.round(1).signals).contains("Failed", "Payload Gap");
+    assertThat(result.round(1).signals).contains("Failed").doesNotContain("Payload Gap");
     assertThat(result.round(1).toMap())
         .containsEntry("summary", "/goal 修复失败工具展示")
         .containsEntry("isUserInput", true);

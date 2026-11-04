@@ -1,5 +1,7 @@
 package com.feipi.session.browser.index.api.query;
 
+import com.feipi.session.browser.domain.normalized.TokenProvenance;
+
 /** agent 与 model 维度的效率指标。 */
 public interface AgentEfficiency {
   /** 返回 agent 标识。 */
@@ -31,4 +33,9 @@ public interface AgentEfficiency {
 
   /** 返回每个会话的失败工具调用数；无可计算数据时返回 {@code null}。 */
   Double failedPerSession();
+
+  /** 返回相同查询范围的四段计量来源；旧实现不推断为 provider 上报。 */
+  default TokenProvenance tokenProvenance() {
+    return TokenProvenance.unknown(sessionCount());
+  }
 }

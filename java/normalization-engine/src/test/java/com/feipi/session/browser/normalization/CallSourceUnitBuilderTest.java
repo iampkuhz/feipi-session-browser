@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.feipi.session.browser.domain.source.SourceRecord;
 import com.feipi.session.browser.domain.source.SourceRecordRelation;
 import com.feipi.session.browser.domain.source.SourceRecordUsage;
+import com.feipi.session.browser.domain.source.SourceTiming;
 import com.feipi.session.browser.domain.source.SourceToolCall;
 import java.util.List;
 import java.util.Map;
@@ -12,6 +13,120 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class CallSourceUnitBuilderTest {
+  @Test
+  void metaUserUnitsKeepRoleWhitespaceOrderAndScopeEvidence() {
+    var calls =
+        CallSourceUnitBuilder.build(
+            List.of(
+                record("main", "user", "human", ""),
+                metaUser("main", "  main meta\n"),
+                metaUser("child", "child meta"),
+                record("child", "assistant", "child response", ""),
+                record("main", "assistant", "main response", "")),
+            SourceRecord::locator);
+    assertThat(calls).hasSize(2);
+    assertThat(texts(calls.get(0))).containsExactly("child meta", "child response");
+    assertThat(texts(calls.get(1))).containsExactly("human", "  main meta\n", "main response");
+    assertThat(calls.get(0).get(0))
+        .containsEntry("type", "user")
+        .containsEntry("role", "user")
+        .containsEntry("isMeta", true);
+    assertThat(calls.get(1).get(1))
+        .containsEntry("type", "user")
+        .containsEntry("role", "user")
+        .containsEntry("isMeta", true);
+    assertThat(calls.get(1).get(0)).doesNotContainKey("isMeta");
+  }
+
+  private static SourceRecord metaUser(String scope, String text) {
+    return new SourceRecord(
+        scope,
+        0,
+        "user",
+        Optional.empty(),
+        Optional.empty(),
+        Optional.empty(),
+        Optional.empty(),
+        SourceRecordUsage.empty(),
+        List.of(),
+        Optional.empty(),
+        Optional.empty(),
+        Optional.empty(),
+        SourceRecordRelation.empty(),
+        text,
+        Optional.empty(),
+        Optional.empty(),
+        SourceTiming.empty(),
+        true);
+  }
+
+  @Test
+  void standaloneCodexToolInputsBelongToFollowingClosingFrameInTheSameScope() {
+    var records =
+        List.of(
+            record("main", "user", "first request", ""),
+            closingAssistant("main", "token_usage_record:main-first"),
+            record("main", "user", "next request", ""),
+            standaloneTool("main", "main-tool", "main synthetic input"),
+            standaloneTool("child", "child-tool", "child synthetic input"),
+            record("main", "tool_result", "main result", "main-tool"),
+            record("child", "tool_result", "child result", "child-tool"),
+            closingAssistant("main", "token_usage_record:main-next"),
+            closingAssistant("child", "token_count:child"),
+            standaloneTool("main", "unfinished-tool", "must not backfill"));
+
+    var calls = CallSourceUnitBuilder.build(records, SourceRecord::locator);
+    assertThat(calls).hasSize(3);
+    assertThat(toolUnits(calls.get(0))).isEmpty();
+    assertThat(toolUnits(calls.get(1)))
+        .singleElement()
+        .satisfies(
+            unit ->
+                assertThat(unit)
+                    .containsEntry("id", "main-tool")
+                    .containsEntry("input", "main synthetic input")
+                    .containsEntry("role", "assistant"));
+    assertThat(toolUnits(calls.get(2)))
+        .singleElement()
+        .satisfies(
+            unit ->
+                assertThat(unit)
+                    .containsEntry("id", "child-tool")
+                    .containsEntry("input", "child synthetic input")
+                    .containsEntry("role", "assistant"));
+    assertThat(calls.stream().flatMap(List::stream))
+        .noneMatch(unit -> "unfinished-tool".equals(unit.get("id")));
+  }
+
+  @Test
+  void standaloneToolInputsAfterOpeningFrameStayOutOfNextUserRequest() {
+    var records =
+        List.of(
+            assistantWithTools("main", "opening response", List.of()),
+            standaloneTool("main", "opening-tool", "first input"),
+            record("main", "user", "next request", ""),
+            standaloneTool("main", "next-tool", "next input"),
+            assistantWithTools("main", "next response", List.of()));
+
+    var calls = CallSourceUnitBuilder.build(records, SourceRecord::locator);
+    assertThat(toolUnits(calls.get(0)))
+        .singleElement()
+        .satisfies(
+            unit ->
+                assertThat(unit)
+                    .containsEntry("id", "opening-tool")
+                    .containsEntry("input", "first input"));
+    assertThat(toolUnits(calls.get(1)))
+        .singleElement()
+        .satisfies(
+            unit ->
+                assertThat(unit)
+                    .containsEntry("id", "next-tool")
+                    .containsEntry("input", "next input"));
+    assertThat(calls.stream().flatMap(List::stream).filter(unit -> "user".equals(unit.get("role"))))
+        .noneMatch(unit -> unit.containsKey("input"));
+  }
+
   @Test
   void consumesOnlyNewInputsInTheSameScopeAndPreservesOrder() {
     var records =
@@ -118,6 +233,42 @@ class CallSourceUnitBuilderTest {
 
   private static List<Object> texts(List<Map<String, Object>> units) {
     return units.stream().map(unit -> unit.get("text")).toList();
+  }
+
+  private static List<Map<String, Object>> toolUnits(List<Map<String, Object>> units) {
+    return units.stream().filter(unit -> "tool_use".equals(unit.get("type"))).toList();
+  }
+
+  private static SourceRecord closingAssistant(String scope, String callId) {
+    return new SourceRecord(
+        scope,
+        0,
+        "assistant",
+        Optional.of(callId),
+        Optional.empty(),
+        Optional.empty(),
+        Optional.empty(),
+        SourceRecordUsage.empty(),
+        List.of(),
+        Optional.empty(),
+        Optional.empty(),
+        Optional.empty());
+  }
+
+  private static SourceRecord standaloneTool(String scope, String id, String input) {
+    return new SourceRecord(
+        scope,
+        0,
+        "tool_use",
+        Optional.of(id),
+        Optional.empty(),
+        Optional.empty(),
+        Optional.empty(),
+        SourceRecordUsage.empty(),
+        List.of(new SourceToolCall(id, "exec", input)),
+        Optional.empty(),
+        Optional.of("exec"),
+        Optional.empty());
   }
 
   private static SourceRecord record(String scope, String type, String text, String toolId) {

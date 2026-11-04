@@ -16,6 +16,8 @@ final class CallSourceUnitBuilder {
       List<? extends SourceRecord> records, Function<SourceRecord, String> scopeKey) {
     Map<String, List<Map<String, Object>>> pending = new LinkedHashMap<>();
     Map<String, List<Map<String, Object>>> latest = new LinkedHashMap<>();
+    Map<String, List<SourceToolCall>> pendingTools = new LinkedHashMap<>();
+    Map<String, Boolean> closingFrames = new LinkedHashMap<>();
     List<List<Map<String, Object>>> calls = new ArrayList<>();
     for (SourceRecord record : records) {
       if (record == null) {
@@ -26,9 +28,21 @@ final class CallSourceUnitBuilder {
       String type = record.eventType();
       if ("assistant".equals(type)) {
         addAssistantUnits(units, record);
+        addToolUnits(units, pendingTools.getOrDefault(scope, List.of()));
+        pendingTools.remove(scope);
         calls.add(units);
         latest.put(scope, units);
+        closingFrames.put(scope, TokenAccountant.isUsageClosingFrame(record.callId().orElse("")));
         pending.remove(scope);
+      } else if ("tool_use".equals(type)) {
+        List<Map<String, Object>> current = latest.get(scope);
+        boolean newInput = units.stream().anyMatch(unit -> "user".equals(unit.get("role")));
+        if (current != null && !closingFrames.getOrDefault(scope, false) && !newInput) {
+          addToolUnits(current, record.toolCalls());
+        } else {
+          // 独立声明属于同 scope 下一响应帧，不能被 tool_result/user 边界回填到上一调用。
+          pendingTools.computeIfAbsent(scope, key -> new ArrayList<>()).addAll(record.toolCalls());
+        }
       } else if ("user".equals(type) || "tool_result".equals(type)) {
         flushResponses(units, latest.get(scope));
         addUnit(units, record, "user");
@@ -48,7 +62,12 @@ final class CallSourceUnitBuilder {
    */
   private static void addAssistantUnits(List<Map<String, Object>> units, SourceRecord record) {
     addUnit(units, record, "assistant");
-    for (SourceToolCall tc : record.toolCalls()) {
+    addToolUnits(units, record.toolCalls());
+  }
+
+  private static void addToolUnits(
+      List<Map<String, Object>> units, List<SourceToolCall> toolCalls) {
+    for (SourceToolCall tc : toolCalls) {
       Map<String, Object> unit = new LinkedHashMap<>();
       unit.put("type", "tool_use");
       unit.put("role", "assistant");
@@ -74,6 +93,9 @@ final class CallSourceUnitBuilder {
     unit.put("type", record.eventType());
     unit.put("role", role);
     unit.put("text", record.content());
+    if (record.metaContext()) {
+      unit.put("isMeta", true);
+    }
     record.toolUseId().ifPresent(id -> unit.put("tool_call_id", id));
     units.add(Map.copyOf(unit));
   }

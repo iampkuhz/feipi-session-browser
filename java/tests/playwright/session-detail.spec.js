@@ -179,6 +179,7 @@ test.describe('会话详情 — Phase 1', () => {
       'nav-dashboard',
       'nav-sessions',
       'nav-projects',
+      'nav-imports',
       'nav-glossary',
       'sort',
       'status-all',

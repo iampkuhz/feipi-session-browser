@@ -2,7 +2,7 @@
 
 ## Requirement: 客户端拥有 Session 生命周期
 
-仓库 MUST 使用 Claude、Codex 或 Qoder 已经建立的 Session，不得为普通仓库操作维护第二套 run Registry、bootstrap、heartbeat、lease 或 completion 状态机。
+仓库 MUST 使用 Claude 或 Codex 已经建立的 Session，不得为普通仓库操作维护第二套 run Registry、bootstrap、heartbeat、lease 或 completion 状态机。子任务 MUST 使用当前 Agent 原生生命周期，遵守 `native-subagent-delegation`；工程 `.qoder/` 入口及 parity 要求 MUST NOT 恢复，产品 Qoder session 支持和通用安全保护 MUST 保留。
 
 ### Scenario: Session 启动、恢复或结束
 

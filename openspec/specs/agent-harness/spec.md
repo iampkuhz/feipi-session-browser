@@ -19,7 +19,7 @@
 
 #### Scenario: 客户端已选择 checkout
 
-- **Given** Claude、Codex 或 Qoder 已在一个 checkout 中工作
+- **Given** Claude 或 Codex 已在一个 checkout 中工作
 - **When** Agent 读取、编辑或运行本地命令
 - **Then** 仓库 SHALL NOT 因缺少 Session runtime 状态阻断操作
 - **And** checkout、分支和 worktree 生命周期 SHALL 由客户端与显式 Git 操作管理
@@ -86,3 +86,14 @@ Gate SHALL 使用仓库锁定依赖可用的 Python 环境，并保留 bounded s
 - **When** 运行 Gate
 - **Then** Gate SHALL 选择仓库批准的项目 Python 或 `uv run --frozen`
 - **And** 缺失能力 SHALL 返回带 reason code 的 FAIL，不得伪造 PASS
+
+### Requirement: 复用当前 Agent 原生委派
+
+工程子任务 SHALL 复用当前 Agent 原生 API 和共享 handoff 协议，模型路由 SHALL 以 `harness/agent-policy.manifest.yaml` 为真源；具体契约见 `native-subagent-delegation`。工程 SHALL NOT 依赖 Qoder CLI 或另建队列、callback、watchdog、receipt 和任务状态机。
+
+#### Scenario: 主线程派发与集成
+
+- **Given** 当前 Agent 提供原生 subagents
+- **When** 主线程分配实现或独立验证任务
+- **Then** handoff SHALL 限定必要上下文、唯一身份及互斥写范围
+- **And** 主线程 SHALL 仅聚合同 client/session_id 证据，独立运行 required checks，不接受旧 Qoder PASS 替代验收

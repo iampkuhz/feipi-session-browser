@@ -286,6 +286,55 @@ class ExportHandlerTest {
     }
 
     @Test
+    @DisplayName("导出保留存储的估算和未上报精度，不按 agent 猜测")
+    void exportPropagatesStoredTokenPrecision() throws Exception {
+      insertTestSession();
+      indexConnection
+          .writerConnection()
+          .createStatement()
+          .executeUpdate(
+              "UPDATE sessions SET fresh_input_token_precision = 'estimated',"
+                  + " output_token_precision = 'estimated',"
+                  + " cache_read_token_precision = 'unavailable',"
+                  + " cache_write_token_precision = 'unavailable',"
+                  + " cache_read_tokens = 0, cache_write_tokens = 0");
+      QueryCompositionRoot root =
+          com.feipi.session.browser.web.WebTestComposition.queryRoot(
+              indexConnection, new SchemaVersion(1));
+      WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
+
+      JavalinTest.test(
+          webRoot.app(),
+          (testApp, client) -> {
+            var response = client.get("/sessions/claude_code/test-session-1/export.html");
+            assertThat(response.code()).isEqualTo(200);
+            assertThat(response.body().string())
+                .contains("Estimated", "Not reported", "Partial")
+                .doesNotContain("style=\"--seg-pct:");
+          });
+    }
+
+    @Test
+    @DisplayName("旧记录缺计量来源及计时精度时导出明确标 Unknown")
+    void legacyExportDoesNotInferReportedPrecision() throws Exception {
+      insertTestSession();
+      QueryCompositionRoot root =
+          com.feipi.session.browser.web.WebTestComposition.queryRoot(
+              indexConnection, new SchemaVersion(1));
+      WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
+
+      JavalinTest.test(
+          webRoot.app(),
+          (testApp, client) -> {
+            var response = client.get("/sessions/claude_code/test-session-1/export.html");
+            assertThat(response.code()).isEqualTo(200);
+            assertThat(response.body().string())
+                .contains("Unknown", "Wall Duration")
+                .doesNotContain("style=\"--seg-pct:");
+          });
+    }
+
+    @Test
     @DisplayName("导出 HTML 包含 rounds section")
     void exportContainsRoundsSection() throws Exception {
       insertTestSession();

@@ -2,6 +2,7 @@ package com.feipi.session.browser.web.page;
 
 import com.feipi.session.browser.application.DashboardUseCase;
 import com.feipi.session.browser.application.QueryCompositionRoot;
+import com.feipi.session.browser.domain.normalized.TokenProvenance;
 import com.feipi.session.browser.index.api.IndexQueryException;
 import com.feipi.session.browser.index.api.query.ActivityTrend;
 import com.feipi.session.browser.index.api.query.AgentBreakdown;
@@ -111,7 +112,7 @@ public final class DashboardPage {
       context.put("prompt_activity", buildPromptActivity(activityRows));
       Map<String, Object> cacheHealth = buildCacheHealth(unfilteredTrendRows, agentScope);
       context.put("cache_health", cacheHealth);
-      context.put("chart_notes", buildChartNotes());
+      context.put("chart_notes", buildChartNotes(agentScope, grain));
       context.put("dashboard_summary", buildDashboardSummary(trendRows, activityRows, cacheHealth));
       context.put(
           "all_agents_branch",
@@ -160,6 +161,12 @@ public final class DashboardPage {
     return AgentFilter.of(dbAgent);
   }
 
+  /** 仅完整 provider 上报的输入可形成精确缓存比例及其变化。 */
+  private static boolean reportedInput(TokenProvenance precision) {
+    return List.of(precision.freshInput(), precision.cacheRead(), precision.cacheWrite()).stream()
+        .allMatch("provider_reported"::equals);
+  }
+
   private static List<Map<String, Object>> buildKpis(
       DashboardStats stats,
       KpiSupplement supplement,
@@ -197,18 +204,18 @@ public final class DashboardPage {
     // 说明:Cache Read Ratio badge——最后两个可计算点的百分点变化
     String cacheRatioBadge = null;
     String cacheRatioBadgeTone = "neutral";
-    {
+    if (reportedInput(stats.tokenProvenance())) {
       Double latest = null;
       Double prev = null;
       for (int i = trendRows.size() - 1; i >= 0 && latest == null; i--) {
         TrendDay r = trendRows.get(i);
         long is = r.freshInputTokens() + r.cacheReadTokens() + r.cacheWriteTokens();
-        if (is > 0) {
+        if (is > 0 && reportedInput(r.tokenProvenance())) {
           latest = (double) r.cacheReadTokens() / is;
           for (int j = i - 1; j >= 0; j--) {
             TrendDay p = trendRows.get(j);
             long pis = p.freshInputTokens() + p.cacheReadTokens() + p.cacheWriteTokens();
-            if (pis > 0) {
+            if (pis > 0 && reportedInput(p.tokenProvenance())) {
               prev = (double) p.cacheReadTokens() / pis;
               break;
             }
@@ -263,7 +270,10 @@ public final class DashboardPage {
     // 说明:二级指标计算
     double avgRounds = totalSessions > 0 ? (double) totalAssistantMessages / totalSessions : 0;
     double promptsPerSession = totalSessions > 0 ? (double) totalUserMessages / totalSessions : 0;
-    Double cacheRatio = inputSide > 0 ? (double) stats.totalCacheReadTokens() / inputSide : null;
+    Double cacheRatio =
+        inputSide > 0 && reportedInput(stats.tokenProvenance())
+            ? (double) stats.totalCacheReadTokens() / inputSide
+            : null;
     Double failureRate = totalToolCalls > 0 ? (double) totalFailedTools / totalToolCalls : null;
 
     return List.of(
@@ -380,7 +390,7 @@ public final class DashboardPage {
                     secondary(
                         "Eligible Sessions",
                         formatDashboardInteger(supplement.eligibleSessions()),
-                        "Input-side Tokens > 0 的 session 数，也是 Cache Read Ratio 可参与计算的分母样本。"),
+                        "输入三段均为 provider 上报且 Input-side Tokens > 0 的 session 数；缺测及零分母会话不参与。"),
                     secondary(
                         "P50 Session Ratio",
                         supplement.p50CacheRatio() != null
@@ -391,7 +401,8 @@ public final class DashboardPage {
                     secondary(
                         "Low-read Sessions",
                         formatDashboardInteger(supplement.lowReadSessions()),
-                        "eligible sessions 中 per-session cache read ratio 小于 20.0% 的 session 数。")))),
+                        "eligible sessions 中 per-session cache read ratio 小于 20.0% 的 session"
+                            + " 数。")))),
         kpi(
             new KpiCard(
                 "Failed Tools",
@@ -632,12 +643,54 @@ public final class DashboardPage {
     return summary;
   }
 
-  private static Map<String, String> buildChartNotes() {
+  /**
+   * 说明当前 scope/grain 的 UTC 开始会话 cohort，避免把整段累计量称为消费日。
+   *
+   * @param agentScope 当前 agent 范围
+   * @param grain 当前日期桶粒度
+   * @return 各图的常驻口径说明
+   */
+  private static Map<String, String> buildChartNotes(String agentScope, String grain) {
+    String scope =
+        switch (agentScope) {
+          case "claude-code" -> "Claude Code";
+          case "codex" -> "Codex";
+          case "qoder" -> "Qoder";
+          default -> "All agents";
+        };
+    String bucket =
+        switch (grain) {
+          case "week" -> "ISO 周";
+          case "month" -> "自然月";
+          default -> "天";
+        };
+    String cohort = "按 UTC 开始日，按" + bucket;
     Map<String, String> notes = new LinkedHashMap<>();
-    notes.put("sessions", "按天新增的 session 总数,按照不同 agent 堆叠.");
-    notes.put("prompts", "按天展示 user prompts 总数,并用折线显示每个 session 的平均 prompts.");
-    notes.put("tokens", "按天展示 total tokens,按照 Fresh、Cache Read、Cache Write、Output 组成展示.");
-    notes.put("cache_health", "按天展示整体和各 agent 的 Cache Read Ratio;Average 为全局平均.");
+    notes.put(
+        "sessions",
+        cohort
+            + "统计 "
+            + scope
+            + " 新增会话；"
+            + ("all".equals(agentScope) ? "按 agent 堆叠。" : "仅包含当前 agent。")
+            + "未知开始日期不计入。");
+    notes.put(
+        "prompts",
+        cohort + "归组：该批 " + scope + " 会话的整段累计 user prompts；" + "平均 prompts 的分母为同一批开始会话，不是事件实际发生日。");
+    notes.put(
+        "tokens",
+        cohort
+            + "归组：该批 "
+            + scope
+            + " 会话的整段累计 tokens"
+            + "（Fresh、Cache Read、Cache Write、Output），不是逐次真实消费日；Estimated/Unknown 等来源仍按披露。");
+    notes.put(
+        "cache_health",
+        cohort
+            + "归组 "
+            + scope
+            + " 的 Cache Read Ratio；使用该批会话整段 input，"
+            + "不是逐次真实消费日。Average 为同桶全局平均；缺测/未知为 N/A。");
     notes.put("model_mix", "当前 Java index 暂未暴露完整模型占比图数据时显示明细表或空态。");
     notes.put("tool_dist", "当前 index 保存聚合工具调用数，不保存工具名称分布。");
     return notes;

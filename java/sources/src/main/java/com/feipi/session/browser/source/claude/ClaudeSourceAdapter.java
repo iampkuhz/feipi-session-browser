@@ -2,6 +2,7 @@ package com.feipi.session.browser.source.claude;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.feipi.session.browser.domain.source.SourceRecord;
+import com.feipi.session.browser.domain.source.SourceRecordUsage;
 import com.feipi.session.browser.source.claude.ClaudeDiscovery.ClaudeSessionDiscovery;
 import com.feipi.session.browser.source.common.JsonCandidateMetadataReader;
 import com.feipi.session.browser.source.common.JsonNodeReaders;
@@ -62,6 +63,13 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
 
   private static final Logger LOG = Logger.getLogger(ClaudeSourceAdapter.class.getName());
 
+  private static final Map<String, String> TOKEN_PRECISION_FIELDS =
+      Map.of(
+          "freshInputTokenPrecision", "input_tokens",
+          "cacheReadTokenPrecision", "cache_read_input_tokens",
+          "cacheWriteTokenPrecision", "cache_creation_input_tokens",
+          "outputTokenPrecision", "output_tokens");
+
   private final JsonlReader jsonlReader;
 
   /** 使用默认 JSONL 读取器配置创建适配器。 */
@@ -82,6 +90,12 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
   @Override
   public SourceId sourceId() {
     return SourceId.CLAUDE_CODE;
+  }
+
+  /** 单文件沿用正式 usage 选择及字段存在性，不读取 sidecar。 */
+  @Override
+  public Map<String, String> singleFileMetadata(Path filePath) throws IOException {
+    return tokenPrecision(assistantRecords(jsonlReader.read(filePath).events()));
   }
 
   /**
@@ -132,7 +146,10 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
           putIfNotEmpty(meta, "cwd", transcriptMeta.cwd());
           putIfNotEmpty(meta, "model", transcriptMeta.model());
           putIfNotEmpty(meta, "git_branch", transcriptMeta.gitBranch());
-          putSubagentMetadata(meta, inspectSubagents(disc.transcriptPath()));
+          ClaudeSubagentTotals subagents = inspectSubagents(disc.transcriptPath());
+          putSubagentMetadata(meta, subagents);
+          meta.putAll(
+              mergeTokenPrecision(transcriptMeta.tokenPrecision(), subagents.tokenPrecision()));
         }
 
         Candidate candidate = new Candidate(fp, sessionKey, projectKey, Map.copyOf(meta));
@@ -186,7 +203,11 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
               event -> text(JsonNodeReaders.objectChild(event, "message"), "model"),
               ClaudeSourceAdapter::extractGitBranch);
       return new ClaudeCandidateMetadata(
-          metadata.cwd(), metadata.title(), metadata.model(), metadata.gitBranch());
+          metadata.cwd(),
+          metadata.title(),
+          metadata.model(),
+          metadata.gitBranch(),
+          tokenPrecision(assistantRecords(result.events())));
     } catch (IOException e) {
       LOG.log(Level.FINEST, "读取 Claude 候选元数据失败: " + transcriptPath, e);
       return ClaudeCandidateMetadata.empty();
@@ -221,6 +242,9 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
     StringBuilder sb = new StringBuilder();
     for (JsonNode item : content) {
       String text = item != null && item.isObject() ? text(item, "text") : "";
+      if (text.isEmpty() && item != null && "thinking".equals(text(item, "type"))) {
+        text = text(item, "thinking");
+      }
       if (!text.isBlank()) {
         if (!sb.isEmpty()) {
           sb.append('\n');
@@ -296,7 +320,14 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
 
     long failed = countFailedToolResults(events, toolNames);
     return new ClaudeSubagentTotals(
-        0, toolNames.size(), failed, freshInput, cacheRead, cacheWrite, output);
+        0,
+        toolNames.size(),
+        failed,
+        freshInput,
+        cacheRead,
+        cacheWrite,
+        output,
+        tokenPrecision(assistantRecords));
   }
 
   private static List<AssistantRecord> assistantRecords(List<JsonNode> events) {
@@ -307,14 +338,14 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
       }
       JsonNode message = JsonNodeReaders.objectChild(event, "message");
       if (message == null) {
-        continue;
+        message = event;
       }
       String key = assistantMessageKey(event, message);
       AssistantRecordBuilder builder =
           records.computeIfAbsent(key, ignored -> new AssistantRecordBuilder());
       JsonNode usage = JsonNodeReaders.objectChild(message, "usage");
       if (usage != null) {
-        builder.usageRows.add(usage);
+        builder.usageRows.add(message);
       }
       JsonNode content = message.get("content");
       if (content != null && content.isArray()) {
@@ -323,10 +354,7 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
             continue;
           }
           String itemType = text(item, "type");
-          if ("text".equals(itemType) || "thinking".equals(itemType)) {
-            builder.hasContent = true;
-          } else if ("tool_use".equals(itemType)) {
-            builder.hasContent = true;
+          if ("tool_use".equals(itemType)) {
             String id = text(item, "id");
             String name = text(item, "name");
             if (!id.isEmpty() && !name.isEmpty()) {
@@ -338,10 +366,8 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
     }
     List<AssistantRecord> result = new ArrayList<>();
     for (AssistantRecordBuilder builder : records.values()) {
-      if (builder.hasContent) {
-        result.add(
-            new AssistantRecord(List.copyOf(builder.usageRows), List.copyOf(builder.toolUses)));
-      }
+      result.add(
+          new AssistantRecord(List.copyOf(builder.usageRows), List.copyOf(builder.toolUses)));
     }
     return List.copyOf(result);
   }
@@ -366,46 +392,176 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
     if (usages.isEmpty()) {
       return UsageTotals.empty();
     }
+    JsonNode best = JsonNodeReaders.objectChild(selectUsageMessage(usages), "usage");
+    return new UsageTotals(
+        selectedUsageValue(best, usages, "input_tokens"),
+        selectedUsageValue(best, usages, "cache_read_input_tokens"),
+        selectedUsageValue(best, usages, "cache_creation_input_tokens"),
+        selectedUsageValue(best, usages, "output_tokens"));
+  }
+
+  private static JsonNode selectUsageMessage(List<JsonNode> messages) {
     JsonNode best = null;
-    int bestIndex = -1;
-    int bestOutputPresent = -1;
+    int bestAuthority = -1;
     int bestCacheFieldCount = -1;
     long bestTokenTotal = -1;
-    long maxInput = 0;
-    for (int i = 0; i < usages.size(); i++) {
-      JsonNode usage = usages.get(i);
-      maxInput = Math.max(maxInput, longValue(usage, "input_tokens"));
-      int outputPresent = longValue(usage, "output_tokens") > 0 ? 1 : 0;
+    for (JsonNode message : messages) {
+      JsonNode usage = JsonNodeReaders.objectChild(message, "usage");
       int cacheFieldCount =
-          (usage.has("cache_read_input_tokens") ? 1 : 0)
-              + (usage.has("cache_creation_input_tokens") ? 1 : 0);
+          (usage.path("cache_read_input_tokens").isNumber() ? 1 : 0)
+              + (usage.path("cache_creation_input_tokens").isNumber() ? 1 : 0);
+      int authority = usageAuthority(message);
       long tokenTotal =
           longValue(usage, "input_tokens")
               + longValue(usage, "output_tokens")
               + longValue(usage, "cache_read_input_tokens")
               + longValue(usage, "cache_creation_input_tokens");
       if (best == null
-          || outputPresent > bestOutputPresent
-          || (outputPresent == bestOutputPresent && cacheFieldCount > bestCacheFieldCount)
-          || (outputPresent == bestOutputPresent
+          || authority > bestAuthority
+          || (authority == bestAuthority && cacheFieldCount > bestCacheFieldCount)
+          || (authority == bestAuthority
               && cacheFieldCount == bestCacheFieldCount
-              && tokenTotal > bestTokenTotal)
-          || (outputPresent == bestOutputPresent
-              && cacheFieldCount == bestCacheFieldCount
-              && tokenTotal == bestTokenTotal
-              && i > bestIndex)) {
-        best = usage;
-        bestIndex = i;
-        bestOutputPresent = outputPresent;
+              && (authority > 0 || tokenTotal >= bestTokenTotal))) {
+        best = message;
+        bestAuthority = authority;
         bestCacheFieldCount = cacheFieldCount;
         bestTokenTotal = tokenTotal;
       }
     }
-    return new UsageTotals(
-        Math.max(maxInput, longValue(best, "input_tokens")),
-        longValue(best, "cache_read_input_tokens"),
-        longValue(best, "cache_creation_input_tokens"),
-        longValue(best, "output_tokens"));
+    return best;
+  }
+
+  private static int usageAuthority(JsonNode message) {
+    JsonNode usage = JsonNodeReaders.objectChild(message, "usage");
+    if (usage == null) {
+      return 0;
+    }
+    if (!text(message, "stop_reason").isBlank()) {
+      return 3;
+    }
+    if (usage.path("cache_read_input_tokens").isNumber()
+        || usage.path("cache_creation_input_tokens").isNumber()) {
+      return 2;
+    }
+    return longValue(usage, "output_tokens") > 0 ? 1 : 0;
+  }
+
+  private static Map<String, String> tokenPrecision(List<AssistantRecord> records) {
+    Map<String, String> total = Map.of();
+    for (AssistantRecord record : records) {
+      JsonNode selected = selectUsageMessage(record.usageRows());
+      JsonNode usage = JsonNodeReaders.objectChild(selected, "usage");
+      // 非零 output 可用于无尾块的可观测值回退，但不能单独证明整行是正式最终 usage。
+      boolean authoritative = usageAuthority(selected) >= 2;
+      Map<String, String> precision = new LinkedHashMap<>();
+      TOKEN_PRECISION_FIELDS.forEach(
+          (key, field) ->
+              precision.put(
+                  key,
+                  !authoritative
+                      ? "unknown"
+                      : usage.path(field).isNumber() ? "provider_reported" : "unavailable"));
+      total = mergeTokenPrecision(total, precision);
+    }
+    return total;
+  }
+
+  private static Map<String, String> mergeTokenPrecision(
+      Map<String, String> first, Map<String, String> second) {
+    if (first.isEmpty() && second.isEmpty()) {
+      return Map.of();
+    }
+    Map<String, String> merged = new LinkedHashMap<>();
+    TOKEN_PRECISION_FIELDS.forEach(
+        (key, field) -> {
+          String left = first.get(key);
+          String right = second.get(key);
+          merged.put(
+              key, left == null ? right : right == null || left.equals(right) ? left : "mixed");
+        });
+    Map.of(
+            "estimated",
+            "tokenContainsEstimated",
+            "unavailable",
+            "tokenContainsUnavailable",
+            "unknown",
+            "tokenContainsUnknown")
+        .forEach(
+            (state, key) -> {
+              boolean contains =
+                  Boolean.parseBoolean(first.get(key))
+                      || Boolean.parseBoolean(second.get(key))
+                      || first.containsValue(state)
+                      || second.containsValue(state);
+              merged.put(key, Boolean.toString(contains));
+            });
+    return Map.copyOf(merged);
+  }
+
+  private static long selectedUsageValue(JsonNode best, List<JsonNode> messages, String field) {
+    if (best.path(field).isNumber()) {
+      return longValue(best, field);
+    }
+    return messages.stream()
+        .map(message -> JsonNodeReaders.objectChild(message, "usage"))
+        .mapToLong(usage -> longValue(usage, field))
+        .max()
+        .orElse(0);
+  }
+
+  /** 在字段 presence 尚未丢失时裁定 usage，保留全部原始事件的定位、时间和内容。 */
+  private static List<SourceRecord> resolveAssistantUsage(
+      List<JsonNode> events, List<SourceRecord> records) {
+    Map<String, List<JsonNode>> messages = new LinkedHashMap<>();
+    for (SourceRecord record : records) {
+      if (record.responseMessageId().filter(id -> !id.isBlank()).isPresent()) {
+        JsonNode message = JsonNodeReaders.objectChild(events.get(record.eventIndex()), "message");
+        if (JsonNodeReaders.objectChild(message, "usage") != null) {
+          messages
+              .computeIfAbsent(record.responseMessageId().get(), ignored -> new ArrayList<>())
+              .add(message);
+        }
+      }
+    }
+    Map<String, UsageTotals> totals = new LinkedHashMap<>();
+    messages.forEach((id, rows) -> totals.put(id, mergeUsage(rows)));
+    return records.stream()
+        .map(
+            record -> {
+              UsageTotals usage = record.responseMessageId().map(totals::get).orElse(null);
+              if (!"assistant".equals(record.eventType())) {
+                return record;
+              }
+              JsonNode message =
+                  JsonNodeReaders.objectChild(events.get(record.eventIndex()), "message");
+              String content = contentText(message == null ? null : message.get("content"));
+              return new SourceRecord(
+                  record.locator(),
+                  record.eventIndex(),
+                  record.eventType(),
+                  record.callId(),
+                  record.model(),
+                  record.timestamp(),
+                  record.turnId(),
+                  usage == null
+                      ? record.usage()
+                      : new SourceRecordUsage(
+                          usage.inputTokens(),
+                          usage.cacheReadTokens(),
+                          usage.cacheWriteTokens(),
+                          usage.outputTokens()),
+                  record.toolCalls(),
+                  record.toolUseId(),
+                  record.toolName(),
+                  record.toolError(),
+                  record.relation(),
+                  content.isEmpty() ? record.content() : content,
+                  record.responseMessageId(),
+                  record.responseStopReason(),
+                  record.timing(),
+                  record.metaContext());
+            })
+        .toList();
   }
 
   private static long countFailedToolResults(List<JsonNode> events, Map<String, String> toolNames) {
@@ -501,17 +657,16 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
   private static final class AssistantRecordBuilder {
     private final List<JsonNode> usageRows = new ArrayList<>();
     private final List<ToolUse> toolUses = new ArrayList<>();
-    private boolean hasContent;
   }
 
   /**
    * 表示 AssistantRecord 数据。
    *
-   * @param usageRows usage 行列表。
+   * @param usageRows 含原始 usage/stop_reason 的 message 行列表。
    * @param toolUses tool use 列表。
    */
   private record AssistantRecord(
-      /* 用量数据行列表 */
+      /* 含用量的原始 message 列表 */
       @NotNull List<JsonNode> usageRows,
       /* 工具调用条目列表 */
       @NotNull List<ToolUse> toolUses) {
@@ -570,6 +725,7 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
    * @param cacheReadTokens cache read token 数量。
    * @param cacheWriteTokens cache write token 数量。
    * @param outputTokens output token 数量。
+   * @param tokenPrecision 所有 sidechat 的计量来源精度和覆盖信息。
    */
   private record ClaudeSubagentTotals(
       /* subagent 实例数量 */
@@ -585,9 +741,10 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
       /* 缓存写入令牌数量 */
       @PositiveOrZero long cacheWriteTokens,
       /* 输出令牌数量 */
-      @PositiveOrZero long outputTokens) {
+      @PositiveOrZero long outputTokens,
+      @NotNull Map<String, String> tokenPrecision) {
     private static ClaudeSubagentTotals empty() {
-      return new ClaudeSubagentTotals(0, 0, 0, 0, 0, 0, 0);
+      return new ClaudeSubagentTotals(0, 0, 0, 0, 0, 0, 0, Map.of());
     }
 
     private long totalTokens() {
@@ -602,7 +759,8 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
           freshInputTokens,
           cacheReadTokens,
           cacheWriteTokens,
-          outputTokens);
+          outputTokens,
+          tokenPrecision);
     }
 
     private ClaudeSubagentTotals plus(ClaudeSubagentTotals other) {
@@ -613,7 +771,8 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
           freshInputTokens + other.freshInputTokens,
           cacheReadTokens + other.cacheReadTokens,
           cacheWriteTokens + other.cacheWriteTokens,
-          outputTokens + other.outputTokens);
+          outputTokens + other.outputTokens,
+          mergeTokenPrecision(tokenPrecision, other.tokenPrecision));
     }
   }
 
@@ -679,7 +838,8 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
             jsonlReader,
             ClaudeSourceAdapter::extractEventType,
             ClaudeSourceAdapter::collectEventDiagnostics,
-            (diagnostics, eventCount) -> {});
+            (diagnostics, eventCount) -> {},
+            ClaudeSourceAdapter::resolveAssistantUsage);
     if (!(primary instanceof SourceResult.Success success)) {
       return primary;
     }
@@ -703,7 +863,8 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
               jsonlReader,
               ClaudeSourceAdapter::extractEventType,
               ClaudeSourceAdapter::collectEventDiagnostics,
-              (ignored, eventCount) -> {});
+              (ignored, eventCount) -> {},
+              ClaudeSourceAdapter::resolveAssistantUsage);
       if (sidecarResult instanceof SourceResult.Success sidecarSuccess) {
         diagnostics.addAll(sidecarSuccess.diagnostics());
         records.addAll(sidecarSuccess.records());
@@ -822,14 +983,16 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
    * @param title 会话标题。
    * @param model 模型名称。
    * @param gitBranch Git branch 名称。
+   * @param tokenPrecision 主会话计量来源精度和覆盖信息。
    */
   private record ClaudeCandidateMetadata(
       @NotNull String cwd,
       @NotNull String title,
       @NotNull String model,
-      @NotNull String gitBranch) {
+      @NotNull String gitBranch,
+      @NotNull Map<String, String> tokenPrecision) {
     private static ClaudeCandidateMetadata empty() {
-      return new ClaudeCandidateMetadata("", "", "", "");
+      return new ClaudeCandidateMetadata("", "", "", "", Map.of());
     }
   }
 }

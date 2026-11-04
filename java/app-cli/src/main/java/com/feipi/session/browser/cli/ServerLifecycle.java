@@ -2,6 +2,7 @@ package com.feipi.session.browser.cli;
 
 import com.feipi.session.browser.application.QueryCache;
 import com.feipi.session.browser.application.QueryCompositionRoot;
+import com.feipi.session.browser.application.imports.ImportedSessionUseCase;
 import com.feipi.session.browser.index.store.sqlite.connection.ConnectionFactory;
 import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
 import com.feipi.session.browser.index.store.sqlite.loader.NormalizedArtifactLoader;
@@ -18,6 +19,7 @@ import com.feipi.session.browser.scan.engine.ScanCancelToken;
 import com.feipi.session.browser.scan.engine.ScanConfig;
 import com.feipi.session.browser.scan.engine.ScanLock;
 import com.feipi.session.browser.scan.engine.TierConfig;
+import com.feipi.session.browser.scan.engine.imports.IsolatedSessionImportService;
 import com.feipi.session.browser.source.claude.ClaudeSourceAdapter;
 import com.feipi.session.browser.source.codex.CodexSourceAdapter;
 import com.feipi.session.browser.source.qoder.QoderSourceAdapter;
@@ -43,7 +45,7 @@ import org.slf4j.LoggerFactory;
  * serve 命令的服务器生命周期管理。
  *
  * <p>按固定顺序装配和启动 scan、query、web 三个子系统，并在 JVM 关闭时按逆序释放资源。 启动顺序：config → schema/query → bind server →
- * ready → background scheduler。 关闭顺序：background scheduler → server → DB。
+ * ready → background scheduler。 关闭顺序：background scheduler → server → imports → DB。
  *
  * <p>所有资源（JDBC 连接、WebServer、BackgroundScanner）的生命周期由本类统一管理， 任何阶段失败都会清理已创建的资源，确保无孤儿进程或线程泄漏。
  *
@@ -72,6 +74,7 @@ public final class ServerLifecycle {
 
   private volatile WebServer webServer;
   private volatile WebCompositionRoot webRoot;
+  private volatile ImportedSessionUseCase importedSessions;
   private volatile BackgroundScanner backgroundScanner;
   private volatile IndexConnection indexConnection;
   private volatile Connection jdbcConnection;
@@ -156,7 +159,11 @@ public final class ServerLifecycle {
 
       // 阶段 3：创建并绑定 Web 服务器（先于扫描，确保尽快可访问）
       WebConfig webConfig = new WebConfig(host, port, "/static");
-      webRoot = new WebCompositionRoot(queryRoot, webConfig);
+      importedSessions =
+          new ImportedSessionUseCase(
+              new IsolatedSessionImportService(
+                  source -> SourceAdapterRegistry.forSourceId(source.getValue())));
+      webRoot = new WebCompositionRoot(queryRoot, webConfig, importedSessions);
       webServer = webRoot.createServer();
       this.sourceEntries = sourceEntries;
       this.artifactDir = artifactDir;
@@ -259,7 +266,7 @@ public final class ServerLifecycle {
         QueryCache.withDefaultSize());
   }
 
-  /** 执行关闭序列：scanner → server → DB → 清理 PID 文件。 */
+  /** 执行关闭序列：scanner → server → imports → DB → 清理 PID 文件。 */
   private synchronized void doShutdown() {
     LOG.info("正在关闭 serve...");
 
@@ -279,6 +286,15 @@ public final class ServerLifecycle {
         LOG.warn("关闭 Web 服务器失败", e);
       }
       webServer = null;
+    }
+
+    if (importedSessions != null) {
+      try {
+        importedSessions.close();
+      } catch (IOException e) {
+        LOG.warn("关闭导入分析失败：{}", e.getClass().getSimpleName());
+      }
+      importedSessions = null;
     }
 
     if (indexConnection != null) {

@@ -23,7 +23,8 @@ final class ApiSessionSummaries {
             summary.freshInputTokens(),
             summary.cacheReadTokens(),
             summary.cacheWriteTokens(),
-            summary.outputTokens()),
+            summary.outputTokens(),
+            summary.tokenProvenance()),
         summary.failedToolCount(),
         state);
   }

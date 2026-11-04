@@ -30,6 +30,7 @@ test.describe('会话列表页', () => {
 
   test('[UI-SESSIONS-015] 1440x900 API-first 列表布局 smoke', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
+    const rowsResponsePromise = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/sessions/rows');
     await page.goto('/sessions');
     await expect(page.locator('body')).toBeVisible();
     await expect(page.getByText('Loading sessions')).toHaveCount(0, { timeout: 10000 });
@@ -38,8 +39,35 @@ test.describe('会话列表页', () => {
     const firstDataRow = page.locator('.data-table tbody tr[data-action="row"]').first();
     await expect(firstDataRow).toBeVisible({ timeout: 10000 });
     await expect(firstDataRow.locator(':scope > td')).toHaveCount(13);
-    const firstRowHeight = await firstDataRow.evaluate((row) => row.getBoundingClientRect().height);
-    expect(firstRowHeight, 'API 渲染出的表格行应保持 table row 结构，不能因 <td> 被剥离而撑高').toBeLessThanOrEqual(70);
+    const disclosure = firstDataRow.locator('[data-token-provenance]');
+    await expect(disclosure).toBeVisible();
+    await expect(disclosure).toContainText(/Partial|Unknown/);
+    const clipping = await firstDataRow.evaluate((row) => {
+      const cell = row.querySelector('.token-cell');
+      const inside = (inner, outer) => inner.top >= outer.top - 1 && inner.bottom <= outer.bottom + 1
+        && inner.left >= outer.left - 1 && inner.right <= outer.right + 1;
+      return Array.from(cell.querySelectorAll('.token-total__value, [data-token-provenance]')).some((element) => {
+        const range = document.createRange();
+        range.selectNodeContents(element);
+        return element.scrollWidth > element.clientWidth + 1 || element.scrollHeight > element.clientHeight + 1
+          || Array.from(range.getClientRects()).some((rect) => !inside(rect, cell.getBoundingClientRect()) || !inside(rect, row.getBoundingClientRect()));
+      });
+    });
+    expect(clipping, 'Partial/Unknown 来源说明与 token 值必须完整保留在单元格和行边界内').toBe(false);
+    const rowsResponse = await rowsResponsePromise;
+    expect(rowsResponse.ok()).toBe(true);
+    const rowsApi = await rowsResponse.json();
+    const reported = rowsApi.rows.find((row) => ['freshInput', 'cacheRead', 'cacheWrite', 'output']
+      .every((key) => row.tokens?.provenance?.[key] === 'provider_reported'));
+    expect(reported, 'Synthetic fixture 必须提供显式四段 provider_reported 的 compact 正例').toBeDefined();
+    const compactRow = page.locator('.data-table tbody tr[data-action="row"]').filter({ has: page.locator(`[data-session-link][href="${reported.detailUrl}"]`) });
+    await expect(compactRow.locator(':scope > td')).toHaveCount(13);
+    const compactRowHeight = await compactRow.evaluate((row) => row.getBoundingClientRect().height);
+    expect(compactRowHeight, '完整 reported 的 API 行应保持 compact table row 结构，不能因 <td> 被剥离而撑高').toBeLessThanOrEqual(70);
+    await test.info().attach('session-row-layout', { contentType: 'application/json', body: JSON.stringify({
+      disclosureRowHeight: await firstDataRow.evaluate((row) => row.getBoundingClientRect().height),
+      compactSessionId: reported.sessionId, compactRowHeight, compactProvenance: reported.tokens.provenance, clipping,
+    }) });
     const viewportWidth = await page.evaluate(() => document.documentElement.clientWidth);
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(scrollWidth, 'API 渲染后不应产生横向页面滚动').toBeLessThanOrEqual(viewportWidth + 2);
@@ -163,6 +191,74 @@ test.describe('会话列表页', () => {
     // Assert prev button is enabled (we are not on page 1)
     const prevBtn = page.locator('.pagination [data-action="prev-page"]');
     await expect(prevBtn).toBeEnabled();
+  });
+
+  test('[UI-SESSIONS-017] 非常用 page_size 翻页与跳页保留实际大小和筛选，显式改大小回第一页', async ({ page }) => {
+    const filters = { q: 'Synthetic', agent: 'claude_code', sort: 'tokens', dir: 'desc' };
+    const expectedResponse = await page.request.get(`/api/sessions/rows?${new URLSearchParams({ ...filters, page_size: '100' })}`);
+    expect(expectedResponse.ok()).toBe(true);
+    const expectedRows = (await expectedResponse.json()).rows;
+    expect(expectedRows.length, '真实 synthetic fixture 必须提供至少三条匹配会话').toBeGreaterThanOrEqual(3);
+    const rows = page.locator('.data-table tbody tr[data-action="row"]');
+    const hiddenSize = page.locator('#session-filter-form input[name="page_size"]');
+    const pageInput = page.locator('.pagination [data-action="page-input"]');
+
+    /** 验证真实 rows API、地址栏及页面都使用相同分页、排序和筛选状态。 */
+    async function assertPage(response, expectedPage, expectedSize) {
+      expect(response.ok()).toBe(true);
+      const requested = new URL(response.url());
+      const body = await response.json();
+      await test.info().attach(`paging-${expectedPage}-${expectedSize}`, {
+        contentType: 'application/json',
+        body: JSON.stringify({ query: requested.search, pagination: body.pagination, sessionIds: body.rows.map((row) => row.sessionId) }),
+      });
+      expect(requested.searchParams.get('page_size')).toBe(String(expectedSize));
+      expect(Number(requested.searchParams.get('page') || 1)).toBe(expectedPage);
+      for (const [key, value] of Object.entries(filters)) expect(requested.searchParams.get(key)).toBe(value);
+      expect(body.pagination.page).toBe(expectedPage);
+      expect(body.pagination.pageSize).toBe(expectedSize);
+      const expectedIds = expectedRows.slice((expectedPage - 1) * expectedSize, expectedPage * expectedSize).map((row) => row.sessionId);
+      expect(body.rows.map((row) => row.sessionId)).toEqual(expectedIds);
+      await expect(rows).toHaveCount(expectedIds.length);
+      for (let index = 0; index < expectedIds.length; index += 1) {
+        await expect(rows.nth(index)).toHaveAttribute('data-session-id', expectedIds[index]);
+      }
+      await expect(hiddenSize).toHaveValue(String(expectedSize));
+      await expect(pageInput).toHaveValue(String(expectedPage));
+      await expect.poll(() => {
+        const current = new URL(page.url()).searchParams;
+        return ['page_size', 'page', ...Object.keys(filters)].map((key) => current.get(key) || (key === 'page' ? '1' : ''));
+      }).toEqual([String(expectedSize), String(expectedPage), ...Object.values(filters)]);
+    }
+
+    /** 只等待真实分页响应，不用 page_size 约束等待条件掩盖丢参错误。 */
+    function rowsResponse() {
+      return page.waitForResponse((response) => new URL(response.url()).pathname === '/api/sessions/rows');
+    }
+
+    let responsePromise = rowsResponse();
+    await page.goto(`/sessions?${new URLSearchParams({ ...filters, page_size: '1' })}`);
+    await assertPage(await responsePromise, 1, 1);
+    // 1 不在常用选项中：下拉默认25不能覆盖实际 hidden/URL 状态。
+    await expect(page.locator('.pagination [data-action="page-size"]')).toHaveValue('25');
+
+    responsePromise = rowsResponse();
+    await page.locator('.pagination [data-action="next-page"]').click();
+    await assertPage(await responsePromise, 2, 1);
+    expect(expectedRows[1].sessionId).not.toBe(expectedRows[0].sessionId);
+
+    responsePromise = rowsResponse();
+    await page.locator('.pagination [data-action="prev-page"]').click();
+    await assertPage(await responsePromise, 1, 1);
+
+    responsePromise = rowsResponse();
+    await pageInput.fill('3');
+    await pageInput.press('Enter');
+    await assertPage(await responsePromise, 3, 1);
+
+    responsePromise = rowsResponse();
+    await page.locator('.pagination [data-action="page-size"]').selectOption('50');
+    await assertPage(await responsePromise, 1, 50);
   });
 
   test('[UI-SESSIONS-006] 筛选表单提交并改变 URL', async ({ page }) => {

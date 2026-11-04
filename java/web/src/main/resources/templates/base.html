@@ -21,6 +21,10 @@
     {% endif %}
 
     {% block head_extra %}{% endblock %}
+    {% if export_mhtml is not defined or not export_mhtml %}
+    <link rel="stylesheet" href="/static/css/token-provenance.css">
+    <link rel="stylesheet" href="/static/css/session-timing.css">
+    {% endif %}
 </head>
 <body>
     <div class="shell {% block shell_class %}{% endblock %}" data-session-detail-shell>
@@ -46,6 +50,9 @@
                 </a>
                 <a class="nav-item{% if active_page is defined and active_page == 'projects' %} is-active{% endif %}" href="/projects" data-action="nav-projects" data-target="projects">
                     <span class="icon icon--nav" aria-hidden="true">&#x1F4C1;</span><span>Projects</span>
+                </a>
+                <a class="nav-item{% if active_page is defined and active_page == 'imports' %} is-active{% endif %}" href="/imports" data-action="nav-imports" data-target="imports">
+                    <span class="icon icon--nav" aria-hidden="true">&#x1F4E5;</span><span>导入分析</span>
                 </a>
                 {% elseif sidebar_nav_html is defined %}
                 {{ sidebar_nav_html | raw }}
@@ -99,6 +106,8 @@
     <script>{{ mhtml_js | raw }}</script>
     {% else %}
     <script src="/static/js/ui_primitives.js"></script>
+    <script src="/static/js/token-provenance.js"></script>
+    <script src="/static/js/session-timing.js"></script>
     <script src="/static/js/view-state.js"></script>
     <script src="/static/js/payload_viewer.js"></script>
     <script src="/static/js/app.js"></script>

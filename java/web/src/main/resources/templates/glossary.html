@@ -94,6 +94,14 @@
 
 <section class="card section section-card full-width">
     <div class="section-head">
+        <h2 class="section-title">Trend cohort · UTC started_at</h2>
+    </div>
+    <p class="section-desc">趋势按会话开始时刻的 UTC 日期统计新增会话，再按 Day、ISO Week 或自然 Month 归桶，不按最后活动日或浏览器时区移动日期。未知或非法开始日期不归入今天。</p>
+    <p class="section-desc">Token 和 prompt 趋势表示该批开始会话的整段累计量，不是逐次真实消费日或事件发生日；平均 prompts 的分母为同一批会话。All/单 agent、图内 Latest 和 Range total 使用相同 cohort；Estimated、Partial、Unknown 或未上报仍保留来源披露，不因归桶变为实测。</p>
+</section>
+
+<section class="card section section-card full-width">
+    <div class="section-head">
         <h2 class="section-title">Badge Reference</h2>
     </div>
     <p class="section-desc">不同页面复用相同视觉语义，badge 本身不提供交互。</p>

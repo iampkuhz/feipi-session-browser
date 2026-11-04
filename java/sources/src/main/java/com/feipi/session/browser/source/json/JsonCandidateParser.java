@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 /**
@@ -72,11 +73,44 @@ public final class JsonCandidateParser {
       Function<JsonNode, String> eventTypeExtractor,
       DiagnosticCollector diagnosticCollector,
       BiConsumer<List<SourceDiagnostic>, Integer> completionDiagnostics) {
+    return parse(
+        candidate,
+        cancellation,
+        jsonlReader,
+        eventTypeExtractor,
+        diagnosticCollector,
+        completionDiagnostics,
+        (events, records) -> records);
+  }
+
+  /**
+   * 解析 JSONL，并在同一次读取的原始事件仍可用时执行 provider 专用记录转换。
+   *
+   * <p>转换保留原始记录定位；候选计数和诊断仍对应原始事件，不因逻辑响应合并重新编号。
+   *
+   * @param candidate 待解析候选项
+   * @param cancellation 可选取消信号
+   * @param jsonlReader JSONL 读取器
+   * @param eventTypeExtractor 事件类型提取器
+   * @param diagnosticCollector 逐事件诊断收集器
+   * @param completionDiagnostics 收尾诊断收集器
+   * @param recordTransform 原始事件和已映射记录到最终记录的转换
+   * @return 密封解析结果
+   */
+  public static SourceResult parse(
+      Candidate candidate,
+      SourceAdapter.CancellationSignal cancellation,
+      JsonlReader jsonlReader,
+      Function<JsonNode, String> eventTypeExtractor,
+      DiagnosticCollector diagnosticCollector,
+      BiConsumer<List<SourceDiagnostic>, Integer> completionDiagnostics,
+      BiFunction<List<JsonNode>, List<SourceRecord>, List<SourceRecord>> recordTransform) {
     Objects.requireNonNull(candidate, "candidate 不得为 null");
     Objects.requireNonNull(jsonlReader, "jsonlReader 不得为 null");
     Objects.requireNonNull(eventTypeExtractor, "eventTypeExtractor 不得为 null");
     Objects.requireNonNull(diagnosticCollector, "diagnosticCollector 不得为 null");
     Objects.requireNonNull(completionDiagnostics, "completionDiagnostics 不得为 null");
+    Objects.requireNonNull(recordTransform, "recordTransform 不得为 null");
 
     if (cancellation != null && cancellation.isCancelled()) {
       return new SourceResult.Skipped(List.of(), "解析已取消");
@@ -109,7 +143,11 @@ public final class JsonCandidateParser {
 
       completionDiagnostics.accept(diagnostics, result.events().size());
       return new SourceResult.Success(
-          diagnostics, result.events().size(), records, candidate.fingerprint(), locator);
+          diagnostics,
+          result.events().size(),
+          recordTransform.apply(result.events(), List.copyOf(records)),
+          candidate.fingerprint(),
+          locator);
     } catch (IOException e) {
       String detail = "文件读取失败: " + filePath + " - " + e.getMessage();
       return new SourceResult.Fatal(List.of(), detail);
@@ -161,6 +199,10 @@ public final class JsonCandidateParser {
         Optional.of(toolName),
         toolError,
         record.relation(),
-        record.content());
+        record.content(),
+        record.responseMessageId(),
+        record.responseStopReason(),
+        record.timing(),
+        record.metaContext());
   }
 }

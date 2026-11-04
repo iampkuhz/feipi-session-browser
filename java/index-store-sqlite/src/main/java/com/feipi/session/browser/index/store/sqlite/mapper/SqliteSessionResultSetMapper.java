@@ -28,7 +28,9 @@ public final class SqliteSessionResultSetMapper {
           + " user_message_count, assistant_message_count, tool_call_count,"
           + " output_tokens, fresh_input_tokens, cache_read_tokens, cache_write_tokens,"
           + " total_tokens, failed_tool_count, subagent_instance_count,"
-          + " indexed_at, file_mtime, file_path";
+          + " indexed_at, file_mtime, file_path, "
+          + TokenProvenanceSqlMapper.COLUMNS
+          + ", timing_json";
 
   /** 防止实例化。 */
   private SqliteSessionResultSetMapper() {}
@@ -71,6 +73,8 @@ public final class SqliteSessionResultSetMapper {
         rs.getLong("subagent_instance_count"),
         rs.getDouble("indexed_at"),
         rs.getDouble("file_mtime"),
-        SqliteSqlUtils.nullToEmpty(rs.getString("file_path")));
+        SqliteSqlUtils.nullToEmpty(rs.getString("file_path")),
+        TokenProvenanceSqlMapper.read(rs),
+        SessionTimingSqlMapper.read(rs));
   }
 }

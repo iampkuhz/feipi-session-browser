@@ -26,6 +26,63 @@ class ClaudeSourceSpecificContractTest {
   private final ClaudeSourceAdapter adapter = new ClaudeSourceAdapter();
 
   @Test
+  @DisplayName("meta 上下文不占标题但主与 sidecar 仍保留原角色、文本和显式证据")
+  void metaContextIsNotTitleAndSurvivesMainAndSidecarParsing() throws IOException {
+    Files.writeString(
+        tempDir.resolve(ClaudeConstants.HISTORY_FILE),
+        "{\"sessionId\":\"synthetic-meta-session\",\"project\":\"synthetic-meta-project\",\"timestamp\":1000}\n");
+    Path project = tempDir.resolve(ClaudeConstants.PROJECTS_DIR).resolve("synthetic-meta-project");
+    Files.createDirectories(project);
+    Path transcript = project.resolve("synthetic-meta-session.jsonl");
+    Files.writeString(
+        transcript,
+        """
+        {"type":"user","isMeta":true,"message":{"role":"user","content":"  synthetic main context\\n"}}
+        {"type":"user","message":{"role":"user","content":"synthetic human prompt"}}
+        {"type":"assistant","isMeta":true,"message":{"id":"synthetic-main-message","content":"synthetic main answer","usage":{"input_tokens":5,"output_tokens":2}}}
+        """);
+    Path sidecar = project.resolve("synthetic-meta-session/subagents/agent-synthetic-meta.jsonl");
+    Files.createDirectories(sidecar.getParent());
+    Files.writeString(
+        sidecar,
+        """
+        {"type":"user","isMeta":true,"message":{"role":"user","content":"synthetic child context"}}
+        {"type":"user","message":{"role":"user","content":"synthetic child task"}}
+        {"type":"assistant","isMeta":true,"message":{"id":"synthetic-child-message","content":"synthetic child answer","usage":{"input_tokens":3,"output_tokens":1}}}
+        """);
+    FileState mainBefore = FileState.capture(transcript);
+    FileState sideBefore = FileState.capture(sidecar);
+    Candidate candidate = adapter.discover(tempDir).orderedItems().getFirst();
+    assertThat(candidate.metadata()).containsEntry("title", "synthetic human prompt");
+    SourceResult.Success result = (SourceResult.Success) adapter.parse(candidate, null);
+    assertThat(result.records())
+        .extracting(SourceRecord::eventType)
+        .containsExactly("user", "user", "assistant", "user", "user", "assistant");
+    assertThat(result.records())
+        .extracting(SourceRecord::metaContext)
+        .containsExactly(true, false, true, true, false, true);
+    assertThat(result.records())
+        .extracting(SourceRecord::content)
+        .containsExactly(
+            "  synthetic main context\n",
+            "synthetic human prompt",
+            "synthetic main answer",
+            "synthetic child context",
+            "synthetic child task",
+            "synthetic child answer");
+    assertThat(result.records().subList(0, 3))
+        .allSatisfy(
+            record -> assertThat(record.locator()).startsWith(transcript.toString() + "#event["));
+    assertThat(result.records().subList(3, 6))
+        .allSatisfy(
+            record -> assertThat(record.locator()).startsWith(sidecar.toString() + "#event["));
+    assertThat(result.records().get(2).usage().inputTokens()).isEqualTo(5);
+    assertThat(result.records().get(5).usage().inputTokens()).isEqualTo(3);
+    assertThat(FileState.capture(transcript)).isEqualTo(mainBefore);
+    assertThat(FileState.capture(sidecar)).isEqualTo(sideBefore);
+  }
+
+  @Test
   @DisplayName("解析 history/project transcript/active/tool/subagent 语义且保持源只读")
   void parsesClaudeProviderSemanticsWithoutMutatingSourceRoot() throws IOException {
     // 写入 history.jsonl
@@ -84,11 +141,16 @@ class ClaudeSourceSpecificContractTest {
     return String.join(
         "\n",
         "{\"type\":\"summary\",\"summary\":\"history snapshot\"}",
-        "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"open project transcript\"}]}}",
-        "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"model\":\"claude-test-model\",\"content\":[{\"type\":\"text\",\"text\":\"fragment one\"},{\"type\":\"text\",\"text\":\"fragment two\"}],\"usage\":{\"input_tokens\":12,\"cache_creation_input_tokens\":3,\"cache_read_input_tokens\":4,\"output_tokens\":5}}}",
+        "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"open"
+            + " project transcript\"}]}}",
+        "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"model\":\"claude-test-model\",\"content\":[{\"type\":\"text\",\"text\":\"fragment"
+            + " one\"},{\"type\":\"text\",\"text\":\"fragment"
+            + " two\"}],\"usage\":{\"input_tokens\":12,\"cache_creation_input_tokens\":3,\"cache_read_input_tokens\":4,\"output_tokens\":5}}}",
         "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_parent\",\"name\":\"Task\",\"input\":{\"subagent_type\":\"implementer\"}}]}}",
-        "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_parent\",\"content\":\"subagent done\"}]}}",
-        "{\"type\":\"assistant\",\"parent_tool_use_id\":\"toolu_parent\",\"isSidechain\":true,\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"subagent sidechain\"}]}}",
+        "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_parent\",\"content\":\"subagent"
+            + " done\"}]}}",
+        "{\"type\":\"assistant\",\"parent_tool_use_id\":\"toolu_parent\",\"isSidechain\":true,\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"subagent"
+            + " sidechain\"}]}}",
         "{\"source\":\"active-session\",\"active\":true}",
         "");
   }

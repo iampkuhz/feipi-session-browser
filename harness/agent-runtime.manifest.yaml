@@ -7,13 +7,10 @@ policy_files:
   - .claude/CLAUDE.md
   - .codex/model-instructions.md
   - .codex/config.toml
-  - .qoder/AGENTS.md
-  - .qoder/settings.json
 
 protected_roots:
   - .claude/
   - .codex/
-  - .qoder/
   - .agents/
   - skills/
   - harness/
@@ -48,10 +45,6 @@ platforms:
     config_files: [.codex/config.toml]
     agents_dir: .codex/agents
     skills_dir: .agents/skills
-  qoder:
-    config_files: [.qoder/AGENTS.md, .qoder/settings.json]
-    agents_dir: .qoder/agents
-    skills_dir: .qoder/skills
 
 validation:
   delivery_command: python3 scripts/gates/cli.py run --mode incremental
@@ -62,7 +55,7 @@ validation:
 shared_skills:
   registry: harness/skill-registry.yaml
   source_root: skills/authoring
-  exposed_roots: [.agents/skills, .qoder/skills]
+  exposed_roots: [.agents/skills]
   required:
     - feipi-openspec-orchestrate-change
     - feipi-java-feature-dev
@@ -75,27 +68,26 @@ shared_skills:
 domain_agents:
   java-backend-implementer:
     skill: skills/authoring/feipi-java-feature-dev/SKILL.md
-    entries: {claude: .claude/agents/java-backend-implementer.md, codex: .codex/agents/java-backend-implementer.toml, qoder: .qoder/agents/java-backend-implementer.md}
+    entries: {claude: .claude/agents/java-backend-implementer.md, codex: .codex/agents/java-backend-implementer.toml}
   session-ingestion-specialist:
     skill: skills/authoring/feipi-session-ingestion-dev/SKILL.md
-    entries: {claude: .claude/agents/session-ingestion-specialist.md, codex: .codex/agents/session-ingestion-specialist.toml, qoder: .qoder/agents/session-ingestion-specialist.md}
+    entries: {claude: .claude/agents/session-ingestion-specialist.md, codex: .codex/agents/session-ingestion-specialist.toml}
   ui-implementation-specialist:
     skill: skills/authoring/feipi-session-detail-ui-dev/SKILL.md
-    entries: {claude: .claude/agents/ui-implementation-specialist.md, codex: .codex/agents/ui-implementation-specialist.toml, qoder: .qoder/agents/ui-implementation-specialist.md}
+    entries: {claude: .claude/agents/ui-implementation-specialist.md, codex: .codex/agents/ui-implementation-specialist.toml}
   mhtml-export-specialist:
     skill: skills/authoring/feipi-mhtml-export-dev/SKILL.md
-    entries: {claude: .claude/agents/mhtml-export-specialist.md, codex: .codex/agents/mhtml-export-specialist.toml, qoder: .qoder/agents/mhtml-export-specialist.md}
+    entries: {claude: .claude/agents/mhtml-export-specialist.md, codex: .codex/agents/mhtml-export-specialist.toml}
   quality-gate-diagnoser:
     skill: skills/authoring/feipi-quality-gate-diagnosis/SKILL.md
-    entries: {claude: .claude/agents/quality-gate-diagnoser.md, codex: .codex/agents/quality-gate-diagnoser.toml, qoder: .qoder/agents/quality-gate-diagnoser.md}
+    entries: {claude: .claude/agents/quality-gate-diagnoser.md, codex: .codex/agents/quality-gate-diagnoser.toml}
   privacy-reviewer:
     skill: skills/authoring/feipi-privacy-redaction-dev/SKILL.md
-    entries: {claude: .claude/agents/privacy-reviewer.md, codex: .codex/agents/privacy-reviewer.toml, qoder: .qoder/agents/privacy-reviewer.md}
+    entries: {claude: .claude/agents/privacy-reviewer.md, codex: .codex/agents/privacy-reviewer.toml}
 
 permission_policy:
   committed_settings_must_not_contain_local_absolute_paths: true
   local_settings_example: .claude/settings.local.example.json
-  qoder_local_settings_example: .qoder/settings.local.example.json
 
 subagent_protocol:
   source: harness/agent-policy.manifest.yaml

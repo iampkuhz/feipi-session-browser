@@ -30,6 +30,104 @@ class JsonSourceRecordMapperTest {
   @TempDir Path tempDir;
 
   @Test
+  void onlyExplicitTopLevelBooleanTrueDeclaresMetaContext() throws IOException {
+    List<String> events =
+        List.of(
+            "{\"type\":\"user\",\"isMeta\":true,\"content\":\"  meta context\\n\"}",
+            "{\"type\":\"user\",\"isMeta\":false,\"content\":\"ordinary\"}",
+            "{\"type\":\"user\",\"isMeta\":\"true\",\"content\":\"ordinary\"}",
+            "{\"type\":\"user\",\"isMeta\":1,\"content\":\"ordinary\"}",
+            "{\"type\":\"user\",\"isMeta\":null,\"content\":\"ordinary\"}",
+            "{\"type\":\"user\",\"message\":{\"isMeta\":true,\"content\":\"ordinary\"}}",
+            "{\"type\":\"user\",\"metadata\":{\"isMeta\":true},\"content\":\"ordinary\"}",
+            "{\"type\":\"user\",\"content\":\"ordinary\"}");
+    for (int i = 0; i < events.size(); i++) {
+      SourceRecord record =
+          JsonSourceRecordMapper.toSourceRecords(
+                  "synthetic.jsonl", i, MAPPER.readTree(events.get(i)), "user")
+              .getFirst();
+      assertThat(record.metaContext()).as("synthetic variant %s", i).isEqualTo(i == 0);
+      assertThat(record.eventType()).isEqualTo("user");
+      assertThat(record.content()).isEqualTo(i == 0 ? "  meta context\n" : "ordinary");
+      assertThat(record.locator()).isEqualTo("synthetic.jsonl#event[" + i + "]");
+    }
+  }
+
+  @Test
+  void metaMixedBlocksAndParserToolEnrichmentKeepEvidenceAndContent() throws IOException {
+    Path file = tempDir.resolve("synthetic-meta-blocks.jsonl");
+    Files.writeString(
+        file,
+        """
+        {"type":"assistant","message":{"content":[{"type":"tool_use","id":"synthetic-read","name":"Read","input":{}}]}}
+        {"type":"user","isMeta":true,"usage":{"input_tokens":17,"output_tokens":3},"message":{"content":[{"type":"text","text":"  meta before\\n"},{"type":"tool_result","tool_use_id":"synthetic-read","is_error":true,"content":"synthetic failure"},{"type":"text","text":"meta after  "}]}}
+        """,
+        StandardCharsets.UTF_8);
+    SourceFingerprint fingerprint =
+        new SourceFingerprint(
+            file.toString(),
+            SourceId.CLAUDE_CODE,
+            Files.size(file),
+            1,
+            Optional.empty(),
+            Optional.empty());
+    SourceResult.Success result =
+        (SourceResult.Success)
+            JsonCandidateParser.parse(
+                new Candidate(
+                    fingerprint, "claude_code:synthetic-meta", "synthetic-project", Map.of()),
+                null,
+                new JsonlReader(),
+                event -> event.path("type").asText(),
+                (event, index, type, locator, diagnostics) -> {},
+                (diagnostics, count) -> {});
+    List<SourceRecord> records = result.records().subList(1, 4);
+    assertThat(records).extracting(SourceRecord::metaContext).containsExactly(true, true, true);
+    assertThat(records)
+        .extracting(SourceRecord::eventType)
+        .containsExactly("user", "tool_result", "user");
+    assertThat(records)
+        .extracting(SourceRecord::content)
+        .containsExactly("  meta before\n", "synthetic failure", "meta after  ");
+    assertThat(records.get(1).toolUseId()).contains("synthetic-read");
+    assertThat(records.get(1).toolName()).contains("Read");
+    assertThat(records.get(1).toolError()).contains("tool_error");
+    assertThat(records.get(0).usage().inputTokens()).isEqualTo(17);
+    assertThat(records.get(1).usage().inputTokens()).isZero();
+    assertThat(records.get(2).usage().inputTokens()).isZero();
+    assertThat(records).extracting(SourceRecord::locator).doesNotHaveDuplicates();
+  }
+
+  @Test
+  void taskTimingPreservesExplicitEpochSecondsDurationAndZero() throws Exception {
+    JsonNode event =
+        MAPPER.readTree(
+            """
+            {"type":"event_msg","timestamp":"2026-01-03T12:00:00Z","payload":{"type":"task_complete","turn_id":"synthetic-turn","started_at":1767225600,"completed_at":1767225610,"duration_ms":10500}}
+            """);
+    var timing =
+        JsonSourceRecordMapper.toSourceRecords("synthetic.jsonl", 0, event, "event_msg")
+            .getFirst()
+            .timing();
+    assertThat(timing.kind()).isEqualTo("task_complete");
+    assertThat(timing.turnId()).isEqualTo("synthetic-turn");
+    assertThat(timing.startedAt()).contains("2026-01-01T00:00:00Z");
+    assertThat(timing.completedAt()).contains("2026-01-01T00:00:10Z");
+    assertThat(timing.durationMs()).hasValue(10500);
+    JsonNode zero =
+        MAPPER.readTree(
+            """
+            {"type":"system","subtype":"turn_duration","durationMs":0,"uuid":"synthetic-zero"}
+            """);
+    assertThat(
+            JsonSourceRecordMapper.toSourceRecords("synthetic.jsonl", 1, zero, "system")
+                .getFirst()
+                .timing()
+                .durationMs())
+        .hasValue(0);
+  }
+
+  @Test
   @DisplayName("assistant 事件提取 content 字段到 SourceRecord.content")
   void assistantEventExtractsContent() throws IOException {
     JsonNode event =
@@ -267,12 +365,12 @@ class JsonSourceRecordMapperTest {
     JsonNode event =
         MAPPER.readTree(
             """
-        {"type":"user","usage":{"input_tokens":17,"output_tokens":3},"message":{"parts":[
-          {"type":"tool_result","tool_use_id":"a","content":"  first  "},
-          {"type":"text","text":"  "},
-          {"type":"tool_result","tool_use_id":"b","is_error":true,"content":"last"}
-        ]}}
-        """);
+            {"type":"user","usage":{"input_tokens":17,"output_tokens":3},"message":{"parts":[
+              {"type":"tool_result","tool_use_id":"a","content":"  first  "},
+              {"type":"text","text":"  "},
+              {"type":"tool_result","tool_use_id":"b","is_error":true,"content":"last"}
+            ]}}
+            """);
     List<SourceRecord> records =
         JsonSourceRecordMapper.toSourceRecords("session.jsonl", 2, event, "user");
     assertThat(records)
@@ -299,8 +397,8 @@ class JsonSourceRecordMapperTest {
     JsonNode event =
         MAPPER.readTree(
             """
-        {"message":{"parts":[{"type":"text","text":"  "},{"text":" x "}]}}
-        """);
+            {"message":{"parts":[{"type":"text","text":"  "},{"text":" x "}]}}
+            """);
     List<SourceRecord> records =
         JsonSourceRecordMapper.toSourceRecords("session.jsonl", 0, event, "assistant");
     assertThat(records).hasSize(1);
@@ -347,10 +445,10 @@ class JsonSourceRecordMapperTest {
     JsonNode event =
         MAPPER.readTree(
             """
-        {"type":"user","name":"Read","is_error":true,"message":{"content":[
-          {"type":"tool_result","tool_use_id":"a","content":"failed"}
-        ]}}
-        """);
+            {"type":"user","name":"Read","is_error":true,"message":{"content":[
+              {"type":"tool_result","tool_use_id":"a","content":"failed"}
+            ]}}
+            """);
     List<SourceRecord> records =
         JsonSourceRecordMapper.toSourceRecords("session.jsonl", 0, event, "user");
     assertThat(records).hasSize(1);

@@ -32,6 +32,8 @@ import java.util.Optional;
  * @param content 实际文本内容，缺失时为空且不输出到日志
  * @param responseMessageId assistant 响应的显式 message.id，仅 Qoder 合并使用，缺失时为空
  * @param responseStopReason assistant 响应的 stop_reason（如 end_turn、tool_use），缺失时为空
+ * @param timing 源显式计时事实，缺失时为空计时
+ * @param metaContext provider 显式声明的 meta 上下文，不作为人类 prompt 计数
  */
 @DomainModel
 public record SourceRecord(
@@ -81,7 +83,13 @@ public record SourceRecord(
     @NotNull Optional<String> responseMessageId,
 
     /* assistant 响应的 stop_reason（如 end_turn、tool_use），缺失时为空。 */
-    @NotNull Optional<String> responseStopReason) {
+    @NotNull Optional<String> responseStopReason,
+
+    /* 源显式计时事实。 */
+    @NotNull SourceTiming timing,
+
+    /* provider 显式声明的 meta 上下文，不改变原事件角色或内容。 */
+    boolean metaContext) {
 
   /**
    * 兼容旧调用点的构造器。
@@ -185,6 +193,107 @@ public record SourceRecord(
         Optional.empty());
   }
 
+  /** 兼容未携带显式计时事实的旧构造器。 */
+  public SourceRecord(
+      String locator,
+      int eventIndex,
+      String eventType,
+      Optional<String> callId,
+      Optional<String> model,
+      Optional<String> timestamp,
+      Optional<String> turnId,
+      SourceRecordUsage usage,
+      List<SourceToolCall> toolCalls,
+      Optional<String> toolUseId,
+      Optional<String> toolName,
+      Optional<String> toolError,
+      SourceRecordRelation relation,
+      String content,
+      Optional<String> responseMessageId,
+      Optional<String> responseStopReason) {
+    this(
+        locator,
+        eventIndex,
+        eventType,
+        callId,
+        model,
+        timestamp,
+        turnId,
+        usage,
+        toolCalls,
+        toolUseId,
+        toolName,
+        toolError,
+        relation,
+        content,
+        responseMessageId,
+        responseStopReason,
+        SourceTiming.empty());
+  }
+
+  /** 兼容未携带 meta 上下文标志的 17 参数构造器。 */
+  public SourceRecord(
+      String locator,
+      int eventIndex,
+      String eventType,
+      Optional<String> callId,
+      Optional<String> model,
+      Optional<String> timestamp,
+      Optional<String> turnId,
+      SourceRecordUsage usage,
+      List<SourceToolCall> toolCalls,
+      Optional<String> toolUseId,
+      Optional<String> toolName,
+      Optional<String> toolError,
+      SourceRecordRelation relation,
+      String content,
+      Optional<String> responseMessageId,
+      Optional<String> responseStopReason,
+      SourceTiming timing) {
+    this(
+        locator,
+        eventIndex,
+        eventType,
+        callId,
+        model,
+        timestamp,
+        turnId,
+        usage,
+        toolCalls,
+        toolUseId,
+        toolName,
+        toolError,
+        relation,
+        content,
+        responseMessageId,
+        responseStopReason,
+        timing,
+        false);
+  }
+
+  /** 仅替换显式计时事实，保留全部内容和父子证据。 */
+  public SourceRecord withTiming(SourceTiming replacementTiming) {
+    return new SourceRecord(
+        locator,
+        eventIndex,
+        eventType,
+        callId,
+        model,
+        timestamp,
+        turnId,
+        usage,
+        toolCalls,
+        toolUseId,
+        toolName,
+        toolError,
+        relation,
+        content,
+        responseMessageId,
+        responseStopReason,
+        replacementTiming,
+        metaContext);
+  }
+
   /** 返回仅替换文本内容的不可变副本，保留全部元数据。 */
   public SourceRecord withContent(String replacementContent) {
     return new SourceRecord(
@@ -203,7 +312,9 @@ public record SourceRecord(
         relation,
         replacementContent,
         responseMessageId,
-        responseStopReason);
+        responseStopReason,
+        timing,
+        metaContext);
   }
 
   /** 日志摘要不包含文本或其他 provider 原始字段。 */
@@ -229,6 +340,7 @@ public record SourceRecord(
     // 新元数据规范化
     responseMessageId = responseMessageId == null ? Optional.empty() : responseMessageId;
     responseStopReason = responseStopReason == null ? Optional.empty() : responseStopReason;
+    timing = timing == null ? SourceTiming.empty() : timing;
     try {
       ValidationSupport.validateCanonicalConstructor(
           SourceRecord.class,
@@ -247,7 +359,9 @@ public record SourceRecord(
           relation,
           content,
           responseMessageId,
-          responseStopReason);
+          responseStopReason,
+          timing,
+          metaContext);
     } catch (ConstraintViolationException e) {
       translateValidation(e);
     }

@@ -1,0 +1,13 @@
+/* Source timing disclosure owns session-timing* classes. */
+.session-timing-note {
+  margin: 6px 0 0;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.4;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.session-timing-value[data-session-timing-value] {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}

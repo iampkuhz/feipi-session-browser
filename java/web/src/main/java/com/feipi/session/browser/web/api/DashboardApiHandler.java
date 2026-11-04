@@ -1,10 +1,12 @@
 package com.feipi.session.browser.web.api;
 
 import com.feipi.session.browser.application.QueryCompositionRoot;
+import com.feipi.session.browser.domain.normalized.TokenProvenance;
 import com.feipi.session.browser.index.api.query.ActivityTrend;
 import com.feipi.session.browser.index.api.query.AgentBreakdown;
 import com.feipi.session.browser.index.api.query.AgentEfficiency;
 import com.feipi.session.browser.index.api.query.DashboardStats;
+import com.feipi.session.browser.index.api.query.KpiSupplement;
 import com.feipi.session.browser.index.api.query.TrendDay;
 import com.feipi.session.browser.query.api.AgentFilter;
 import com.feipi.session.browser.query.api.TrendFilter;
@@ -15,6 +17,7 @@ import com.feipi.session.browser.web.api.DashboardApiResponses.AgentsContributio
 import com.feipi.session.browser.web.api.DashboardApiResponses.AgentsEfficiencyResponse;
 import com.feipi.session.browser.web.api.DashboardApiResponses.CacheHealthPoint;
 import com.feipi.session.browser.web.api.DashboardApiResponses.CacheInputDto;
+import com.feipi.session.browser.web.api.DashboardApiResponses.CacheReadStatistics;
 import com.feipi.session.browser.web.api.DashboardApiResponses.DashboardCacheHealthResponse;
 import com.feipi.session.browser.web.api.DashboardApiResponses.DashboardFilterEcho;
 import com.feipi.session.browser.web.api.DashboardApiResponses.DashboardPromptTrendResponse;
@@ -58,6 +61,7 @@ public final class DashboardApiHandler {
   public void handleSummary(Context ctx) {
     DashboardRequest request = request(ctx);
     DashboardStats stats = queryRoot.dashboard().stats(request.agentFilter());
+    KpiSupplement cache = queryRoot.dashboard().kpiSupplement(request.agentFilter());
     long inputSide =
         stats.totalFreshInputTokens()
             + stats.totalCacheReadTokens()
@@ -79,12 +83,19 @@ public final class DashboardApiHandler {
                 stats.totalFreshInputTokens(),
                 stats.totalCacheReadTokens(),
                 stats.totalCacheWriteTokens(),
-                stats.totalOutputTokens()),
+                stats.totalOutputTokens(),
+                stats.tokenProvenance()),
             stats.totalToolCalls(),
             stats.totalFailedTools(),
             stats.totalUserMessages(),
             stats.totalAssistantMessages(),
-            RatioDto.of(cacheReadRatio),
+            RatioDto.of(cacheReadRatio, stats.tokenProvenance()),
+            new CacheReadStatistics(
+                cache.eligibleSessions(),
+                cache.p50CacheRatio(),
+                cache.lowReadSessions(),
+                Math.max(0, stats.totalSessions() - cache.eligibleSessions()),
+                "provider_reported_input"),
             readyOrEmpty(stats.totalSessions(), "No dashboard data yet")));
   }
 
@@ -117,7 +128,14 @@ public final class DashboardApiHandler {
         new DashboardTokenTrendResponse(
             ApiResponses.SCHEMA_VERSION,
             request.echo(),
-            TokenSegments.of(fresh, cacheRead, cacheWrite, output),
+            TokenSegments.of(
+                fresh,
+                cacheRead,
+                cacheWrite,
+                output,
+                rows.stream()
+                    .map(TrendDay::tokenProvenance)
+                    .reduce(TokenProvenance.empty(), TokenProvenance::plus)),
             points,
             readyOrEmpty(fresh + cacheRead + cacheWrite + output, "No token trend data")));
   }
@@ -142,21 +160,24 @@ public final class DashboardApiHandler {
   public void handleCacheHealth(Context ctx) {
     DashboardRequest request = request(ctx);
     List<TrendDay> rows = queryRoot.dashboard().trendData(request.trendFilter());
+    Map<String, Map<String, TrendDay>> agentRows = cacheHealthAgentRows(request, rows);
     List<CacheHealthPoint> points =
-        rows.stream().map(DashboardApiHandler::cacheHealthPoint).toList();
-    List<Double> ratios =
+        rows.stream().map(row -> cacheHealthPoint(row, agentRows)).toList();
+    RatioDto unavailable = RatioDto.of(null, TokenProvenance.empty());
+    RatioDto latest =
+        points.isEmpty() ? unavailable : points.get(points.size() - 1).average().ratio();
+    RatioDto lowest =
         points.stream()
-            .map(point -> point.average().ratio().value())
-            .filter(Objects::nonNull)
-            .toList();
-    Double latest = ratios.isEmpty() ? null : ratios.get(ratios.size() - 1);
-    Double lowest = ratios.stream().min(Comparator.naturalOrder()).orElse(null);
+            .map(point -> point.average().ratio())
+            .filter(ratio -> ratio.value() != null)
+            .min(Comparator.comparingDouble(RatioDto::value))
+            .orElse(unavailable);
     ctx.json(
         new DashboardCacheHealthResponse(
             ApiResponses.SCHEMA_VERSION,
             request.echo(),
-            RatioDto.of(latest),
-            RatioDto.of(lowest),
+            latest,
+            lowest,
             points,
             readyOrEmpty(points.size(), "No cache health data in the selected range")));
   }
@@ -170,7 +191,10 @@ public final class DashboardApiHandler {
             breakdown.stream().mapToLong(AgentBreakdown::freshInputTokens).sum(),
             breakdown.stream().mapToLong(AgentBreakdown::cacheReadTokens).sum(),
             breakdown.stream().mapToLong(AgentBreakdown::cacheWriteTokens).sum(),
-            breakdown.stream().mapToLong(AgentBreakdown::outputTokens).sum());
+            breakdown.stream().mapToLong(AgentBreakdown::outputTokens).sum(),
+            breakdown.stream()
+                .map(AgentBreakdown::tokenProvenance)
+                .reduce(TokenProvenance.empty(), TokenProvenance::plus));
     long totalSessions = breakdown.stream().mapToLong(AgentBreakdown::sessionCount).sum();
     long totalPrompts = breakdown.stream().mapToLong(AgentBreakdown::totalUserMessages).sum();
     Map<String, AgentBreakdown> breakdownByAgent = new LinkedHashMap<>();
@@ -261,7 +285,8 @@ public final class DashboardApiHandler {
             row.freshInputTokens(),
             row.cacheReadTokens(),
             row.cacheWriteTokens(),
-            row.outputTokens()),
+            row.outputTokens(),
+            row.tokenProvenance()),
         row.claudeTokens(),
         row.codexTokens(),
         row.qoderTokens());
@@ -278,13 +303,46 @@ public final class DashboardApiHandler {
         row.toolCalls());
   }
 
-  private static CacheHealthPoint cacheHealthPoint(TrendDay row) {
+  private Map<String, Map<String, TrendDay>> cacheHealthAgentRows(
+      DashboardRequest request, List<TrendDay> totalRows) {
+    Map<String, Map<String, TrendDay>> result = new LinkedHashMap<>();
+    for (String agent : List.of("claude_code", "codex", "qoder")) {
+      List<TrendDay> scoped;
+      if (request.agentFilter().isUnfiltered()) {
+        scoped =
+            queryRoot.dashboard().trendData(request.trendFilter().withAgent(AgentFilter.of(agent)));
+      } else {
+        scoped = request.agentFilter().agent().equals(agent) ? totalRows : List.of();
+      }
+      Map<String, TrendDay> byDate = new LinkedHashMap<>();
+      scoped.forEach(row -> byDate.put(row.date(), row));
+      result.put(agent, byDate);
+    }
+    return result;
+  }
+
+  private static CacheHealthPoint cacheHealthPoint(
+      TrendDay row, Map<String, Map<String, TrendDay>> agentRows) {
     return new CacheHealthPoint(
         row.date(),
-        CacheInputDto.of(row.freshInputTokens(), row.cacheReadTokens(), row.cacheWriteTokens()),
-        CacheInputDto.of(row.claudeFreshInput(), row.claudeCacheRead(), row.claudeCacheWrite()),
-        CacheInputDto.of(row.codexFreshInput(), row.codexCacheRead(), row.codexCacheWrite()),
-        CacheInputDto.of(row.qoderFreshInput(), row.qoderCacheRead(), row.qoderCacheWrite()));
+        CacheInputDto.of(
+            row.freshInputTokens(),
+            row.cacheReadTokens(),
+            row.cacheWriteTokens(),
+            row.tokenProvenance()),
+        cacheInput(agentRows.get("claude_code").get(row.date())),
+        cacheInput(agentRows.get("codex").get(row.date())),
+        cacheInput(agentRows.get("qoder").get(row.date())));
+  }
+
+  private static CacheInputDto cacheInput(TrendDay row) {
+    return row == null
+        ? CacheInputDto.of(0, 0, 0, TokenProvenance.empty())
+        : CacheInputDto.of(
+            row.freshInputTokens(),
+            row.cacheReadTokens(),
+            row.cacheWriteTokens(),
+            row.tokenProvenance());
   }
 
   private static AgentContributionDto contributionRow(
@@ -294,7 +352,7 @@ public final class DashboardApiHandler {
           agent,
           WebDisplayValues.agentDisplay(agent),
           0,
-          TokenSegments.of(0, 0, 0, 0),
+          TokenSegments.of(0, 0, 0, 0, TokenProvenance.empty()),
           0,
           0,
           0,
@@ -311,7 +369,8 @@ public final class DashboardApiHandler {
             row.freshInputTokens(),
             row.cacheReadTokens(),
             row.cacheWriteTokens(),
-            row.outputTokens()),
+            row.outputTokens(),
+            row.tokenProvenance()),
         row.totalUserMessages(),
         row.projectCount(),
         row.totalToolCalls(),
@@ -332,7 +391,8 @@ public final class DashboardApiHandler {
         row.avgTools(),
         row.toolsPerRound(),
         row.cacheReuseRatio(),
-        row.failedPerSession());
+        row.failedPerSession(),
+        row.tokenProvenance());
   }
 
   private static PageStateDto readyOrEmpty(long count, String emptyTitle) {

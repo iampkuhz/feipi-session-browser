@@ -6,7 +6,9 @@
 
 产品构建使用 JDK 25 与 Gradle Wrapper。Python 仅用于 Gate/Harness 开发工具，使用 Python 3.12 与 uv 安装锁定依赖：
 
-验收前将 `JAVA_HOME` 设为本机实际 JDK 25 安装目录，并将 `$JAVA_HOME/bin` 放在 `PATH` 最前。交互式 shell 的 `java` 函数或别名不会自动传给 Gradle、Python 和 Node 子进程；不能只凭终端中的 `java -version` 判断构建版本。先用 `"$JAVA_HOME/bin/java" -version` 与 `./java/gradlew -p java --version` 确认 Java、Launcher JVM 和 Daemon JVM 均为 25，再运行下列检查。发行构建的 `jdeps` 和 `jlink` 跟随实际 Gradle JVM，并把 JDK 输入纳入增量判断，避免复用其他版本生成的 runtime。
+`scripts/session-browser.sh` 在需要 Java 的入口（`deps`、`test`、`serve` 及其他转发给 Java CLI 的命令）自动发现并验证 JDK 25。优先级为：显式 `JAVA_HOME` → `PATH` 中的真实 Java（包括 shim、多层软链接）→ SDKMAN（`SDKMAN_CANDIDATES_DIR`、`SDKMAN_DIR/candidates`、默认 `~/.sdkman/candidates`、Homebrew `sdkman-cli/libexec/candidates`）→ macOS `/usr/libexec/java_home -F -v 25` → Homebrew `openjdk@25` / `openjdk`（`HOMEBREW_PREFIX`、`/opt/homebrew`、`/usr/local`，包括 macOS bundle 布局）。脚本实际执行 Java，读取 `java.specification.version` 和真实 `java.home`，再验证该目录的 Java 与 `javac -version`，不会将系统占位、旧版本或 JRE 当作有效 JDK；`JAVA_TOOL_OPTIONS` 的提示行不影响版本识别。显式设置但无效或非 JDK 25 的 `JAVA_HOME` 会立即失败，不静默回退。选择结果仅供当前脚本及子进程使用，不改个人配置。`deps plan`、`deps --help`、`quality` 及参数校验等不需要 Java 的分支不受影响。
+
+直接执行 Gradle Wrapper（例如 `./java/gradlew -p java check`）时，脚本的发现逻辑不会生效，需要自行将 `JAVA_HOME` 设为本机实际 JDK 25 安装目录，并将 `$JAVA_HOME/bin` 放在 `PATH` 最前。交互式 shell 的 `java` 函数或别名不会自动传给 Gradle、Python 和 Node 子进程；不能只凭终端中的 `java -version` 判断构建版本。先用 `"$JAVA_HOME/bin/java" -version` 与 `./java/gradlew -p java --version` 确认 Java、Launcher JVM 和 Daemon JVM 均为 25，再运行下列检查。发行构建的 `jdeps` 和 `jlink` 跟随实际 Gradle JVM，并把 JDK 输入纳入增量判断，避免复用其他版本生成的 runtime。
 
 ```bash
 # 在仓库根目录运行
@@ -42,7 +44,7 @@ UV_PROJECT_ENVIRONMENT="$PWD/.local/python/venv" uv run --project scripts --froz
 
 ## 目录职责
 
-GitHub 顶层固定为 **11 个目录 + 3 个文件**：`.agents/`、`.claude/`、`.codex/`、`.github/`、`.qoder/`、`docs/`、`harness/`、`java/`、`openspec/`、`scripts/`、`skills/`，以及 `.gitignore`、`AGENTS.md`、`README.md`。本地 ignored 缓存和运行数据不计入，不为旧入口保留转发文件或软链接。
+GitHub 顶层固定为 **10 个目录 + 3 个文件**：`.agents/`、`.claude/`、`.codex/`、`.github/`、`docs/`、`harness/`、`java/`、`openspec/`、`scripts/`、`skills/`，以及 `.gitignore`、`AGENTS.md`、`README.md`。本地 ignored 缓存和运行数据不计入，不为旧入口保留转发文件或软链接。
 
 | 目录 | 职责 |
 |---|---|
@@ -58,7 +60,7 @@ GitHub 顶层固定为 **11 个目录 + 3 个文件**：`.agents/`、`.claude/`�
 | `docs/` | 使用导航、开发说明、设计与截图资源 |
 | `openspec/` | 长期规格与本地变更规划 |
 | `harness/`、`skills/` | 共享 agent 策略与工作流程 |
-| `.claude/`、`.codex/`、`.qoder/`、`.agents/` | 各客户端入口 |
+| `.claude/`、`.codex/`、`.agents/` | 各客户端入口 |
 
 Python 工具入口通过显式项目与配置路径发现，不在根目录保留转发配置。根项目依赖锁集中在 `java/gradle/dependency-locks/root.lockfile`；`java/settings-gradle.lockfile` 保留 Gradle 默认位置，子项目依赖锁仍由各模块管理。
 
@@ -82,3 +84,5 @@ python3 scripts/gates/cli.py run --mode incremental --gate repositoryBoundaryAud
 删除本地忽略文件不会改变 GitHub 的目录列表；只有 tracked 文件的结构调整会影响主页。
 
 源码版本的唯一真源是 `java/gradle/VERSION`；发行包内仍为根目录 `VERSION`，CLI 版本和用户命令保持不变。
+
+工程子任务使用当前 Agent 原生 subagents；模型路由、handoff 和退役边界见 [最小 Agent 运行契约](../agent-runtime.md#原生-subagent-委派)。产品 Qoder session 支持不受工程派发退役影响。

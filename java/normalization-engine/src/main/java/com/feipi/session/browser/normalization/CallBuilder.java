@@ -38,7 +38,7 @@ public final class CallBuilder {
       List<? extends SourceRecord> records, EventClassifier.ClassifiedEvents classified) {
     CallBuildContext context = CallBuildContext.create(records, classified.assistantMessages());
     List<List<Map<String, Object>>> units =
-        CallSourceUnitBuilder.build(records, record -> displaySubagentId(record).orElse(""));
+        CallSourceUnitBuilder.build(records, CallBuilder::recordScopeKey);
     return IntStream.range(0, context.frames().size())
         .mapToObj(
             index ->
@@ -159,7 +159,7 @@ public final class CallBuilder {
           toolExecution(
               toolCallId.get(),
               toolName.get(),
-              declarations.getOrDefault(toolCallId.get(), declaredByLastCall(calls)),
+              declarations.getOrDefault(toolCallId.get(), declaredByLastCall(calls, toolUseRecord)),
               Optional.ofNullable(consumers.get(toolCallId.get())),
               toolUseRecord.toolError(),
               callScope(toolUseRecord),
@@ -206,8 +206,16 @@ public final class CallBuilder {
     return errors;
   }
 
-  private static String declaredByLastCall(List<NormalizedCall> calls) {
-    return calls.isEmpty() ? "unknown" : calls.get(calls.size() - 1).callId();
+  private static String declaredByLastCall(List<NormalizedCall> calls, SourceRecord record) {
+    return calls.stream()
+        .filter(call -> call.scope() == callScope(record))
+        .filter(
+            call ->
+                call.scope() == CallScope.MAIN
+                    || call.subagentId().equals(displaySubagentId(record)))
+        .reduce((first, last) -> last)
+        .map(NormalizedCall::callId)
+        .orElse("unknown");
   }
 
   private static Map<String, String> mapToolResultConsumers(
@@ -217,16 +225,19 @@ public final class CallBuilder {
       return map;
     }
 
-    int nextAssistantIndex = 0;
-    String lastCallId = callIds.get(callIds.size() - 1);
+    Map<String, List<String>> scopedCalls = scopedCallIds(records, callIds);
+    Map<String, Integer> nextIndices = new LinkedHashMap<>();
     for (SourceRecord record : records) {
       if (record == null) {
         continue;
       }
+      String scope = recordScopeKey(record);
+      List<String> scopeCalls = scopedCalls.getOrDefault(scope, List.of());
+      int nextAssistantIndex = nextIndices.getOrDefault(scope, 0);
       if ("assistant".equals(record.eventType())) {
-        nextAssistantIndex = Math.min(nextAssistantIndex + 1, callIds.size());
-      } else if ("tool_result".equals(record.eventType())) {
-        putConsumer(map, record, callIds, nextAssistantIndex, lastCallId);
+        nextIndices.put(scope, Math.min(nextAssistantIndex + 1, scopeCalls.size()));
+      } else if ("tool_result".equals(record.eventType()) && !scopeCalls.isEmpty()) {
+        putConsumer(map, record, scopeCalls, nextAssistantIndex, scopeCalls.getLast());
       }
     }
     return map;
@@ -255,21 +266,39 @@ public final class CallBuilder {
     if (callIds.isEmpty()) {
       return map;
     }
-    int nextAssistantIndex = 0;
-    String currentAssistantCallId = "";
+    Map<String, List<String>> scopedCalls = scopedCallIds(records, callIds);
+    Map<String, Integer> nextIndices = new LinkedHashMap<>();
+    Map<String, String> currentCallIds = new LinkedHashMap<>();
+    Map<String, Boolean> currentClosingFrames = new LinkedHashMap<>();
     for (SourceRecord record : records) {
       if (record == null) {
         continue;
       }
+      String scope = recordScopeKey(record);
+      List<String> scopeCalls = scopedCalls.getOrDefault(scope, List.of());
+      if (scopeCalls.isEmpty()) {
+        continue;
+      }
+      int nextAssistantIndex = nextIndices.getOrDefault(scope, 0);
+      String currentAssistantCallId = currentCallIds.getOrDefault(scope, "");
       if ("assistant".equals(record.eventType())) {
-        currentAssistantCallId = callIds.get(Math.min(nextAssistantIndex, callIds.size() - 1));
-        nextAssistantIndex = Math.min(nextAssistantIndex + 1, callIds.size());
+        currentAssistantCallId =
+            scopeCalls.get(Math.min(nextAssistantIndex, scopeCalls.size() - 1));
+        nextIndices.put(scope, Math.min(nextAssistantIndex + 1, scopeCalls.size()));
+        currentCallIds.put(scope, currentAssistantCallId);
+        currentClosingFrames.put(
+            scope, TokenAccountant.isUsageClosingFrame(record.callId().orElse("")));
         String owner = currentAssistantCallId;
         for (SourceToolCall toolCall : record.toolCalls()) {
           map.put(toolCall.toolCallId(), owner);
         }
       } else if ("tool_use".equals(record.eventType())) {
-        String owner = declaredToolOwner(callIds, nextAssistantIndex, currentAssistantCallId);
+        String owner =
+            declaredToolOwner(
+                scopeCalls,
+                nextAssistantIndex,
+                currentAssistantCallId,
+                currentClosingFrames.getOrDefault(scope, false));
         record.callId().ifPresent(toolCallId -> map.put(toolCallId, owner));
       }
     }
@@ -277,18 +306,39 @@ public final class CallBuilder {
   }
 
   private static String declaredToolOwner(
-      List<String> callIds, int nextAssistantIndex, String currentAssistantCallId) {
+      List<String> callIds,
+      int nextAssistantIndex,
+      String currentAssistantCallId,
+      boolean currentIsClosingFrame) {
     if (currentAssistantCallId.isBlank()) {
       return callIds.get(Math.min(nextAssistantIndex, callIds.size() - 1));
     }
-    if (currentAssistantCallId.startsWith("token_count:") && nextAssistantIndex < callIds.size()) {
+    if (currentIsClosingFrame && nextAssistantIndex < callIds.size()) {
       return callIds.get(nextAssistantIndex);
     }
     return currentAssistantCallId;
   }
 
+  private static Map<String, List<String>> scopedCallIds(
+      List<? extends SourceRecord> records, List<String> callIds) {
+    Map<String, List<String>> scoped = new LinkedHashMap<>();
+    int index = 0;
+    for (SourceRecord record : records) {
+      if (record != null && "assistant".equals(record.eventType()) && index < callIds.size()) {
+        scoped
+            .computeIfAbsent(recordScopeKey(record), ignored -> new ArrayList<>())
+            .add(callIds.get(index++));
+      }
+    }
+    return scoped;
+  }
+
   private static String extractCallId(SourceRecord record, int fallbackIndex) {
     return record.callId().orElse("C" + fallbackIndex);
+  }
+
+  private static String recordScopeKey(SourceRecord record) {
+    return callScope(record) == CallScope.MAIN ? "" : displaySubagentId(record).orElse("");
   }
 
   private static CallScope callScope(SourceRecord record) {
@@ -296,9 +346,15 @@ public final class CallBuilder {
     Optional<String> parentToolCallId =
         relationValue(record, SourceRecordRelation::parentToolCallId);
     boolean parentSpawnTool =
-        "spawn_agent".equals(record.toolName().orElse(""))
+        "spawn_agent"
+                .equals(
+                    record
+                        .toolName()
+                        .or(() -> relationValue(record, SourceRecordRelation::parentToolName))
+                        .orElse(""))
             && parentToolCallId.isPresent()
-            && record.callId().equals(parentToolCallId);
+            && (record.callId().equals(parentToolCallId)
+                || record.toolUseId().equals(parentToolCallId));
     if (relationSubagent && !parentSpawnTool) {
       return CallScope.SUBAGENT;
     }

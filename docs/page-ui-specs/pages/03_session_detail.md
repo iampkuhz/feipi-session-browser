@@ -1,5 +1,7 @@
 # Session Detail 页面规约
 
+- Token KPI、缓存比例、round/call/subagent、attribution 遵循 `common.md` 的 `Token Measurement Provenance`。session 级估算不复制到无 usage 的 call；未知输入不进入低缓存筛选或伪造 0% 折线，导入 scope 保持独立。
+
 ## 定位
 
 Session Detail 是单个 session 的运行分析页，用于在首屏回答本次运行的健康状态、token footprint、缓存、工作量和耗时，并在诊断区解释token footprint来源、可疑 round/call/subagent、工具影响、payload 覆盖和上下文预算。目标结构只保留 `Trace`、`Payload` 两个主 tab，Trace/Payload 作为下钻工作区。
@@ -9,7 +11,7 @@ Session Detail 是单个 session 的运行分析页，用于在首屏回答本�
 - 路由固定为 `/sessions/<agent>/<session_id>`；模板固定为 `session.html`；MHTML 导出参数固定为 `?export=mhtml`。
 - 面包屑固定为 `Dashboard / Sessions / <agent> / <short session id>`。
 - 首屏顺序固定为 Page Head、Hero KPI、诊断卡片区、主 tab。
-- Hero KPI 区展示 session 标题、agent、session id copy、session 本地文件路径 copy 和 5 张一级 KPI：`Run Health`、`Total Tokens`、`Cache Health`、`Workload`、`Active Time`。
+- Hero KPI 区展示 session 标题、agent、session id copy、session 本地文件路径 copy 和 5 张一级 KPI：`Run Health`、`Total Tokens`、`Cache Health`、`Workload`、`Source Task Active`。
 - Hero 下方 summary strip 只展示未在 hero/meta/KPI 中重复出现的短状态信息，例如 `updated`、`branch`；不得重复展示 session id、model、project、created。
 - 诊断卡片区固定包含 `Agents Breakdown`、`Context Budget`、`Tool Impact`、`Issues & Repro Seeds`。
 - 主内容区固定包含 `Trace`、`Payload` 两个 tab。
@@ -17,10 +19,19 @@ Session Detail 是单个 session 的运行分析页，用于在首屏回答本�
 - Payload tab 固定为左右布局：左侧 call selector，右侧 selected call detail。
 - MHTML 导出必须保留 Hero KPI、诊断卡片、Trace 展开、payload modal、Payload tab 切换和 attribution 展开交互。
 
+### 导入分析范围
+
+- `/imports/<import_id>` 复用当前详情模板的 Trace 主视图及 Payload modal/attribution 下钻，不为导入改变主视图结构；完整入口行为见 `09_imports.md`。
+- 导入详情面包屑为 `导入分析 / <filename>`，主导航高亮导入分析。
+- Hero 前常驻“导入会话 · 仅本文件分析 · 不计入个人统计”，并提供“导入另一个文件”“返回个人 Sessions”；范围提示不能被异步 metadata 加载替换。
+- `Total Tokens` 的 label 与 aria-label 保持不变，增加“仅本文件用量，不计个人总量”副说明。
+- 所有 round/payload/attribution/bucket-detail 请求均来自 `/api/imports/<import_id>`；原来源 session ID 不能导致回落个人 API。
+- 导入详情不暴露服务器临时路径，不提供会错误访问个人同 ID 会话的导出按钮；个人详情与离线导出行为保持。
+
 ## 文字内容
 
 - 主 tab 文案固定为 `Trace`、`Payload`。
-- Hero KPI label 固定为 `Run Health`、`Total Tokens`、`Cache Health`、`Workload`、`Active Time`。
+- Hero KPI label 固定为 `Run Health`、`Total Tokens`、`Cache Health`、`Workload`、`Source Task Active`。
 - Hero 本地文件路径行 label 固定为 `Session file`，展示索引或解析阶段定位到的本地 JSONL 绝对路径；路径缺失时不渲染该行。
 - Hero 本地文件路径行必须提供 `Copy session file path` 按钮，按钮使用统一 `data-action="copy"` 和完整 `data-copy-text` 路径，供用户直接粘贴到终端或编辑器。
 - 每张一级 KPI 下方二级 KPI 数量允许为 0-4；实际 Session Detail 首屏每张卡保留 3-4 个高信息量二级 KPI，不为了视觉对齐添加低价值指标。
@@ -74,15 +85,13 @@ Session Detail 是单个 session 的运行分析页，用于在首屏回答本�
 - `Tool Calls` 使用全局 tool call 总数；如需展示主 agent 口径，只在 tooltip 或 Tool Impact 中说明 `Main tools`。
 - `Subagent Runs` 表示独立 subagent 上下文启动次数。
 
-### Active Time
+### Source Task Active
 
-- 一级值：`Process Time`。
-- 二级指标固定为 `Duration`、`Waiting Time`、`Model Time`、`Tool Time`。
-- `Duration` 使用 `common.md` 的通用时间口径。
-- `Process Time` 使用 `common.md` 的主动处理耗时口径。
-- `Waiting Time = Duration - Process Time`。
-- `Model Time` 使用 session model execution seconds；不可得时显示 `N/A`，不隐藏。
-- `Tool Time` 使用 session tool execution seconds；不可得时显示 `N/A`，不隐藏。
+- 一级值为 typed `timing.activeTaskSeconds`，仅 MAIN 源任务窗口 union，非模型推理。
+- 二级指标固定为 `Wall Duration`、`Agent Turn`、`Model Execution`、`Tool Execution`。
+- 遵循 `common.md` typed timing 精度；缺来源显示 `N/A`，不使用 legacy execution/0 或跨夜 transcript span 补齐。
+- 常驻说明 task-window union 包含工具/等待，Agent Turn 是独立累计 workload；列出 completed/incomplete/aborted 计数和 basis。
+- 只有 wall/task 均 measured 才显示 `Non-task Wall Time` 差值，明确不等同用户等待。
 
 ## 诊断卡片
 
@@ -381,7 +390,7 @@ Session Detail 是单个 session 的运行分析页，用于在首屏回答本�
 
 ## 数据口径
 
-- Created、Updated、Duration、Process Time 使用 `common.md` 的通用时间口径。
+- Created、Updated 使用源 timestamp；Wall Duration、Task Active 使用 `common.md` 的 typed timing 口径。
 - Rounds 使用当前 session 的 assistant round 计数。
 - LLM Calls 使用主 agent 和 subagent 的 LLM call 合计。
 - Tool Calls 使用 tool call 计数；Failed Tools 使用失败 tool result 计数。

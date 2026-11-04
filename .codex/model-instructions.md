@@ -10,6 +10,8 @@
 
 调用 `subagent` 前，必须给出最小 handoff：`Goal`、`Task id`、`Task source`、`Allowed files/directories`、`Forbidden files/directories`、`Required context files`、`Expected output`、`Validation command`、`Failure policy`。确实不适用的字段写明“不适用”。同一 agent 的不同实例必须有唯一 `agent_id` 或等价 instance id。
 
+直接使用当前 Agent 原生 `spawn_agent`/`followup_task` 与原生等待/完成事件，不新建调度 CLI、队列、receipt 或回调。模型路由以 `harness/agent-policy.manifest.yaml` 的 `native_delegation` 为准：重要实现、复杂分析和独立验证用 `gpt-6.1-sol`，轻量定位用 `gpt-6-luna`。遵守宿主模型覆盖和上下文约束；若覆盖模型要求 `fork_turns="none"`，显式传递必要上下文。保持当前环境权限，能力受限时如实报告，由 main 接管或调整范围。
+
 选择 subagent 时以 `.codex/agents/*.toml` 的 `description` 为准；只传当前任务必要文件，不让 subagent 自行探索整个仓库。实现型 subagent 可并行，但必须拆成不重叠写范围。
 
 要求每个 `subagent` 返回固定状态 `PASS`、`FAIL` 或 `BLOCKED`，并给出 `Status`、`Changed files`、`Validation`、`Effect checks`、`Risks`；不得贴长日志。main 只能聚合同一 `client/session_id` 的 subagent evidence；subagent `FAIL`/`BLOCKED` 不得让 main 静默跳过 validation。
@@ -17,3 +19,5 @@
 面向用户默认使用简体中文。代码标识符、命令、路径、API 和工具名保持英文。
 
 required gates 失败、跳过（skipped）不得描述为 PASS。
+
+旧 Qoder PASS 不是原生验收证据；旧 callback 若到来仅识别为已退役，不重新执行旧链。产品 Qoder session 支持和安全保护保持不变。

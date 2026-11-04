@@ -1,5 +1,9 @@
 # Sessions 页面规约
 
+- 列表 `Process Time` 改为 `Task Active`，`Duration` 明确为 `Wall Duration`；使用当前 row 的 typed `timing`，缺来源显示 `N/A`，不回退 legacy 数字。任务窗口非模型执行的说明常驻表格旁。
+
+- 总量 stat pill 与每行 Token Cell 遵循 `common.md` 的 `Token Measurement Provenance`；估算带 `≈`，缺来源/未上报不伪装成实测 0。
+
 ## 定位
 
 Sessions 是完整 session 检索和浏览页，负责让用户按 session、project、agent、model、失败状态和时间快速定位运行记录。该页是明细列表页，必须优先保证搜索、过滤、排序、分页和行跳转的稳定性。
@@ -46,7 +50,7 @@ Sessions 是完整 session 检索和浏览页，负责让用户按 session、pro
 
 ### All Sessions 表格
 
-- 表格列固定为 `Session`、`Project`、`Agent`、`Model`、`Tokens`、`Rounds`、`Tools`、`Subagents`、`Duration`、`Process Time`、`Failure`、`Created`、`Updated`。
+- 表格列固定为 `Session`、`Project`、`Agent`、`Model`、`Tokens`、`Rounds`、`Tools`、`Subagents`、`Wall Duration`、`Task Active`、`Failure`、`Created`、`Updated`。
 - `Session`：展示 session title、短 session id、git branch。
   - 示例值：`Refine dashboard spec · a8120f1d · main`。
   - title 为空时显示 `Untitled`。
@@ -70,7 +74,7 @@ Sessions 是完整 session 检索和浏览页，负责让用户按 session、pro
 - `Duration`：展示通用时间指标 `Duration`。
   - 示例值：`36m`。
   - tooltip 展示 created timestamp、最后可见输出 timestamp、fallback 状态。
-- `Process Time`：展示通用时间指标 `Process Time`。
+- `Task Active`：展示 typed MAIN source task-window union，缺测显示 `N/A`；不是模型执行。
   - 示例值：`9m 42s`。
   - tooltip 展示主动处理耗时合计和被排除的等待时长。
 - `Failure`：展示 failed tool result 数量。
@@ -86,7 +90,7 @@ Sessions 是完整 session 检索和浏览页，负责让用户按 session、pro
 - 输入搜索后防抖更新结果，URL 保留 `q`。
 - 修改过滤器后结果更新，URL 保留对应过滤参数。
 - Active filter 的单项移除只删除该过滤条件，不清空其它条件。
-- 可排序列固定为 `Tokens`、`Rounds`、`Tools`、`Subagents`、`Duration`、`Process Time`、`Failure`、`Created`、`Updated`。
+- 可排序列固定为 `Tokens`、`Rounds`、`Tools`、`Subagents`、`Wall Duration`、`Task Active`、`Failure`、`Created`、`Updated`。
 - 默认排序固定为 `Updated` 降序。
 - 点击可排序表头切换升序/降序，并保留搜索、过滤和 page size。
 - 翻页保留搜索、过滤、排序和 page size。

@@ -7,7 +7,7 @@ description: 用于本仓库非平凡变更的 OpenSpec 生命周期编排：创
 # OpenSpec 变更编排
 
 本 skill 是仓库共享真源，用于编排非平凡变更的接收、检查、提案、规划、实现、验证和分支内收口。
-Claude Code、Codex 和 Qoder 的工具入口只引用本目录。
+Claude Code 和 Codex 的工具入口只引用本目录。
 
 ## 策略
 
@@ -68,7 +68,8 @@ python3 scripts/openspec/validate_active_change.py --change-id <change-id>
 1. 执行一个任务且不扩大范围。
 2. 运行该任务声明的最小 deterministic validation。
 3. 成功后勾选复选框并记录简短证据；失败时保留未完成状态。
-4. 大型或边界清晰的工作可委派 subagent。handoff 必须引用 `tmp/active_change.json`、限定写范围和验证命令，
+4. 大型或边界清晰的工作可直接使用当前 Agent 原生 subagent API；模型路由遵循共享 policy 的 `native_delegation`，
+   重要实现、复杂分析和独立验证用 `gpt-6.1-sol`，轻量定位用 `gpt-6-luna`，遵守宿主模型/上下文约束。handoff 必须引用 `tmp/active_change.json`、限定写范围和验证命令，
    并要求返回 `PASS`、`FAIL` 或 `BLOCKED`；详见 `references/subagent-contract.md`。
 5. subagent 的 `FAIL` 或 `BLOCKED` 不得被主 agent 静默忽略。
 

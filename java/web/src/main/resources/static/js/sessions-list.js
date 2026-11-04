@@ -515,6 +515,7 @@
 
     // Re-bind token tooltip positioning for new rows
     setupTokenTooltips();
+    SessionTiming.prepareTable(tbody.closest('table'));
   }
 
   function replaceChildrenFrom(target, source) {
@@ -574,8 +575,9 @@
       stats.replaceChildren(
         statPill(summary.totalCount, 'sessions'),
         statPill(summary.projectCount, 'projects'),
-        statPill(formatMillions(summary.tokens && summary.tokens.total), 'total tokens')
+        statPill(TokenProvenance.total(summary.tokens, formatMillions), 'total tokens')
       );
+      TokenProvenance.attach(stats, summary.tokens);
     }
     var countEl = document.querySelector('.active-filters__count');
     if (countEl) {
@@ -639,6 +641,7 @@
     updateHiddenPaging(rowsResponse.filters, rowsResponse.pagination);
     augmentSortableHeaders();
     setupTokenTooltips();
+    SessionTiming.prepareTable(tbody.closest('table'));
   }
 
   function emptyRow(state) {
@@ -677,8 +680,8 @@
     tr.dataset.totalTokens = tokens.total || 0;
     tr.dataset.rounds = row.rounds || 0;
     tr.dataset.toolCount = row.tools || 0;
-    tr.dataset.duration = row.durationSeconds || 0;
-    tr.dataset.processTime = row.processSeconds || 0;
+    tr.dataset.duration = SessionTiming.seconds(row.timing, 'wallSeconds');
+    tr.dataset.processTime = SessionTiming.seconds(row.timing, 'activeTaskSeconds');
     tr.dataset.failedTools = row.failedTools || 0;
     tr.dataset.createdAt = row.createdAt || '';
     setMarkup(tr, [
@@ -694,13 +697,14 @@
       '<td class="num mono col-rounds">', formatNumber(row.rounds), '</td>',
       '<td class="num mono col-tools">', formatNumber(row.tools), '</td>',
       '<td class="num mono col-subagents">', formatNumber(row.subagents), '</td>',
-      '<td class="mono col-duration" data-tooltip="', escapeHtml(row.durationSeconds), 's">', formatDuration(row.durationSeconds), '</td>',
-      '<td class="mono col-process-time" data-tooltip="active processing ', escapeHtml(row.processSeconds), 's">', formatDuration(row.processSeconds), '</td>',
+      '<td class="mono col-duration" data-wall-duration>', escapeHtml(SessionTiming.value(row.timing, 'wallSeconds')), '</td>',
+      '<td class="mono col-process-time" data-task-active>', escapeHtml(SessionTiming.value(row.timing, 'activeTaskSeconds')), '</td>',
       '<td class="col-failure ', Number(row.failedTools || 0) === 0 ? 'muted' : '', '">',
       Number(row.failedTools || 0) > 0 ? formatNumber(row.failedTools) + ' failed' : 'No failures', '</td>',
       '<td class="mono col-created" title="', escapeHtml(row.createdAt || ''), '">', escapeHtml(formatDateTime(row.createdAt)), '</td>',
       '<td class="muted col-updated">', escapeHtml(formatRelativeTime(row.updatedAt)), '</td>'
     ].join(''));
+    TokenProvenance.attach(tr.querySelector('.token-cell'), tokens);
     return tr;
   }
 
@@ -711,26 +715,26 @@
     var outPct = segmentPct(tokens, 'output');
     return [
       '<td class="token-cell"><div class="token-total"><span class="token-total__value">',
-      formatCompact(tokens && tokens.total), '</span><span class="tokenbar" aria-hidden="true">',
+      escapeHtml(TokenProvenance.total(tokens, formatCompact)), '</span><span class="tokenbar" aria-hidden="true">',
       '<span class="tokenbar-seg fresh" style="--segment-width:', formatPct(freshPct), '%"></span>',
       '<span class="tokenbar-seg read" style="--segment-width:', formatPct(readPct), '%"></span>',
       '<span class="tokenbar-seg write" style="--segment-width:', formatPct(writePct), '%"></span>',
       '<span class="tokenbar-seg out" style="--segment-width:', formatPct(outPct), '%"></span>',
       '<div class="token-tooltip" aria-hidden="true"><div class="token-tooltip__title">Token Breakdown</div>',
-      tooltipRowHtml('fresh', 'Fresh input', tokens && tokens.fresh, freshPct),
-      tooltipRowHtml('read', 'Cached Rd', tokens && tokens.cacheRead, readPct),
-      tooltipRowHtml('write', 'Cached Wr', tokens && tokens.cacheWrite, writePct),
-      tooltipRowHtml('out', 'Output', tokens && tokens.output, outPct),
+      tooltipRowHtml('fresh', 'Fresh input', tokens, 'fresh', freshPct),
+      tooltipRowHtml('read', 'Cached Rd', tokens, 'cacheRead', readPct),
+      tooltipRowHtml('write', 'Cached Wr', tokens, 'cacheWrite', writePct),
+      tooltipRowHtml('out', 'Output', tokens, 'output', outPct),
       '<div class="token-tooltip__sep"></div><div class="token-tooltip__row token-tooltip__total"><span>Total</span><span class="token-tooltip__value">',
-      formatCompact(tokens && tokens.total), '</span></div></div></span></div></td>'
+      escapeHtml(TokenProvenance.total(tokens, formatCompact)), '</span></div></div></span></div></td>'
     ].join('');
   }
 
-  function tooltipRowHtml(cls, label, value, pct) {
+  function tooltipRowHtml(cls, label, tokens, key, pct) {
     return '<div class="token-tooltip__row"><span class="token-tooltip__label"><span class="dot dot--'
       + cls + '"></span><span class="token-tooltip__type-name">' + escapeHtml(label)
-      + '</span></span><span class="token-tooltip__value">' + formatCompact(value)
-      + '</span><span class="token-tooltip__pct">' + formatPct(pct) + '%</span></div>';
+      + '</span></span><span class="token-tooltip__value">' + escapeHtml(TokenProvenance.value(tokens, key, formatCompact))
+      + '</span><span class="token-tooltip__pct">' + (TokenProvenance.state(tokens) === 'provider_reported' ? formatPct(pct) + '%' : 'N/A') + '</span></div>';
   }
 
   function renderPagination(pagination) {
@@ -854,9 +858,7 @@
           if (sortInput && sortInput.value) params.set('sort', sortInput.value);
           if (dirInput && dirInput.value) params.set('dir', dirInput.value);
         }
-        // Preserve page_size from pagination select
-        var pageSizeSel = document.querySelector('.sessions-footer-page-size__select, [data-action="page-size"]');
-        if (pageSizeSel && pageSizeSel.value) params.set('page_size', pageSizeSel.value);
+        // 中文说明：沿用表单中 API 确认的实际页大小，不能用常用下拉选项覆盖合法的非选项值。
         fetchPage(paramsToObject(params));
       } else if (detail.href) {
         // Legacy: direct URL navigation

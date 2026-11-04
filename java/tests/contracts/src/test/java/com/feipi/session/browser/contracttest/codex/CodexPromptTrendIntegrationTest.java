@@ -182,8 +182,8 @@ class CodexPromptTrendIntegrationTest {
   }
 
   @Test
-  @DisplayName("UTC 偏移会话按 ended_at 归属日期")
-  void utcOffsetSessionAttributedByEndedAt() throws Exception {
+  @DisplayName("UTC 偏移会话按 started_at 归属日期")
+  void utcOffsetSessionAttributedByStartedAt() throws Exception {
     // 本地日期 09-07，UTC 日期 09-06；查询必须转换 offset，而非截取日期。
     String sessionId = "thread-utc";
     createCodexRollout(
@@ -203,7 +203,7 @@ class CodexPromptTrendIntegrationTest {
     TrendFilter filter = fixtureWindow();
     List<ActivityTrend> trends = queryRepository.activityTrend(filter);
 
-    // 验证：按 UTC ended_at 归属到 2026-09-06
+    // 验证：按 UTC started_at 归属到 2026-09-06；开始/结束在同一 UTC 日。
     assertThat(trends).hasSize(1);
     assertThat(trends.get(0).date()).isEqualTo("2026-09-06");
     assertThat(trends.get(0).codexPrompts()).isEqualTo(1L);
@@ -252,18 +252,37 @@ class CodexPromptTrendIntegrationTest {
   }
 
   @Test
-  @DisplayName("缺 timestamp 的双表示配对后重复轮次仍独立计数")
+  @DisplayName("缺 timestamp 的重复轮次计数保留，但不参与日期趋势")
   void missingTimestampsDoNotLoseRepeatedTurns() throws Exception {
-    assertPromptCount(
-        "thread-no-timestamp",
+    String sessionId = "thread-no-timestamp";
+    createCodexRollout(
+        sessionId,
+        "2026",
+        "09",
+        "06",
         """
         {"type":"event_msg","payload":{"type":"user_message","message":"hello"}}
         {"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"}]}}
         {"type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"hi"}]}}
         {"type":"event_msg","payload":{"type":"user_message","message":"hello"}}
         {"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"}]}}
-        """,
-        2L);
+        """);
+    processAndWriteCodexSession(adapter.discover(tempDir), sessionId, "2026-09-06T10:03:00Z");
+
+    // 路径日期和测试注入的 ended_at 不是实际开始时间；两轮相同 prompt 仍精确计为 2。
+    try (var statement =
+        connection.prepareStatement(
+            "SELECT started_at, user_message_count FROM sessions WHERE session_id = ?")) {
+      statement.setString(1, sessionId);
+      try (var row = statement.executeQuery()) {
+        assertThat(row.next()).isTrue();
+        assertThat(row.getString("started_at")).isEmpty();
+        assertThat(row.getLong("user_message_count")).isEqualTo(2L);
+        assertThat(row.next()).isFalse();
+      }
+    }
+    assertThat(queryRepository.activityTrend(fixtureWindow())).isEmpty();
+    assertThat(queryRepository.trendData(fixtureWindow())).isEmpty();
   }
 
   @Test
@@ -279,7 +298,7 @@ class CodexPromptTrendIntegrationTest {
   }
 
   @Test
-  @DisplayName("旧 logic 4 零计数索引经真实扫描修复且下一轮不重写")
+  @DisplayName("旧 logic 5 未变源索引经普通扫描修复且下一轮不重写")
   void oldScanLogicRepairsZeroCountThenRemainsUnchanged() throws Exception {
     String sessionId = "thread-old-index";
     createCodexRollout(
@@ -293,6 +312,9 @@ class CodexPromptTrendIntegrationTest {
         {"type":"response_item","timestamp":"2026-09-06T10:01:00Z","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"hi"}]}}
         {"type":"response_item","timestamp":"2026-09-06T10:02:00Z","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"second"}]}}
         """);
+    Path source = tempDir.resolve("sessions/2026/09/06/rollout-100-" + sessionId + ".jsonl");
+    byte[] sourceBytes = Files.readAllBytes(source);
+    var sourceFingerprint = adapter.fingerprint(source);
     ScanConfig config =
         ScanConfig.defaults(
             List.of(new ScanConfig.SourceEntry(adapter, tempDir)), tempDir.resolve("artifacts"));
@@ -306,20 +328,23 @@ class CodexPromptTrendIntegrationTest {
               statement.executeUpdate("UPDATE sessions SET user_message_count = 0, indexed_at = 1"))
           .isEqualTo(1);
     }
-    indexWriter.saveScanLogicVersion(4, Instant.parse("2026-09-06T11:00:00Z"));
+    indexWriter.saveScanLogicVersion(5, Instant.parse("2026-09-06T11:00:00Z"));
     indexWriter.flushPendingWrites();
-    assertThat(indexWriter.loadScanLogicVersion()).isEqualTo(4);
+    assertThat(indexWriter.loadScanLogicVersion()).isEqualTo(5);
     assertThat(queryRepository.activityTrend(fixtureWindow()))
         .singleElement()
         .satisfies(trend -> assertThat(trend.codexPrompts()).isZero());
 
+    // 源内容、mtime 和源指纹均未变化，普通 scan 必须仅由旧版本失效触发重算。
+    assertThat(Files.readAllBytes(source)).isEqualTo(sourceBytes);
+    assertThat(adapter.fingerprint(source)).isEqualTo(sourceFingerprint);
     var repaired = scanEngineAt("2026-09-06T12:00:00Z").scan(indexWriter, config);
     assertThat(repaired.issues()).isEmpty();
     assertThat(repaired.newCount() + repaired.changedCount()).isEqualTo(1);
     assertThat(repaired.unchangedCount()).isZero();
     assertThat(indexWriter.loadScanLogicVersion())
         .isEqualTo(IncrementalScanEngine.CURRENT_SCAN_LOGIC_VERSION)
-        .isGreaterThan(4);
+        .isGreaterThan(5);
     assertThat(queryRepository.activityTrend(fixtureWindow()))
         .singleElement()
         .satisfies(
@@ -336,6 +361,8 @@ class CodexPromptTrendIntegrationTest {
     assertThat(unchanged.newCount()).isZero();
     assertThat(unchanged.changedCount()).isZero();
     assertThat(indexedAt()).isEqualTo(repairedIndexedAt);
+    assertThat(Files.readAllBytes(source)).isEqualTo(sourceBytes);
+    assertThat(adapter.fingerprint(source)).isEqualTo(sourceFingerprint);
     assertThat(indexWriter.loadScanLogicVersion())
         .isEqualTo(IncrementalScanEngine.CURRENT_SCAN_LOGIC_VERSION);
   }

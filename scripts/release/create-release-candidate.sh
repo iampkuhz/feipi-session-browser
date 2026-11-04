@@ -4,7 +4,7 @@
 # 功能：
 # 1. 验证 VERSION 文件存在且格式合法
 # 2. 验证工作区干净（无未提交改动）
-# 3. 验证当前分支与远程同步
+# 3. 验证本地 tag 不存在；不检查远程同步状态
 # 4. 创建 release tag 并输出 candidate 元数据
 #
 set -euo pipefail
@@ -63,7 +63,7 @@ if [[ -n "$(git status --porcelain)" ]]; then
     echo "FAIL: 工作区包含未提交改动：" >&2
     git status --porcelain >&2
     echo ""
-    echo "请先提交或暂存所有改动后再创建 release candidate。" >&2
+    echo "请先提交所有改动；仅暂存仍不是干净工作区。" >&2
     exit 1
 fi
 
@@ -76,7 +76,7 @@ echo "--- 阶段 3：验证 tag 唯一性 ---"
 TAG="v$VERSION"
 if git rev-parse "$TAG" >/dev/null 2>&1; then
     echo "FAIL: tag $TAG 已存在" >&2
-    echo "请使用 git tag -d $TAG 删除后重试，或更新 VERSION 文件。" >&2
+    echo "请核对现有 tag 或更新 VERSION；本脚本不会删除 tag。" >&2
     exit 1
 fi
 

@@ -9,6 +9,7 @@ import com.feipi.session.browser.domain.normalized.NormalizedConstants;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
 import com.feipi.session.browser.domain.normalized.NormalizedSourceFile;
 import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
+import com.feipi.session.browser.domain.normalized.SessionTiming;
 import com.feipi.session.browser.domain.normalized.SourceUnitCatalogEntry;
 import com.feipi.session.browser.domain.normalized.SourceUnitDirection;
 import com.feipi.session.browser.domain.source.SourceRecord;
@@ -85,10 +86,13 @@ public final class NormalizationEngine {
     Objects.requireNonNull(sourceFiles, "sourceFiles 不得为 null");
 
     records = List.copyOf(records);
+    List<SourceRecord> originalRecords = records;
 
     // 0. Qoder 专用预处理：合并同 turnId 的 assistant 分片
     if (agent == NormalizedAgent.QODER) {
       records = QoderResponseRecords.merge(records);
+    } else if (agent == NormalizedAgent.CLAUDE_CODE) {
+      records = ClaudeResponseRecords.merge(records);
     }
 
     // 1. 事件分类
@@ -125,7 +129,12 @@ public final class NormalizationEngine {
 
     // 5. 构建会话元数据：事件计数 + 聚合 token 用量 + 守恒计数
     Map<String, Object> session =
-        buildSessionMap(agent, records, classified, calls, toolExecutions);
+        buildSessionMap(
+            agent,
+            agent == NormalizedAgent.CLAUDE_CODE ? originalRecords : records,
+            classified,
+            calls,
+            toolExecutions);
 
     // 6. 构建源单元目录
     Map<String, SourceUnitCatalogEntry> sourceUnitCatalog = buildSourceUnitCatalog(sourceFiles);
@@ -244,7 +253,10 @@ public final class NormalizationEngine {
       for (SourceRecord record : records) {
         String et = record.eventType();
         String ti = record.turnId().orElse("");
-        if ("event_msg".equals(et) && "agent_message".equals(ti)) {
+        if ("event_msg".equals(et)
+            && "agent_message".equals(ti)
+            && record.relation().subagentId().isEmpty()
+            && !isSubagentSidecarRecord(record)) {
           codexAgentMessageCount++;
         } else if ("tool_use".equals(et)
             && ("function_call".equals(ti) || "custom_tool_call".equals(ti))) {
@@ -260,12 +272,20 @@ public final class NormalizationEngine {
               : codexAgentMessageCount;
       session.put("userMessageCount", codexUserCount);
       session.put("assistantMessageCount", codexAssistantCount);
-      session.put("toolCallCount", codexToolCount);
+      // 缺工具 ID 的历史记录仍保留可观测计数；完整记录使用物化工具边，含 main 和 child。
+      session.put("toolCallCount", Math.max(codexToolCount, toolExecutions.size()));
     } else {
       session.put("userMessageCount", countUserMessages(classified.userMessages()));
       session.put("assistantMessageCount", countMainAssistantTurns(calls));
       session.put("toolCallCount", (long) toolExecutions.size());
-      TokenComponents mergedUsage = aggregateMergedAssistantUsage(classified.assistantMessages());
+      TokenComponents mergedUsage =
+          agent == NormalizedAgent.CLAUDE_CODE
+              ? new TokenComponents(
+                  sessionUsage.fresh(),
+                  sessionUsage.cacheRead(),
+                  sessionUsage.cacheWrite(),
+                  sessionUsage.output())
+              : aggregateMergedAssistantUsage(classified.assistantMessages());
       putTokenComponents(session, mergedUsage);
     }
 
@@ -308,43 +328,17 @@ public final class NormalizationEngine {
       }
     }
 
-    // 计算模型执行时长和工具执行时长
-    //
-    // toolExecSeconds 从 toolExecutions 聚合（当 durationMs 为 0 时回退为 0）。
-    // activeSpan 从全部 call timestamps 的 min/max 差值得出，代表 LLM 活跃时段。
-    // modelExecSeconds = activeSpan - toolExecSeconds，代表活跃时段内非工具执行的部分。
-    double toolExecSeconds = 0;
-    for (NormalizedToolExecution exec : toolExecutions) {
-      toolExecSeconds += exec.durationMs() / 1000.0;
-    }
-
-    double modelExecSeconds = 0;
-    Optional<Instant> firstCallInstant = Optional.empty();
-    Optional<Instant> lastCallInstant = Optional.empty();
-    for (NormalizedCall call : calls) {
-      Optional<Instant> parsed =
-          call.timestamp().filter(ts -> !ts.isBlank()).flatMap(NormalizationEngine::parseInstant);
-      if (parsed.isEmpty()) {
-        continue;
-      }
-      Instant instant = parsed.get();
-      if (firstCallInstant.isEmpty() || instant.isBefore(firstCallInstant.get())) {
-        firstCallInstant = Optional.of(instant);
-      }
-      if (lastCallInstant.isEmpty() || instant.isAfter(lastCallInstant.get())) {
-        lastCallInstant = Optional.of(instant);
-      }
-    }
-    if (firstCallInstant.isPresent() && lastCallInstant.isPresent()) {
-      double activeSpan =
-          Duration.between(firstCallInstant.get(), lastCallInstant.get()).toMillis() / 1000.0;
-      if (activeSpan >= 0) {
-        modelExecSeconds = Math.max(activeSpan - toolExecSeconds, 0);
-      }
-    }
-
-    session.put("modelExecutionSeconds", modelExecSeconds);
-    session.put("toolExecutionSeconds", toolExecSeconds);
+    // 墙钟跨度不等于执行时间；模型/工具未知以 typed timing 表达，旧数字键保留兼容零值。
+    Double wallSeconds =
+        session.get("duration_seconds") instanceof Number number ? number.doubleValue() : null;
+    SessionTiming timing = SessionTimingCalculator.calculate(records, wallSeconds);
+    session.putAll(timing.toMetadata());
+    session.put(
+        "modelExecutionSeconds",
+        timing.modelExecutionSeconds() == null ? 0.0 : timing.modelExecutionSeconds());
+    session.put(
+        "toolExecutionSeconds",
+        timing.toolExecutionSeconds() == null ? 0.0 : timing.toolExecutionSeconds());
 
     // 失败工具计数
     long failedCount = 0;
@@ -437,6 +431,9 @@ public final class NormalizationEngine {
     long count = 0;
     SourceRecord pending = null;
     for (SourceRecord record : records) {
+      if (record.relation().subagentId().isPresent() || isSubagentSidecarRecord(record)) {
+        continue;
+      }
       String type = record.eventType();
       boolean user =
           "user".equals(type)
@@ -467,7 +464,9 @@ public final class NormalizationEngine {
   private static long countUserMessages(List<SourceRecord> userMessages) {
     long count = 0;
     for (SourceRecord record : userMessages) {
-      if (record.toolUseId().isPresent() || isSubagentSidecarRecord(record)) {
+      if (record.metaContext()
+          || record.toolUseId().isPresent()
+          || isSubagentSidecarRecord(record)) {
         continue;
       }
       count++;
@@ -482,7 +481,9 @@ public final class NormalizationEngine {
   private static long countCodexTokenCountAssistantMessages(List<SourceRecord> assistantMessages) {
     long count = 0;
     for (SourceRecord record : assistantMessages) {
-      if (record.callId().orElse("").startsWith("token_count:")) {
+      if (TokenAccountant.isUsageClosingFrame(record.callId().orElse(""))
+          && !isSubagentSidecarRecord(record)
+          && record.relation().subagentId().isEmpty()) {
         count++;
       }
     }
@@ -525,17 +526,15 @@ public final class NormalizationEngine {
     }
     SourceRecordUsage best = usages.get(0);
     int bestIndex = 0;
-    long maxFresh = 0;
     for (int i = 0; i < usages.size(); i++) {
       SourceRecordUsage usage = usages.get(i);
-      maxFresh = Math.max(maxFresh, usage.inputTokens());
       if (isBetterUsage(usage, i, best, bestIndex)) {
         best = usage;
         bestIndex = i;
       }
     }
     return new TokenComponents(
-        Math.max(maxFresh, best.inputTokens()),
+        best.inputTokens(),
         best.cacheReadInputTokens(),
         best.cacheCreationInputTokens(),
         best.outputTokens());

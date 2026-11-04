@@ -3,6 +3,7 @@ package com.feipi.session.browser.source.claude;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.feipi.session.browser.domain.source.SourceRecord;
+import com.feipi.session.browser.domain.source.SourceRecordUsage;
 import com.feipi.session.browser.source.spi.BoundedStream;
 import com.feipi.session.browser.source.spi.Candidate;
 import com.feipi.session.browser.source.spi.SourceAdapter;
@@ -130,7 +131,8 @@ class ClaudeSourceAdapterTest {
     @DisplayName("候选项包含正确的 sessionKey 和 projectKey")
     void candidateHasCorrectMetadata() throws IOException {
       writeHistory(
-          "{\"sessionId\":\"abc-123\",\"project\":\"my-project\",\"display\":\"Test Session\",\"timestamp\":1000}");
+          "{\"sessionId\":\"abc-123\",\"project\":\"my-project\",\"display\":\"Test"
+              + " Session\",\"timestamp\":1000}");
       createTranscript("my-project", "abc-123");
 
       BoundedStream<Candidate> stream = adapter.discover(tempDir);
@@ -143,6 +145,91 @@ class ClaudeSourceAdapterTest {
       // 验证 metadata
       assertThat(candidate.metadata()).containsEntry("title", "Test Session");
       assertThat(candidate.metadata()).containsEntry("has_transcript", "true");
+    }
+
+    @Test
+    @DisplayName("sidechat 正式 usage 覆盖 provisional input，不按最大输入叠加")
+    void sidechatFinalUsageReplacesProvisionalInput() throws IOException {
+      writeHistory(
+          "{\"sessionId\":\"synthetic-stream\",\"project\":\"stream-project\",\"timestamp\":1000}");
+      Path transcript = createTranscript("stream-project", "synthetic-stream");
+      Path sidecar =
+          transcript.resolveSibling("synthetic-stream").resolve("subagents/agent-synthetic.jsonl");
+      Files.createDirectories(sidecar.getParent());
+      Files.writeString(
+          sidecar,
+          """
+          {"type":"assistant","message":{"id":"side-stream","content":[{"type":"text","text":"starting"}],"usage":{"input_tokens":1703,"output_tokens":0}}}
+          {"type":"assistant","message":{"id":"side-stream","content":[{"type":"tool_use","id":"side-tool","name":"Read","input":{}}],"usage":{"input_tokens":13,"cache_read_input_tokens":0,"cache_creation_input_tokens":2119,"output_tokens":67}}}
+          """);
+
+      Candidate candidate = adapter.discover(tempDir).orderedItems().getFirst();
+
+      assertThat(candidate.metadata())
+          .containsEntry("subagentFreshInputTokens", "13")
+          .containsEntry("subagentCacheWriteTokens", "2119")
+          .containsEntry("subagentOutputTokens", "67")
+          .containsEntry("subagentTotalTokens", "2199")
+          .containsEntry("subagentToolCallCount", "1");
+    }
+
+    @Test
+    @DisplayName("Claude precision 按正式字段presence记录，合法零值不等于缺失")
+    void tokenPrecisionDistinguishesReportedZeroFromMissingField() throws IOException {
+      writeHistory(
+          "{\"sessionId\":\"precision-session\",\"project\":\"precision-project\",\"timestamp\":1000}");
+      Path transcript = createTranscript("precision-project", "precision-session");
+      Files.writeString(
+          transcript,
+          """
+          {"type":"assistant","message":{"id":"precision-message","stop_reason":"end_turn","content":[{"type":"text","text":"done"}],"usage":{"input_tokens":0,"cache_read_input_tokens":0,"output_tokens":0}}}
+          """);
+
+      assertThat(adapter.discover(tempDir).orderedItems().getFirst().metadata())
+          .containsEntry("freshInputTokenPrecision", "provider_reported")
+          .containsEntry("cacheReadTokenPrecision", "provider_reported")
+          .containsEntry("cacheWriteTokenPrecision", "unavailable")
+          .containsEntry("outputTokenPrecision", "provider_reported")
+          .containsEntry("tokenContainsUnavailable", "true");
+    }
+
+    @Test
+    @DisplayName("provisional usage 精度未知，缺计量sidechat必须参与mixed覆盖")
+    void provisionalAndUnreportedSidechatDoNotBecomeExact() throws IOException {
+      writeHistory(
+          "{\"sessionId\":\"coverage-session\",\"project\":\"coverage-project\",\"timestamp\":1000}");
+      Path transcript = createTranscript("coverage-project", "coverage-session");
+      Files.writeString(
+          transcript,
+          """
+          {"type":"assistant","message":{"id":"coverage-message","content":[{"type":"text","text":"early"}],"usage":{"input_tokens":839,"output_tokens":17}}}
+          """);
+      assertThat(adapter.discover(tempDir).orderedItems().getFirst().metadata())
+          .containsEntry("freshInputTokenPrecision", "unknown")
+          .containsEntry("outputTokenPrecision", "unknown");
+
+      Files.writeString(
+          transcript,
+          """
+          {"type":"assistant","message":{"id":"coverage-message","content":[{"type":"text","text":"done"}],"usage":{"input_tokens":0,"cache_read_input_tokens":0,"cache_creation_input_tokens":0,"output_tokens":0}}}
+          """);
+      Path sidecar =
+          transcript.resolveSibling("coverage-session").resolve("subagents/agent-missing.jsonl");
+      Files.createDirectories(sidecar.getParent());
+      Files.writeString(
+          sidecar,
+          """
+          {"type":"assistant","message":{"id":"missing-usage-message","content":[{"type":"text","text":"side result"}]}}
+          """);
+
+      assertThat(adapter.discover(tempDir).orderedItems().getFirst().metadata())
+          .containsEntry("freshInputTokenPrecision", "mixed")
+          .containsEntry("cacheReadTokenPrecision", "mixed")
+          .containsEntry("cacheWriteTokenPrecision", "mixed")
+          .containsEntry("outputTokenPrecision", "mixed")
+          .containsEntry("tokenContainsUnknown", "true")
+          .containsEntry("tokenContainsUnavailable", "false")
+          .containsEntry("tokenContainsEstimated", "false");
     }
   }
 
@@ -199,6 +286,74 @@ class ClaudeSourceAdapterTest {
   @Nested
   @DisplayName("parse")
   class ParseTests {
+
+    @Test
+    @DisplayName("同 message 流块共享正式 usage，并保留原始内容、工具及定位")
+    void streamedMessageUsesFinalUsageWithoutLosingSourceRecords() throws IOException {
+      SourceResult.Success success =
+          parseSynthetic(
+              """
+              {"type":"user","message":{"content":"synthetic request"}}
+              {"type":"assistant","uuid":"chunk-start","message":{"id":"stream-message","content":[{"type":"thinking","thinking":"first fragment"}],"usage":{"input_tokens":1809,"output_tokens":0}}}
+              {"type":"assistant","uuid":"chunk-tool","message":{"id":"stream-message","content":[{"type":"tool_use","id":"stream-tool","name":"Read","input":{}}],"usage":{"input_tokens":1809,"output_tokens":0}}}
+              {"type":"assistant","uuid":"chunk-final","message":{"id":"stream-message","stop_reason":"tool_use","content":[{"type":"text","text":"last fragment"},{"type":"tool_use","id":"stream-tool","name":"Read","input":{"path":"synthetic.txt"}}],"usage":{"input_tokens":11,"cache_read_input_tokens":0,"cache_creation_input_tokens":2407,"output_tokens":73}}}
+              """);
+
+      assertThat(success.candidateCount()).isEqualTo(4);
+      assertThat(success.records()).hasSize(4);
+      assertThat(success.records().subList(1, 4))
+          .allSatisfy(
+              record ->
+                  assertThat(record.usage()).isEqualTo(new SourceRecordUsage(11, 0, 2407, 73)));
+      assertThat(success.records().get(1).eventIndex()).isEqualTo(1);
+      assertThat(success.records().get(1).locator()).endsWith("#event[1]");
+      assertThat(success.records().get(1).content()).contains("first fragment");
+      assertThat(success.records().get(3).content()).contains("last fragment");
+      assertThat(success.records().get(3).toolCalls().getFirst().input()).contains("synthetic.txt");
+    }
+
+    @Test
+    @DisplayName("正式 usage 的零 cache/output/fresh 值合法，不回填 provisional input")
+    void zeroFinalUsageRemainsZero() throws IOException {
+      SourceResult.Success success =
+          parseSynthetic(
+              """
+              {"type":"assistant","message":{"id":"zero-message","content":[{"type":"text","text":"early"}],"usage":{"input_tokens":907,"output_tokens":0}}}
+              {"type":"assistant","message":{"id":"zero-message","content":[{"type":"text","text":"late"}],"usage":{"input_tokens":0,"cache_read_input_tokens":0,"cache_creation_input_tokens":0,"output_tokens":0}}}
+              """);
+
+      assertThat(success.records())
+          .allSatisfy(record -> assertThat(record.usage()).isEqualTo(SourceRecordUsage.empty()));
+    }
+
+    @Test
+    @DisplayName("无正式尾块时保留已观测 input，正式修订则以最后完整 usage 为准")
+    void unfinishedStreamAndCorrectedFinalUsageArePreserved() throws IOException {
+      SourceResult.Success success =
+          parseSynthetic(
+              """
+              {"type":"assistant","message":{"id":"unfinished-message","content":[{"type":"text","text":"early"}],"usage":{"input_tokens":701,"output_tokens":0}}}
+              {"type":"assistant","message":{"id":"unfinished-message","content":[{"type":"text","text":"late"}],"usage":{"input_tokens":503,"output_tokens":0}}}
+              {"type":"assistant","message":{"id":"revised-message","content":[],"usage":{"input_tokens":41,"cache_read_input_tokens":97,"cache_creation_input_tokens":191,"output_tokens":29}}}
+              {"type":"assistant","message":{"id":"revised-message","content":[],"usage":{"input_tokens":7,"cache_read_input_tokens":0,"cache_creation_input_tokens":0,"output_tokens":0}}}
+              {"type":"assistant","message":{"id":"revised-message","content":[],"usage":{"input_tokens":1301,"output_tokens":0}}}
+              """);
+
+      assertThat(success.records().subList(0, 2))
+          .allSatisfy(record -> assertThat(record.usage().inputTokens()).isEqualTo(701));
+      assertThat(success.records().subList(2, 5))
+          .allSatisfy(
+              record -> assertThat(record.usage()).isEqualTo(new SourceRecordUsage(7, 0, 0, 0)));
+    }
+
+    private SourceResult.Success parseSynthetic(String content) throws IOException {
+      Path file = tempDir.resolve("synthetic-stream.jsonl");
+      Files.writeString(file, content, StandardCharsets.UTF_8);
+      Candidate candidate =
+          new Candidate(
+              adapter.fingerprint(file), "synthetic/session", "synthetic", java.util.Map.of());
+      return (SourceResult.Success) adapter.parse(candidate, null);
+    }
 
     @Test
     @DisplayName("有效 JSONL 返回 success")

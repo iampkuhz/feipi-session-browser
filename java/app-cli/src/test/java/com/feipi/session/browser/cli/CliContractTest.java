@@ -54,7 +54,7 @@ class CliContractTest {
   /**
    * 初始化 installDist 产物路径。
    *
-   * <p>优先使用 {@code cli.install.dir} 系统属性，否则使用项目默认构建路径。 当产物不存在时跳过进程级测试。
+   * <p>优先使用 {@code cli.install.dir} 系统属性，否则使用项目默认构建路径。 Gradle 测试任务负责准备发行产物，缺失时契约失败。
    */
   @BeforeAll
   static void resolveInstallDir() {
@@ -264,14 +264,23 @@ class CliContractTest {
   @DisplayName("发行目录进程级契约")
   class DistributionContract {
 
+    /** 仅记录错误类别和长度，不输出可能包含环境信息的进程原始 stderr。 */
+    private static String safeStderrDiagnostics(String stderr) {
+      return "stderrChars=%d, zipError=%s, missingClass=%s, unsupportedClassVersion=%s"
+          .formatted(
+              stderr.length(),
+              stderr.contains("ZipException") || stderr.contains("invalid LOC header"),
+              stderr.contains("ClassNotFoundException")
+                  || stderr.contains("NoClassDefFoundError")
+                  || stderr.contains("Could not find or load main class"),
+              stderr.contains("UnsupportedClassVersionError"));
+    }
+
     @Test
     @DisplayName("从任意 cwd 运行 installDist 产物 --help")
     void distHelpFromArbitraryCwd() throws Exception {
       Path script = cliScript();
-      if (!Files.exists(script)) {
-        // installDist 未运行时跳过
-        return;
-      }
+      assertThat(script).as("installDist 必需产物").isRegularFile();
       script.toFile().setExecutable(true);
 
       ProcessBuilder pb = new ProcessBuilder(script.toAbsolutePath().toString(), "--help");
@@ -279,10 +288,10 @@ class CliContractTest {
       pb.redirectErrorStream(false);
       Process process = pb.start();
       String stdout = new String(process.getInputStream().readAllBytes());
-      process.getErrorStream().readAllBytes();
+      String stderr = new String(process.getErrorStream().readAllBytes());
       int exitCode = process.waitFor();
 
-      assertThat(exitCode).isZero();
+      assertThat(exitCode).as("发行目录 --help 失败：%s", safeStderrDiagnostics(stderr)).isZero();
       assertThat(stdout).contains("session-browser");
     }
 
@@ -290,9 +299,7 @@ class CliContractTest {
     @DisplayName("从路径含空格的发行目录运行 --version")
     void distVersionFromPathWithSpaces() throws Exception {
       Path script = cliScript();
-      if (!Files.exists(script)) {
-        return;
-      }
+      assertThat(script).as("installDist 必需产物").isRegularFile();
 
       // 复制到路径含空格的临时目录
       Path spaceDir = Files.createTempDirectory("cli test path with spaces");
@@ -350,7 +357,7 @@ class CliContractTest {
       String stderr = new String(process.getErrorStream().readAllBytes());
       int exitCode = process.waitFor();
 
-      assertThat(exitCode).withFailMessage("发行目录路径含空格运行失败: stderr=%s", stderr).isZero();
+      assertThat(exitCode).as("发行目录路径含空格运行失败：%s", safeStderrDiagnostics(stderr)).isZero();
       assertThat(stdout.trim()).matches("\\d+\\.\\d+(\\.\\d+)?(-[\\w.]+)?");
 
       // 清理测试创建的临时目录

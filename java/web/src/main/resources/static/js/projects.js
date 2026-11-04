@@ -110,8 +110,13 @@
     }
 
     function setMarkup(target, markup) {
-        var parsed = new DOMParser().parseFromString(markup || '', 'text/html');
-        target.replaceChildren.apply(target, Array.prototype.slice.call(parsed.body.childNodes));
+        // A row needs table parsing context; parsing isolated cells strips their <td> wrappers.
+        var isRow = target && target.tagName === 'TR';
+        var parsed = new DOMParser().parseFromString(isRow
+            ? '<table><tbody><tr>' + (markup || '') + '</tr></tbody></table>'
+            : markup || '', 'text/html');
+        var source = isRow ? parsed.querySelector('tbody tr') : parsed.body;
+        if (source) target.replaceChildren.apply(target, Array.prototype.slice.call(source.childNodes));
     }
 
     function formatNumber(value) {
@@ -207,7 +212,8 @@
         var cards = document.querySelectorAll('.metric-grid .metric-card');
         setMetricCardValue(cards[0], summary.projectCount);
         setMetricCardValue(cards[1], summary.sessionCount);
-        setMetricCardValue(cards[2], formatCompact(summary.tokens && summary.tokens.total));
+        setMetricCardValue(cards[2], TokenProvenance.total(summary.tokens, formatCompact));
+        TokenProvenance.attach(cards[2], summary.tokens);
         setMetricCardValue(cards[3], summary.failedTools);
         var match = document.getElementById('projects-match-count');
         if (match) match.textContent = summary.projectCount + ' matching projects';
@@ -295,6 +301,7 @@
             '<td class="text-xs text-muted" title="', escapeHtml(row.firstSeen), '">', escapeHtml(formatDate(row.firstSeen)), '</td>',
             '<td class="text-xs text-muted">', escapeHtml(formatDate(row.lastSeen)), '</td>'
         ].join(''));
+        TokenProvenance.attach(tr.querySelector('.token-cell'), tokens);
         return tr;
     }
 
@@ -324,7 +331,7 @@
         var readPct = segmentPct(tokens, 'cacheRead');
         var writePct = segmentPct(tokens, 'cacheWrite');
         var outPct = segmentPct(tokens, 'output');
-        return '<td class="token-cell"><div class="token-total"><span class="token-total__value">' + formatCompact(tokens && tokens.total)
+        return '<td class="token-cell"><div class="token-total"><span class="token-total__value">' + escapeHtml(TokenProvenance.total(tokens, formatCompact))
             + '</span><span class="tokenbar" aria-label="Token Breakdown" title="Token Breakdown"><span class="tokenbar-seg fresh" style="--segment-width:' + freshPct
             + '%"></span><span class="tokenbar-seg read" style="--segment-width:' + readPct
             + '%"></span><span class="tokenbar-seg write" style="--segment-width:' + writePct
@@ -659,9 +666,10 @@
         var cards = document.querySelectorAll('.project-detail-kpis .metric-card');
         setMetricCardValue(cards[0], summary.totalSessions);
         setMetricCardValue(cards[1], [summary.claudeSessions, summary.qoderSessions, summary.codexSessions].filter(function(v) { return Number(v || 0) > 0; }).length);
-        setMetricCardValue(cards[2], formatCompact(summary.tokens && summary.tokens.total));
-        var input = (summary.tokens && (summary.tokens.fresh + summary.tokens.cacheRead + summary.tokens.cacheWrite)) || 0;
-        setMetricCardValue(cards[3], input > 0 ? (summary.tokens.cacheRead * 100 / input).toFixed(1) + '%' : 'N/A');
+        setMetricCardValue(cards[2], TokenProvenance.total(summary.tokens, formatCompact));
+        TokenProvenance.attach(cards[2], summary.tokens);
+        setMetricCardValue(cards[3], TokenProvenance.ratio(summary.tokens, summary.cacheReadRatio));
+        TokenProvenance.attach(cards[3], summary.tokens);
         setMetricCardValue(cards[4], formatNumber(summary.failedTools));
     }
 
@@ -672,8 +680,8 @@
             : null;
         if (subtitle) {
             var total = Number(summary.totalCount || 0);
-            var tokenTotal = summary.tokens ? Number(summary.tokens.total || 0) : 0;
-            subtitle.textContent = formatNumber(total) + ' sessions in this project · ' + formatCompact(tokenTotal) + ' tokens';
+            subtitle.textContent = formatNumber(total) + ' sessions in this project · ' + TokenProvenance.total(summary.tokens, formatCompact) + ' tokens';
+            TokenProvenance.attach(subtitle.parentElement, summary.tokens);
         }
         document.body.setAttribute('data-project-sessions-total', String(summary.totalCount || 0));
     }
@@ -685,8 +693,9 @@
         wrap.replaceChildren.apply(wrap, points.map(function(point) {
             var span = document.createElement('span');
             span.className = 'project-trend-point';
-            span.setAttribute('data-tooltip', 'Range point: ' + point.label + ' · Total Tokens ' + formatCompact(point.tokens && point.tokens.total));
-            span.textContent = point.label + ' · ' + formatCompact(point.tokens && point.tokens.total);
+            span.setAttribute('data-tooltip', 'Range point: ' + point.label + ' · Total Tokens ' + TokenProvenance.total(point.tokens, formatCompact));
+            span.textContent = point.label + ' · ' + TokenProvenance.total(point.tokens, formatCompact);
+            TokenProvenance.attach(span, point.tokens);
             return span;
         }));
     }
@@ -715,7 +724,7 @@
             link.className = 'agent-mix-row';
             setMarkup(link, '<span><span class="badge ' + agentBadgeMeta(row.agent).cls + ' badge--has-dot" role="status"><span class="badge-dot badge-dot--' + agentBadgeMeta(row.agent).dot + '" aria-hidden="true"></span>' + agentBadgeMeta(row.agent).shortLabel + '</span></span>'
                 + '<span>' + escapeHtml(formatNumber(row.sessions)) + ' sessions</span>'
-                + '<span>' + escapeHtml(formatCompact(row.tokens && row.tokens.total)) + ' tokens</span>'
+                + '<span>' + escapeHtml(TokenProvenance.total(row.tokens, formatCompact)) + ' tokens</span>'
                 + '<span>' + escapeHtml(formatNumber(row.failedTools)) + ' failed</span>');
             return link;
         }));
@@ -730,6 +739,7 @@
 
     function renderProjectSessions(response, table) {
         if (!response || !table) return;
+        SessionTiming.prepareTable(table);
         var tbody = table.querySelector('tbody');
         if (!tbody) return;
         var rows = response.rows || [];
@@ -763,11 +773,12 @@
             '<td class="mono" title="', escapeHtml(row.model || ''), '">', escapeHtml(row.model || 'Unknown model'), '</td>',
             projectTokenCell(tokens),
             '<td class="num mono">', formatNumber(row.rounds), '</td><td class="num mono">', formatNumber(row.tools), '</td><td class="num mono">', formatNumber(row.subagents), '</td>',
-            '<td class="num mono" data-tooltip="', escapeHtml(row.durationSeconds), 's">', formatDuration(row.durationSeconds), '</td>',
-            '<td class="num mono" data-tooltip="', escapeHtml(row.processSeconds), 's">', formatDuration(row.processSeconds), '</td>',
+            '<td class="num mono" data-wall-duration>', escapeHtml(SessionTiming.value(row.timing, 'wallSeconds')), '</td>',
+            '<td class="num mono" data-task-active>', escapeHtml(SessionTiming.value(row.timing, 'activeTaskSeconds')), '</td>',
             '<td class="', Number(row.failedTools || 0) === 0 ? 'muted' : '', '">', Number(row.failedTools || 0) > 0 ? '<span class="badge err">' + escapeHtml(row.failedTools) + ' failed</span>' : 'No failures', '</td>',
             '<td class="mono" title="', escapeHtml(row.createdAt || ''), '">', escapeHtml(formatDate(row.createdAt)), '</td><td class="muted">', escapeHtml(formatDate(row.updatedAt)), '</td>'
         ].join(''));
+        TokenProvenance.attach(tr.querySelector('.token-cell'), tokens);
         return tr;
     }
 

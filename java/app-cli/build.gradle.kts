@@ -105,6 +105,14 @@ dependencies {
     testImplementation(libs.javalin.testtools)
 }
 
+tasks.named<Test>("test") {
+    // 发行目录契约必须消费本轮准备完成的产物，不能依赖上次构建留下的目录。
+    dependsOn(tasks.named("installDist"))
+    val installDir = layout.buildDirectory.dir("install/app-cli")
+    inputs.dir(installDir).withPropertyName("cliInstallDistribution")
+    systemProperty("cli.install.dir", installDir.get().asFile.absolutePath)
+}
+
 // ============================================================
 // build-info.properties 生成
 // git commit 和 build timestamp 通过环境变量可覆盖，确保相同输入可复现。
@@ -520,7 +528,18 @@ tasks.register<Zip>("runtimeDistZip") {
     isPreserveFileTimestamps = false
     isReproducibleFileOrder = true
 
-    from(runtimeDistBase)
+    filePermissions { unix("0644") }
+    dirPermissions { unix("0755") }
+    from(runtimeDistBase) {
+        filesMatching(
+            listOf(
+                "app-cli/bin/run", "app-cli/app/bin/app-cli", "app-cli/runtime/bin/*",
+                "app-cli/runtime/lib/jspawnhelper",
+            ),
+        ) {
+            permissions { unix("0755") }
+        }
+    }
     destinationDirectory.set(layout.buildDirectory.dir("distributions"))
 }
 
@@ -535,6 +554,17 @@ tasks.register<Tar>("runtimeDistTar") {
     isPreserveFileTimestamps = false
     isReproducibleFileOrder = true
 
-    from(runtimeDistBase)
+    filePermissions { unix("0644") }
+    dirPermissions { unix("0755") }
+    from(runtimeDistBase) {
+        filesMatching(
+            listOf(
+                "app-cli/bin/run", "app-cli/app/bin/app-cli", "app-cli/runtime/bin/*",
+                "app-cli/runtime/lib/jspawnhelper",
+            ),
+        ) {
+            permissions { unix("0755") }
+        }
+    }
     destinationDirectory.set(layout.buildDirectory.dir("distributions"))
 }

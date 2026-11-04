@@ -225,6 +225,15 @@ public final class IndexSchema {
     cols.put("cache_read_tokens", INTEGER_NOT_NULL_DEFAULT_ZERO);
     cols.put("cache_write_tokens", INTEGER_NOT_NULL_DEFAULT_ZERO);
     cols.put("total_tokens", INTEGER_NOT_NULL_DEFAULT_ZERO);
+    cols.put("fresh_input_token_precision", "TEXT NOT NULL DEFAULT 'unknown'");
+    cols.put("cache_read_token_precision", "TEXT NOT NULL DEFAULT 'unknown'");
+    cols.put("cache_write_token_precision", "TEXT NOT NULL DEFAULT 'unknown'");
+    cols.put("output_token_precision", "TEXT NOT NULL DEFAULT 'unknown'");
+    cols.put("token_estimation_method", TEXT_NOT_NULL_DEFAULT_EMPTY);
+    cols.put("token_contains_estimated", INTEGER_NOT_NULL_DEFAULT_ZERO);
+    cols.put("token_contains_unavailable", INTEGER_NOT_NULL_DEFAULT_ZERO);
+    cols.put("token_contains_unknown", "INTEGER NOT NULL DEFAULT 1");
+    cols.put("timing_json", "TEXT NOT NULL DEFAULT '{}'");
     cols.put("failed_tool_count", INTEGER_NOT_NULL_DEFAULT_ZERO);
     cols.put("subagent_instance_count", INTEGER_NOT_NULL_DEFAULT_ZERO);
     cols.put("indexed_at", "REAL NOT NULL DEFAULT 0");

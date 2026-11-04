@@ -1,5 +1,6 @@
 package com.feipi.session.browser.index.store.sqlite.row;
 
+import com.feipi.session.browser.domain.normalized.TokenProvenance;
 import com.feipi.session.browser.index.api.query.AgentBreakdown;
 import com.feipi.session.browser.validation.ValidationSupport;
 import jakarta.validation.constraints.NotBlank;
@@ -22,6 +23,7 @@ import jakarta.validation.constraints.PositiveOrZero;
  * @param totalFailedTools 失败工具调用总数
  * @param totalUserMessages 用户消息总数
  * @param projectCount 去重项目数
+ * @param tokenProvenance 相同查询范围的四段计量来源
  */
 public record AgentBreakdownRow(
     /* 代理类型标识。 */ @NotBlank String agent,
@@ -35,11 +37,16 @@ public record AgentBreakdownRow(
     /* 工具调用总数。 */ @PositiveOrZero long totalToolCalls,
     /* 失败工具调用总数。 */ @PositiveOrZero long totalFailedTools,
     /* 用户消息总数。 */ @PositiveOrZero long totalUserMessages,
-    /* 去重项目数。 */ @PositiveOrZero long projectCount)
+    /* 去重项目数。 */ @PositiveOrZero long projectCount,
+    /* 相同查询范围的四段计量来源。 */ TokenProvenance tokenProvenance)
     implements AgentBreakdown {
 
   /** 紧凑构造器，校验 record component 约束。 */
   public AgentBreakdownRow {
+    tokenProvenance =
+        tokenProvenance == null
+            ? TokenProvenance.unknown(Math.max(0, sessionCount))
+            : tokenProvenance;
     ValidationSupport.validateCanonicalConstructor(
         AgentBreakdownRow.class,
         agent,
@@ -53,6 +60,37 @@ public record AgentBreakdownRow(
         totalToolCalls,
         totalFailedTools,
         totalUserMessages,
-        projectCount);
+        projectCount,
+        tokenProvenance);
+  }
+
+  /** 兼容未提供精度的旧调用点，不把旧数值推断为上报。 */
+  public AgentBreakdownRow(
+      String agent,
+      long sessionCount,
+      String lastActive,
+      long totalTokens,
+      long freshInputTokens,
+      long cacheReadTokens,
+      long cacheWriteTokens,
+      long outputTokens,
+      long totalToolCalls,
+      long totalFailedTools,
+      long totalUserMessages,
+      long projectCount) {
+    this(
+        agent,
+        sessionCount,
+        lastActive,
+        totalTokens,
+        freshInputTokens,
+        cacheReadTokens,
+        cacheWriteTokens,
+        outputTokens,
+        totalToolCalls,
+        totalFailedTools,
+        totalUserMessages,
+        projectCount,
+        TokenProvenance.unknown(Math.max(0, sessionCount)));
   }
 }

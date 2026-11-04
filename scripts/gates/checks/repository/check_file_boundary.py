@@ -75,7 +75,6 @@ COMMAND_REFERENCE_GLOBS = (
     '.claude/agents/**/*.md',
     '.claude/commands/**/*.md',
     '.codex/agents/**/*.toml',
-    '.qoder/agents/**/*.md',
     'skills/authoring/**/*.md',
     'harness/**/*.md',
     'docs/**/*.md',
@@ -83,7 +82,6 @@ COMMAND_REFERENCE_GLOBS = (
 COMMAND_REFERENCE_FILES = (
     'AGENTS.md',
     '.claude/CLAUDE.md',
-    '.qoder/AGENTS.md',
     '.codex/model-instructions.md',
     'scripts/README.md',
 )

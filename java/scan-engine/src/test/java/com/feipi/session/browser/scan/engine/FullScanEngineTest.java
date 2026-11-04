@@ -522,6 +522,180 @@ class FullScanEngineTest {
     assertThat(session.get("subagentInstanceCount")).isEqualTo(1L);
   }
 
+  @Test
+  void candidatePrecisionSurvivesAlongsideEstimatedValuesAndMixedCoverage() throws Exception {
+    Candidate candidate =
+        makeCandidate(
+            "estimated.jsonl",
+            "qoder:estimated",
+            Map.of(
+                "freshInputTokens",
+                "20",
+                "outputTokens",
+                "10",
+                "freshInputTokenPrecision",
+                "mixed",
+                "cacheReadTokenPrecision",
+                "unavailable",
+                "cacheWriteTokenPrecision",
+                "unavailable",
+                "outputTokenPrecision",
+                "estimated",
+                "tokenEstimationMethod",
+                "visible_context_v1",
+                "tokenContainsEstimated",
+                "true"));
+    Map<String, Object> session = new HashMap<>();
+    invokeApplyCandidateMetadata(
+        session, candidate, new EmptyAdapter(SourceId.QODER), artifactWith(List.of(), List.of()));
+    assertThat(session)
+        .containsEntry("freshInputTokens", 20L)
+        .containsEntry("freshInputTokenPrecision", "mixed")
+        .containsEntry("cacheReadTokenPrecision", "unavailable")
+        .containsEntry("outputTokenPrecision", "estimated")
+        .containsEntry("tokenEstimationMethod", "visible_context_v1")
+        .containsEntry("tokenContainsEstimated", true)
+        .containsEntry("tokenContainsUnavailable", true);
+  }
+
+  @Test
+  void missingPrecisionIsUnknownEvenWhenNumbersArePresent() throws Exception {
+    Map<String, Object> session = new HashMap<>(Map.of("freshInputTokens", 42L));
+    invokeApplyCandidateMetadata(
+        session,
+        makeCandidate("unknown.jsonl", "codex:unknown", Map.of()),
+        new EmptyAdapter(SourceId.CODEX),
+        artifactWith(List.of(), List.of()));
+    assertThat(session)
+        .containsEntry("freshInputTokens", 42L)
+        .containsEntry("freshInputTokenPrecision", "unknown")
+        .containsEntry("tokenContainsUnknown", true);
+  }
+
+  @Test
+  void scanPersistsTheSamePrecisionInArtifactAndSqlite() throws Exception {
+    Path root = Files.createDirectories(tempDir.resolve("estimated-source"));
+    Path source = Files.writeString(root.resolve("estimated.jsonl"), "{}\n");
+    Candidate candidate =
+        new Candidate(
+            new SourceFingerprint(
+                source.toString(),
+                SourceId.QODER,
+                Files.size(source),
+                Files.getLastModifiedTime(source).toMillis(),
+                Optional.empty(),
+                Optional.empty()),
+            "qoder:synthetic-estimated",
+            "/synthetic/project",
+            Map.of(
+                "freshInputTokens",
+                "20",
+                "outputTokens",
+                "10",
+                "freshInputTokenPrecision",
+                "estimated",
+                "cacheReadTokenPrecision",
+                "unavailable",
+                "cacheWriteTokenPrecision",
+                "unavailable",
+                "outputTokenPrecision",
+                "estimated",
+                "tokenEstimationMethod",
+                "visible_context_v1"));
+    ScanConfig config =
+        ScanConfig.defaults(
+            List.of(
+                new ScanConfig.SourceEntry(new SuccessfulAdapter(SourceId.QODER, candidate), root)),
+            tempDir.resolve("precision-artifacts"));
+    ScanSummary summary =
+        new FullScanEngine().scan(SqliteTestHelper.createIndexWriter(conn), config);
+    assertThat(summary.successCount()).isEqualTo(1);
+    try (Statement stmt = conn.createStatement();
+        ResultSet rs =
+            stmt.executeQuery(
+                "SELECT s.fresh_input_tokens, s.cache_read_tokens, s.fresh_input_token_precision, "
+                    + "s.cache_read_token_precision, s.token_contains_estimated, a.path "
+                    + "FROM sessions s JOIN session_artifacts a USING(session_key)")) {
+      assertThat(rs.next()).isTrue();
+      assertThat(rs.getLong("fresh_input_tokens")).isEqualTo(20);
+      assertThat(rs.getLong("cache_read_tokens")).isZero();
+      assertThat(rs.getString("fresh_input_token_precision")).isEqualTo("estimated");
+      assertThat(rs.getString("cache_read_token_precision")).isEqualTo("unavailable");
+      assertThat(rs.getLong("token_contains_estimated")).isEqualTo(1);
+      var artifact =
+          new com.fasterxml.jackson.databind.ObjectMapper()
+              .readTree(Path.of(rs.getString("path")).toFile());
+      assertThat(artifact.path("session").path("freshInputTokenPrecision").asText())
+          .isEqualTo("estimated");
+      assertThat(artifact.path("session").path("cacheReadTokenPrecision").asText())
+          .isEqualTo("unavailable");
+      assertThat(artifact.path("session").path("tokenContainsEstimated").asBoolean()).isTrue();
+    }
+  }
+
+  @Test
+  void scanPersistsExplicitTimingWithoutInventingModelExecution() throws Exception {
+    Path root = Files.createDirectories(tempDir.resolve("timing-source"));
+    Path source = Files.writeString(root.resolve("timing.jsonl"), "{}\n");
+    Candidate candidate =
+        new Candidate(
+            new SourceFingerprint(
+                source.toString(),
+                SourceId.CODEX,
+                Files.size(source),
+                Files.getLastModifiedTime(source).toMillis(),
+                Optional.empty(),
+                Optional.empty()),
+            "codex:synthetic-timing",
+            "/synthetic/timing",
+            Map.of());
+    var timing =
+        new com.feipi.session.browser.domain.source.SourceTiming(
+            "task_complete",
+            "turn",
+            Optional.of("2026-01-01T00:00:00Z"),
+            Optional.of("2026-01-01T00:00:01Z"),
+            java.util.OptionalLong.of(1250),
+            java.util.OptionalLong.empty(),
+            java.util.OptionalLong.empty(),
+            "end");
+    var record =
+        com.feipi.session.browser.domain.source.SourceRecord.of(
+                source + "#event[0]", 0, "event_msg")
+            .withTiming(timing);
+    SourceAdapter adapter =
+        new SuccessfulAdapter(SourceId.CODEX, candidate) {
+          @Override
+          public SourceResult parse(Candidate ignored, CancellationSignal cancellation) {
+            return new SourceResult.Success(
+                List.of(), 1, List.of(record), candidate.fingerprint(), null);
+          }
+        };
+    ScanSummary summary =
+        new FullScanEngine()
+            .scan(
+                SqliteTestHelper.createIndexWriter(conn),
+                ScanConfig.defaults(
+                    List.of(new ScanConfig.SourceEntry(adapter, root)),
+                    tempDir.resolve("timing-artifacts")));
+    assertThat(summary.successCount()).isEqualTo(1);
+    try (var statement = conn.createStatement();
+        var rs =
+            statement.executeQuery(
+                "SELECT s.model_execution_seconds, s.timing_json, a.path FROM sessions s JOIN"
+                    + " session_artifacts a USING(session_key)")) {
+      assertThat(rs.next()).isTrue();
+      assertThat(rs.getDouble("model_execution_seconds")).isZero();
+      var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+      var stored = mapper.readTree(rs.getString("timing_json"));
+      var artifact = mapper.readTree(Path.of(rs.getString("path")).toFile());
+      assertThat(stored.path("activeTaskSeconds").asDouble()).isEqualTo(1.25);
+      assertThat(stored.path("modelExecutionPrecision").asText()).isEqualTo("unknown");
+      assertThat(stored.has("modelExecutionSeconds")).isFalse();
+      assertThat(artifact.path("session").path("timing")).isEqualTo(stored);
+    }
+  }
+
   // ===== 辅助方法 =====
 
   /** 验证 scan_log 表中的 status 字段。 */

@@ -2,6 +2,7 @@ package com.feipi.session.browser.web.api;
 
 import com.feipi.session.browser.application.QueryCompositionRoot;
 import com.feipi.session.browser.application.SessionListUseCase;
+import com.feipi.session.browser.domain.normalized.TokenProvenance;
 import com.feipi.session.browser.index.api.query.ProjectStats;
 import com.feipi.session.browser.index.api.query.SessionListSummary;
 import com.feipi.session.browser.index.api.query.SessionRecord;
@@ -198,7 +199,11 @@ public final class ProjectDetailApiHandler {
           new ProjectTokenTrendPoint(
               point.label(),
               TokenSegments.of(
-                  point.fresh(), point.cacheRead(), point.cacheWrite(), point.output())));
+                  point.fresh(),
+                  point.cacheRead(),
+                  point.cacheWrite(),
+                  point.output(),
+                  point.provenance())));
     }
     return points;
   }
@@ -213,6 +218,7 @@ public final class ProjectDetailApiHandler {
       long cacheWrite = 0;
       long output = 0;
       long failed = 0;
+      TokenProvenance provenance = TokenProvenance.empty();
       for (SessionRecord session : sessions) {
         if (!agent.equals(session.agent())) {
           continue;
@@ -223,6 +229,7 @@ public final class ProjectDetailApiHandler {
         cacheWrite += session.cacheWriteTokens();
         output += session.outputTokens();
         failed += session.failedToolCount();
+        provenance = provenance.plus(session.tokenProvenance());
       }
       long tokenTotal = fresh + cacheRead + cacheWrite + output;
       rows.add(
@@ -230,7 +237,7 @@ public final class ProjectDetailApiHandler {
               agent,
               WebDisplayValues.agentDisplay(agent),
               sessionCount,
-              TokenSegments.of(fresh, cacheRead, cacheWrite, output),
+              TokenSegments.of(fresh, cacheRead, cacheWrite, output, provenance),
               failed,
               WebDisplayValues.share(sessionCount, project.totalSessions()),
               WebDisplayValues.share(tokenTotal, project.totalTokens()),
@@ -245,7 +252,8 @@ public final class ProjectDetailApiHandler {
         project.totalFreshInputTokens(),
         project.totalCacheReadTokens(),
         project.totalCacheWriteTokens(),
-        project.totalOutputTokens());
+        project.totalOutputTokens(),
+        project.tokenProvenance());
   }
 
   private static PageStateDto sessionsState(long totalCount, boolean hasFilter, String projectKey) {

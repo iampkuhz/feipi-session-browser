@@ -1,5 +1,6 @@
 package com.feipi.session.browser.index.store.sqlite.row;
 
+import com.feipi.session.browser.domain.normalized.TokenProvenance;
 import com.feipi.session.browser.index.api.query.DashboardStats;
 import com.feipi.session.browser.validation.ValidationSupport;
 import jakarta.validation.constraints.PositiveOrZero;
@@ -23,6 +24,7 @@ import jakarta.validation.constraints.PositiveOrZero;
  * @param totalFailedTools 失败工具调用总数
  * @param totalUserMessages 用户消息总数
  * @param totalAssistantMessages 助手消息总数
+ * @param tokenProvenance 相同查询范围的四段计量来源
  */
 public record DashboardRow(
     /* 会话总数。 */ @PositiveOrZero long totalSessions,
@@ -38,11 +40,16 @@ public record DashboardRow(
     /* 工具调用总数。 */ @PositiveOrZero long totalToolCalls,
     /* 失败工具调用总数。 */ @PositiveOrZero long totalFailedTools,
     /* 用户消息总数。 */ @PositiveOrZero long totalUserMessages,
-    /* 助手消息总数。 */ @PositiveOrZero long totalAssistantMessages)
+    /* 助手消息总数。 */ @PositiveOrZero long totalAssistantMessages,
+    /* 相同查询范围的四段计量来源。 */ TokenProvenance tokenProvenance)
     implements DashboardStats {
 
   /** 紧凑构造器，校验 record component 约束。 */
   public DashboardRow {
+    tokenProvenance =
+        tokenProvenance == null
+            ? TokenProvenance.unknown(Math.max(0, totalSessions))
+            : tokenProvenance;
     ValidationSupport.validateCanonicalConstructor(
         DashboardRow.class,
         totalSessions,
@@ -58,6 +65,41 @@ public record DashboardRow(
         totalToolCalls,
         totalFailedTools,
         totalUserMessages,
-        totalAssistantMessages);
+        totalAssistantMessages,
+        tokenProvenance);
+  }
+
+  /** 兼容未提供精度的旧调用点，不把旧数值推断为上报。 */
+  public DashboardRow(
+      long totalSessions,
+      long claudeSessions,
+      long codexSessions,
+      long qoderSessions,
+      long projectCount,
+      long totalTokens,
+      long totalFreshInputTokens,
+      long totalCacheReadTokens,
+      long totalCacheWriteTokens,
+      long totalOutputTokens,
+      long totalToolCalls,
+      long totalFailedTools,
+      long totalUserMessages,
+      long totalAssistantMessages) {
+    this(
+        totalSessions,
+        claudeSessions,
+        codexSessions,
+        qoderSessions,
+        projectCount,
+        totalTokens,
+        totalFreshInputTokens,
+        totalCacheReadTokens,
+        totalCacheWriteTokens,
+        totalOutputTokens,
+        totalToolCalls,
+        totalFailedTools,
+        totalUserMessages,
+        totalAssistantMessages,
+        TokenProvenance.unknown(Math.max(0, totalSessions)));
   }
 }

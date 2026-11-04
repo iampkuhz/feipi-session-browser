@@ -6,6 +6,8 @@ import re
 import subprocess
 from pathlib import Path
 
+import yaml
+
 PROJECT_DIR = Path(__file__).resolve().parents[2]
 SCRIPT = PROJECT_DIR / 'scripts' / 'session-browser.sh'
 RELEASE_WORKFLOW = PROJECT_DIR / '.github' / 'workflows' / 'release.yml'
@@ -124,3 +126,21 @@ def test_release_workflow_accepts_two_part_and_patch_versions():
         assert not _bash_regex_matches(tag_pattern, value), value
     for value in ('v0.4', '0.4.beta', '0'):
         assert not _bash_regex_matches(input_pattern, value), value
+
+
+def test_runtime_archives_define_precise_executable_permissions():
+    source = CLI_BUILD.read_text(encoding='utf-8')
+    assert source.count('filePermissions { unix("0644") }') == 2
+    assert source.count('dirPermissions { unix("0755") }') == 2
+    assert (
+        source.count('"app-cli/bin/run", "app-cli/app/bin/app-cli", "app-cli/runtime/bin/*",') == 2
+    )
+    assert source.count('"app-cli/runtime/lib/jspawnhelper",') == 2
+    assert source.count('permissions { unix("0755") }') == 2
+
+
+def test_release_pipeline_is_an_exact_public_executable():
+    manifest = yaml.safe_load(HARNESS_MANIFEST.read_text(encoding="utf-8"))
+    assert manifest["public_executables"]["release_pipeline"] == (
+        "python3 scripts/release/release_pipeline_helpers.py"
+    )

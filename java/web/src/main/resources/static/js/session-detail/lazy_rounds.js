@@ -173,7 +173,7 @@
     var callLabel = call.callKey || ('C' + callIndex);
     var displayText = callText || (toolCount ? toolCount + ' 个工具指令 · 响应文本未记录' : '响应文本未记录');
     var timeDisplay = localTime(call.timestamp) || '未记录';
-    var tokenDisplay = usage.total > 0 ? escapeRoundHtml(compactTokens(usage.total)) + ' tokens' : '未记录';
+    var tokenDisplay = escapeRoundHtml(TokenProvenance.total(usage, compactTokens)) + ' tokens';
     var scopeDisplay = call.scope === 'subagent' ? '子 agent' : '主会话';
     var callTitle = '本地响应记录 ' + callLabel + ' · ' + scopeDisplay + ' · callId: ' + (call.callId || '未记录') + '；不代表独立 provider 请求';
     var payloadTitle = 'R' + roundId + ' · ' + callLabel;
@@ -239,8 +239,8 @@
         + '<div class="sd-subagent__head">'
         + '<span class="sd-subagent__title">Subagent</span>'
         + '<span class="sd-pill sd-pill--model sd-pill--sm">独立上下文</span>'
-        + '<span class="sd-pill sd-pill--ok sd-pill--sm">completed</span>'
-        + '<span class="sd-subagent__meta">' + escapeRoundHtml(String(groupTools.length)) + ' tools, ' + escapeRoundHtml(compactTokens(totalTokens)) + ' tokens</span>'
+        + '<span class="sd-pill sd-pill--sm" data-subagent-state="unknown">状态未记录</span>'
+        + '<span class="sd-subagent__meta">' + escapeRoundHtml(String(groupTools.length)) + ' tools, ' + escapeRoundHtml(TokenProvenance.total({ total: totalTokens }, compactTokens)) + ' tokens</span>'
         + '<button type="button" class="sd-btn sd-btn--secondary sd-btn--sm sd-subagent__toggle" data-action="toggle-subagent-rounds" aria-expanded="false">Expand all</button>'
         + '</div><div class="sd-sub-rounds">';
       groupCalls.forEach(function (call, idx) {
@@ -364,13 +364,13 @@
     var read = pct(usage.cacheRead, total);
     var write = pct(usage.cacheWrite, total);
     var out = pct(usage.output, total);
-    return '<span class="sd-sub-tokenbar" tabindex="0"><span class="tokenbar-sub" aria-hidden="true">'
+    return '<span class="sd-sub-tokenbar" tabindex="0"><span>' + escapeRoundHtml(TokenProvenance.total(usage, compactTokens)) + '</span><span class="tokenbar-sub" aria-hidden="true">'
       + '<span class="fresh" style="--segment-width:' + fresh + '%"></span>'
       + '<span class="read" style="--segment-width:' + read + '%"></span>'
       + '<span class="write" style="--segment-width:' + write + '%"></span>'
       + '<span class="out" style="--segment-width:' + out + '%"></span></span>'
       + '<div class="token-tooltip" aria-hidden="true"><div class="token-tooltip__title">Token Breakdown</div>'
-      + '<div class="token-tooltip__row"><span>Total</span><span class="token-tooltip__value">' + escapeRoundHtml(compactTokens(total)) + '</span></div>'
+      + '<div class="token-tooltip__row"><span>Total</span><span class="token-tooltip__value">' + escapeRoundHtml(TokenProvenance.total(usage, compactTokens)) + '</span></div>'
       + '</div></span>';
   }
 

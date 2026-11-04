@@ -13,6 +13,8 @@ class SessionSortFieldTest {
     assertThat(SessionSortField.ENDED_AT.getColumnName()).isEqualTo("ended_at");
     assertThat(SessionSortField.TOTAL_TOKENS.getColumnName()).isEqualTo("total_tokens");
     assertThat(SessionSortField.FAILED_TOOL_COUNT.getColumnName()).isEqualTo("failed_tool_count");
+    assertThat(SessionSortField.ACTIVE_TASK_SECONDS.getColumnName())
+        .isEqualTo("active_task_seconds");
   }
 
   @Test

@@ -1,5 +1,6 @@
 package com.feipi.session.browser.web.api;
 
+import com.feipi.session.browser.domain.normalized.SessionTiming;
 import com.feipi.session.browser.web.api.PageApiDtos.PageStateDto;
 import com.feipi.session.browser.web.api.PageApiDtos.PaginationDto;
 import com.feipi.session.browser.web.api.PageApiDtos.SelectOptionDto;
@@ -164,6 +165,7 @@ public final class SessionsApiResponses {
    * @param subagents 该字段在 API 响应中的业务值。
    * @param durationSeconds 持续时间秒数。
    * @param processSeconds 持续时间秒数。
+   * @param timing 有来源和可用性的独立时间口径。
    * @param failedTools 当前统计口径下的工具数量。
    * @param createdAt 时间戳。
    * @param updatedAt 时间戳。
@@ -201,7 +203,8 @@ public final class SessionsApiResponses {
       /* 持续时间秒数 */
       double durationSeconds,
       /* 处理时间秒数 */
-      double processSeconds,
+      Double processSeconds,
+      SessionTiming timing,
       /* 失败工具数量 */
       long failedTools,
       /* 创建时间文本 */
@@ -227,6 +230,7 @@ public final class SessionsApiResponses {
       model = ApiResponses.empty(model);
       gitBranch = ApiResponses.empty(gitBranch);
       Objects.requireNonNull(tokens, "tokens must not be null");
+      Objects.requireNonNull(timing, "timing must not be null");
       createdAt = ApiResponses.empty(createdAt);
       updatedAt = ApiResponses.empty(updatedAt);
       detailUrl = ApiResponses.empty(detailUrl);
@@ -236,7 +240,7 @@ public final class SessionsApiResponses {
       if (rounds < 0 || tools < 0 || subagents < 0 || failedTools < 0) {
         throw new IllegalArgumentException("row counts must be non-negative");
       }
-      if (durationSeconds < 0 || processSeconds < 0) {
+      if (durationSeconds < 0 || (processSeconds != null && processSeconds < 0)) {
         throw new IllegalArgumentException("row durations must be non-negative");
       }
     }

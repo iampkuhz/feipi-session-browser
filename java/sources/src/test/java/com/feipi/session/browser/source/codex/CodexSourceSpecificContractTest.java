@@ -3,6 +3,7 @@ package com.feipi.session.browser.source.codex;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.feipi.session.browser.domain.source.SourceRecord;
+import com.feipi.session.browser.domain.source.SourceToolCall;
 import com.feipi.session.browser.source.spi.Candidate;
 import com.feipi.session.browser.source.spi.SourceDiagnostic;
 import com.feipi.session.browser.source.spi.SourceFingerprint;
@@ -24,6 +25,769 @@ class CodexSourceSpecificContractTest {
   @TempDir Path tempDir;
 
   private final CodexSourceAdapter adapter = new CodexSourceAdapter();
+
+  @Test
+  @DisplayName("legacy counter 漏过一个已测现代响应后仍可逐响应镜像，不污染完整现代证据")
+  void legacyCounterOffsetDoesNotMakeConservedModernUsageUnknown() throws IOException {
+    assertConservedModernMirror(divergentLegacyCounterFixture(false));
+  }
+
+  @Test
+  @DisplayName("重发的展示 turn_context 不能推翻完整 last usage 与 counter 增量镜像证据")
+  void displayTurnContextCannotInvalidateProvenLegacyCounterMirrors() throws IOException {
+    assertConservedModernMirror(divergentLegacyCounterFixture(true));
+  }
+
+  @Test
+  @DisplayName("落后 counter 的增量与 last usage 不一致时仍保 unknown，不笼统忽略所有落后值")
+  void legacyCounterOffsetNeedsMatchingIncrementAndCompleteLastUsage() throws IOException {
+    String complete = divergentLegacyCounterFixture(false);
+    String wrongIncrement = complete.replace("\"input_tokens\":147", "\"input_tokens\":148");
+    String incompleteLast =
+        complete.replace(
+            "\"last_token_usage\":{\"input_tokens\":27,\"cached_input_tokens\":6,\"cache_write_input_tokens\":0,\"output_tokens\":3}",
+            "\"last_token_usage\":{\"input_tokens\":27,\"cached_input_tokens\":6,\"output_tokens\":3}");
+
+    for (String content : List.of(wrongIncrement, incompleteLast)) {
+      SourceResult.Success success = parseContentFixture(content);
+      assertUsageFrames(success, 4, 118, 136, 24);
+      assertThat(success.diagnostics())
+          .extracting(SourceDiagnostic::code)
+          .contains("TOKEN_USAGE_AMBIGUOUS");
+      assertThat(discoverContentFixture(content).metadata())
+          .containsEntry("tokenContainsUnknown", "true");
+    }
+  }
+
+  @Test
+  @DisplayName("现代线程累计本身有未计历史缺口时不能用 counter offset 清除 unknown")
+  void legacyCounterMirrorDoesNotHideUncoveredModernThreadHistory() throws IOException {
+    String content =
+        turnContext("synthetic-response-turn")
+            + mixedModernUsage("coverage-first", "synthetic-response-turn", 120, 50, 9, 120, 50, 9)
+            + mixedLegacySnapshot(120, 50, 9, 120, 50, 9)
+            + mixedModernUsage("coverage-gap", "synthetic-response-turn", 64, 60, 7, 200, 110, 16)
+            + mixedLegacySnapshot(120, 50, 9, 0, 0, 0)
+            + mixedModernUsage("coverage-next", "synthetic-response-turn", 27, 6, 3, 227, 116, 19)
+            + mixedLegacySnapshot(147, 56, 12, 27, 6, 3);
+    SourceResult.Success success = parseContentFixture(content);
+
+    assertUsageFrames(success, 3, 95, 116, 19);
+    assertThat(success.diagnostics())
+        .extracting(SourceDiagnostic::code)
+        .contains("TOKEN_USAGE_AMBIGUOUS");
+    assertThat(discoverContentFixture(content).metadata())
+        .containsEntry("tokenContainsUnknown", "true");
+  }
+
+  private void assertConservedModernMirror(String content) throws IOException {
+    SourceResult.Success success = parseContentFixture(content);
+    assertUsageFrames(success, 4, 118, 136, 24);
+    assertThat(success.diagnostics())
+        .extracting(SourceDiagnostic::code)
+        .doesNotContain("TOKEN_USAGE_AMBIGUOUS", "TOKEN_COUNTER_RESET");
+    Candidate candidate = discoverContentFixture(content);
+    assertPrecision(
+        candidate,
+        "provider_reported",
+        "provider_reported",
+        "provider_reported",
+        "provider_reported");
+    assertThat(candidate.metadata())
+        .containsEntry("tokenContainsUnknown", "false")
+        .containsEntry("tokenContainsUnavailable", "false")
+        .containsEntry("tokenContainsEstimated", "false");
+  }
+
+  private static String divergentLegacyCounterFixture(boolean conflictingContext) {
+    String owner = "synthetic-response-turn";
+    String context = conflictingContext ? "synthetic-display-context" : owner;
+    return turnContext(owner)
+        + mixedModernUsage("counter-first", owner, 120, 50, 9, 120, 50, 9)
+        + mixedLegacySnapshot(120, 50, 9, 120, 50, 9)
+        + mixedModernUsage("counter-omitted", owner, 64, 60, 7, 184, 110, 16)
+        + turnContext(context)
+        + mixedLegacySnapshot(120, 50, 9, 0, 0, 0)
+        + mixedModernUsage("counter-next", owner, 27, 6, 3, 211, 116, 19)
+        + mixedLegacySnapshot(147, 56, 12, 27, 6, 3)
+        + mixedModernUsage("counter-last", owner, 43, 20, 5, 254, 136, 24)
+        + mixedLegacySnapshot(190, 76, 17, 43, 20, 5);
+  }
+
+  private static String mixedLegacySnapshot(
+      long input, long read, long output, long lastInput, long lastRead, long lastOutput) {
+    return """
+    {"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":%d,"cached_input_tokens":%d,"cache_write_input_tokens":0,"output_tokens":%d},"last_token_usage":{"input_tokens":%d,"cached_input_tokens":%d,"cache_write_input_tokens":0,"output_tokens":%d}}}}
+    """
+        .formatted(input, read, output, lastInput, lastRead, lastOutput);
+  }
+
+  @Test
+  @DisplayName("完整累计锚点保留 legacy 前缀，同轮提前和延后镜像及重复 response 不双计")
+  void mixedHistoryPreservesLegacyPrefixWithoutCountingModernMirrorsTwice() throws IOException {
+    String modern = mixedModernUsage("modern-one", "modern-turn", 150, 140, 30, 250, 180, 50);
+    String content =
+        turnContext("legacy-turn")
+            + mixedLegacyUsage(100, 40, 20)
+            + turnContext("modern-turn")
+            + mixedLegacyUsage(250, 180, 50)
+            + modern
+            + mixedLegacyUsage(250, 180, 50)
+            + modern;
+    SourceResult.Success success = parseContentFixture(content);
+
+    assertUsageFrames(success, 2, 70, 180, 50);
+    assertThat(success.diagnostics())
+        .extracting(SourceDiagnostic::code)
+        .doesNotContain("TOKEN_USAGE_AMBIGUOUS");
+    assertPrecision(
+        discoverContentFixture(content),
+        "provider_reported",
+        "provider_reported",
+        "provider_reported",
+        "provider_reported");
+  }
+
+  @Test
+  @DisplayName("legacy 尾部从最后 modern 线程累计锚点差分，而非重新计入现代用量")
+  void mixedHistoryPreservesLegacyTailAfterModernAnchor() throws IOException {
+    SourceResult.Success success =
+        parseContentFixture(
+            turnContext("legacy-prefix")
+                + mixedLegacyUsage(100, 40, 20)
+                + turnContext("modern-turn")
+                + mixedModernUsage("modern-one", "modern-turn", 150, 140, 30, 250, 180, 50)
+                + turnContext("legacy-tail")
+                + mixedLegacyUsage(330, 230, 70));
+
+    assertUsageFrames(success, 3, 100, 230, 70);
+    assertThat(success.records().stream().filter(r -> "assistant".equals(r.eventType())))
+        .last()
+        .satisfies(
+            record -> {
+              assertThat(record.usage().inputTokens()).isEqualTo(30);
+              assertThat(record.usage().cacheReadInputTokens()).isEqualTo(50);
+              assertThat(record.usage().outputTokens()).isEqualTo(20);
+            });
+  }
+
+  @Test
+  @DisplayName("完整 modern reset 锚点重新建立基准，同轮 legacy 尾部须与 last usage 精确对齐")
+  void mixedHistoryUsesExplicitModernResetAnchorForFollowingLegacyDelta() throws IOException {
+    String content =
+        turnContext("first-turn")
+            + mixedModernUsage("first", "first-turn", 100, 40, 20, 100, 40, 20)
+            + turnContext("reset-turn")
+            + mixedModernUsage("reset", "reset-turn", 20, 5, 4, 20, 5, 4)
+            + """
+            {"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":30,"cached_input_tokens":8,"cache_write_input_tokens":0,"output_tokens":6},"last_token_usage":{"input_tokens":10,"cached_input_tokens":3,"cache_write_input_tokens":0,"output_tokens":2}}}}
+            """;
+    SourceResult.Success success = parseContentFixture(content);
+
+    assertUsageFrames(success, 3, 82, 48, 26);
+    assertThat(success.diagnostics())
+        .extracting(SourceDiagnostic::code)
+        .contains("TOKEN_COUNTER_RESET")
+        .doesNotContain("TOKEN_USAGE_AMBIGUOUS");
+    assertThat(discoverContentFixture(content).metadata())
+        .containsEntry("tokenContainsUnknown", "false");
+  }
+
+  @Test
+  @DisplayName("无 modern reset 锚点的累计下降不夹成实测零，歧义显式保留 unknown")
+  void mixedHistoryDoesNotGuessOwnershipAcrossUnanchoredCounterReset() throws IOException {
+    String content =
+        turnContext("modern-turn")
+            + mixedModernUsage("modern-one", "modern-turn", 100, 40, 20, 100, 40, 20)
+            + turnContext("unanchored-reset")
+            + mixedLegacyUsage(20, 5, 4);
+    SourceResult.Success success = parseContentFixture(content);
+
+    assertUsageFrames(success, 1, 60, 40, 20);
+    assertThat(success.diagnostics())
+        .extracting(SourceDiagnostic::code)
+        .contains("TOKEN_USAGE_AMBIGUOUS");
+    Candidate candidate = discoverContentFixture(content);
+    assertPrecision(candidate, "mixed", "mixed", "mixed", "mixed");
+    assertThat(candidate.metadata()).containsEntry("tokenContainsUnknown", "true");
+  }
+
+  @Test
+  @DisplayName("没有 turn 或线程累计锚点时不能把前置快照猜为 legacy-only 历史")
+  void mixedHistoryWithoutOwnershipEvidenceIsDiagnosedInsteadOfInventingCalls() throws IOException {
+    String content =
+        mixedLegacyUsage(100, 40, 20)
+            + """
+            {"type":"token_usage_record","payload":{"response_id":"unanchored","usage":{"input_tokens":150,"cached_input_tokens":140,"cache_write_input_tokens":0,"output_tokens":30}}}
+            """;
+    SourceResult.Success success = parseContentFixture(content);
+
+    assertUsageFrames(success, 1, 10, 140, 30);
+    assertThat(success.diagnostics())
+        .extracting(SourceDiagnostic::code)
+        .contains("TOKEN_USAGE_AMBIGUOUS");
+    assertThat(discoverContentFixture(content).metadata())
+        .containsEntry("tokenContainsUnknown", "true");
+  }
+
+  @Test
+  @DisplayName("modern 缺 turn_id 不能反推它一定不属于已有 legacy turn")
+  void mixedHistoryDoesNotInventDisjointTurnOwnershipFromMissingModernTurnId() throws IOException {
+    String content =
+        turnContext("legacy-turn")
+            + mixedLegacyUsage(100, 40, 20)
+            + """
+            {"type":"token_usage_record","payload":{"response_id":"missing-turn","usage":{"input_tokens":150,"cached_input_tokens":140,"cache_write_input_tokens":0,"output_tokens":30}}}
+            """;
+    SourceResult.Success success = parseContentFixture(content);
+
+    assertUsageFrames(success, 1, 10, 140, 30);
+    assertThat(success.diagnostics())
+        .extracting(SourceDiagnostic::code)
+        .contains("TOKEN_USAGE_AMBIGUOUS");
+  }
+
+  @Test
+  @DisplayName("legacy 独立缓存字段保持 fresh 语义，非零 write 与现代累计锚点四段守恒")
+  void mixedHistoryRetainsLegacyIndependentCacheFieldSemantics() throws IOException {
+    String content =
+        turnContext("legacy-turn")
+            + """
+            {"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":60,"cache_read_input_tokens":40,"cache_creation_input_tokens":10,"output_tokens":20}}}}
+            """
+            + turnContext("modern-turn")
+            + """
+            {"type":"token_usage_record","payload":{"response_id":"modern-write","turn_id":"modern-turn","usage":{"input_tokens":80,"cached_input_tokens":50,"cache_write_input_tokens":5,"output_tokens":10},"thread_token_usage":{"input_tokens":190,"cached_input_tokens":90,"cache_write_input_tokens":15,"output_tokens":30}}}
+            """;
+    SourceResult.Success success = parseContentFixture(content);
+    List<SourceRecord> calls =
+        success.records().stream()
+            .filter(record -> "assistant".equals(record.eventType()))
+            .toList();
+
+    assertThat(calls).hasSize(2);
+    assertThat(calls).extracting(record -> record.usage().inputTokens()).containsExactly(60L, 25L);
+    assertThat(calls)
+        .extracting(record -> record.usage().cacheReadInputTokens())
+        .containsExactly(40L, 50L);
+    assertThat(calls)
+        .extracting(record -> record.usage().cacheCreationInputTokens())
+        .containsExactly(10L, 5L);
+    assertThat(calls.stream().mapToLong(record -> record.usage().total()).sum()).isEqualTo(220);
+    assertThat(success.diagnostics())
+        .extracting(SourceDiagnostic::code)
+        .doesNotContain("TOKEN_USAGE_AMBIGUOUS");
+  }
+
+  @Test
+  @DisplayName("snapshot 与 modern 区间部分重叠或归属轮次冲突时不猜 residual call")
+  void mixedHistoryRejectsPartialOverlapAndCrossTurnMirrorGuessing() throws IOException {
+    String content =
+        turnContext("legacy-turn")
+            + mixedLegacyUsage(200, 150, 40)
+            + mixedLegacyUsage(250, 180, 50)
+            + turnContext("modern-turn")
+            + mixedModernUsage("modern-one", "modern-turn", 150, 140, 30, 250, 180, 50);
+    SourceResult.Success success = parseContentFixture(content);
+
+    assertUsageFrames(success, 1, 10, 140, 30);
+    assertThat(success.diagnostics().stream().filter(d -> "TOKEN_USAGE_AMBIGUOUS".equals(d.code())))
+        .hasSize(2);
+  }
+
+  @Test
+  @DisplayName("混合历史已选择 legacy 前缀的缺失分段参与 precision，而不是被现代覆盖")
+  void mixedHistoryProvenanceIncludesSelectedLegacyPrefix() throws IOException {
+    String content =
+        turnContext("legacy-turn")
+            + """
+            {"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":100,"cached_input_tokens":40,"output_tokens":20}}}}
+            """
+            + turnContext("modern-turn")
+            + mixedModernUsage("modern-one", "modern-turn", 150, 140, 30, 250, 180, 50);
+
+    assertUsageFrames(parseContentFixture(content), 2, 70, 180, 50);
+    Candidate candidate = discoverContentFixture(content);
+    assertPrecision(
+        candidate, "provider_reported", "provider_reported", "mixed", "provider_reported");
+    assertThat(candidate.metadata())
+        .containsEntry("tokenContainsUnavailable", "true")
+        .containsEntry("tokenContainsUnknown", "false");
+  }
+
+  private static String turnContext(String turn) {
+    return "{\"type\":\"turn_context\",\"payload\":{\"turn_id\":\"" + turn + "\"}}\n";
+  }
+
+  private static String mixedLegacyUsage(long input, long read, long output) {
+    return """
+    {"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":%d,"cached_input_tokens":%d,"cache_write_input_tokens":0,"output_tokens":%d}}}}
+    """
+        .formatted(input, read, output);
+  }
+
+  private static String mixedModernUsage(
+      String id,
+      String turn,
+      long input,
+      long read,
+      long output,
+      long totalInput,
+      long totalRead,
+      long totalOutput) {
+    return """
+    {"type":"token_usage_record","payload":{"response_id":"%s","turn_id":"%s","usage":{"input_tokens":%d,"cached_input_tokens":%d,"cache_write_input_tokens":0,"output_tokens":%d},"thread_token_usage":{"input_tokens":%d,"cached_input_tokens":%d,"cache_write_input_tokens":0,"output_tokens":%d}}}
+    """
+        .formatted(id, turn, input, read, output, totalInput, totalRead, totalOutput);
+  }
+
+  private static void assertUsageFrames(
+      SourceResult.Success success, int frames, long input, long read, long output) {
+    List<SourceRecord> calls =
+        success.records().stream()
+            .filter(record -> "assistant".equals(record.eventType()))
+            .toList();
+    assertThat(calls).hasSize(frames);
+    assertThat(calls.stream().mapToLong(record -> record.usage().inputTokens()).sum())
+        .isEqualTo(input);
+    assertThat(calls.stream().mapToLong(record -> record.usage().cacheReadInputTokens()).sum())
+        .isEqualTo(read);
+    assertThat(calls.stream().mapToLong(record -> record.usage().outputTokens()).sum())
+        .isEqualTo(output);
+    assertThat(calls.stream().mapToLong(record -> record.usage().total()).sum())
+        .isEqualTo(input + read + output);
+  }
+
+  @Test
+  @DisplayName("普通和自定义工具保留各自输入原文或 JSON 结构，缺失不猜配")
+  void toolInputsPreserveProviderTextAndStructuresWithoutGuessing() throws IOException {
+    SourceResult.Success success =
+        parseContentFixture(
+            """
+            {"type":"response_item","payload":{"type":"function_call","call_id":"function-text","name":"exec","arguments":"  {\\"command\\":\\"echo synthetic\\"}  "}}
+            {"type":"response_item","payload":{"type":"custom_tool_call","call_id":"custom-text","name":"exec","input":"  echo synthetic\\nnext  "}}
+            {"type":"response_item","payload":{"type":"function_call","call_id":"function-object","name":"exec","arguments":{"command":"echo synthetic","flags":["-n"],"enabled":false}}}
+            {"type":"response_item","payload":{"type":"custom_tool_call","call_id":"custom-array","name":"exec","input":["first",{"line":2}]}}
+            {"type":"response_item","payload":{"type":"function_call","call_id":"function-empty","name":"exec","arguments":{}}}
+            {"type":"response_item","payload":{"type":"custom_tool_call","call_id":"custom-empty","name":"exec","input":{}}}
+            {"type":"response_item","payload":{"type":"function_call","call_id":"function-missing","name":"exec","input":"not arguments"}}
+            {"type":"response_item","payload":{"type":"custom_tool_call","call_id":"custom-missing","name":"exec","arguments":"not input"}}
+            {"type":"response_item","payload":{"type":"function_call","call_id":"function-null","name":"exec","arguments":null}}
+            {"type":"response_item","payload":{"type":"custom_tool_call","call_id":"custom-null","name":"exec","input":null}}
+            """);
+
+    assertThat(success.records()).allSatisfy(r -> assertThat(r.eventType()).isEqualTo("tool_use"));
+    assertThat(success.records().stream().flatMap(r -> r.toolCalls().stream()))
+        .extracting(SourceToolCall::input)
+        .containsExactly(
+            "  {\"command\":\"echo synthetic\"}  ",
+            "  echo synthetic\nnext  ",
+            "{\"command\":\"echo synthetic\",\"flags\":[\"-n\"],\"enabled\":false}",
+            "[\"first\",{\"line\":2}]",
+            "{}",
+            "{}",
+            "",
+            "",
+            "",
+            "");
+  }
+
+  @Test
+  @DisplayName("主和 child 工具同名时输入仍按源声明及归属分离")
+  void mainAndChildToolInputsStayWithTheirOwnDeclarations() throws IOException {
+    Files.writeString(
+        tempDir.resolve("rollout-child-input.jsonl"),
+        """
+        {"type":"session_meta","payload":{"id":"child-input","parent_thread_id":"parent-input"}}
+        {"type":"response_item","payload":{"type":"custom_tool_call","call_id":"child-tool","name":"exec","input":"child synthetic input"}}
+        {"type":"token_usage_record","payload":{"response_id":"child-response","usage":{"input_tokens":10,"output_tokens":1}}}
+        """);
+    SourceResult.Success success =
+        parseContentFixture(
+            """
+            {"type":"session_meta","payload":{"id":"parent-input"}}
+            {"type":"response_item","payload":{"type":"function_call","call_id":"spawn-input","name":"spawn_agent","arguments":{"task":"synthetic child"}}}
+            {"type":"response_item","payload":{"type":"function_call_output","call_id":"spawn-input","output":{"agent_id":"child-input"}}}
+            {"type":"response_item","payload":{"type":"function_call","call_id":"main-tool","name":"exec","arguments":"main synthetic input"}}
+            {"type":"token_usage_record","payload":{"response_id":"main-response","usage":{"input_tokens":20,"output_tokens":2}}}
+            """);
+
+    List<SourceRecord> tools =
+        success.records().stream().filter(record -> "tool_use".equals(record.eventType())).toList();
+    assertThat(tools).hasSize(3);
+    assertThat(tools.get(0).toolCalls())
+        .singleElement()
+        .satisfies(
+            tool -> {
+              assertThat(tool.toolCallId()).isEqualTo("spawn-input");
+              assertThat(tool.input()).isEqualTo("{\"task\":\"synthetic child\"}");
+            });
+    assertThat(tools.get(1).relation().subagentId()).isEmpty();
+    assertThat(tools.get(1).toolCalls())
+        .singleElement()
+        .satisfies(
+            tool -> {
+              assertThat(tool.toolCallId()).isEqualTo("main-tool");
+              assertThat(tool.input()).isEqualTo("main synthetic input");
+            });
+    assertThat(tools.get(2).relation().subagentId()).contains("child-input");
+    assertThat(tools.get(2).toolCalls())
+        .singleElement()
+        .satisfies(
+            tool -> {
+              assertThat(tool.toolCallId()).isEqualTo("child-tool");
+              assertThat(tool.input()).isEqualTo("child synthetic input");
+            });
+  }
+
+  @Test
+  @DisplayName("现代 input 包含缓存读写，分段合计必须保持 provider total")
+  void modernCacheWritesAreSeparatedFromInclusiveInput() throws IOException {
+    SourceResult.Success success =
+        parseContentFixture(
+            """
+            {"type":"token_usage_record","payload":{"response_id":"response-write","usage":{"input_tokens":100,"cached_input_tokens":40,"cache_write_input_tokens":10,"output_tokens":20,"reasoning_output_tokens":5,"total_tokens":120}}}
+            """);
+
+    assertThat(success.records())
+        .singleElement()
+        .satisfies(
+            record -> {
+              assertThat(record.usage().inputTokens()).isEqualTo(50);
+              assertThat(record.usage().cacheReadInputTokens()).isEqualTo(40);
+              assertThat(record.usage().cacheCreationInputTokens()).isEqualTo(10);
+              assertThat(record.usage().outputTokens()).isEqualTo(20);
+              assertThat(record.usage().total()).isEqualTo(120);
+            });
+  }
+
+  @Test
+  @DisplayName("真实零字段为 provider_reported，旧镜像缺字段不污染现代精度")
+  void discoveredPrecisionPreservesReportedZeroAndIgnoresLegacyMirrors() throws IOException {
+    Candidate candidate =
+        discoverContentFixture(
+            reportedZeroUsage()
+                + """
+                {"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":0,"output_tokens":0}}}}
+                {"type":"token_usage_record","payload":{"response_id":"zero","usage":{"input_tokens":0,"output_tokens":0}}}
+                """);
+
+    assertPrecision(
+        candidate,
+        "provider_reported",
+        "provider_reported",
+        "provider_reported",
+        "provider_reported");
+    assertThat(candidate.metadata())
+        .containsEntry("tokenContainsUnknown", "false")
+        .containsEntry("tokenContainsUnavailable", "false")
+        .containsEntry("tokenContainsEstimated", "false");
+  }
+
+  @Test
+  @DisplayName("usage 缺失分段为 unavailable 而非计量零")
+  void discoveredPrecisionDistinguishesAbsentUsageComponents() throws IOException {
+    Candidate candidate =
+        discoverContentFixture(
+            """
+            {"type":"token_usage_record","payload":{"response_id":"partial","usage":{"input_tokens":0,"output_tokens":0}}}
+            """);
+
+    assertPrecision(
+        candidate, "provider_reported", "unavailable", "unavailable", "provider_reported");
+    assertThat(candidate.metadata())
+        .containsEntry("tokenContainsUnavailable", "true")
+        .containsEntry("tokenContainsUnknown", "false");
+  }
+
+  @Test
+  @DisplayName("多响应缺段精度为 mixed 并保留 unavailable 覆盖")
+  void discoveredPrecisionAggregatesMissingComponentsAcrossResponses() throws IOException {
+    Candidate candidate =
+        discoverContentFixture(
+            reportedZeroUsage()
+                + """
+                {"type":"token_usage_record","payload":{"response_id":"partial","usage":{"input_tokens":10,"output_tokens":5}}}
+                """);
+
+    assertPrecision(candidate, "provider_reported", "mixed", "mixed", "provider_reported");
+    assertThat(candidate.metadata()).containsEntry("tokenContainsUnavailable", "true");
+  }
+
+  @Test
+  @DisplayName("没有原始计量时四段精度均 unknown")
+  void discoveredPrecisionWithoutMeasurementRemainsUnknown() throws IOException {
+    Candidate candidate =
+        discoverContentFixture(
+            """
+            {"type":"response_item","payload":{"type":"message","role":"assistant","content":"synthetic"}}
+            """);
+
+    assertPrecision(candidate, "unknown", "unknown", "unknown", "unknown");
+    assertThat(candidate.metadata())
+        .containsEntry("tokenContainsUnknown", "true")
+        .containsEntry("tokenContainsUnavailable", "false");
+  }
+
+  @Test
+  @DisplayName("旧累计 usage 仍按原始字段存在性保留精度")
+  void discoveredLegacyPrecisionPreservesMissingCacheWrite() throws IOException {
+    Candidate candidate =
+        discoverContentFixture(
+            """
+            {"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":100,"cached_input_tokens":40,"output_tokens":20}}}}
+            """);
+
+    assertPrecision(
+        candidate, "provider_reported", "provider_reported", "unavailable", "provider_reported");
+    assertThat(candidate.metadata())
+        .containsEntry("tokenContainsUnavailable", "true")
+        .containsEntry("tokenContainsUnknown", "false");
+  }
+
+  @Test
+  @DisplayName("父 usage 与无计量 child 聚合为 mixed，并保留 unknown 覆盖")
+  void discoveredPrecisionIncludesOnlyMatchedChildMeasurements() throws IOException {
+    Path day = tempDir.resolve("sessions/2026/10/01");
+    Files.createDirectories(day);
+    Files.writeString(
+        day.resolve("rollout-child-unknown.jsonl"),
+        """
+        {"type":"session_meta","payload":{"id":"child-unknown","parent_thread_id":"precision","agent_path":"/root/task"}}
+        {"type":"response_item","payload":{"type":"message","role":"assistant","content":"synthetic"}}
+        """);
+    Candidate candidate =
+        discoverContentFixture(
+            """
+            {"type":"session_meta","payload":{"id":"precision"}}
+            {"type":"response_item","payload":{"type":"function_call","call_id":"spawn","name":"spawn_agent"}}
+            {"type":"response_item","payload":{"type":"function_call_output","call_id":"spawn","output":{"task_name":"/root/task"}}}
+            """
+                + reportedZeroUsage());
+
+    assertPrecision(candidate, "mixed", "mixed", "mixed", "mixed");
+    assertThat(candidate.metadata())
+        .containsEntry("tokenContainsUnknown", "true")
+        .containsEntry("tokenContainsUnavailable", "false");
+  }
+
+  private Candidate discoverContentFixture(String content) throws IOException {
+    Files.writeString(
+        tempDir.resolve(CodexConstants.SESSION_INDEX_FILE),
+        "{\"id\":\"precision\",\"thread_name\":\"Synthetic\"}\n");
+    Path day = tempDir.resolve("sessions/2026/10/01");
+    Files.createDirectories(day);
+    Files.writeString(day.resolve("rollout-precision.jsonl"), content);
+    return adapter.discover(tempDir).orderedItems().getFirst();
+  }
+
+  private static void assertPrecision(
+      Candidate candidate, String input, String read, String write, String output) {
+    assertThat(candidate.metadata())
+        .containsEntry("freshInputTokenPrecision", input)
+        .containsEntry("cacheReadTokenPrecision", read)
+        .containsEntry("cacheWriteTokenPrecision", write)
+        .containsEntry("outputTokenPrecision", output)
+        .containsKey("tokenEstimationMethod");
+  }
+
+  private static String reportedZeroUsage() {
+    return """
+    {"type":"token_usage_record","payload":{"response_id":"zero","usage":{"input_tokens":0,"cached_input_tokens":0,"cache_write_input_tokens":0,"output_tokens":0}}}
+    """;
+  }
+
+  @Test
+  @DisplayName("现代逐响应 usage 优先于落后的累计镜像并按 response_id 去重")
+  void modernUsageRecordsReplaceLaggingCumulativeMirrors() throws IOException {
+    SourceResult.Success success =
+        parseContentFixture(
+            """
+            {"type":"turn_context","payload":{"model":"gpt-synthetic"}}
+            {"type":"response_item","payload":{"type":"reasoning"}}
+            {"type":"response_item","payload":{"type":"custom_tool_call","call_id":"tool-a","name":"exec"}}
+            {"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":100,"cached_input_tokens":40,"output_tokens":20}}}}
+            {"type":"token_usage_record","timestamp":"2026-10-01T10:00:00Z","payload":{"response_id":"response-a","turn_id":"turn-a","usage":{"input_tokens":100,"cached_input_tokens":40,"cache_write_input_tokens":0,"output_tokens":20,"reasoning_output_tokens":5,"total_tokens":120}}}
+            {"type":"response_item","payload":{"type":"function_call","call_id":"tool-b","name":"exec"}}
+            {"type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"done"}]}}
+            {"type":"token_usage_record","payload":{"response_id":"response-b","turn_id":"turn-a","usage":{"input_tokens":150,"cached_input_tokens":140,"output_tokens":30,"reasoning_output_tokens":7,"total_tokens":180}}}
+            {"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":100,"cached_input_tokens":40,"output_tokens":20}}}}
+            {"type":"token_usage_record","payload":{"response_id":"response-b","usage":{"input_tokens":150,"cached_input_tokens":140,"output_tokens":30,"total_tokens":180}}}
+            """);
+
+    List<SourceRecord> calls =
+        success.records().stream().filter(r -> "assistant".equals(r.eventType())).toList();
+    assertThat(calls).hasSize(2);
+    assertThat(calls)
+        .extracting(r -> r.callId().orElseThrow())
+        .containsExactly("token_usage_record:response-a", "token_usage_record:response-b");
+    assertThat(calls.getFirst().model()).contains("gpt-synthetic");
+    assertThat(calls.getFirst().timestamp()).contains("2026-10-01T10:00:00Z");
+    assertThat(calls.getFirst().turnId()).contains("turn-a");
+    assertThat(calls).extracting(r -> r.usage().inputTokens()).containsExactly(60L, 10L);
+    assertThat(calls).extracting(r -> r.usage().cacheReadInputTokens()).containsExactly(40L, 140L);
+    assertThat(calls).extracting(r -> r.usage().outputTokens()).containsExactly(20L, 30L);
+    assertThat(success.records().stream().mapToLong(r -> r.usage().total()).sum()).isEqualTo(300);
+    assertThat(success.records().get(6).content()).isEqualTo("done");
+    assertThat(success.records().get(6).eventType()).isEqualTo("response_item");
+  }
+
+  @Test
+  @DisplayName("仅现代 usage 时不把 reasoning 或 assistant 文本重复建成调用")
+  void modernOnlyUsageDefinesCallsInsteadOfResponseItems() throws IOException {
+    SourceResult.Success success =
+        parseContentFixture(
+            """
+            {"type":"response_item","payload":{"type":"reasoning"}}
+            {"type":"response_item","payload":{"type":"message","role":"assistant","content":"answer"}}
+            {"type":"token_usage_record","payload":{"response_id":"response-only","usage":{"input_tokens":70,"cached_input_tokens":50,"output_tokens":10}}}
+            """);
+
+    assertThat(eventTypes(success)).containsExactly("response_item", "response_item", "assistant");
+    assertThat(success.records().getLast().usage().total()).isEqualTo(80);
+    assertThat(success.records().get(1).content()).isEqualTo("answer");
+  }
+
+  @Test
+  @DisplayName("旧累计 usage 文件仍差分并忽略重复镜像")
+  void legacyCumulativeUsageStillProducesIndependentDeltas() throws IOException {
+    SourceResult.Success success =
+        parseContentFixture(
+            """
+            {"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":100,"cached_input_tokens":40,"output_tokens":20}}}}
+            {"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":100,"cached_input_tokens":40,"output_tokens":20}}}}
+            {"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":230,"cached_input_tokens":140,"output_tokens":50}}}}
+            """);
+
+    List<SourceRecord> calls =
+        success.records().stream().filter(r -> "assistant".equals(r.eventType())).toList();
+    assertThat(calls).hasSize(2);
+    assertThat(calls).extracting(r -> r.usage().inputTokens()).containsExactly(60L, 30L);
+    assertThat(calls).extracting(r -> r.usage().cacheReadInputTokens()).containsExactly(40L, 100L);
+    assertThat(calls).extracting(r -> r.usage().outputTokens()).containsExactly(20L, 30L);
+    assertThat(success.records().stream().mapToLong(r -> r.usage().total()).sum()).isEqualTo(280);
+  }
+
+  @Test
+  @DisplayName("task_name 精确匹配同父线程完整 agent_path，子 usage 和工具均保留")
+  void taskPathSpawnResultsIncludeOnlyMatchingChildRollouts() throws IOException {
+    writeChildRollout("child-a", "parent", "/root/task-a", false);
+    writeChildRollout("child-b", "parent", "/root/task-b", true);
+    writeChildRollout("unrelated", "other-parent", "/root/task-a", false);
+
+    SourceResult.Success success =
+        parseContentFixture(
+            """
+            {"type":"session_meta","payload":{"id":"parent"}}
+            {"type":"response_item","payload":{"type":"function_call","call_id":"spawn-a","name":"spawn_agent"}}
+            {"type":"response_item","payload":{"type":"function_call_output","call_id":"spawn-a","output":"{\\"task_name\\":\\"/root/task-a\\"}"}}
+            {"type":"response_item","payload":{"type":"custom_tool_call","call_id":"spawn-b","name":"spawn_agent"}}
+            {"type":"response_item","payload":{"type":"custom_tool_call_output","call_id":"spawn-b","output":{"task_name":"/root/task-b"}}}
+            {"type":"token_usage_record","payload":{"response_id":"parent-response","usage":{"input_tokens":100,"cached_input_tokens":40,"output_tokens":20}}}
+            """);
+
+    List<SourceRecord> calls =
+        success.records().stream().filter(r -> "assistant".equals(r.eventType())).toList();
+    assertThat(calls).hasSize(3);
+    assertThat(calls.get(1).relation().subagentId()).contains("child-a");
+    assertThat(calls.get(1).relation().parentToolCallId()).contains("spawn-a");
+    assertThat(calls.get(2).relation().subagentId()).contains("child-b");
+    assertThat(calls.get(2).relation().parentToolCallId()).contains("spawn-b");
+    assertThat(calls.subList(1, 3))
+        .allSatisfy(
+            r -> {
+              assertThat(r.relation().parentThreadId()).contains("parent");
+              assertThat(r.model()).contains("gpt-child");
+            });
+    assertThat(success.records().stream().filter(r -> "tool_use".equals(r.eventType()))).hasSize(4);
+    assertThat(success.records()).noneMatch(r -> r.locator().contains("unrelated"));
+    assertThat(success.records().stream().mapToLong(r -> r.usage().total()).sum()).isEqualTo(560);
+  }
+
+  @Test
+  @DisplayName("同父线程存在重复 agent_path 时诊断歧义，不按顺序选子线程")
+  void ambiguousChildPathsAreDiagnosedWithoutGuessing() throws IOException {
+    writeChildRollout("child-a", "parent", "/root/task", false);
+    writeChildRollout("child-b", "parent", "/root/task", false);
+    SourceResult.Success success = parseContentFixture(taskPathParent());
+
+    assertThat(success.records()).hasSize(3);
+    assertThat(success.diagnostics())
+        .extracting(SourceDiagnostic::code)
+        .contains("SUBAGENT_SPAWN_AMBIGUOUS");
+  }
+
+  @Test
+  @DisplayName("多个 spawn 输出复用同一路径时诊断歧义而不覆盖父工具归属")
+  void ambiguousSpawnPathsAreDiagnosedWithoutGuessing() throws IOException {
+    writeChildRollout("child-a", "parent", "/root/task", false);
+    SourceResult.Success success =
+        parseContentFixture(
+            taskPathParent()
+                + """
+                {"type":"response_item","payload":{"type":"function_call","call_id":"spawn-again","name":"spawn_agent"}}
+                {"type":"response_item","payload":{"type":"function_call_output","call_id":"spawn-again","output":{"task_name":"/root/task"}}}
+                """);
+
+    assertThat(success.records()).hasSize(5);
+    assertThat(success.records()).allSatisfy(r -> assertThat(r.relation().subagentId()).isEmpty());
+    assertThat(success.diagnostics())
+        .extracting(SourceDiagnostic::code)
+        .contains("SUBAGENT_SPAWN_AMBIGUOUS");
+  }
+
+  @Test
+  @DisplayName("旧 agent_id spawn 输出仍把 child rollout 归属到原始子线程 ID")
+  void legacyAgentIdSpawnOutputRemainsSupported() throws IOException {
+    writeChildRollout("child-legacy", "parent", "/root/legacy", false);
+    SourceResult.Success success =
+        parseContentFixture(
+            """
+            {"type":"session_meta","payload":{"id":"parent"}}
+            {"type":"response_item","payload":{"type":"function_call","call_id":"spawn-legacy","name":"spawn_agent"}}
+            {"type":"response_item","payload":{"type":"function_call_output","call_id":"spawn-legacy","output":{"agent_id":"child-legacy","nickname":"Synthetic"}}}
+            """);
+
+    assertThat(success.records().stream().filter(r -> "assistant".equals(r.eventType())))
+        .singleElement()
+        .satisfies(
+            r -> {
+              assertThat(r.relation().subagentId()).contains("child-legacy");
+              assertThat(r.relation().parentToolCallId()).contains("spawn-legacy");
+              assertThat(r.usage().total()).isEqualTo(220);
+            });
+  }
+
+  private void writeChildRollout(String id, String parent, String agentPath, boolean nested)
+      throws IOException {
+    String metadata =
+        nested
+            ? "\"source\":{\"subagent\":{\"thread_spawn\":{\"parent_thread_id\":\"%s\",\"agent_path\":\"%s\"}}}"
+                .formatted(parent, agentPath)
+            : "\"parent_thread_id\":\"%s\",\"agent_path\":\"%s\"".formatted(parent, agentPath);
+    Files.writeString(
+        tempDir.resolve("rollout-" + id + ".jsonl"),
+        "{\"type\":\"session_meta\",\"payload\":{\"id\":\""
+            + id
+            + "\","
+            + metadata
+            + "}}\n"
+            + """
+            {"type":"turn_context","payload":{"model":"gpt-child"}}
+            {"type":"response_item","payload":{"type":"function_call","call_id":"exec-%s","name":"exec"}}
+            {"type":"response_item","payload":{"type":"function_call_output","call_id":"exec-%s","output":"synthetic"}}
+            {"type":"token_usage_record","payload":{"response_id":"response-%s","usage":{"input_tokens":200,"cached_input_tokens":150,"output_tokens":20}}}
+            """
+                .formatted(id, id, id));
+  }
+
+  private static String taskPathParent() {
+    return """
+    {"type":"session_meta","payload":{"id":"parent"}}
+    {"type":"response_item","payload":{"type":"function_call","call_id":"spawn-task","name":"spawn_agent"}}
+    {"type":"response_item","payload":{"type":"function_call_output","call_id":"spawn-task","output":{"task_name":"/root/task"}}}
+    """;
+  }
 
   @Test
   @DisplayName("有 token_count 时保留响应正文而不新增 assistant 帧或用量")

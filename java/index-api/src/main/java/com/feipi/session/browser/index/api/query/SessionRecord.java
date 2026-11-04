@@ -1,5 +1,8 @@
 package com.feipi.session.browser.index.api.query;
 
+import com.feipi.session.browser.domain.normalized.SessionTiming;
+import com.feipi.session.browser.domain.normalized.TokenProvenance;
+
 /** 索引查询端口暴露的抽象 session 查询结果。 */
 public interface SessionRecord {
   /** 返回会话在索引中的稳定唯一键。 */
@@ -85,4 +88,14 @@ public interface SessionRecord {
 
   /** 返回会话源文件路径。 */
   String filePath();
+
+  /** 返回相同查询范围的四段计量来源；旧实现不推断为 provider 上报。 */
+  default TokenProvenance tokenProvenance() {
+    return TokenProvenance.unknown(1);
+  }
+
+  /** 返回独立计时口径；旧数字执行秒不能被推断成精确测量。 */
+  default SessionTiming timing() {
+    return SessionTiming.unknown(durationSeconds());
+  }
 }

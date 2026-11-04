@@ -11,31 +11,31 @@
 ![会话详情与 Token 统计](docs/images/screenshots/session-detail.png)
 -->
 
-## 开始使用
-
-从 [Releases](https://github.com/iampkuhz/feipi-session-browser/releases) 下载对应系统与架构的 **runtime** 包（自带 Java），解压后在 `app-cli` 目录运行：
-
-```bash
-./bin/run serve          # macOS / Linux
-```
-
-Windows 使用 `.\bin\run.bat serve`。
-
-打开 **[localhost:8848](http://127.0.0.1:8848)**。服务会自动扫描本机会话；保持终端开启，按 `Ctrl-C` 停止。
-
-<details>
-<summary>从源码启动（无对应发行包时）</summary>
+## 从源码开始使用
 
 需要 Git、JDK 25 和 Bash，首次构建需联网。
+
+### 1. 拉取代码
 
 ```bash
 git clone https://github.com/iampkuhz/feipi-session-browser.git
 cd feipi-session-browser
+```
+
+### 2. 构建并启动
+
+在仓库根目录运行（已拉取代码可直接从这一步开始）：
+
+```bash
 ./scripts/session-browser.sh deps
 ./scripts/session-browser.sh serve
 ```
 
-</details>
+`deps` 构建启动器并检查运行环境；每次执行 `serve` 前会执行 Gradle 增量构建，不运行测试。
+
+### 3. 浏览会话
+
+打开 **[localhost:8848](http://127.0.0.1:8848)**。服务会自动扫描本机会话；保持终端开启，按 `Ctrl-C` 停止。
 
 原始会话只读，索引保存在本机。分享截图前请脱敏，不要将服务直接暴露到公网。
 

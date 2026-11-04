@@ -5,14 +5,108 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.feipi.session.browser.domain.source.SourceRecord;
 import com.feipi.session.browser.domain.source.SourceRecordRelation;
 import com.feipi.session.browser.domain.source.SourceRecordUsage;
+import com.feipi.session.browser.domain.source.SourceTiming;
 import com.feipi.session.browser.domain.source.SourceToolCall;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalLong;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 @DisplayName("QoderResponseRecords 合并测试")
 class QoderResponseRecordsTest {
+
+  @Test
+  @DisplayName("Qoder identity 与 response 合并保留 meta/timing，差异 meta 不合并")
+  void identityAndMergeCopiesPreserveMetaAndTimingWithoutMixingEvidence() {
+    SourceRecord first =
+        new SourceRecord(
+            "synthetic.jsonl#event[0]",
+            0,
+            "assistant",
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty(),
+            SourceRecordUsage.empty(),
+            List.of(),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty(),
+            SourceRecordRelation.empty(),
+            "first",
+            Optional.of("synthetic-meta-message"),
+            Optional.empty(),
+            new SourceTiming(
+                "turn_duration",
+                "synthetic-turn",
+                Optional.empty(),
+                Optional.empty(),
+                OptionalLong.of(23),
+                OptionalLong.of(0),
+                OptionalLong.empty(),
+                "synthetic-event"),
+            true);
+    SourceRecord second =
+        new SourceRecord(
+            first.locator(),
+            first.eventIndex(),
+            first.eventType(),
+            first.callId(),
+            first.model(),
+            first.timestamp(),
+            first.turnId(),
+            first.usage(),
+            first.toolCalls(),
+            first.toolUseId(),
+            first.toolName(),
+            first.toolError(),
+            first.relation(),
+            "second",
+            first.responseMessageId(),
+            first.responseStopReason(),
+            first.timing(),
+            true);
+    List<SourceRecord> merged = QoderResponseRecords.merge(List.of(first, second));
+    assertThat(merged).hasSize(1);
+    assertThat(merged.getFirst().metaContext()).isTrue();
+    assertThat(merged.getFirst().timing()).isEqualTo(first.timing());
+    assertThat(merged.getFirst().content()).isEqualTo("first\nsecond");
+
+    SourceRecord ordinary =
+        new SourceRecord(
+            second.locator(),
+            second.eventIndex(),
+            second.eventType(),
+            second.callId(),
+            second.model(),
+            second.timestamp(),
+            second.turnId(),
+            second.usage(),
+            second.toolCalls(),
+            second.toolUseId(),
+            second.toolName(),
+            second.toolError(),
+            second.relation(),
+            "ordinary",
+            second.responseMessageId(),
+            second.responseStopReason(),
+            second.timing());
+    List<SourceRecord> separate = QoderResponseRecords.merge(List.of(first, ordinary));
+    assertThat(separate).hasSize(2);
+    assertThat(separate).extracting(SourceRecord::metaContext).containsExactly(true, false);
+    assertThat(separate)
+        .extracting(SourceRecord::timing)
+        .containsExactly(first.timing(), first.timing());
+    assertThat(separate).extracting(SourceRecord::content).containsExactly("first", "ordinary");
+    var alternating = QoderResponseRecords.merge(List.of(first, ordinary, second));
+    assertThat(alternating)
+        .extracting(SourceRecord::metaContext)
+        .containsExactly(true, false, true);
+    assertThat(alternating)
+        .extracting(SourceRecord::content)
+        .containsExactly("first", "ordinary", "second");
+  }
 
   @Test
   @DisplayName("同 responseMessageId 连续 assistant 分片合并为单条记录")

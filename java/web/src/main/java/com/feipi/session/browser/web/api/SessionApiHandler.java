@@ -10,6 +10,7 @@ import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
 import com.feipi.session.browser.index.api.IndexQueryException;
 import com.feipi.session.browser.query.api.CallRound;
 import com.feipi.session.browser.query.api.PayloadVisibility;
+import com.feipi.session.browser.query.api.SensitiveFieldPolicy;
 import com.feipi.session.browser.web.api.ApiResponses.AttributionData;
 import com.feipi.session.browser.web.api.ApiResponses.AttributionResponse;
 import com.feipi.session.browser.web.api.ApiResponses.BucketDetailResponse;
@@ -349,7 +350,10 @@ public final class SessionApiHandler {
       for (NormalizedCall call : roundCalls) {
         String text = allTexts.get(call.callId());
         if (text != null && !text.isEmpty()) {
-          callAssistantTexts.put(call.callId(), text);
+          callAssistantTexts.put(
+              call.callId(),
+              SensitiveFieldPolicy.fromVisibility(sessionCtx.detail().visibility())
+                  .applyMasking(text));
         }
       }
     }
@@ -440,8 +444,9 @@ public final class SessionApiHandler {
 
   /** 判断调用是否匹配指定的 subagent ID。 */
   private static boolean matchesSubagent(NormalizedCall call, String subagentId) {
-    // 通过 parentCallId 匹配
-    return call.parentCallId().map(parentId -> parentId.equals(subagentId)).orElse(false);
+    // 优先使用归一化子 agent 标识，同时兼容旧页面传入父调用 ID。
+    return call.subagentId().filter(subagentId::equals).isPresent()
+        || call.parentCallId().filter(subagentId::equals).isPresent();
   }
 
   /** 查找调用所在的轮次序号。 */

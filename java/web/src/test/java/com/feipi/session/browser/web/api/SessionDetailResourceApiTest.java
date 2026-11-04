@@ -89,8 +89,11 @@ class SessionDetailResourceApiTest {
           JsonNode body = MAPPER.readTree(response.body().string());
 
           assertTokens(body.get("tokens"), 1000, 400, 100, 500, 2000);
-          assertThat(body.get("toolCalls").asLong()).isEqualTo(4);
+          // 该fixture索引行是4工具，但冻结制品只有main+child共2工具；详情必须选择制品。
+          assertThat(body.get("toolCalls").asLong()).isEqualTo(2);
           assertThat(body.get("failedTools").asLong()).isEqualTo(1);
+          assertThat(body.at("/parity/toolCalls").asLong()).isEqualTo(2);
+          assertThat(body.at("/parity/failedTools").asLong()).isEqualTo(1);
           assertThat(body.get("roundCount").asLong()).isEqualTo(1);
           assertThat(body.get("payloadCount").asLong()).isEqualTo(4);
         });

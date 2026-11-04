@@ -4,6 +4,8 @@ import com.feipi.session.browser.domain.enums.CallScope;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
 import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
+import com.feipi.session.browser.domain.normalized.SessionTiming;
+import com.feipi.session.browser.domain.normalized.TokenProvenance;
 import com.feipi.session.browser.index.store.sqlite.row.SessionArtifactRow;
 import com.feipi.session.browser.index.store.sqlite.row.SessionRow;
 import java.util.HashSet;
@@ -239,7 +241,9 @@ public final class ArtifactRowMapper {
         subagentInstanceCount,
         indexedAt,
         fileMtime,
-        filePath);
+        filePath,
+        TokenProvenance.fromMetadata(session),
+        SessionTiming.fromMetadata(session));
   }
 
   /**

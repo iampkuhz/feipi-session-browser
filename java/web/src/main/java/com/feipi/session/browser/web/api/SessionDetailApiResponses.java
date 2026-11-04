@@ -1,5 +1,6 @@
 package com.feipi.session.browser.web.api;
 
+import com.feipi.session.browser.domain.normalized.SessionTiming;
 import com.feipi.session.browser.query.api.PayloadSource;
 import com.feipi.session.browser.web.api.PageApiDtos.PageStateDto;
 import com.feipi.session.browser.web.api.PageApiDtos.TokenSegments;
@@ -22,6 +23,18 @@ public final class SessionDetailApiResponses {
    */
   public static PayloadIndexDto payloadIndexDto(
       PayloadSource source, String agent, String sessionId) {
+    return payloadIndexDto(
+        source, "/api/sessions/" + ApiQueryParams.url(agent) + "/" + ApiQueryParams.url(sessionId));
+  }
+
+  /**
+   * 构建指定分析范围的载荷索引，避免导入详情回落个人 URL。
+   *
+   * @param source 载荷来源
+   * @param apiBase 当前详情的 API 基址
+   * @return 载荷索引
+   */
+  public static PayloadIndexDto payloadIndexDto(PayloadSource source, String apiBase) {
     String status = source.truncated() ? "hidden" : "available";
     return new PayloadIndexDto(
         source.payloadId(),
@@ -30,12 +43,7 @@ public final class SessionDetailApiResponses {
         source.title(),
         source.truncated(),
         status,
-        "/api/sessions/"
-            + ApiQueryParams.url(agent)
-            + "/"
-            + ApiQueryParams.url(sessionId)
-            + "/payload/"
-            + ApiQueryParams.url(source.payloadId()));
+        apiBase + "/payload/" + ApiQueryParams.url(source.payloadId()));
   }
 
   /**
@@ -145,6 +153,7 @@ public final class SessionDetailApiResponses {
    * @param durationSeconds 持续时间秒数。
    * @param modelExecutionSeconds 持续时间秒数。
    * @param toolExecutionSeconds 持续时间秒数。
+   * @param timing 来源明确的时间口径与可用性。
    * @param roundCount round 数量。
    * @param payloadCount payload 数量。
    * @param parity main 分支 parity 分析字段。
@@ -160,8 +169,9 @@ public final class SessionDetailApiResponses {
       long failedTools,
       long subagents,
       double durationSeconds,
-      double modelExecutionSeconds,
-      double toolExecutionSeconds,
+      Double modelExecutionSeconds,
+      Double toolExecutionSeconds,
+      SessionTiming timing,
       long roundCount,
       long payloadCount,
       Map<String, Object> parity,
@@ -172,6 +182,7 @@ public final class SessionDetailApiResponses {
       schemaVersion = schemaVersion == null ? ApiResponses.SCHEMA_VERSION : schemaVersion;
       Objects.requireNonNull(filters, "filters must not be null");
       Objects.requireNonNull(tokens, "tokens must not be null");
+      Objects.requireNonNull(timing, "timing must not be null");
       parity = parity == null ? Map.of() : Map.copyOf(parity);
       Objects.requireNonNull(state, "state must not be null");
       if (userMessages < 0
@@ -180,8 +191,8 @@ public final class SessionDetailApiResponses {
           || failedTools < 0
           || subagents < 0
           || durationSeconds < 0
-          || modelExecutionSeconds < 0
-          || toolExecutionSeconds < 0
+          || (modelExecutionSeconds != null && modelExecutionSeconds < 0)
+          || (toolExecutionSeconds != null && toolExecutionSeconds < 0)
           || roundCount < 0
           || payloadCount < 0) {
         throw new IllegalArgumentException("metric values must be non-negative");

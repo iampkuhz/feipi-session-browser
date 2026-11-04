@@ -1,5 +1,7 @@
 # Projects 页面规约
 
+- 总量 KPI 与每个项目 Token Cell 遵循 `common.md` 的 `Token Measurement Provenance`；mixed 汇总常驻估算、未上报与未知覆盖，不仅放 tooltip。
+
 ## 定位
 
 Projects 是项目级入口页，展示已索引工作区的项目活动、agent 覆盖、token 规模和失败概况，并提供进入 Project Detail 的路径。

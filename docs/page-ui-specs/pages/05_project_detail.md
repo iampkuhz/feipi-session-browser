@@ -1,5 +1,9 @@
 # Project Detail 页面规约
 
+- 项目内 session 的 `Task Active`/`Wall Duration` 使用同一 row typed timing，口径同 `common.md`；未报告不能以 legacy `Process Time` 或 0 补值。
+
+- 总量、Cache Read Ratio、趋势、Agent Mix 与项目内 Sessions 遵循 `common.md` 的 `Token Measurement Provenance`；仅当前项目 API scope 的精度参与展示，部分输入计量不显示精确百分比。
+
 ## 定位
 
 Project Detail 展示单个项目的 session、agent、token、tool 和失败热点，并提供项目内 session 明细。
@@ -19,7 +23,7 @@ Project Detail 展示单个项目的 session、agent、token、tool 和失败热
 - Agent Mix 中 agent badge 点击进入 Dashboard，并带上对应 agent scope 参数。
 - Tool Hotspots 按 calls 降序展示。
 - 项目内 Sessions 表搜索范围固定为 title 和 session id。
-- 项目内 Sessions 表可排序列固定为 `Tokens`、`Rounds`、`Tools`、`Subagents`、`Duration`、`Process Time`、`Failure`、`Created`、`Updated`。
+- 项目内 Sessions 表可排序列固定为 `Tokens`、`Rounds`、`Tools`、`Subagents`、`Wall Duration`、`Task Active`、`Failure`、`Created`、`Updated`。
 - 项目内 Sessions 表 page size selector 候选项固定为 25、50、100，默认值固定为 25。
 
 ## 文字内容
@@ -35,11 +39,11 @@ Project Detail 展示单个项目的 session、agent、token、tool 和失败热
 
 1. `Sessions`
    - 一级值：当前 project 下 session 总数。
-   - 二级指标固定为 `Today`、`7d Avg`、`Median Duration`、`Median Process Time`。
+   - 二级指标固定为 `Today`、`7d Avg`、`Median Duration`、`Median Task Active`。
    - `Today`：first user message timestamp 落在当前自然日内的 session 数。
    - `7d Avg`：最近 7 个自然日每日 session 数的算术平均值。
    - `Median Duration`：当前 project 下 session `Duration` 的中位数。
-   - `Median Process Time`：当前 project 下 session `Process Time` 的中位数。
+   - `Median Task Active`：当前 project 可测 MAIN Task Active 的中位数；API 未提供 typed 聚合则 `N/A`，不使用 wall duration 代替。
 2. `Agents`
    - 一级值：当前 project 下出现过的 agent key 去重数。
    - 二级指标固定为 `Claude Code`、`Qoder`、`Codex`。
@@ -90,7 +94,7 @@ Project Detail 展示单个项目的 session、agent、token、tool 和失败热
 
 ### 项目内 Sessions 表
 
-- 表格列固定为 `Session`、`Agent`、`Model`、`Tokens`、`Rounds`、`Tools`、`Subagents`、`Duration`、`Process Time`、`Failure`、`Created`、`Updated`。
+- 表格列固定为 `Session`、`Agent`、`Model`、`Tokens`、`Rounds`、`Tools`、`Subagents`、`Wall Duration`、`Task Active`、`Failure`、`Created`、`Updated`。
 - `Session`：session title、短 session id、git branch；示例值 `Fix cache chart · a8120f1d · main`。
 - `Agent`：标准 agent badge；示例值 `Claude Code`。
 - `Model`：model mono 文本；示例值 `claude-sonnet-4.5`。
@@ -99,7 +103,7 @@ Project Detail 展示单个项目的 session、agent、token、tool 和失败热
 - `Tools`：tool call 数；示例值 `42`。
 - `Subagents`：subagent call 数；示例值 `2`。
 - `Duration`：通用时间指标 `Duration`；示例值 `36m`。
-- `Process Time`：通用时间指标 `Process Time`；示例值 `9m 42s`。
+- `Task Active`：当前 row 的 typed MAIN task-window union；未知显示 `N/A`。
 - `Failure`：failed tool result 数量；示例值 `3 failed`。
 - `Created`：通用时间指标 `Created`；示例值 `2026-06-06 10:24`。
 - `Updated`：通用时间指标 `Updated`；示例值 `2 min ago`。

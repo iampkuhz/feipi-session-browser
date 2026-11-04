@@ -1,5 +1,6 @@
 package com.feipi.session.browser.index.store.sqlite.row;
 
+import com.feipi.session.browser.domain.normalized.TokenProvenance;
 import com.feipi.session.browser.index.api.query.ProjectStats;
 import com.feipi.session.browser.validation.ValidationSupport;
 import jakarta.validation.constraints.PositiveOrZero;
@@ -27,6 +28,7 @@ import jakarta.validation.constraints.PositiveOrZero;
  * @param totalFailedTools 失败工具调用总数
  * @param totalUserMessages 用户消息总数
  * @param totalAssistantMessages 助手消息总数
+ * @param tokenProvenance 相同查询范围的四段计量来源
  */
 public record ProjectStatsRow(
     /* 项目键值。 */ String projectKey,
@@ -45,7 +47,8 @@ public record ProjectStatsRow(
     /* 工具调用总数。 */ @PositiveOrZero long totalToolCalls,
     /* 失败工具调用总数。 */ @PositiveOrZero long totalFailedTools,
     /* 用户消息总数。 */ @PositiveOrZero long totalUserMessages,
-    /* 助手消息总数。 */ @PositiveOrZero long totalAssistantMessages)
+    /* 助手消息总数。 */ @PositiveOrZero long totalAssistantMessages,
+    /* 相同查询范围的四段计量来源。 */ TokenProvenance tokenProvenance)
     implements ProjectStats {
 
   /**
@@ -54,6 +57,10 @@ public record ProjectStatsRow(
    * <p>字符串 null 转为空字符串；计数和 token 字段由 {@link ValidationSupport} 校验非负。
    */
   public ProjectStatsRow {
+    tokenProvenance =
+        tokenProvenance == null
+            ? TokenProvenance.unknown(Math.max(0, totalSessions))
+            : tokenProvenance;
     ValidationSupport.validateCanonicalConstructor(
         ProjectStatsRow.class,
         projectKey,
@@ -72,10 +79,51 @@ public record ProjectStatsRow(
         totalToolCalls,
         totalFailedTools,
         totalUserMessages,
-        totalAssistantMessages);
+        totalAssistantMessages,
+        tokenProvenance);
     projectKey = projectKey == null ? "" : projectKey;
     projectName = projectName == null ? "" : projectName;
     firstSeen = firstSeen == null ? "" : firstSeen;
     lastSeen = lastSeen == null ? "" : lastSeen;
+  }
+
+  /** 兼容未提供精度的旧调用点，不把旧数值推断为上报。 */
+  public ProjectStatsRow(
+      String projectKey,
+      String projectName,
+      long totalSessions,
+      long claudeSessions,
+      long codexSessions,
+      long qoderSessions,
+      String firstSeen,
+      String lastSeen,
+      long totalFreshInputTokens,
+      long totalOutputTokens,
+      long totalCacheReadTokens,
+      long totalCacheWriteTokens,
+      long totalTokens,
+      long totalToolCalls,
+      long totalFailedTools,
+      long totalUserMessages,
+      long totalAssistantMessages) {
+    this(
+        projectKey,
+        projectName,
+        totalSessions,
+        claudeSessions,
+        codexSessions,
+        qoderSessions,
+        firstSeen,
+        lastSeen,
+        totalFreshInputTokens,
+        totalOutputTokens,
+        totalCacheReadTokens,
+        totalCacheWriteTokens,
+        totalTokens,
+        totalToolCalls,
+        totalFailedTools,
+        totalUserMessages,
+        totalAssistantMessages,
+        TokenProvenance.unknown(Math.max(0, totalSessions)));
   }
 }

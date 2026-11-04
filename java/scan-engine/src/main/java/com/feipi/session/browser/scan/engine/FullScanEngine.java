@@ -3,6 +3,7 @@ package com.feipi.session.browser.scan.engine;
 import com.feipi.session.browser.domain.enums.CallScope;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
+import com.feipi.session.browser.domain.normalized.TokenProvenance;
 import com.feipi.session.browser.index.api.write.IndexWriterPort;
 import com.feipi.session.browser.index.api.write.MissingTranscriptSession;
 import com.feipi.session.browser.normalization.NormalizationEngine;
@@ -472,6 +473,7 @@ public final class FullScanEngine {
       SourceAdapter adapter,
       NormalizedSessionArtifact artifact) {
     Map<String, String> meta = candidate.metadata();
+    session.putAll(TokenProvenance.fromMetadata(meta).toMetadata());
 
     putStringIfAbsent(session, "title", meta.get("title"));
     putStringIfAbsent(session, "model", meta.get("model"));

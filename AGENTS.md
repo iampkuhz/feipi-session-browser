@@ -14,14 +14,13 @@
 
 - 非平凡产品、agent、harness、gate 或跨模块变更先走 OpenSpec `openspec/changes/<id>/`；`openspec/specs/` 是长期真相。
 
-## 默认实现归属
+## 原生子任务
 
-- Codex 主调度时，功能、修复、重构、测试、脚本、配置、文档修改默认交给 Qoder；Codex 负责拆分、复核与验收。
-- 极小任务/设计或 Qoder 不可用/权限不足/两轮返工失败时，Codex 接管并说明；禁递归派发。
-- Qoder 同时最多 1 个任务，其余排队；确认结束再派发，状态不明不补开。Codex 可并行无冲突工作。
-- 单目标；派发前公开 task id、读写范围、验收；集成串行。
-- 首次派发/每次返工的最终回复须在正文放详情卡：标题/task id、目标/范围、验收、Qoder session/run id、权限、运行/回调/验收状态、绝对结果链接；不可只写“已派发”或藏于工具记录。模板见用法文档。
-- 规则：`harness/agent-policy.manifest.yaml` 的 `qoder_delegation`；用法：`docs/development/qoder-subtasks.md`。
+- 直接使用当前 Agent 原生 subagents；main 负责拆分、独立复核与串行集成，不另建调度链。
+- 重要实现、复杂分析和独立验证用 `gpt-6.1-sol`；轻量定位用 `gpt-6-luna`，遵守宿主模型/上下文约束。
+- 派发前明确唯一身份、必要上下文、读写范围与验收；修改型任务写范围互斥，不回滚他人修改。
+- 复用共享 handoff/结果协议，保持当前权限；原生能力受限时如实说明，由 main 接管或调整范围。
+- 规则：`harness/agent-policy.manifest.yaml`；用法与退役边界：`docs/agent-runtime.md`。
 
 ## 受保护路径
 

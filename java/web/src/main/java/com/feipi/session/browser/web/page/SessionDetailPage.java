@@ -198,6 +198,52 @@ public final class SessionDetailPage {
       String sessionId,
       PayloadVisibility visibility) {
 
+    ctx.html(
+        templates.render(
+            "session.html", buildContext(detail, anomalies, agent, sessionId, visibility)));
+  }
+
+  /**
+   * 渲染上传内容的独立详情，保持既有个人详情的投影和交互。
+   *
+   * @param ctx 请求上下文
+   * @param detail 已组装详情
+   * @param anomalies 异常摘要
+   * @param importId 独立导入标识
+   * @param filename 安全显示文件名
+   * @param visibility 载荷可见性
+   */
+  public void renderImported(
+      Context ctx,
+      SessionDetail detail,
+      SessionAnomalySummary anomalies,
+      String importId,
+      String filename,
+      PayloadVisibility visibility) {
+    Map<String, Object> context =
+        buildContext(
+            detail,
+            anomalies,
+            detail.sessionRow().agent(),
+            detail.sessionRow().sessionId(),
+            visibility);
+    context.put("imported_analysis", true);
+    context.put("import_id", importId);
+    context.put("import_filename", filename);
+    context.put("active_page", "imports");
+    context.put("api_base", "/api/imports/" + urlEncode(importId));
+    context.put("session_url", "/imports/" + urlEncode(importId));
+    context.put("context_scope", "仅本文件分析");
+    ctx.html(templates.render("session.html", context));
+  }
+
+  /** 构建同一详情模板上下文，范围信息由独立入口覆盖。 */
+  private Map<String, Object> buildContext(
+      SessionDetail detail,
+      SessionAnomalySummary anomalies,
+      String agent,
+      String sessionId,
+      PayloadVisibility visibility) {
     SessionRecord row = detail.sessionRow();
     List<CallRound> rounds = detail.rounds();
     List<PayloadSource> payloadSources = detail.payloadSources();
@@ -218,7 +264,7 @@ public final class SessionDetailPage {
     context.put("anomaly_list", SessionDetailViewModels.anomalyList(anomalies));
 
     // 轮次数据与载荷摘要
-    List<Map<String, Object>> roundDisplay = buildRoundDisplayList(rounds, row.failedToolCount());
+    List<Map<String, Object>> roundDisplay = buildRoundDisplayList(rounds, measuredCacheInput(row));
     context.put("rounds", roundDisplay);
     context.put("round_count", rounds.size());
     context.put("has_rounds", !rounds.isEmpty());
@@ -247,8 +293,7 @@ public final class SessionDetailPage {
     // Session rounds 导航列表
     context.put("session_rounds", buildRoundNavList(rounds));
 
-    String html = templates.render("session.html", context);
-    ctx.html(html);
+    return context;
   }
 
   /**
@@ -328,7 +373,7 @@ public final class SessionDetailPage {
    * @return 展示用 round 列表
    */
   private static List<Map<String, Object>> buildRoundDisplayList(
-      List<CallRound> rounds, long failedToolCount) {
+      List<CallRound> rounds, boolean measuredInput) {
     int limit = Math.min(rounds.size(), MAX_INITIAL_ROUNDS);
     List<Map<String, Object>> result = new ArrayList<>(limit);
     long maxTokens = 0;
@@ -338,11 +383,8 @@ public final class SessionDetailPage {
     for (int i = 0; i < limit; i++) {
       CallRound round = rounds.get(i);
       String subagentId = firstSubagentId(round.calls());
-      boolean failed = failedToolCount > 0 && hasAgentTool(round.toolCallIds());
-      if (!failed && failedToolCount > 0 && round.roundIndex() == Math.min(2, limit)) {
-        failed = true;
-      }
-      boolean lowCache = round.roundIndex() == 1;
+      boolean failed = round.failedToolCount() > 0;
+      boolean lowCache = measuredInput && isLowCacheRound(round);
       List<String> badges = new ArrayList<>();
       if (lowCache) {
         badges.add("low cache");
@@ -403,15 +445,6 @@ public final class SessionDetailPage {
     fields.put("cache_read_ratio", roundCacheReadLabel(round));
     fields.put("bar_height_px", maxTokens > 0 ? tokenBarPct * 1.18 : 0.0);
     return fields;
-  }
-
-  private static boolean hasAgentTool(List<String> toolCallIds) {
-    for (String toolCallId : toolCallIds) {
-      if (toolCallId != null && toolCallId.toLowerCase().contains("agent")) {
-        return true;
-      }
-    }
-    return false;
   }
 
   private static String firstSubagentId(List<String> callIds) {
@@ -506,10 +539,10 @@ public final class SessionDetailPage {
   private static Map<String, Object> buildSessionMetrics(
       SessionRecord row, List<CallRound> rounds, SessionAnomalySummary anomalies) {
     Map<String, Object> metrics = new LinkedHashMap<>(SessionDetailViewModels.baseMetrics(row));
-    double activeSeconds = row.modelExecutionSeconds() + row.toolExecutionSeconds();
-    double waitingSeconds = Math.max(row.durationSeconds() - activeSeconds, 0.0);
-    long subagentCallCount = subagentCallCount(rounds);
-    long mainCallCount = Math.max(rounds.size(), row.assistantMessageCount() - subagentCallCount);
+    Double activeSeconds = row.timing().activeTaskSeconds();
+    long mainCallCount = row.assistantMessageCount();
+    long subagentCallCount =
+        Math.max(0, rounds.stream().mapToLong(CallRound::callCount).sum() - mainCallCount);
     long issueRounds = Math.max(anomalies.anomalyCount(), row.failedToolCount() > 0 ? 1 : 0);
 
     metrics.put("tokens", DisplayFormatters.formatCompactToken(row.totalTokens()));
@@ -534,9 +567,13 @@ public final class SessionDetailPage {
     metrics.put("output_share_tone", shareTone(row.outputTokens(), row.totalTokens()));
     metrics.put(
         "cache_reuse",
-        DisplayFormatters.percentLabel(row.cacheReadTokens(), sessionInputSide(row)));
+        measuredCacheInput(row)
+            ? DisplayFormatters.percentLabel(row.cacheReadTokens(), sessionInputSide(row))
+            : "N/A");
     metrics.put("input_side_tokens", DisplayFormatters.formatCompactToken(sessionInputSide(row)));
-    metrics.put("low_cache_rounds", lowCacheRoundCount(rounds));
+    if (measuredCacheInput(row)) {
+      metrics.put("low_cache_rounds", lowCacheRoundCount(rounds));
+    }
     metrics.put("fresh_spike_rounds", freshSpikeRoundCount(rounds));
     metrics.put("run_health", issueRounds > 0 ? "Needs Review" : "Completed");
     metrics.put("issue_rounds", issueRounds);
@@ -553,21 +590,32 @@ public final class SessionDetailPage {
     metrics.put("subagent_llm_calls", subagentCallCount);
     metrics.put("tool_calls", row.toolCallCount());
     metrics.put("subagent_runs", row.subagentInstanceCount());
-    metrics.put("active_time", DisplayFormatters.formatDuration(activeSeconds));
+    metrics.put("active_time", timingLabel(activeSeconds, row.timing().activeTaskPrecision()));
     metrics.put("duration", DisplayFormatters.formatDuration(row.durationSeconds()));
-    metrics.put("waiting_time", DisplayFormatters.formatDuration(waitingSeconds));
-    metrics.put("process_time", DisplayFormatters.formatDuration(activeSeconds));
-    metrics.put("model_time", DisplayFormatters.formatDuration(row.modelExecutionSeconds()));
-    metrics.put("tool_time", DisplayFormatters.formatDuration(row.toolExecutionSeconds()));
+    metrics.put("waiting_time", "N/A");
+    metrics.put("process_time", timingLabel(activeSeconds, row.timing().activeTaskPrecision()));
+    metrics.put(
+        "model_time",
+        timingLabel(row.timing().modelExecutionSeconds(), row.timing().modelExecutionPrecision()));
+    metrics.put(
+        "tool_time",
+        timingLabel(row.timing().toolExecutionSeconds(), row.timing().toolExecutionPrecision()));
     metrics.put("updated", DisplayFormatters.toLocalTime(row.endedAt()));
     return metrics;
   }
 
-  private static long subagentCallCount(List<CallRound> rounds) {
-    return rounds.stream()
-        .filter(round -> !round.parentCallId().isEmpty())
-        .mapToLong(CallRound::callCount)
-        .sum();
+  private static String timingLabel(Double seconds, String precision) {
+    return seconds == null || "unknown".equals(precision)
+        ? "N/A"
+        : DisplayFormatters.formatDuration(seconds)
+            + ("partial".equals(precision) ? " · Partial" : "");
+  }
+
+  private static boolean measuredCacheInput(SessionRecord row) {
+    var precision = row.tokenProvenance();
+    return "provider_reported".equals(precision.freshInput())
+        && "provider_reported".equals(precision.cacheRead())
+        && "provider_reported".equals(precision.cacheWrite());
   }
 
   private static long lowCacheRoundCount(List<CallRound> rounds) {

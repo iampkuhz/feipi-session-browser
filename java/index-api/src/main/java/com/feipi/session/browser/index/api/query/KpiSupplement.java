@@ -23,7 +23,7 @@ public interface KpiSupplement {
   /** 返回会话时长中位数，单位为秒。 */
   double medianDurationSeconds();
 
-  /** 返回输入侧 token 大于零的会话数。 */
+  /** 返回输入三段均为 provider 上报且输入侧 token 大于零的会话数。 */
   long eligibleSessions();
 
   /** 返回符合条件会话的缓存读取比率中位数；不可计算时返回 {@code null}。 */

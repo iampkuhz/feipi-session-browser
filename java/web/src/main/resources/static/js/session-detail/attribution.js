@@ -228,15 +228,28 @@
     return { source: m[1], sessionId: m[2] };
   }
 
+  // 导入和个人详情共用投影，URL 必须保留页面注入的分析范围。
+  function _getSessionScopedApiBase() {
+    var pageMeta = document.querySelector('meta[name="session-page-api-base"]');
+    var payloadMeta = document.querySelector('meta[name="payload-api-base"]');
+    var injected = (pageMeta && pageMeta.getAttribute("content")) ||
+      (payloadMeta && payloadMeta.getAttribute("content")) || "";
+    if (injected) return injected.replace(/\/+$/, "");
+    var pageInfo = _getPageSourceAndSessionId();
+    if (!pageInfo.source || !pageInfo.sessionId) return "";
+    return "/api/sessions/" + encodeURIComponent(pageInfo.source) + "/" +
+      encodeURIComponent(pageInfo.sessionId);
+  }
+
   function attributionApiUrl(button, kind) {
     var payloadId = button.getAttribute("data-payload-id") || "";
 
     // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Try main LLM call pattern: llm-R{round}-IX{call}-...`
     var m = payloadId.match(/^llm-R(\d+)-IX(\d+)-/);
     if (m) {
-      var pageInfo = _getPageSourceAndSessionId();
-      if (!pageInfo.source || !pageInfo.sessionId) return "";
-      return "/api/sessions/" + encodeURIComponent(pageInfo.source) + "/" + encodeURIComponent(pageInfo.sessionId) + "/attribution/" + m[1] + "/" + m[2] + "/" + kind;
+      var apiBase = _getSessionScopedApiBase();
+      if (!apiBase) return "";
+      return apiBase + "/attribution/" + m[1] + "/" + m[2] + "/" + kind;
     }
 
     // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Try subagent pattern: sub-{sa_id}-IX{n}-request-attribution / sub-{sa_id}-IX{n}-response-attribution`
@@ -244,9 +257,9 @@
     if (sa_m) {
       var saId = sa_m[1];
       var saCallIdx = sa_m[2];
-      var pageInfo2 = _getPageSourceAndSessionId();
-      if (!pageInfo2.source || !pageInfo2.sessionId) return "";
-      return "/api/sessions/" + encodeURIComponent(pageInfo2.source) + "/" + encodeURIComponent(pageInfo2.sessionId) + "/attribution/subagent/" + encodeURIComponent(saId) + "/" + saCallIdx + "/" + kind;
+      var subagentApiBase = _getSessionScopedApiBase();
+      if (!subagentApiBase) return "";
+      return subagentApiBase + "/attribution/subagent/" + encodeURIComponent(saId) + "/" + saCallIdx + "/" + kind;
     }
 
     return "";
@@ -315,6 +328,10 @@
 
   function renderAttributionSuccess(body, payload, kind, cacheKey) {
     var data = payload.data || payload;
+    var measuredTokens = data.tokens && typeof data.tokens === 'object' ? data.tokens : {
+      total: data.totalTokens, fresh: data.freshInputTokens, cacheRead: data.cacheReadTokens,
+      cacheWrite: data.cacheWriteTokens, output: data.outputTokens, provenance: data.provenance
+    };
     var html = "";
 
     // 本地重建免责声明。
@@ -337,11 +354,12 @@
     html += '<section class="sd-attribution-topcard" data-attribution-card="tokens">';
     html += '<h3>' + (kind === "request" ? "请求 Token" : "响应 Token") + '</h3>';
     html += '<div class="sd-attribution-summary-grid">';
-    html += '<div class="sd-kv"><span>Total</span><span>' + escapeHtml(formatCompactToken(data.totalTokens)) + ' tokens</span></div>';
-    html += '<div class="sd-kv"><span>Fresh Input</span><span>' + escapeHtml(formatCompactToken(data.freshInputTokens)) + ' tokens</span></div>';
-    html += '<div class="sd-kv"><span>Cache Read</span><span>' + escapeHtml(formatCompactToken(data.cacheReadTokens)) + ' tokens</span></div>';
-    html += '<div class="sd-kv"><span>Cache Write</span><span>' + escapeHtml(formatCompactToken(data.cacheWriteTokens)) + ' tokens</span></div>';
-    html += '<div class="sd-kv"><span>Output</span><span>' + escapeHtml(formatCompactToken(data.outputTokens)) + ' tokens</span></div>';
+    html += '<div class="sd-kv"><span>Total</span><span>' + escapeHtml(TokenProvenance.total(measuredTokens, formatCompactToken)) + ' tokens</span></div>';
+    html += '<div class="sd-kv"><span>Fresh Input</span><span>' + escapeHtml(TokenProvenance.value(measuredTokens, 'fresh', formatCompactToken)) + '</span></div>';
+    html += '<div class="sd-kv"><span>Cache Read</span><span>' + escapeHtml(TokenProvenance.value(measuredTokens, 'cacheRead', formatCompactToken)) + '</span></div>';
+    html += '<div class="sd-kv"><span>Cache Write</span><span>' + escapeHtml(TokenProvenance.value(measuredTokens, 'cacheWrite', formatCompactToken)) + '</span></div>';
+    html += '<div class="sd-kv"><span>Output</span><span>' + escapeHtml(TokenProvenance.value(measuredTokens, 'output', formatCompactToken)) + '</span></div>';
+    html += '<div class="sd-kv"><span>Measurement</span><span>' + escapeHtml(TokenProvenance.note(measuredTokens) || 'Provider reported') + '</span></div>';
     html += '</div>';
     html += '</section>';
     html += '</div>';
@@ -425,10 +443,13 @@
     if (!source && modal) source = modal.getAttribute("data-bucket-detail-source") || "";
     if (!sessionId && modal) sessionId = modal.getAttribute("data-bucket-detail-session-id") || "";
 
-    if (!source || !sessionId) return;
+    var apiBase = _getSessionScopedApiBase();
+    if (!apiBase && source && sessionId) {
+      apiBase = "/api/sessions/" + encodeURIComponent(source) + "/" + encodeURIComponent(sessionId);
+    }
+    if (!apiBase) return;
 
-    var apiUrl = "/api/sessions/" + encodeURIComponent(source) + "/" +
-      encodeURIComponent(sessionId) + "/bucket-detail/" + roundIdx + "/" + bucketKey;
+    var apiUrl = apiBase + "/bucket-detail/" + encodeURIComponent(roundIdx) + "/" + encodeURIComponent(bucketKey);
 
     // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Show loading state`
     bodyEl.textContent = '';

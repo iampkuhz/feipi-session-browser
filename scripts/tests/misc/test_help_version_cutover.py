@@ -27,11 +27,42 @@ def _write_executable(path: Path, content: str) -> None:
     path.chmod(stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
 
 
+def _create_fake_jdk(path: Path, *, version: int = 25, java_home: Path | None = None) -> None:
+    """创建 fake JDK，java 支持 -version 与 -XshowSettings:properties。"""
+    home = java_home or path
+    _write_executable(
+        path / 'bin' / 'java',
+        '#!/usr/bin/env bash\n'
+        'has_properties=false\n'
+        'has_version=false\n'
+        'for arg in "$@"; do\n'
+        '  case "$arg" in\n'
+        '    -XshowSettings:properties*) has_properties=true ;;\n'
+        '    -version) has_version=true ;;\n'
+        '  esac\n'
+        'done\n'
+        'if $has_properties; then\n'
+        f'  printf "java.home = %s\\n" "{home}"\n'
+        f'  printf "java.specification.version = {version}\\n"\n'
+        'fi\n'
+        'if $has_version; then\n'
+        f'  echo "java version \\"{version}.0.1\\"" >&2\n'
+        '  echo "Java(TM) SE Runtime Environment" >&2\n'
+        '  echo "Java HotSpot(TM) 64-Bit Server VM" >&2\n'
+        'fi\n',
+    )
+    _write_executable(
+        path / 'bin' / 'javac',
+        f'#!/usr/bin/env bash\necho "javac {version}.0.1"\n',
+    )
+
+
 def _create_fake_project(
     tmp_path: Path,
     *,
     launcher_body: str | None = None,
     include_launcher: bool = True,
+    include_jdk: bool = True,
 ) -> tuple[Path, Path]:
     """创建路径含空格的最小项目，只保留公开进程边界。"""
     project = tmp_path / 'project with spaces'
@@ -60,7 +91,24 @@ def _create_fake_project(
         'exit "${FAKE_GRADLE_EXIT:-0}"\n',
     )
 
+    if include_jdk:
+        _create_fake_jdk(project / 'fake-jdk')
+
+    # 隔离系统探测路径
+    _isolate_script(project, tmp_path)
+
     return project, script
+
+
+def _isolate_script(project: Path, tmp_path: Path) -> None:
+    """仅修改测试副本的固定系统路径。"""
+    script = project / 'scripts' / 'session-browser.sh'
+    content = script.read_text(encoding='utf-8')
+    content = content.replace('/usr/libexec/java_home', str(tmp_path / 'absent-java-home'))
+    content = content.replace('/opt/homebrew', str(tmp_path / 'absent-homebrew'))
+    content = content.replace('/usr/local', str(tmp_path / 'absent-localbrew'))
+    content = content.replace('$HOME/.sdkman', str(tmp_path / 'absent-sdkman'))
+    script.write_text(content, encoding='utf-8')
 
 
 def _run_shell(
@@ -70,10 +118,23 @@ def _run_shell(
     env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """从指定工作目录运行公开 shell 入口。"""
+    resolved_env = dict(env) if env is not None else {**os.environ}
+    # 根据脚本位置找到 fake JDK（脚本位于 project/scripts/session-browser.sh）
+    project_dir = script.parent.parent
+    fake_jdk_bin = project_dir / 'fake-jdk' / 'bin'
+    if fake_jdk_bin.is_dir():
+        resolved_env.pop('JAVA_HOME', None)
+        # 清除 SDKMAN 环境变量，避免干扰
+        resolved_env.pop('SDKMAN_DIR', None)
+        resolved_env.pop('SDKMAN_CANDIDATES_DIR', None)
+        resolved_env.pop('HOMEBREW_PREFIX', None)
+        # 将 fake JDK 添加到 PATH 首位，保留其他 PATH 内容
+        existing_path = resolved_env.get('PATH', '/usr/bin:/bin')
+        resolved_env['PATH'] = f'{fake_jdk_bin}:{existing_path}'
     return subprocess.run(
         ['bash', str(script), *args],
         cwd=cwd,
-        env=env,
+        env=resolved_env,
         text=True,
         capture_output=True,
         timeout=30,
@@ -342,8 +403,14 @@ def test_shell_exec_preserves_pid_and_signal(tmp_path: Path) -> None:
         "trap 'exit 42' TERM\n"
         'while :; do sleep 0.2; done\n'
     )
-    _, script = _create_fake_project(tmp_path, launcher_body=launcher_body)
+    project, script = _create_fake_project(tmp_path, launcher_body=launcher_body)
+    fake_jdk_bin = project / 'fake-jdk' / 'bin'
     env = {**os.environ, 'FAKE_PID_FILE': str(pid_file)}
+    env.pop('JAVA_HOME', None)
+    env.pop('SDKMAN_DIR', None)
+    env.pop('SDKMAN_CANDIDATES_DIR', None)
+    env.pop('HOMEBREW_PREFIX', None)
+    env['PATH'] = f'{fake_jdk_bin}:/usr/bin:/bin'
     process = subprocess.Popen(
         ['bash', str(script), 'scan'],
         cwd=tmp_path,

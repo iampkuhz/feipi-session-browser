@@ -1,5 +1,6 @@
 package com.feipi.session.browser.index.store.sqlite.row;
 
+import com.feipi.session.browser.domain.normalized.TokenProvenance;
 import com.feipi.session.browser.index.api.query.TokenBreakdown;
 import com.feipi.session.browser.validation.ValidationSupport;
 import jakarta.validation.constraints.PositiveOrZero;
@@ -15,6 +16,7 @@ import jakarta.validation.constraints.PositiveOrZero;
  * @param totalCacheWrite 缓存写入 token 总量
  * @param totalToolCalls 工具调用总数
  * @param totalFailedTools 失败工具调用总数
+ * @param tokenProvenance 相同查询范围的四段计量来源
  */
 public record TokenBreakdownRow(
     /* 非缓存输入 令牌总数量。 */ @PositiveOrZero long totalFreshInput,
@@ -22,11 +24,13 @@ public record TokenBreakdownRow(
     /* 缓存读取 令牌总数量。 */ @PositiveOrZero long totalCacheRead,
     /* 缓存写入 令牌总数量。 */ @PositiveOrZero long totalCacheWrite,
     /* 工具调用总数。 */ @PositiveOrZero long totalToolCalls,
-    /* 失败工具调用总数。 */ @PositiveOrZero long totalFailedTools)
+    /* 失败工具调用总数。 */ @PositiveOrZero long totalFailedTools,
+    /* 相同查询范围的四段计量来源。 */ TokenProvenance tokenProvenance)
     implements TokenBreakdown {
 
   /** 紧凑构造器，校验 record component 约束。 */
   public TokenBreakdownRow {
+    tokenProvenance = tokenProvenance == null ? TokenProvenance.unknown(0) : tokenProvenance;
     ValidationSupport.validateCanonicalConstructor(
         TokenBreakdownRow.class,
         totalFreshInput,
@@ -34,6 +38,25 @@ public record TokenBreakdownRow(
         totalCacheRead,
         totalCacheWrite,
         totalToolCalls,
-        totalFailedTools);
+        totalFailedTools,
+        tokenProvenance);
+  }
+
+  /** 兼容未提供精度的旧调用点，不把旧数值推断为上报。 */
+  public TokenBreakdownRow(
+      long totalFreshInput,
+      long totalOutput,
+      long totalCacheRead,
+      long totalCacheWrite,
+      long totalToolCalls,
+      long totalFailedTools) {
+    this(
+        totalFreshInput,
+        totalOutput,
+        totalCacheRead,
+        totalCacheWrite,
+        totalToolCalls,
+        totalFailedTools,
+        TokenProvenance.unknown(0));
   }
 }

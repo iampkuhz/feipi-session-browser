@@ -3,6 +3,7 @@ package com.feipi.session.browser.web.api;
 import com.feipi.session.browser.common.validation.ImmutableCopies;
 import com.feipi.session.browser.common.validation.ParamChecks;
 import com.feipi.session.browser.common.validation.TokenChecks;
+import com.feipi.session.browser.domain.normalized.TokenProvenance;
 import java.util.List;
 import java.util.Objects;
 import java.util.regex.Pattern;
@@ -20,23 +21,42 @@ public final class PageApiDtos {
    * @param cacheWrite cache write token 数量。
    * @param output 该字段在 API 响应中的业务值。
    * @param total 汇总数量。
+   * @param provenance 四段 token 的计量来源与可用性。
    */
   public record TokenSegments(
-      long fresh, long cacheRead, long cacheWrite, long output, long total) {
+      long fresh,
+      long cacheRead,
+      long cacheWrite,
+      long output,
+      long total,
+      TokenProvenance provenance) {
 
     /** 校验字段和业务不变量。 */
     public TokenSegments {
       TokenChecks.requireUsageSegments(fresh, cacheRead, cacheWrite, output, total, "");
+      provenance = provenance == null ? TokenProvenance.unknown() : provenance;
+    }
+
+    /** 兼容未提供计量来源的调用者；不将未知来源冒充 provider 上报。 */
+    public TokenSegments(long fresh, long cacheRead, long cacheWrite, long output, long total) {
+      this(fresh, cacheRead, cacheWrite, output, total, TokenProvenance.unknown());
     }
 
     /** 根据原始 component 值构建 token 分段。 */
     public static TokenSegments of(long fresh, long cacheRead, long cacheWrite, long output) {
+      return of(fresh, cacheRead, cacheWrite, output, TokenProvenance.unknown());
+    }
+
+    /** 根据数值和同一查询范围的计量来源构建分段。 */
+    public static TokenSegments of(
+        long fresh, long cacheRead, long cacheWrite, long output, TokenProvenance provenance) {
       return new TokenSegments(
           fresh,
           cacheRead,
           cacheWrite,
           output,
-          TokenChecks.componentTotal(fresh, cacheRead, cacheWrite, output));
+          TokenChecks.componentTotal(fresh, cacheRead, cacheWrite, output),
+          provenance);
     }
   }
 

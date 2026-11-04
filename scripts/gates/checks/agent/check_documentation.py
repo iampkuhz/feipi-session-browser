@@ -22,7 +22,6 @@ ROOT = repository_root()
 POLICY_REQUIRED_ROOTS = [
     '.claude/',
     '.codex/',
-    '.qoder/',
     '.agents/',
     'skills/',
     'harness/',
@@ -40,13 +39,11 @@ DOCUMENTED_REQUIRED_ROOTS = [
 ]
 MAIN_DOCS = {
     'Claude main': '.claude/agents/qwen-main-default.md',
-    'Qoder main': '.qoder/agents/qoder-main-default.md',
     'Codex model': '.codex/model-instructions.md',
 }
 SKIP_POLICY_DOCS = {
     'AGENTS.md': 'AGENTS.md',
     '.claude/CLAUDE.md': '.claude/CLAUDE.md',
-    '.qoder/AGENTS.md': '.qoder/AGENTS.md',
     **MAIN_DOCS,
 }
 REQUIRED_HANDOFF_FIELDS = [
@@ -186,7 +183,7 @@ def _contains_skipped_can_pass(text: str) -> bool:
 
 
 def _check_handoff(inputs: DocumentInputs) -> list[str]:
-    """检查三端 handoff 字段、实例隔离、证据归属和结果语义。"""
+    """检查原生客户端 handoff 字段、实例隔离、证据归属和结果语义。"""
     errors: list[str] = []
     for label, relative in MAIN_DOCS.items():
         text = inputs.documents[relative]

@@ -1,5 +1,7 @@
 package com.feipi.session.browser.web.api;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.feipi.session.browser.domain.normalized.TokenProvenance;
 import com.feipi.session.browser.web.api.PageApiDtos.PageStateDto;
 import com.feipi.session.browser.web.api.PageApiDtos.TokenSegments;
 import java.util.List;
@@ -55,22 +57,71 @@ public final class DashboardApiResponses {
    *
    * @param value 字段原始值。
    * @param reason 不可用原因。
+   * @param provenance 输入 token 的来源和覆盖范围。
    */
-  public record RatioDto(Double value, String reason) {
+  public record RatioDto(Double value, String reason, TokenProvenance provenance) {
 
     /** 校验字段和业务不变量。 */
     public RatioDto {
       reason = reason == null ? "" : reason;
+      provenance = provenance == null ? TokenProvenance.unknown() : provenance;
       if (value != null && (value < 0.0 || value > 1.0)) {
         throw new IllegalArgumentException("ratio value must be between 0 and 1");
       }
     }
 
+    /** 兼容未提供计量来源的历史调用者。 */
+    public RatioDto(Double value, String reason) {
+      this(value, reason, TokenProvenance.unknown());
+    }
+
     /** 创建可用比例值。 */
     public static RatioDto of(Double value) {
-      return new RatioDto(value, value == null ? "no_eligible_input_tokens" : "");
+      return of(value, TokenProvenance.unknown());
+    }
+
+    /** 只有同范围输入段均为 provider 上报时才声明精确比例。 */
+    public static RatioDto of(Double value, TokenProvenance provenance) {
+      TokenProvenance evidence = provenance == null ? TokenProvenance.unknown() : provenance;
+      if (value == null && TokenProvenance.empty().equals(evidence)) {
+        return new RatioDto(null, "no_eligible_input_tokens", evidence);
+      }
+      if ("unavailable".equals(evidence.freshInput())
+          || "unavailable".equals(evidence.cacheRead())
+          || "unavailable".equals(evidence.cacheWrite())) {
+        return new RatioDto(null, "token_measurement_unavailable", evidence);
+      }
+      if ("unknown".equals(evidence.freshInput())
+          || "unknown".equals(evidence.cacheRead())
+          || "unknown".equals(evidence.cacheWrite())) {
+        return new RatioDto(null, "token_measurement_unknown", evidence);
+      }
+      if (value == null) {
+        return new RatioDto(null, "no_eligible_input_tokens", evidence);
+      }
+      boolean reported =
+          "provider_reported".equals(evidence.freshInput())
+              && "provider_reported".equals(evidence.cacheRead())
+              && "provider_reported".equals(evidence.cacheWrite());
+      return new RatioDto(value, reported ? "" : "partial_token_measurement", evidence);
     }
   }
+
+  /**
+   * 表示输入计量完整的缓存 KPI 子集；excluded 包含缺测或分母为零的会话。
+   *
+   * @param eligibleSessions 可参与计算的会话数
+   * @param p50SessionRatio 可计算子集的会话缓存比例中位数
+   * @param lowReadSessions 可计算子集中缓存比例低于 20% 的会话数
+   * @param excludedSessions 未参与该统计的会话数
+   * @param basis 计量子集口径
+   */
+  public record CacheReadStatistics(
+      long eligibleSessions,
+      Double p50SessionRatio,
+      long lowReadSessions,
+      long excludedSessions,
+      String basis) {}
 
   /**
    * 表示 DashboardSummaryResponse 数据。
@@ -86,6 +137,7 @@ public final class DashboardApiResponses {
    * @param userMessages 当前统计口径下的消息数量。
    * @param assistantMessages 当前统计口径下的消息数量。
    * @param cacheReadRatio 当前统计口径下的指标值。
+   * @param cacheReadStatistics 仅输入完整计量会话的缓存分布统计。
    * @param state 页面或 API 状态描述。
    */
   public record DashboardSummaryResponse(
@@ -100,6 +152,7 @@ public final class DashboardApiResponses {
       long userMessages,
       long assistantMessages,
       RatioDto cacheReadRatio,
+      CacheReadStatistics cacheReadStatistics,
       PageStateDto state) {
 
     /** 校验字段和业务不变量。 */
@@ -109,6 +162,7 @@ public final class DashboardApiResponses {
       Objects.requireNonNull(agents, "agents must not be null");
       Objects.requireNonNull(tokens, "tokens must not be null");
       Objects.requireNonNull(cacheReadRatio, "cacheReadRatio must not be null");
+      Objects.requireNonNull(cacheReadStatistics, "cacheReadStatistics must not be null");
       Objects.requireNonNull(state, "state must not be null");
       if (sessionCount < 0
           || projectCount < 0
@@ -360,9 +414,15 @@ public final class DashboardApiResponses {
    * @param cacheWrite cache write token 数量。
    * @param totalInput 输入侧 token 总量。
    * @param ratio 比例值。
+   * @param provenance 输入 token 的计量来源。
    */
   public record CacheInputDto(
-      long fresh, long cacheRead, long cacheWrite, long totalInput, RatioDto ratio) {
+      long fresh,
+      long cacheRead,
+      long cacheWrite,
+      long totalInput,
+      RatioDto ratio,
+      TokenProvenance provenance) {
 
     /** 校验字段和业务不变量。 */
     public CacheInputDto {
@@ -373,13 +433,27 @@ public final class DashboardApiResponses {
         throw new IllegalArgumentException("totalInput must equal fresh + cacheRead + cacheWrite");
       }
       Objects.requireNonNull(ratio, "ratio must not be null");
+      provenance = provenance == null ? TokenProvenance.unknown() : provenance;
+    }
+
+    /** 兼容未提供计量来源的历史调用者。 */
+    public CacheInputDto(
+        long fresh, long cacheRead, long cacheWrite, long totalInput, RatioDto ratio) {
+      this(fresh, cacheRead, cacheWrite, totalInput, ratio, TokenProvenance.unknown());
     }
 
     /** 构建 cache input 元组并推导比例。 */
     public static CacheInputDto of(long fresh, long cacheRead, long cacheWrite) {
+      return of(fresh, cacheRead, cacheWrite, TokenProvenance.unknown());
+    }
+
+    /** 根据相同查询范围的数值与计量来源构建 cache tuple。 */
+    public static CacheInputDto of(
+        long fresh, long cacheRead, long cacheWrite, TokenProvenance provenance) {
       long totalInput = fresh + cacheRead + cacheWrite;
       Double ratio = totalInput > 0 ? cacheRead / (double) totalInput : null;
-      return new CacheInputDto(fresh, cacheRead, cacheWrite, totalInput, RatioDto.of(ratio));
+      return new CacheInputDto(
+          fresh, cacheRead, cacheWrite, totalInput, RatioDto.of(ratio, provenance), provenance);
     }
   }
 
@@ -493,6 +567,7 @@ public final class DashboardApiResponses {
    * @param toolsPerRound 单 round 工具数量。
    * @param cacheReuseRatio cache 复用比例。
    * @param failedPerSession 单 session 失败工具数量。
+   * @param provenance 同一 agent/model 范围的 token 计量来源。
    */
   public record AgentEfficiencyDto(
       String agent,
@@ -504,12 +579,41 @@ public final class DashboardApiResponses {
       double avgToolsPerSession,
       Double toolsPerRound,
       Double cacheReuseRatio,
-      Double failedPerSession) {
+      Double failedPerSession,
+      TokenProvenance provenance) {
+
+    /** 兼容未提供计量来源的历史调用者。 */
+    public AgentEfficiencyDto(
+        String agent,
+        String model,
+        long sessionCount,
+        double avgDurationSeconds,
+        double p95DurationSeconds,
+        long avgTokensPerSession,
+        double avgToolsPerSession,
+        Double toolsPerRound,
+        Double cacheReuseRatio,
+        Double failedPerSession) {
+      this(
+          agent,
+          model,
+          sessionCount,
+          avgDurationSeconds,
+          p95DurationSeconds,
+          avgTokensPerSession,
+          avgToolsPerSession,
+          toolsPerRound,
+          cacheReuseRatio,
+          failedPerSession,
+          TokenProvenance.unknown(Math.max(sessionCount, 0)));
+    }
 
     /** 校验字段和业务不变量。 */
     public AgentEfficiencyDto {
       agent = ApiResponses.required(agent, "agent");
       model = ApiResponses.required(model, "model");
+      provenance = provenance == null ? TokenProvenance.unknown(sessionCount) : provenance;
+      cacheReuseRatio = RatioDto.of(cacheReuseRatio, provenance).value();
       if (sessionCount < 0
           || avgDurationSeconds < 0
           || p95DurationSeconds < 0
@@ -517,6 +621,12 @@ public final class DashboardApiResponses {
           || avgToolsPerSession < 0) {
         throw new IllegalArgumentException("efficiency values must be non-negative");
       }
+    }
+
+    /** 与 cacheReuseRatio 同范围的缺测或部分计量原因。 */
+    @JsonProperty("cacheReuseReason")
+    public String cacheReuseReason() {
+      return RatioDto.of(cacheReuseRatio, provenance).reason();
     }
   }
 }

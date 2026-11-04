@@ -21,6 +21,9 @@ Token Glossary 是轻量术语说明页，解释 token 口径、派生指标、p
 
 ## 文字内容
 
+- Cache eligible/P50/low-read 仅统计三段输入均 provider-reported 且分母大于 0 的会话；明确 excluded 覆盖。真实 0% 与没有 eligible 样本的 `N/A` 不等价。
+- Task Active 是 MAIN 源任务窗口 union，Agent Turn 是独立累计 workload；Wall Duration 不代表执行，Non-task Wall Time 不代表用户等待。缺 model/tool timing 显示 `N/A`，不从 wall 或 legacy 0 反推。
+
 - 页面标题固定为 `Token Glossary`。
 - 摘要 KPI label 固定为 `Token Types`、`Derived Metrics`、`Provider Fields`、`Round Signals`。
 - `Token Types` 表列固定为 `Metric`、`Definition`、`Formula`、`Provider Fields`。

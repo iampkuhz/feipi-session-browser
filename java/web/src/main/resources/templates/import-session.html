@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% set active_page = 'imports' %}
+{% set hide_sidebar_extra = true %}
+{% set hide_payload_modal = true %}
+
+{% block title %}导入分析 - Agent Run Profiler{% endblock %}
+{% block shell_class %}no-inspector import-session-page{% endblock %}
+
+{% block breadcrumb %}
+<span class="current">导入分析</span>
+{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="/static/css/import-session.css">
+{% endblock %}
+
+{% block script_extra %}
+<script src="/static/js/import-session.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="import-session">
+    <div class="page-head">
+        <div>
+            <h1>导入分析</h1>
+            <p class="subtitle">查看别人分享的 JSONL 会话；仅分析本文件，不计入个人统计。</p>
+        </div>
+        <a class="btn" href="/sessions" data-action="nav-sessions">返回个人 Sessions</a>
+    </div>
+
+    <section class="import-session__panel" aria-labelledby="import-session-title">
+        <h2 id="import-session-title">导入单个会话文件</h2>
+        <p class="import-session__scope" role="note">导入记录独立保存，不会加入个人 Dashboard、Sessions 或 Projects。</p>
+        <form class="import-session__form" action="/api/imports" method="post"
+              enctype="multipart/form-data" data-import-form
+              data-max-bytes="{% if import_max_bytes is defined %}{{ import_max_bytes }}{% else %}0{% endif %}">
+            <div class="import-session__field">
+                <label for="import-session-source">会话来源</label>
+                <select id="import-session-source" name="source" required data-import-source>
+                    <option value="">请选择来源</option>
+                    <option value="claude_code">Claude Code</option>
+                    <option value="codex">Codex</option>
+                    <option value="qoder">Qoder</option>
+                </select>
+                <p class="import-session__help">请选择生成文件的工具，避免将相似记录格式识别为其他来源。</p>
+            </div>
+            <div class="import-session__field">
+                <label for="import-session-file">JSONL 文件</label>
+                <input id="import-session-file" name="file" type="file" accept=".jsonl" required
+                       aria-describedby="import-session-file-help" data-import-file>
+                <p id="import-session-file-help" class="import-session__help">
+                    每次一个 .jsonl 文件，上限 <span data-import-limit>{% if import_max_bytes is defined %}{{ import_max_bytes }} 字节{% else %}以服务端限制为准{% endif %}</span>。
+                </p>
+                <p class="import-session__filename" data-import-filename></p>
+            </div>
+            <div class="import-session__actions">
+                <button class="btn" type="submit" data-action="import-session" data-import-submit>导入并分析</button>
+                <span class="import-session__status" role="status" aria-live="polite" data-import-status></span>
+            </div>
+            <div class="import-session__error" role="alert" hidden data-import-error>
+                <h3>无法导入</h3>
+                <p data-import-error-message></p>
+                <button class="btn sm" type="button" data-action="retry-import" data-import-retry>重新尝试</button>
+            </div>
+        </form>
+    </section>
+
+    <section class="import-session__notes" aria-labelledby="import-session-notes-title">
+        <h2 id="import-session-notes-title">分析范围与隐私</h2>
+        <ul>
+            <li>消息、工具调用和 token 只来自当前文件，缺失的外部会话不会自动补入。</li>
+            <li>文件只交给当前本地服务分析，不发送给模型或其他远程服务。</li>
+            <li>{% if import_lifetime_message is defined %}{{ import_lifetime_message }}{% else %}这是临时分析；服务重启后链接失效，需要重新导入。{% endif %}</li>
+            <li>分享会话前，请先检查并清除文件中的私密内容。</li>
+        </ul>
+    </section>
+</div>
+{% endblock %}

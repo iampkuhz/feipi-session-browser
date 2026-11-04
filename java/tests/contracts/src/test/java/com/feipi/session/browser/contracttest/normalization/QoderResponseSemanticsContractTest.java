@@ -11,13 +11,20 @@ import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
 import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
 import com.feipi.session.browser.domain.source.SourceRecord;
 import com.feipi.session.browser.normalization.NormalizationEngine;
+import com.feipi.session.browser.source.claude.ClaudeSourceAdapter;
 import com.feipi.session.browser.source.json.JsonSourceRecordMapper;
+import com.feipi.session.browser.source.spi.Candidate;
+import com.feipi.session.browser.source.spi.SourceResult;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Qoder 响应语义契约测试。
@@ -31,6 +38,8 @@ class QoderResponseSemanticsContractTest {
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
   private static final NormalizationEngine ENGINE = new NormalizationEngine();
+
+  @TempDir Path directory;
 
   private static final String[] SYNTHETIC_EVENTS = {
     """
@@ -232,24 +241,99 @@ class QoderResponseSemanticsContractTest {
   }
 
   @Test
-  @DisplayName("Claude/Codex 回归：非 Qoder agent 不受合并影响")
-  void nonQoderAgentsUnaffected() {
+  @DisplayName("Claude 同 message.id 分片合并文本且仅计一次正式 usage")
+  void claudeFragmentsMergeFinalUsageAndPreserveText() throws IOException {
     String[] events = {
       """
-      {"type":"user","message":{"content":"go"}}\
+      {"type":"user","message":{"content":"go"}}
       """,
       """
-      {"type":"assistant","id":"c1","message":{"id":"m1","content":[{"type":"text","text":"part1"}]}}\
+      {"type":"assistant","id":"c1","message":{"id":"m1","content":[{"type":"text","text":"part1"}],"usage":{"input_tokens":999,"output_tokens":0}}}
       """,
       """
-      {"type":"assistant","id":"c2","message":{"id":"m1","content":[{"type":"text","text":"part2"}]}}\
-      """,
+      {"type":"assistant","id":"c2","message":{"id":"m1","stop_reason":"end_turn","content":[{"type":"text","text":"part2"}],"usage":{"input_tokens":11,"cache_read_input_tokens":2,"cache_creation_input_tokens":3,"output_tokens":5}}}
+      """
     };
+    var artifact = normalizeClaudeEvents(events);
+    assertThat(artifact.calls()).hasSize(1);
+    var call = artifact.calls().getFirst();
+    assertThat(call.usage().fresh()).isEqualTo(11);
+    assertThat(call.usage().cacheRead()).isEqualTo(2);
+    assertThat(call.usage().cacheWrite()).isEqualTo(3);
+    assertThat(call.usage().output()).isEqualTo(5);
+    assertThat(call.usage().total()).isEqualTo(21);
+    assertThat(
+            call.sourceUnits().stream()
+                .filter(u -> "assistant".equals(u.get("type")))
+                .map(u -> u.get("text")))
+        .containsExactly("part1\npart2");
+    assertThat(artifact.session())
+        .containsEntry("freshInputTokens", 11L)
+        .containsEntry("cacheReadTokens", 2L)
+        .containsEntry("cacheWriteTokens", 3L)
+        .containsEntry("outputTokens", 5L)
+        .containsEntry("totalTokens", 21L);
+    assertThat(SessionDetailAssembler.buildRounds(artifact.calls(), artifact.toolExecutions()))
+        .hasSize(1);
+  }
 
-    for (NormalizedAgent agent : List.of(NormalizedAgent.CLAUDE_CODE, NormalizedAgent.CODEX)) {
-      NormalizedSessionArtifact artifact = normalizeEventsAs(events, agent);
-      assertThat(artifact.calls()).as("agent=%s should not merge", agent).hasSize(2);
-    }
+  @Test
+  @DisplayName("Claude 不同 message.id 不合并且各自文本与 usage 保留")
+  void claudeDistinctMessageIdsRemainSeparate() throws IOException {
+    String[] events = {
+      """
+      {"type":"assistant","id":"c1","message":{"id":"m1","stop_reason":"end_turn","content":[{"type":"text","text":"part1"}],"usage":{"input_tokens":11,"cache_read_input_tokens":2,"cache_creation_input_tokens":3,"output_tokens":5}}}
+      """,
+      """
+      {"type":"assistant","id":"c2","message":{"id":"m2","stop_reason":"end_turn","content":[{"type":"text","text":"part2"}],"usage":{"input_tokens":7,"cache_read_input_tokens":0,"cache_creation_input_tokens":1,"output_tokens":2}}}
+      """
+    };
+    var artifact = normalizeClaudeEvents(events);
+    assertThat(artifact.calls()).hasSize(2);
+    assertThat(artifact.calls()).extracting(call -> call.usage().total()).containsExactly(21L, 10L);
+    assertThat(
+            artifact.calls().get(0).sourceUnits().stream()
+                .filter(u -> "assistant".equals(u.get("type")))
+                .map(u -> u.get("text")))
+        .containsExactly("part1");
+    assertThat(
+            artifact.calls().get(1).sourceUnits().stream()
+                .filter(u -> "assistant".equals(u.get("type")))
+                .map(u -> u.get("text")))
+        .containsExactly("part2");
+    assertThat(artifact.session()).containsEntry("totalTokens", 31L);
+    assertThat(SessionDetailAssembler.buildRounds(artifact.calls(), artifact.toolExecutions()))
+        .hasSize(2);
+  }
+
+  @Test
+  @DisplayName("Codex 同格式相同 message.id 不套用 Claude 合并规则")
+  void codexDoesNotApplyClaudeMessageFragmentMerging() {
+    String[] events = {
+      """
+      {"type":"user","message":{"content":"go"}}
+      """,
+      """
+      {"type":"assistant","id":"c1","message":{"id":"m1","content":[{"type":"text","text":"part1"}],"usage":{"input_tokens":11,"cache_read_input_tokens":2,"cache_creation_input_tokens":3,"output_tokens":5}}}
+      """,
+      """
+      {"type":"assistant","id":"c2","message":{"id":"m1","content":[{"type":"text","text":"part2"}],"usage":{"input_tokens":17,"cache_read_input_tokens":4,"cache_creation_input_tokens":6,"output_tokens":7}}}
+      """
+    };
+    var artifact = normalizeEventsAs(events, NormalizedAgent.CODEX);
+    assertThat(artifact.calls()).hasSize(2);
+    assertThat(artifact.calls()).extracting(call -> call.usage().total()).containsExactly(21L, 34L);
+    assertThat(
+            artifact.calls().get(0).sourceUnits().stream()
+                .filter(u -> "assistant".equals(u.get("type")))
+                .map(u -> u.get("text")))
+        .containsExactly("part1");
+    assertThat(
+            artifact.calls().get(1).sourceUnits().stream()
+                .filter(u -> "assistant".equals(u.get("type")))
+                .map(u -> u.get("text")))
+        .containsExactly("part2");
+    assertThat(artifact.session()).containsEntry("totalTokens", 55L);
   }
 
   @Test
@@ -723,6 +807,20 @@ class QoderResponseSemanticsContractTest {
       assertThat(artifact1.calls().get(i).callId()).isEqualTo(artifact2.calls().get(i).callId());
       assertThat(artifact1.calls().get(i).turnId()).isEqualTo(artifact2.calls().get(i).turnId());
     }
+  }
+
+  private NormalizedSessionArtifact normalizeClaudeEvents(String[] events) throws IOException {
+    Path transcript = directory.resolve("synthetic-claude.jsonl");
+    Files.writeString(transcript, String.join("\n", events));
+    var adapter = new ClaudeSourceAdapter();
+    var candidate =
+        new Candidate(
+            adapter.fingerprint(transcript), "claude_code:synthetic", "synthetic", Map.of());
+    var parsed = adapter.parse(candidate, null);
+    assertThat(parsed).isInstanceOf(SourceResult.Success.class);
+    var success = (SourceResult.Success) parsed;
+    return ENGINE.normalize(
+        NormalizedAgent.CLAUDE_CODE, success.records(), success.diagnostics(), List.of());
   }
 
   private static NormalizedSessionArtifact normalizeSynthetic() {

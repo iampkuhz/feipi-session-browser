@@ -13,6 +13,7 @@ import com.feipi.session.browser.index.api.query.ProjectStats;
 import com.feipi.session.browser.index.api.query.TokenBreakdown;
 import com.feipi.session.browser.index.api.query.TrendDay;
 import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
+import com.feipi.session.browser.index.store.sqlite.mapper.TokenProvenanceSqlMapper;
 import com.feipi.session.browser.index.store.sqlite.row.ActivityTrendRow;
 import com.feipi.session.browser.index.store.sqlite.row.AgentBreakdownRow;
 import com.feipi.session.browser.index.store.sqlite.row.AgentEfficiencyRow;
@@ -61,6 +62,13 @@ import java.util.Objects;
  */
 public final class SqliteAggregateQueryRepository implements AggregateQueryPort {
 
+  /** 缓存分布只使用输入三段均实测且分母非零的会话，缺测不能作为零命中样本。 */
+  private static final String MEASURED_CACHE_INPUT =
+      "(fresh_input_tokens + cache_read_tokens + cache_write_tokens) > 0"
+          + " AND fresh_input_token_precision = 'provider_reported'"
+          + " AND cache_read_token_precision = 'provider_reported'"
+          + " AND cache_write_token_precision = 'provider_reported'";
+
   /** 项目统计聚合 SELECT 子句，projectStats 和 listProjects 共享。 */
   private static final String CANONICAL_PROJECT_KEY_EXPR =
       """
@@ -91,9 +99,13 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
           COALESCE(SUM(failed_tool_count), 0) as total_failed_tools,
           COALESCE(SUM(user_message_count), 0) as total_user_messages,
           COALESCE(SUM(assistant_message_count), 0) as total_assistant_messages
+          , %s
       FROM sessions\
       """
-          .formatted(CANONICAL_PROJECT_KEY_EXPR, CANONICAL_PROJECT_KEY_EXPR);
+          .formatted(
+              CANONICAL_PROJECT_KEY_EXPR,
+              CANONICAL_PROJECT_KEY_EXPR,
+              TokenProvenanceSqlMapper.aggregateColumns());
 
   /** Top-N 项目聚合基础 SELECT，topProjectsByTokens 和 topProjectsByTools 共享。 */
   private static final String TOP_PROJECTS_BASE =
@@ -225,6 +237,8 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
             + " COALESCE(SUM(output_tokens), 0) AS output_tokens,"
             + " COALESCE(SUM(tool_call_count), 0) AS tool_call_count,"
             + " COALESCE(SUM(failed_tool_count), 0) AS failed_tool_count"
+            + ", "
+            + TokenProvenanceSqlMapper.aggregateColumns()
             + " FROM sessions "
             + clauses.whereFragment();
 
@@ -246,7 +260,8 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
             output,
             fresh + cacheRead + cacheWrite + output,
             rs.getLong("tool_call_count"),
-            rs.getLong("failed_tool_count"));
+            rs.getLong("failed_tool_count"),
+            TokenProvenanceSqlMapper.read(rs));
       }
     }
   }
@@ -334,9 +349,10 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
             COALESCE(SUM(failed_tool_count), 0) as total_failed_tools,
             COALESCE(SUM(user_message_count), 0) as total_user_messages,
             COALESCE(SUM(assistant_message_count), 0) as total_assistant_messages
+            , %s
         FROM sessions %s\
         """
-            .formatted(agentClause);
+            .formatted(TokenProvenanceSqlMapper.aggregateColumns(), agentClause);
     try (ReadTransaction rt = indexConnection.readTransaction();
         PreparedStatement ps = rt.connection().prepareStatement(sql)) {
       bindAgentParam(ps, agentFilter, 1);
@@ -356,7 +372,8 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
             rs.getLong("total_tool_calls"),
             rs.getLong("total_failed_tools"),
             rs.getLong("total_user_messages"),
-            rs.getLong("total_assistant_messages"));
+            rs.getLong("total_assistant_messages"),
+            TokenProvenanceSqlMapper.read(rs));
       }
     }
   }
@@ -391,10 +408,12 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
             COALESCE(SUM(failed_tool_count), 0) as total_failed_tools,
             COALESCE(SUM(user_message_count), 0) as total_user_messages,
             COUNT(DISTINCT project_key) as project_count
+            , %s
         FROM sessions
         GROUP BY agent
         ORDER BY MAX(ended_at) DESC\
-        """;
+        """
+            .formatted(TokenProvenanceSqlMapper.aggregateColumns());
     try (ReadTransaction rt = indexConnection.readTransaction();
         PreparedStatement ps = rt.connection().prepareStatement(sql);
         ResultSet rs = ps.executeQuery()) {
@@ -413,7 +432,8 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
                 rs.getLong("total_tool_calls"),
                 rs.getLong("total_failed_tools"),
                 rs.getLong("total_user_messages"),
-                rs.getLong("project_count")));
+                rs.getLong("project_count"),
+                TokenProvenanceSqlMapper.read(rs)));
       }
       return result;
     }
@@ -422,8 +442,8 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
   /**
    * 每日 token 和会话趋势数据。
    *
-   * <p>对应 Python {@code get_trend_data}。按日历日分组，包含 per-agent 计数和 token 分布。 日期范围由 {@link
-   * TrendFilter#days} 控制。空 {@code ended_at} 归入当天。
+   * <p>按有效 started_at 的 UTC 开始日统计新增会话，包含该 cohort 的整段累计 token/tool 与 per-agent 分布， 不代表逐 call
+   * 的实际发生日。日期窗口由 {@link TrendFilter#days} 控制，未知或无效开始日期排除。
    *
    * @param filter 趋势过滤器
    * @return 按日期升序排列的趋势行列表
@@ -439,7 +459,7 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
     String sql =
         """
         SELECT
-            COALESCE(NULLIF(DATE(ended_at), ''), DATE('now')) as day,
+            DATE(started_at) as day,
             SUM(CASE WHEN agent='claude_code' THEN 1 ELSE 0 END) as claude_count,
             SUM(CASE WHEN agent='codex' THEN 1 ELSE 0 END) as codex_count,
             SUM(CASE WHEN agent='qoder' THEN 1 ELSE 0 END) as qoder_count,
@@ -475,13 +495,17 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
                 as codex_cache_read,
             COALESCE(SUM(CASE WHEN agent='codex' THEN cache_write_tokens ELSE 0 END), 0)
                 as codex_cache_write
+            , %s
         FROM sessions
-        WHERE (ended_at >= date('now', ?) OR ended_at = '' OR ended_at IS NULL)
+        WHERE started_at GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*'
+          AND DATE(SUBSTR(started_at, 1, 10), '+0 days') = SUBSTR(started_at, 1, 10)
+          AND DATE(started_at) IS NOT NULL
+          AND DATE(started_at) >= DATE('now', ?)
         %s
-        GROUP BY COALESCE(NULLIF(DATE(ended_at), ''), DATE('now'))
+        GROUP BY DATE(started_at)
         ORDER BY day\
         """
-            .formatted(agentAndClause);
+            .formatted(TokenProvenanceSqlMapper.aggregateColumns(), agentAndClause);
     try (ReadTransaction rt = indexConnection.readTransaction();
         PreparedStatement ps = rt.connection().prepareStatement(sql)) {
       int idx = 1;
@@ -494,7 +518,7 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
   /**
    * 每日 prompt 活动趋势数据。
    *
-   * <p>对应 Python {@code get_prompt_activity_trend}。按日历日分组，包含 per-agent prompt 计数。
+   * <p>与会话/token 趋势使用相同的有效 UTC 开始日 cohort、窗口和 agent 范围；各项为这些会话的整段累计量， 不是消息或工具的实际发生日。未知或无效开始日期排除。
    *
    * @param filter 趋势过滤器
    * @return 按日期升序排列的活动趋势行列表
@@ -510,7 +534,7 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
     String sql =
         """
         SELECT
-            COALESCE(NULLIF(DATE(ended_at), ''), DATE('now')) as day,
+            DATE(started_at) as day,
             COALESCE(SUM(CASE WHEN agent='claude_code' THEN user_message_count ELSE 0 END), 0)
                 as claude_prompts,
             COALESCE(SUM(CASE WHEN agent='codex' THEN user_message_count ELSE 0 END), 0)
@@ -521,9 +545,12 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
             COALESCE(SUM(assistant_message_count), 0) as assistant_turns,
             COALESCE(SUM(tool_call_count), 0) as tool_calls
         FROM sessions
-        WHERE (ended_at >= date('now', ?) OR ended_at = '' OR ended_at IS NULL)
+        WHERE started_at GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*'
+          AND DATE(SUBSTR(started_at, 1, 10), '+0 days') = SUBSTR(started_at, 1, 10)
+          AND DATE(started_at) IS NOT NULL
+          AND DATE(started_at) >= DATE('now', ?)
         %s
-        GROUP BY COALESCE(NULLIF(DATE(ended_at), ''), DATE('now'))
+        GROUP BY DATE(started_at)
         ORDER BY day\
         """
             .formatted(agentAndClause);
@@ -560,8 +587,10 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
             COALESCE(SUM(cache_write_tokens), 0) as total_cache_write,
             COALESCE(SUM(tool_call_count), 0) as total_tool_calls,
             COALESCE(SUM(failed_tool_count), 0) as total_failed_tools
+            , %s
         FROM sessions\
-        """;
+        """
+            .formatted(TokenProvenanceSqlMapper.aggregateColumns());
     try (ReadTransaction rt = indexConnection.readTransaction();
         PreparedStatement ps = rt.connection().prepareStatement(sql);
         ResultSet rs = ps.executeQuery()) {
@@ -572,7 +601,8 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
           rs.getLong("total_cache_read"),
           rs.getLong("total_cache_write"),
           rs.getLong("total_tool_calls"),
-          rs.getLong("total_failed_tools"));
+          rs.getLong("total_failed_tools"),
+          TokenProvenanceSqlMapper.read(rs));
     }
   }
 
@@ -860,12 +890,14 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
             COALESCE(SUM(assistant_message_count), 0) as total_rounds,
             COALESCE(SUM(cache_read_tokens), 0) as total_cache_read,
             COALESCE(SUM(failed_tool_count), 0) as total_failed
+            , %s
         FROM sessions
         WHERE model IS NOT NULL AND model != ''
         GROUP BY agent, model
         HAVING COALESCE(SUM(total_tokens), 0) > 0
         ORDER BY session_count DESC\
-        """;
+        """
+            .formatted(TokenProvenanceSqlMapper.aggregateColumns());
 
     // 单独查询正时长数据用于 P95 计算
     String durationSql =
@@ -926,7 +958,8 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
                       : 0.0,
                   AggregateMetricsRow.safeDivRound(totalTools, totalRounds, 2),
                   AggregateMetricsRow.safeDivRound(totalCacheRead, totalInputSide, 4),
-                  AggregateMetricsRow.safeDivRound(totalFailed, sessionCount, 4)));
+                  AggregateMetricsRow.safeDivRound(totalFailed, sessionCount, 4),
+                  TokenProvenanceSqlMapper.read(rs)));
         }
       }
       return result;
@@ -1072,14 +1105,14 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
         }
       }
 
-      // 说明:输入侧 token 大于 0 的 eligible session 数
+      // 说明:输入三段均实测且分母大于 0 的 eligible session 数
       long eligibleSessions;
       try (PreparedStatement ps =
           conn.prepareStatement(
               "SELECT COUNT(*) FROM sessions "
                   + agentWhere
                   + (agentWhere.isEmpty() ? " WHERE " : " AND ")
-                  + "(fresh_input_tokens + cache_read_tokens + cache_write_tokens) > 0")) {
+                  + MEASURED_CACHE_INPUT)) {
         bindAgentParam(ps, agentFilter, 1);
         try (ResultSet rs = ps.executeQuery()) {
           rs.next();
@@ -1096,7 +1129,7 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
                   + " AS ratio FROM sessions "
                   + agentWhere
                   + (agentWhere.isEmpty() ? " WHERE " : " AND ")
-                  + "(fresh_input_tokens + cache_read_tokens + cache_write_tokens) > 0"
+                  + MEASURED_CACHE_INPUT
                   + " ORDER BY ratio")) {
         bindAgentParam(ps, agentFilter, 1);
         List<Double> ratios = new ArrayList<>();
@@ -1126,7 +1159,7 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
               "SELECT COUNT(*) FROM sessions "
                   + agentWhere
                   + (agentWhere.isEmpty() ? " WHERE " : " AND ")
-                  + "(fresh_input_tokens + cache_read_tokens + cache_write_tokens) > 0"
+                  + MEASURED_CACHE_INPUT
                   + " AND cache_read_tokens * 1.0"
                   + " / (fresh_input_tokens + cache_read_tokens + cache_write_tokens) < 0.2")) {
         bindAgentParam(ps, agentFilter, 1);
@@ -1270,7 +1303,8 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
         rs.getLong("total_tool_calls"),
         rs.getLong("total_failed_tools"),
         rs.getLong("total_user_messages"),
-        rs.getLong("total_assistant_messages"));
+        rs.getLong("total_assistant_messages"),
+        TokenProvenanceSqlMapper.read(rs));
   }
 
   /** 详情/列表使用 canonical key 做路由，展示名优先使用路径 basename。 */
@@ -1320,7 +1354,8 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
                 rs.getLong("qoder_cache_write"),
                 rs.getLong("codex_fresh_input"),
                 rs.getLong("codex_cache_read"),
-                rs.getLong("codex_cache_write")));
+                rs.getLong("codex_cache_write"),
+                TokenProvenanceSqlMapper.read(rs)));
       }
     }
     return rows;
@@ -1384,14 +1419,14 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
     return rows;
   }
 
-  /** Nearest-rank P95 近似。与 Python 实现一致。 */
+  /** Nearest-rank P95：取升序第 ceil(0.95 * n) 个观测值；空集合保留返回 0。 */
   private static double nearestRankP95(List<Double> values) {
     if (values.isEmpty()) {
       return 0;
     }
     List<Double> sorted = new ArrayList<>(values);
     sorted.sort(Double::compare);
-    int idx = (int) (0.95 * (sorted.size() - 1));
+    int idx = Math.clamp((int) Math.ceil(0.95 * sorted.size()) - 1, 0, sorted.size() - 1);
     return sorted.get(idx);
   }
 

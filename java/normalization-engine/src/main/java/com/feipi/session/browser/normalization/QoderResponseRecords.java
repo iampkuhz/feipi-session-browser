@@ -94,7 +94,8 @@ final class QoderResponseRecords {
             !group.isEmpty()
                 && mid.equals(groupMessageId)
                 && sourceKey.equals(groupSourceKey)
-                && relation.equals(groupRelation);
+                && relation.equals(groupRelation)
+                && record.metaContext() == group.getFirst().metaContext();
 
         if (canMerge) {
           group.add(record);
@@ -203,7 +204,9 @@ final class QoderResponseRecords {
         record.relation(),
         record.content(),
         record.responseMessageId(),
-        record.responseStopReason());
+        record.responseStopReason(),
+        record.timing(),
+        record.metaContext());
   }
 
   private static SourceRecord mergeGroup(
@@ -267,7 +270,9 @@ final class QoderResponseRecords {
         first.relation() != null ? first.relation() : SourceRecordRelation.empty(),
         contentBuilder.toString(),
         first.responseMessageId(),
-        lastStopReason);
+        lastStopReason,
+        first.timing(),
+        first.metaContext());
   }
 
   private static SourceRecordUsage mergeUsage(List<SourceRecord> group) {

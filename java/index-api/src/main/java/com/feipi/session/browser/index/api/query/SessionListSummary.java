@@ -1,5 +1,7 @@
 package com.feipi.session.browser.index.api.query;
 
+import com.feipi.session.browser.domain.normalized.TokenProvenance;
+
 /** 已过滤 session 列表的聚合总量。 */
 public interface SessionListSummary {
   /** 返回当前筛选条件命中的会话数。 */
@@ -25,4 +27,9 @@ public interface SessionListSummary {
 
   /** 返回命中会话中失败的工具调用总数。 */
   long failedToolCount();
+
+  /** 返回相同查询范围的四段计量来源；旧实现不推断为 provider 上报。 */
+  default TokenProvenance tokenProvenance() {
+    return TokenProvenance.unknown(sessionCount());
+  }
 }

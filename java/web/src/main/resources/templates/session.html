@@ -1,13 +1,21 @@
 {% extends "base.html" %}
 {% set hide_sidebar_extra = true %}
 {% set hide_payload_modal = true %}
+{% if imported_analysis is defined and imported_analysis %}
+{% set active_page = 'imports' %}
+{% endif %}
 
-{% block title %}Session Detail - Agent Run Profiler{% endblock %}
+{% block title %}{% if imported_analysis is defined and imported_analysis %}导入会话{% else %}Session Detail{% endif %} - Agent Run Profiler{% endblock %}
 {% block shell_class %}no-inspector session-detail-page sd-shell{% endblock %}
 
 {% block main_attrs %}data-trace-page{% endblock %}
 
 {% block breadcrumb %}
+{% if imported_analysis is defined and imported_analysis %}
+<a href="/imports">导入分析</a>
+<span class="sep">/</span>
+<b title="{{ import_filename }}">{{ import_filename | truncate_path }}</b>
+{% else %}
 <a href="/dashboard">Dashboard</a>
 <span class="sep">/</span>
 <a href="/sessions">Sessions</a>
@@ -15,6 +23,7 @@
 <span>{{ current_agent }}</span>
 <span class="sep">/</span>
 <b>{{ session_id | truncate_path }}</b>
+{% endif %}
 {% endblock %}
 
 {% block head_extra %}
@@ -39,6 +48,19 @@
 {% endblock %}
 
 {% block content %}
+{% if imported_analysis is defined and imported_analysis %}
+<section class="sd-import-scope" data-import-scope role="note" aria-label="导入分析范围">
+    <div class="sd-import-scope__summary">
+        <strong>导入会话 · 仅本文件分析 · 不计入个人统计</strong>
+        <span class="sd-import-scope__filename" title="{{ import_filename }}">{{ import_filename }}</span>
+        <span>缺少的外部会话或子会话不会计入本文件分析。</span>
+    </div>
+    <div class="sd-import-scope__actions">
+        <a class="sd-btn sd-btn--md" href="/imports" data-action="nav-imports">导入另一个文件</a>
+        <a class="sd-btn sd-btn--md" href="/sessions" data-action="nav-sessions">返回个人 Sessions</a>
+    </div>
+</section>
+{% endif %}
 
 <section class="sd-hero" data-session-overview-hero data-session-hero>
     <div class="sd-hero__top">
@@ -97,6 +119,9 @@
             <div class="sd-kpi sd-kpi--stack" aria-label="Total Tokens" title="Loaded from /api/sessions/{agent}/{sessionId}/metrics">
                 <div class="sd-kpi__value" title="Loaded from metrics API">Loading…</div>
                 <div class="sd-kpi__label">Total Tokens</div>
+                {% if imported_analysis is defined and imported_analysis %}
+                <div class="sd-import-kpi-scope">仅本文件用量，不计个人总量</div>
+                {% endif %}
                 <div class="sd-kpi__subgrid">
                     <span>Fresh <b class="sd-kpi-token-share">Loading…</b></span>
                     <span>Cache Read <b class="sd-kpi-token-share">Loading…</b></span>
@@ -122,13 +147,14 @@
                     <span>Subagent Runs <b>Loading…</b></span>
                 </div>
             </div>
-            <div class="sd-kpi sd-kpi--stack" aria-label="Active Time" title="Loaded from metrics API">
+            <div class="sd-kpi sd-kpi--stack" aria-label="Source Task Active" title="MAIN source task-window union; includes tools/wait, not model inference. Unknown timing is N/A.">
                 <div class="sd-kpi__value">Loading…</div>
-                <div class="sd-kpi__label">Active Time</div>
+                <div class="sd-kpi__label">Source Task Active</div>
                 <div class="sd-kpi__subgrid">
-                    <span>Duration <b>Loading…</b></span>
-                    <span>Model Time <b>Loading…</b></span>
-                    <span>Tool Time <b>Loading…</b></span>
+                    <span>Wall Duration <b>Loading…</b></span>
+                    <span>Agent Turn <b>Loading…</b></span>
+                    <span>Model Execution <b>Loading…</b></span>
+                    <span>Tool Execution <b>Loading…</b></span>
                 </div>
             </div>
         </div>

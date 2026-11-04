@@ -1,5 +1,7 @@
 package com.feipi.session.browser.index.store.sqlite.row;
 
+import com.feipi.session.browser.domain.normalized.SessionTiming;
+import com.feipi.session.browser.domain.normalized.TokenProvenance;
 import com.feipi.session.browser.index.api.query.SessionRecord;
 import com.feipi.session.browser.index.store.sqlite.mapper.ArtifactRowMapper;
 import com.feipi.session.browser.validation.Finite;
@@ -51,6 +53,8 @@ import jakarta.validation.constraints.PositiveOrZero;
  * @param indexedAt 索引写入时间戳（epoch 秒），非负
  * @param fileMtime 源文件修改时间（epoch 秒），非负
  * @param filePath 源文件路径，缺失时为空字符串
+ * @param tokenProvenance 相同查询范围的四段计量来源
+ * @param timing 显式计时口径，缺失时unknown
  */
 public record SessionRow(
     /* 会话主键，格式 agent:session_id。 */ @NotBlank String sessionKey,
@@ -80,7 +84,9 @@ public record SessionRow(
     /* 子 agent 实例数，非负。 */ @PositiveOrZero long subagentInstanceCount,
     /* 索引写入时间戳（epoch 秒），非负。 */ @PositiveOrZero double indexedAt,
     /* 源文件修改时间（epoch 秒），非负。 */ @PositiveOrZero double fileMtime,
-    /* 源文件路径，缺失时为空字符串。 */ String filePath)
+    /* 源文件路径，缺失时为空字符串。 */ String filePath,
+    /* 相同查询范围的四段计量来源。 */ TokenProvenance tokenProvenance,
+    /* 显式计时口径。 */ SessionTiming timing)
     implements SessionRecord {
 
   /**
@@ -92,6 +98,8 @@ public record SessionRow(
    * @throws IllegalArgumentException 当数值字段为负数时
    */
   public SessionRow {
+    timing = timing == null ? SessionTiming.unknown(null) : timing;
+    tokenProvenance = tokenProvenance == null ? TokenProvenance.unknown(1) : tokenProvenance;
     ValidationSupport.validateCanonicalConstructor(
         SessionRow.class,
         sessionKey,
@@ -121,7 +129,9 @@ public record SessionRow(
         subagentInstanceCount,
         indexedAt,
         fileMtime,
-        filePath);
+        filePath,
+        tokenProvenance,
+        timing);
 
     // 字符串 null → 空字符串
     title = defaultEmpty(title);
@@ -137,5 +147,131 @@ public record SessionRow(
 
   private static String defaultEmpty(String value) {
     return value == null ? "" : value;
+  }
+
+  /** 兼容未提供精度的旧调用点，不把旧数值推断为上报。 */
+  public SessionRow(
+      String sessionKey,
+      String agent,
+      String sessionId,
+      String title,
+      String projectKey,
+      String projectName,
+      String cwd,
+      String startedAt,
+      String endedAt,
+      double durationSeconds,
+      double modelExecutionSeconds,
+      double toolExecutionSeconds,
+      String model,
+      String gitBranch,
+      String source,
+      long userMessageCount,
+      long assistantMessageCount,
+      long toolCallCount,
+      long outputTokens,
+      long freshInputTokens,
+      long cacheReadTokens,
+      long cacheWriteTokens,
+      long totalTokens,
+      long failedToolCount,
+      long subagentInstanceCount,
+      double indexedAt,
+      double fileMtime,
+      String filePath) {
+    this(
+        sessionKey,
+        agent,
+        sessionId,
+        title,
+        projectKey,
+        projectName,
+        cwd,
+        startedAt,
+        endedAt,
+        durationSeconds,
+        modelExecutionSeconds,
+        toolExecutionSeconds,
+        model,
+        gitBranch,
+        source,
+        userMessageCount,
+        assistantMessageCount,
+        toolCallCount,
+        outputTokens,
+        freshInputTokens,
+        cacheReadTokens,
+        cacheWriteTokens,
+        totalTokens,
+        failedToolCount,
+        subagentInstanceCount,
+        indexedAt,
+        fileMtime,
+        filePath,
+        TokenProvenance.unknown(1));
+  }
+
+  /** 兼容未携带typed timing的旧调用点。 */
+  public SessionRow(
+      String sessionKey,
+      String agent,
+      String sessionId,
+      String title,
+      String projectKey,
+      String projectName,
+      String cwd,
+      String startedAt,
+      String endedAt,
+      double durationSeconds,
+      double modelExecutionSeconds,
+      double toolExecutionSeconds,
+      String model,
+      String gitBranch,
+      String source,
+      long userMessageCount,
+      long assistantMessageCount,
+      long toolCallCount,
+      long outputTokens,
+      long freshInputTokens,
+      long cacheReadTokens,
+      long cacheWriteTokens,
+      long totalTokens,
+      long failedToolCount,
+      long subagentInstanceCount,
+      double indexedAt,
+      double fileMtime,
+      String filePath,
+      TokenProvenance tokenProvenance) {
+    this(
+        sessionKey,
+        agent,
+        sessionId,
+        title,
+        projectKey,
+        projectName,
+        cwd,
+        startedAt,
+        endedAt,
+        durationSeconds,
+        modelExecutionSeconds,
+        toolExecutionSeconds,
+        model,
+        gitBranch,
+        source,
+        userMessageCount,
+        assistantMessageCount,
+        toolCallCount,
+        outputTokens,
+        freshInputTokens,
+        cacheReadTokens,
+        cacheWriteTokens,
+        totalTokens,
+        failedToolCount,
+        subagentInstanceCount,
+        indexedAt,
+        fileMtime,
+        filePath,
+        tokenProvenance,
+        SessionTiming.unknown(null));
   }
 }

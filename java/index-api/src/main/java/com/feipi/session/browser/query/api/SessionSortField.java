@@ -33,6 +33,9 @@ public enum SessionSortField {
   /** 按会话墙钟时长排序，对应 {@code duration_seconds} 列。 */
   DURATION_SECONDS("duration_seconds"),
 
+  /** 按可观察 MAIN task 窗口并集排序；由 repository 映射到 typed timing JSON。 */
+  ACTIVE_TASK_SECONDS("active_task_seconds"),
+
   /** 按模型推理时长排序，对应 {@code model_execution_seconds} 列。 */
   MODEL_EXECUTION_SECONDS("model_execution_seconds"),
 

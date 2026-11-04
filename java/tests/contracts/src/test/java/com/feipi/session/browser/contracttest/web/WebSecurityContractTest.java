@@ -74,12 +74,13 @@ class WebSecurityContractTest {
   /** 只记录状态码与固定安全头是否存在，不输出响应正文或任意响应头值。 */
   private static String safeResponseDiagnostics(io.javalin.testtools.Response response) {
     return ("HTTP %d; security headers present: CSP=%s, X-Frame-Options=%s, "
-            + "X-Content-Type-Options=%s")
+            + "X-Content-Type-Options=%s, Proxy-Authenticate=%s")
         .formatted(
             response.code(),
             firstHeader(response, "Content-Security-Policy") != null,
             firstHeader(response, "X-Frame-Options") != null,
-            firstHeader(response, "X-Content-Type-Options") != null);
+            firstHeader(response, "X-Content-Type-Options") != null,
+            firstHeader(response, "Proxy-Authenticate") != null);
   }
 
   @Nested
@@ -94,7 +95,10 @@ class WebSecurityContractTest {
           webRoot.app(),
           (testApp, client) -> {
             var response = client.get("/dashboard");
+            String diagnostics = safeResponseDiagnostics(response);
+            assertThat(response.code()).as(diagnostics).isEqualTo(200);
             cspHolder[0] = firstHeader(response, "Content-Security-Policy");
+            assertThat(cspHolder[0]).as(diagnostics).isNotNull();
           });
       return cspHolder[0];
     }

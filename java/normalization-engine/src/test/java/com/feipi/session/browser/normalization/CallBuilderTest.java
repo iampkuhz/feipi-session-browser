@@ -9,7 +9,11 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.feipi.session.browser.domain.enums.CallScope;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
+import com.feipi.session.browser.domain.source.SourceRecord;
+import com.feipi.session.browser.domain.source.SourceRecordRelation;
+import com.feipi.session.browser.domain.source.SourceRecordUsage;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -28,6 +32,134 @@ class CallBuilderTest {
   @Nested
   @DisplayName("buildCalls")
   class BuildCallsTests {
+
+    @Test
+    @DisplayName("spawn anchor 携带child relation时仍归MAIN，output不泄入child输入")
+    void spawnAnchorAndOutputStayInMainScope() {
+      SourceRecordRelation relation =
+          new SourceRecordRelation(
+              Optional.of("synthetic-child"),
+              Optional.of("synthetic-parent"),
+              Optional.of("spawn-edge"),
+              Optional.empty(),
+              Optional.of("spawn_agent"));
+      SourceRecord first =
+          TestSourceRecords.from(assistantEvent("token_count:first", "synthetic-model"), 0);
+      SourceRecord spawn =
+          new SourceRecord(
+              "main.jsonl#event[1]",
+              1,
+              "tool_use",
+              Optional.of("spawn-edge"),
+              Optional.empty(),
+              Optional.empty(),
+              Optional.empty(),
+              SourceRecordUsage.empty(),
+              List.of(),
+              Optional.empty(),
+              Optional.of("spawn_agent"),
+              Optional.empty(),
+              relation,
+              "");
+      SourceRecord output =
+          new SourceRecord(
+              "main.jsonl#event[2]",
+              2,
+              "tool_result",
+              Optional.empty(),
+              Optional.empty(),
+              Optional.empty(),
+              Optional.empty(),
+              SourceRecordUsage.empty(),
+              List.of(),
+              Optional.of("spawn-edge"),
+              Optional.empty(),
+              Optional.empty(),
+              relation,
+              "synthetic spawn output");
+      SourceRecord child =
+          new SourceRecord(
+              "child.jsonl#event[0]",
+              0,
+              "assistant",
+              Optional.of("token_usage_record:child"),
+              Optional.empty(),
+              Optional.empty(),
+              Optional.empty(),
+              SourceRecordUsage.empty(),
+              List.of(),
+              Optional.empty(),
+              Optional.empty(),
+              Optional.empty(),
+              relation,
+              "child response");
+      SourceRecord next =
+          TestSourceRecords.from(assistantEvent("token_usage_record:next", "synthetic-model"), 3);
+      List<SourceRecord> records = List.of(first, spawn, output, child, next);
+      EventClassifier.ClassifiedEvents classified = EventClassifier.classify(records);
+
+      List<NormalizedCall> calls = CallBuilder.buildCalls(records, classified);
+      List<NormalizedToolExecution> tools =
+          CallBuilder.buildToolExecutions(records, classified, calls);
+
+      assertThat(calls.get(1).parentCallId()).hasValue("token_usage_record:next");
+      assertThat(calls.get(1).sourceUnits().toString()).doesNotContain("synthetic spawn output");
+      assertThat(calls.get(2).request().toolResultIds()).containsExactly("spawn-edge");
+      assertThat(calls.get(2).sourceUnits().toString()).contains("synthetic spawn output");
+      assertThat(tools)
+          .singleElement()
+          .satisfies(
+              tool -> {
+                assertThat(tool.scope()).isEqualTo(CallScope.MAIN);
+                assertThat(tool.declaredByCallId()).isEqualTo("token_usage_record:next");
+                assertThat(tool.resultConsumedByCallId()).hasValue("token_usage_record:next");
+              });
+    }
+
+    @Test
+    @DisplayName("Codex closing frame 后的工具归属下一同scope调用，不跨主/child作用域")
+    void usageClosingFrameToolsBelongToNextCallInSameScope() {
+      ObjectNode mainFirst = assistantEvent("token_count:synthetic-first", "synthetic-model");
+      ObjectNode mainTool =
+          MAPPER
+              .createObjectNode()
+              .put("type", "tool_use")
+              .put("id", "main-tool")
+              .put("name", "Read");
+      ObjectNode childFirst =
+          assistantEvent("token_usage_record:child-first", "synthetic-model")
+              .put("locator", "main/subagents/agent-worker.jsonl#event[0]");
+      ObjectNode childTool =
+          MAPPER
+              .createObjectNode()
+              .put("type", "tool_use")
+              .put("id", "child-tool")
+              .put("name", "Read")
+              .put("locator", "main/subagents/agent-worker.jsonl#event[1]");
+      ObjectNode mainNext = assistantEvent("token_usage_record:main-next", "synthetic-model");
+      ObjectNode childNext =
+          assistantEvent("token_usage_record:child-next", "synthetic-model")
+              .put("locator", "main/subagents/agent-worker.jsonl#event[2]");
+      var records =
+          TestSourceRecords.records(
+              mainFirst, mainTool, childFirst, childTool, mainNext, childNext);
+      EventClassifier.ClassifiedEvents classified = EventClassifier.classify(records);
+      List<NormalizedCall> calls = CallBuilder.buildCalls(records, classified);
+
+      List<NormalizedToolExecution> executions =
+          CallBuilder.buildToolExecutions(records, classified, calls);
+
+      assertThat(executions)
+          .filteredOn(exec -> "main-tool".equals(exec.toolCallId()))
+          .singleElement()
+          .extracting(NormalizedToolExecution::declaredByCallId)
+          .isEqualTo("token_usage_record:main-next");
+      assertThat(executions)
+          .filteredOn(exec -> "child-tool".equals(exec.toolCallId()))
+          .singleElement()
+          .extracting(NormalizedToolExecution::declaredByCallId)
+          .isEqualTo("agent-worker-SR2");
+    }
 
     @Test
     @DisplayName("空分类返回空调用列表")

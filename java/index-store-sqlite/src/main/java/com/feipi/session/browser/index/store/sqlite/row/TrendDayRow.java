@@ -1,5 +1,6 @@
 package com.feipi.session.browser.index.store.sqlite.row;
 
+import com.feipi.session.browser.domain.normalized.TokenProvenance;
 import com.feipi.session.browser.index.api.query.TrendDay;
 import com.feipi.session.browser.validation.ValidationSupport;
 import jakarta.validation.constraints.NotBlank;
@@ -11,7 +12,7 @@ import jakarta.validation.constraints.PositiveOrZero;
  * <p>对应 Python {@code get_trend_data} 查询结果。按日历日分组，包含 per-agent 会话计数和 token 分布。 同时包含 per-agent 输入侧
  * cache 组件（fresh/cache read/cache write），供 Cache Health 多曲线使用。
  *
- * <p>时间语义：日期由 SQLite {@code DATE(ended_at)} 计算，空 ended_at 归入当天。
+ * <p>时间语义：日期为有效 started_at 对应的 UTC 开始日；未知或无效日期排除。各项用量为该日开始会话的整段累计量。
  *
  * @param date 日期字符串（YYYY-MM-DD）
  * @param claudeCount claude_code 当日会话数
@@ -37,6 +38,7 @@ import jakarta.validation.constraints.PositiveOrZero;
  * @param codexFreshInput codex 当日 fresh input token
  * @param codexCacheRead codex 当日 cache read token
  * @param codexCacheWrite codex 当日 cache write token
+ * @param tokenProvenance 相同查询范围的四段计量来源
  */
 public record TrendDayRow(
     /* 日期字符串（YYYY-MM-DD）。 */ @NotBlank String date,
@@ -62,11 +64,16 @@ public record TrendDayRow(
     /* Qoder 当日缓存写入令牌数量。 */ @PositiveOrZero long qoderCacheWrite,
     /* Codex 当日新鲜输入令牌数量。 */ @PositiveOrZero long codexFreshInput,
     /* Codex 当日缓存读取令牌数量。 */ @PositiveOrZero long codexCacheRead,
-    /* Codex 当日缓存写入令牌数量。 */ @PositiveOrZero long codexCacheWrite)
+    /* Codex 当日缓存写入令牌数量。 */ @PositiveOrZero long codexCacheWrite,
+    /* 相同查询范围的四段计量来源。 */ TokenProvenance tokenProvenance)
     implements TrendDay {
 
   /** 紧凑构造器，校验 record component 约束。 */
   public TrendDayRow {
+    tokenProvenance =
+        tokenProvenance == null
+            ? TokenProvenance.unknown(Math.max(0, totalCount))
+            : tokenProvenance;
     ValidationSupport.validateCanonicalConstructor(
         TrendDayRow.class,
         date,
@@ -92,6 +99,61 @@ public record TrendDayRow(
         qoderCacheWrite,
         codexFreshInput,
         codexCacheRead,
-        codexCacheWrite);
+        codexCacheWrite,
+        tokenProvenance);
+  }
+
+  /** 兼容未提供精度的旧调用点，不把旧数值推断为上报。 */
+  public TrendDayRow(
+      String date,
+      long claudeCount,
+      long codexCount,
+      long qoderCount,
+      long claudeTokens,
+      long codexTokens,
+      long qoderTokens,
+      long freshInputTokens,
+      long cacheReadTokens,
+      long cacheWriteTokens,
+      long outputTokens,
+      long totalTokens,
+      long toolCalls,
+      long failedTools,
+      long totalCount,
+      long claudeFreshInput,
+      long claudeCacheRead,
+      long claudeCacheWrite,
+      long qoderFreshInput,
+      long qoderCacheRead,
+      long qoderCacheWrite,
+      long codexFreshInput,
+      long codexCacheRead,
+      long codexCacheWrite) {
+    this(
+        date,
+        claudeCount,
+        codexCount,
+        qoderCount,
+        claudeTokens,
+        codexTokens,
+        qoderTokens,
+        freshInputTokens,
+        cacheReadTokens,
+        cacheWriteTokens,
+        outputTokens,
+        totalTokens,
+        toolCalls,
+        failedTools,
+        totalCount,
+        claudeFreshInput,
+        claudeCacheRead,
+        claudeCacheWrite,
+        qoderFreshInput,
+        qoderCacheRead,
+        qoderCacheWrite,
+        codexFreshInput,
+        codexCacheRead,
+        codexCacheWrite,
+        TokenProvenance.unknown(Math.max(0, totalCount)));
   }
 }

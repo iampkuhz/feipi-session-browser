@@ -80,6 +80,8 @@ public final class SessionDetailViewModels {
     metrics.put("fresh_input_tokens", row.freshInputTokens());
     metrics.put("cache_read_tokens", row.cacheReadTokens());
     metrics.put("cache_write_tokens", row.cacheWriteTokens());
+    metrics.put("token_provenance", row.tokenProvenance());
+    metrics.put("timing", row.timing());
     metrics.put("duration_seconds", row.durationSeconds());
     metrics.put("model_execution_seconds", row.modelExecutionSeconds());
     metrics.put("tool_execution_seconds", row.toolExecutionSeconds());

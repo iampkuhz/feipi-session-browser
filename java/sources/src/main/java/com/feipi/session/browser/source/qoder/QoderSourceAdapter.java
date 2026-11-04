@@ -2,6 +2,7 @@ package com.feipi.session.browser.source.qoder;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.feipi.session.browser.domain.source.SourceRecord;
 import com.feipi.session.browser.source.common.JsonCandidateMetadataReader;
 import com.feipi.session.browser.source.common.JsonNodeReaders;
@@ -104,6 +105,32 @@ public final class QoderSourceAdapter implements SourceAdapter {
     return SourceId.QODER;
   }
 
+  /** 单文件按实际布局选择原估算法；混合无计量布局保持 unknown，不推断临时路径。 */
+  @Override
+  public Map<String, String> singleFileMetadata(Path filePath) throws IOException {
+    List<JsonNode> events = jsonlReader.read(filePath).events();
+    boolean cache = events.stream().anyMatch(QoderSourceAdapter::isCacheRoleEvent);
+    boolean project =
+        events.stream()
+            .anyMatch(
+                event ->
+                    "user".equals(text(event, "type")) || "assistant".equals(text(event, "type")));
+    boolean real = hasRealUsage(events);
+    if (!real && cache == project) {
+      return Map.of();
+    }
+    SourceKind kind = cache ? SourceKind.CACHE : SourceKind.PROJECTS;
+    Map<String, String> metadata = new HashMap<>(tokenMetadata(events, kind));
+    if (!real) {
+      TokenEstimate estimate = estimateTokens(events, kind);
+      metadata.put("freshInputTokens", Long.toString(estimate.freshInputTokens()));
+      metadata.put("outputTokens", Long.toString(estimate.outputTokens()));
+      metadata.put(
+          "totalTokens", Long.toString(estimate.freshInputTokens() + estimate.outputTokens()));
+    }
+    return Map.copyOf(metadata);
+  }
+
   /**
    * 从源根目录发现候选会话。
    *
@@ -161,6 +188,7 @@ public final class QoderSourceAdapter implements SourceAdapter {
         putIfPositive(meta, "cacheReadTokens", discoveredMeta.cacheReadTokens());
         putIfPositive(meta, "cacheWriteTokens", discoveredMeta.cacheWriteTokens());
         putIfPositive(meta, "totalTokens", discoveredMeta.totalTokens());
+        meta.putAll(discoveredMeta.tokenMetadata());
         Candidate candidate = new Candidate(fp, sessionKey, projectKey, Map.copyOf(meta));
         candidates.add(candidate);
       } catch (Exception e) {
@@ -211,10 +239,7 @@ public final class QoderSourceAdapter implements SourceAdapter {
       if (model.isEmpty()) {
         model = DEFAULT_QODER_MODEL;
       }
-      TokenEstimate estimate =
-          sourceKind == SourceKind.CACHE
-              ? estimateCacheTokens(events)
-              : estimateProjectTokens(events);
+      TokenEstimate estimate = estimateTokens(events, sourceKind);
       return new QoderCandidateMetadata(
           metadata.cwd(),
           metadata.title(),
@@ -223,7 +248,8 @@ public final class QoderSourceAdapter implements SourceAdapter {
           estimate.freshInputTokens(),
           0,
           0,
-          estimate.outputTokens());
+          estimate.outputTokens(),
+          tokenMetadata(events, sourceKind));
     } catch (IOException e) {
       LOG.log(Level.FINEST, "读取 Qoder 候选元数据失败: " + path, e);
       return QoderCandidateMetadata.empty();
@@ -285,6 +311,45 @@ public final class QoderSourceAdapter implements SourceAdapter {
     return "";
   }
 
+  /** 已知 SourceKind 优先；只为原估算法构建内容视图，不改原始事件。 */
+  private static TokenEstimate estimateTokens(List<JsonNode> events, SourceKind sourceKind) {
+    if (hasRealUsage(events)) {
+      return TokenEstimate.empty();
+    }
+    List<JsonNode> canonical = events.stream().map(QoderSourceAdapter::estimationEvent).toList();
+    return sourceKind == SourceKind.CACHE
+        ? estimateCacheTokens(canonical)
+        : estimateProjectTokens(canonical);
+  }
+
+  private static JsonNode estimationEvent(JsonNode event) {
+    ObjectNode copy = event.deepCopy();
+    JsonNode content = estimationContent(event);
+    if (content == null) {
+      return copy;
+    }
+    ObjectNode message =
+        copy.get("message") instanceof ObjectNode object ? object : copy.putObject("message");
+    if (content.isTextual() && "assistant".equals(text(event, "type"))) {
+      message.putArray("content").addObject().put("type", "text").put("text", content.textValue());
+    } else {
+      message.set("content", content.deepCopy());
+    }
+    return copy;
+  }
+
+  private static JsonNode estimationContent(JsonNode event) {
+    for (JsonNode owner : List.of(event.path("message"), event, event.path("payload"))) {
+      for (String field : List.of("content", "parts")) {
+        JsonNode value = owner.get(field);
+        if (value != null && !value.isNull()) {
+          return value;
+        }
+      }
+    }
+    return null;
+  }
+
   private static TokenEstimate estimateCacheTokens(List<JsonNode> events) {
     long inputTokens = 0;
     long outputTokens = 0;
@@ -331,17 +396,66 @@ public final class QoderSourceAdapter implements SourceAdapter {
   }
 
   private static boolean hasRealUsage(List<JsonNode> events) {
-    for (JsonNode event : events) {
-      if (!"assistant".equals(text(event, "type"))) {
-        continue;
-      }
-      JsonNode usage =
-          JsonNodeReaders.objectChild(JsonNodeReaders.objectChild(event, "message"), "usage");
-      if (usage != null && usage.has("input_tokens") && usage.get("input_tokens").asLong(0) > 0) {
-        return true;
-      }
+    return events.stream()
+        .map(QoderSourceAdapter::eventUsage)
+        .anyMatch(
+            usage ->
+                reported(usage, "input_tokens")
+                    || reported(usage, "output_tokens")
+                    || reported(usage, "cache_read_input_tokens")
+                    || reported(usage, "cache_creation_input_tokens"));
+  }
+
+  private static Map<String, String> tokenMetadata(List<JsonNode> events, SourceKind sourceKind) {
+    Map<String, String> metadata = new HashMap<>();
+    String[] fields = {
+      "input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens", "output_tokens"
+    };
+    String[] keys = {
+      "freshInputTokenPrecision",
+      "cacheReadTokenPrecision",
+      "cacheWriteTokenPrecision",
+      "outputTokenPrecision"
+    };
+    boolean real = hasRealUsage(events);
+    if (!real) {
+      metadata.put(keys[0], "estimated");
+      metadata.put(keys[1], "unavailable");
+      metadata.put(keys[2], "unavailable");
+      metadata.put(keys[3], "estimated");
+      metadata.put(
+          "tokenEstimationMethod",
+          sourceKind == SourceKind.CACHE ? "cache_transcript_v1" : "visible_context_v1");
+      metadata.put("tokenContainsEstimated", "true");
+      metadata.put("tokenContainsUnavailable", "true");
+      return Map.copyOf(metadata);
     }
-    return false;
+    for (int i = 0; i < fields.length; i++) {
+      String precision = "";
+      for (JsonNode event : events) {
+        if (!"assistant".equals(text(event, "type")) && !"assistant".equals(text(event, "role"))) {
+          continue;
+        }
+        String next = reported(eventUsage(event), fields[i]) ? "provider_reported" : "unavailable";
+        if (next.equals("unavailable")) {
+          metadata.put("tokenContainsUnavailable", "true");
+        }
+        precision = precision.isEmpty() || precision.equals(next) ? next : "mixed";
+      }
+      metadata.put(keys[i], precision.isEmpty() ? "unknown" : precision);
+    }
+    return Map.copyOf(metadata);
+  }
+
+  private static JsonNode eventUsage(JsonNode event) {
+    JsonNode usage =
+        JsonNodeReaders.objectChild(JsonNodeReaders.objectChild(event, "message"), "usage");
+    return usage == null ? JsonNodeReaders.objectChild(event, "usage") : usage;
+  }
+
+  private static boolean reported(JsonNode usage, String field) {
+    JsonNode value = usage == null ? null : usage.get(field);
+    return value != null && value.isNumber() && value.asLong(-1) >= 0;
   }
 
   private static EventText extractEventText(JsonNode event) {
@@ -620,6 +734,7 @@ public final class QoderSourceAdapter implements SourceAdapter {
    * @param cacheReadTokens cache read token 数量。
    * @param cacheWriteTokens cache write token 数量。
    * @param outputTokens output token 数量。
+   * @param tokenMetadata 四段 token 计量来源。
    */
   private record QoderCandidateMetadata(
       @NotNull String cwd,
@@ -629,9 +744,10 @@ public final class QoderSourceAdapter implements SourceAdapter {
       @PositiveOrZero long freshInputTokens,
       @PositiveOrZero long cacheReadTokens,
       @PositiveOrZero long cacheWriteTokens,
-      @PositiveOrZero long outputTokens) {
+      @PositiveOrZero long outputTokens,
+      Map<String, String> tokenMetadata) {
     private static QoderCandidateMetadata empty() {
-      return new QoderCandidateMetadata("", "", "", "", 0, 0, 0, 0);
+      return new QoderCandidateMetadata("", "", "", "", 0, 0, 0, 0, Map.of());
     }
 
     private long totalTokens() {
