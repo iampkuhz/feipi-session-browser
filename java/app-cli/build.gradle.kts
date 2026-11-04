@@ -182,8 +182,9 @@ abstract class CliSmokeTestTask : DefaultTask() {
         spaceDir.mkdirs()
         installDirectory.get().asFile.copyRecursively(spaceDir, overwrite = true)
 
-        val binScript = spaceDir.resolve("bin/app-cli")
-        binScript.setExecutable(true)
+        val windows = System.getProperty("os.name").startsWith("Windows")
+        val binScript = spaceDir.resolve(if (windows) "bin/app-cli.bat" else "bin/app-cli")
+        if (!windows) binScript.setExecutable(true)
 
         val launcherContent = binScript.readText(Charsets.UTF_8)
         require(launcherContent.contains("-Xmx128m") && launcherContent.contains("-Xmx512m")) {
@@ -223,7 +224,11 @@ abstract class CliSmokeTestTask : DefaultTask() {
     }
 
     private fun execCli(workDir: File, script: String, vararg args: String): Pair<String, Int> {
-        val allArgs = listOf(script, *args)
+        val allArgs = if (System.getProperty("os.name").startsWith("Windows")) {
+            listOf("cmd.exe", "/d", "/c", script, *args)
+        } else {
+            listOf(script, *args)
+        }
         val process = ProcessBuilder(allArgs)
             .directory(workDir)
             .redirectErrorStream(false)

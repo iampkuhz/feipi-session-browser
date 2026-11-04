@@ -32,7 +32,8 @@ class CssOwnershipRuleTest {
 
     assertThat(result.exitCode()).isEqualTo(QualityGateExitCodes.VIOLATIONS);
     assertThat(result.out()).contains("\"status\":\"FAILED\"").contains("CSS_DIRECTORY_MISSING");
-    assertThat(readJson(artifacts))
+    // receipt 包含绝对路径；仅统一分隔符与 JSON 转义后比较完整内容。
+    assertThat(readJson(artifacts).replace("\\\\", "/"))
         .isEqualTo(
             """
             {
@@ -54,7 +55,7 @@ class CssOwnershipRuleTest {
               "warnings": []
             }
             """
-                .formatted(repo.resolve(CSS_ROOT)));
+                .formatted(repo.resolve(CSS_ROOT).toString().replace('\\', '/')));
   }
 
   @Test

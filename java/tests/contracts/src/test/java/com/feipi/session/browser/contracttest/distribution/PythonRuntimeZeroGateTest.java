@@ -3,13 +3,16 @@ package com.feipi.session.browser.contracttest.distribution;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -182,6 +185,11 @@ class PythonRuntimeZeroGateTest {
     private ProcessResult runCliWithoutPython(Path binScript, String... args)
         throws IOException, InterruptedException {
       List<String> command = new ArrayList<>();
+      if (isWindows()) {
+        command.add(Path.of(System.getenv("SystemRoot"), "System32", "cmd.exe").toString());
+        command.add("/d");
+        command.add("/c");
+      }
       command.add(binScript.toAbsolutePath().toString());
       command.addAll(List.of(args));
 
@@ -212,17 +220,17 @@ class PythonRuntimeZeroGateTest {
       if (currentPath == null) {
         return "";
       }
-      String[] dirs = currentPath.split(":");
+      String[] dirs = currentPath.split(Pattern.quote(File.pathSeparator));
       StringBuilder cleanPath = new StringBuilder();
       for (String dir : dirs) {
         // 保留不包含 python/conda 的 PATH 目录
-        String lower = dir.toLowerCase();
+        String lower = dir.toLowerCase(Locale.ROOT);
         if (!lower.contains("python")
             && !lower.contains("conda")
             && !lower.contains("pyenv")
             && !lower.contains("virtualenv")) {
           if (cleanPath.length() > 0) {
-            cleanPath.append(":");
+            cleanPath.append(File.pathSeparator);
           }
           cleanPath.append(dir);
         }
@@ -464,8 +472,12 @@ class PythonRuntimeZeroGateTest {
   }
 
   private static Path findInstallDistBinScript() {
-    Path bin = findInstallDistDir().resolve("bin/app-cli");
+    Path bin = findInstallDistDir().resolve(isWindows() ? "bin/app-cli.bat" : "bin/app-cli");
     return Files.exists(bin) ? bin : null;
+  }
+
+  private static boolean isWindows() {
+    return System.getProperty("os.name").startsWith("Windows");
   }
 
   private interface PathPredicate {
