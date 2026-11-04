@@ -315,7 +315,7 @@ def test_portability_collects_independent_failures_without_masking_exit_status()
     assert job['strategy']['fail-fast'] is False
     assert job['strategy']['matrix']['os'] == [
         'ubuntu-latest',
-        'macos-latest',
+        'macos-15-intel',
         'windows-latest',
     ]
     steps = {step['name']: step for step in job['steps']}
@@ -374,3 +374,45 @@ def test_native_product_checks_block_candidates_without_replacing_canonical_gate
         assert 'if' not in job
         assert 'continue-on-error' not in job
     assert all('continue-on-error' not in step for step in jobs['verify']['steps'])
+
+
+def test_java_full_uses_current_entry_with_required_comment_language_rule():
+    workflow = yaml.safe_load((ROOT / '.github/workflows/java-quality.yml').read_text())
+    job = workflow['jobs']['java-full']
+    assert job['needs'] == 'java-portability'
+    quality = next(step for step in job['steps'] if step['name'] == 'qualityFull')
+    assert quality['run'] == './java/gradlew -p java qualityFull'
+    assert 'if' not in quality
+    assert 'continue-on-error' not in job
+    assert all('continue-on-error' not in step for step in job['steps'])
+    assert all('verifyChineseJavaComments' not in step.get('run', '') for step in job['steps'])
+    root_build = (ROOT / 'java/build.gradle.kts').read_text()
+    quality_full = root_build.split('tasks.register("qualityFull") {', 1)[1].split('\n}', 1)[0]
+    assert 'dependsOn("check")' in quality_full
+    assert (
+        'tasks.named("check") {\n    dependsOn(":java:tests:quality-gates:runJavaQualityGates")\n}'
+    ) in root_build
+    source_rules = (ROOT / 'java/tests/quality-gates/build.gradle.kts').read_text()
+    assert 'tasks.register<JavaExec>("runJavaQualityGates")' in source_rules
+    assert '.orElse("java-comment-language,record-component-javadocs,no-pmd-suppressions")' in (
+        source_rules
+    )
+    assert '"--rules", javaQualityRules.get()' in source_rules
+
+
+def test_stable_portability_runner_preserves_both_native_macos_architectures():
+    portability = yaml.safe_load((ROOT / '.github/workflows/java-quality.yml').read_text())
+    assert portability['jobs']['java-portability']['strategy']['matrix']['os'] == [
+        'ubuntu-latest',
+        'macos-15-intel',
+        'windows-latest',
+    ]
+    distribution = yaml.safe_load((ROOT / '.github/workflows/distribution.yml').read_text())
+    targets = distribution['jobs']['build']['strategy']['matrix']['include']
+    assert {(entry['os'], entry['platform'], entry['arch']) for entry in targets} == {
+        ('macos-15', 'macos-arm64', 'arm64'),
+        ('macos-15-intel', 'macos-x64', 'x64'),
+        ('ubuntu-24.04', 'linux-x64', 'x64'),
+        ('windows-2025', 'windows-x64', 'x64'),
+    }
+    assert len(targets) == 4
