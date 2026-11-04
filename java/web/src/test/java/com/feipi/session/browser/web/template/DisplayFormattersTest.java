@@ -244,7 +244,7 @@ class DisplayFormattersTest {
     void homeSubdirReplaced() {
       withSyntheticHome(
           home -> {
-            String subPath = home + "/projects/test";
+            String subPath = Path.of(home).resolve("projects").resolve("test").toString();
             assertThat(DisplayFormatters.displayPath(subPath)).startsWith("~");
           });
     }

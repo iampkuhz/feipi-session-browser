@@ -122,8 +122,51 @@ class CodexDiscoveryTest {
       List<Path> sessions = CodexDiscovery.discoverSessions(tempDir);
 
       assertThat(sessions).hasSize(1);
-      // 合成路径存在但不实际存在
+      assertThat(sessions.get(0).getParent())
+          .isEqualTo(tempDir.resolve(CodexConstants.SESSIONS_DIR));
+      assertThat(sessions.get(0).getFileName().toString())
+          .matches("missing-rollout-[0-9a-f-]+\\.jsonl");
+      assertThat(CodexDiscovery.discoverSessions(tempDir)).isEqualTo(sessions);
       assertThat(Files.exists(sessions.get(0))).isFalse();
+    }
+
+    @Test
+    @DisplayName("合成路径不解释 sessionId 中的路径或 Windows 元字符")
+    void syntheticPathKeepsUnsafeSessionIdAsMetadata() throws IOException {
+      writeSessionIndex("{\"id\":\"../bad:*?<>|\"}");
+
+      var discoveries = CodexDiscovery.discoverSessionsWithMetadata(tempDir);
+
+      assertThat(discoveries).hasSize(1);
+      var discovery = discoveries.get(0);
+      assertThat(discovery.sessionId()).isEqualTo("../bad:*?<>|");
+      assertThat(discovery.hasFile()).isFalse();
+      assertThat(discovery.rolloutPath().getParent())
+          .isEqualTo(tempDir.resolve(CodexConstants.SESSIONS_DIR));
+      assertThat(discovery.rolloutPath().getFileName().toString())
+          .matches("missing-rollout-[0-9a-f-]+\\.jsonl");
+    }
+
+    @Test
+    @DisplayName("已有 sessions 目录时缺失候选不借用相邻会话 rollout")
+    void missingRolloutDoesNotUseNeighboringSession() throws IOException {
+      writeSessionIndex("{\"id\":\"missing-id\"}", "{\"id\":\"neighbor-id\"}");
+      Path neighbor = createRollout("2026", "06", "12", "rollout-100-neighbor-id.jsonl");
+
+      var discoveries = CodexDiscovery.discoverSessionsWithMetadata(tempDir);
+
+      assertThat(discoveries).hasSize(2);
+      var missing = discoveries.get(0);
+      assertThat(missing.sessionId()).isEqualTo("missing-id");
+      assertThat(missing.hasFile()).isFalse();
+      assertThat(missing.rolloutPath().getParent())
+          .isEqualTo(tempDir.resolve(CodexConstants.SESSIONS_DIR).resolve("0000/00/00"));
+      assertThat(missing.rolloutPath().getFileName().toString())
+          .matches("missing-rollout-[0-9a-f-]+\\.jsonl");
+      assertThat(Files.exists(missing.rolloutPath())).isFalse();
+      assertThat(CodexDiscovery.discoverSessionsWithMetadata(tempDir)).isEqualTo(discoveries);
+      assertThat(discoveries.get(1).rolloutPath()).isEqualTo(neighbor);
+      assertThat(discoveries.get(1).hasFile()).isTrue();
     }
   }
 

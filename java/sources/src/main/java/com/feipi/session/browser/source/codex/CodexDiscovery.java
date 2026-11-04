@@ -22,6 +22,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -259,12 +260,15 @@ public final class CodexDiscovery {
       }
     }
 
-    // 文件不存在，返回合成路径
-    String globPattern = "rollout-*-" + sessionId + ".jsonl";
+    // 文件不存在：返回明确的缺失标记，不把 glob 或 sessionId 解释成文件路径。
+    String missingFilename =
+        "missing-rollout-"
+            + UUID.nameUUIDFromBytes(sessionId.getBytes(StandardCharsets.UTF_8))
+            + ".jsonl";
     if (Files.isDirectory(sessionsDir)) {
-      return sessionsDir.resolve("0000/00/00").resolve(globPattern);
+      return sessionsDir.resolve("0000/00/00").resolve(missingFilename);
     }
-    return rootPath.resolve("sessions").resolve(globPattern);
+    return sessionsDir.resolve(missingFilename);
   }
 
   /** 在 sessions/ 子树中搜索 rollout 文件。 */

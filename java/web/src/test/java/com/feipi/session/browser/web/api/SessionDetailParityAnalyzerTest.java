@@ -2,6 +2,7 @@ package com.feipi.session.browser.web.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.feipi.session.browser.application.sessiondetail.SessionDetail;
 import com.feipi.session.browser.index.store.sqlite.row.SessionRow;
 import com.feipi.session.browser.query.api.CallRound;
@@ -9,6 +10,7 @@ import com.feipi.session.browser.query.api.PayloadVisibility;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -437,7 +439,27 @@ class SessionDetailParityAnalyzerTest {
         + "{\"timestamp\":\"2026-07-06T02:00:04Z\",\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"已找到问题并修复\"}],\"stop_reason\":\"end_turn\"}}\n";
   }
 
-  private static String parentRollout(Path child) {
+  @Test
+  @DisplayName("rollout fixture 保留嵌套 JSON 中的 Windows 路径")
+  void parentRolloutPreservesWindowsChildPath() throws Exception {
+    Path child = Path.of("C:\\synthetic\\sessions\\child.jsonl");
+    ObjectMapper mapper = new ObjectMapper();
+    for (String line : parentRollout(child).lines().toList()) {
+      var payload = mapper.readTree(line).path("payload");
+      if (payload.path("call_id").asText().equals("spawn-child") && payload.has("output")) {
+        var output = mapper.readTree(payload.path("output").asText());
+        assertThat(output.path("agent_id").asText()).isEqualTo("child-00000001");
+        assertThat(output.path("path").asText()).isEqualTo(child.toString());
+        return;
+      }
+    }
+    throw new AssertionError("Missing spawn-child output fixture");
+  }
+
+  private static String parentRollout(Path child) throws Exception {
+    ObjectMapper mapper = new ObjectMapper();
+    String spawnOutput =
+        mapper.writeValueAsString(Map.of("agent_id", "child-00000001", "path", child.toString()));
     return ""
         + "{\"timestamp\":\"2026-07-06T02:00:00Z\",\"type\":\"session_meta\",\"payload\":{\"id\":\"parent-session\"}}\n"
         + "{\"timestamp\":\"2026-07-06T02:00:00Z\",\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"type\":\"input_text\",\"text\":\"/goal 修复失败工具展示\"}]}}\n"
@@ -448,9 +470,9 @@ class SessionDetailParityAnalyzerTest {
         + "{\"timestamp\":\"2026-07-06T02:00:04Z\",\"type\":\"response_item\",\"payload\":{\"type\":\"custom_tool_call\",\"call_id\":\"tool-custom\",\"name\":\"apply_patch\"}}\n"
         + "{\"timestamp\":\"2026-07-06T02:00:05Z\",\"type\":\"response_item\",\"payload\":{\"type\":\"custom_tool_call_output\",\"call_id\":\"tool-custom\",\"output\":\"Exit code: 0\\nOutput:\\nok\"}}\n"
         + "{\"timestamp\":\"2026-07-06T02:00:06Z\",\"type\":\"response_item\",\"payload\":{\"type\":\"function_call\",\"call_id\":\"spawn-child\",\"name\":\"spawn_agent\"}}\n"
-        + "{\"timestamp\":\"2026-07-06T02:00:07Z\",\"type\":\"response_item\",\"payload\":{\"type\":\"function_call_output\",\"call_id\":\"spawn-child\",\"output\":\"{\\\"agent_id\\\":\\\"child-00000001\\\",\\\"path\\\":\\\""
-        + child.toString().replace("\\", "\\\\")
-        + "\\\"}\"}}\n"
+        + "{\"timestamp\":\"2026-07-06T02:00:07Z\",\"type\":\"response_item\",\"payload\":{\"type\":\"function_call_output\",\"call_id\":\"spawn-child\",\"output\":"
+        + mapper.writeValueAsString(spawnOutput)
+        + "}}\n"
         + "{\"timestamp\":\"2026-07-06T02:00:08Z\",\"type\":\"event_msg\",\"payload\":{\"type\":\"token_count\",\"info\":{\"total_token_usage\":{\"input_tokens\":170,\"cached_input_tokens\":100,\"output_tokens\":30,\"total_tokens\":200}}}}\n";
   }
 

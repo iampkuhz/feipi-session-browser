@@ -79,11 +79,11 @@ jobs:
           PYTHON_CODE
       - name: Build native runtime (POSIX)
         if: runner.os != 'Windows'
-        run: ./java/gradlew -p java :java:app-cli:runtimeDistTar --no-daemon
+        run: ./java/gradlew -p java check :java:app-cli:runtimeDistTar --continue --no-daemon
       - name: Build native runtime (Windows)
         if: runner.os == 'Windows'
         shell: cmd
-        run: .\java\gradlew.bat -p java :java:app-cli:runtimeDistZip --no-daemon
+        run: .\java\gradlew.bat -p java check :java:app-cli:runtimeDistZip --continue --no-daemon
       - name: Build the single generic package
         if: matrix.platform == 'linux-x64'
         run: ./java/gradlew -p java :java:app-cli:distZip --no-daemon

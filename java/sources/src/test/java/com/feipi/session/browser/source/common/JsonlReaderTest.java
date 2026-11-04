@@ -736,12 +736,13 @@ class JsonlReaderTest {
     @DisplayName("读取期间文件变化触发 RETRYABLE_INCOMPLETE")
     void modifiedDuringReadProducesRetryableDiagnostic() throws IOException {
       Path path = write("{\"a\": 1}\n");
+      long sizeBefore = Files.size(path);
       JsonlReader readerWithWriteHook =
           new JsonlReader(
               JsonlReaderConfig.defaults(),
               changedPath -> {
                 try {
-                  Files.writeString(changedPath, "{\"b\": 2}\n");
+                  Files.writeString(changedPath, "{\"changed\": 2}\n");
                 } catch (IOException e) {
                   throw new UncheckedIOException(e);
                 }
@@ -749,6 +750,7 @@ class JsonlReaderTest {
 
       JsonlReaderResult result = readerWithWriteHook.read(path);
 
+      assertThat(Files.size(path)).isNotEqualTo(sizeBefore);
       assertThat(result.events()).hasSize(1);
       assertThat(result.diagnostics())
           .anySatisfy(

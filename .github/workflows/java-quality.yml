@@ -69,12 +69,12 @@ jobs:
       # 依赖校验：Gradle 9.x 默认不写入 lock/checksum（只验证）
       - name: Gradle check (POSIX)
         if: runner.os != 'Windows'
-        run: ./java/gradlew -p java check
+        run: ./java/gradlew -p java check --continue
 
       - name: Gradle check (Windows)
         if: runner.os == 'Windows'
         shell: cmd
-        run: .\java\gradlew.bat -p java check
+        run: .\java\gradlew.bat -p java check --continue
 
       # Launcher smoke test —— 三平台均执行（跨平台路径处理）
       - name: CLI smoke test (POSIX)

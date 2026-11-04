@@ -317,7 +317,7 @@ class WebStaticResourceContractTest {
     try (var input =
         WebStaticResourceContractTest.class.getClassLoader().getResourceAsStream(path)) {
       assertThat(input).as("测试资源 %s", path).isNotNull();
-      return new String(input.readAllBytes(), StandardCharsets.UTF_8);
+      return new String(input.readAllBytes(), StandardCharsets.UTF_8).replace("\r\n", "\n");
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }

@@ -307,3 +307,70 @@ def test_quality_prepares_clean_runner_without_weakening_gate_isolation():
         assert not steps[index].get('continue-on-error', False)
     assert 'XDG_CACHE_HOME' not in job['env']
     assert 'python3 scripts/gates/cli.py run --mode full' in steps[gate]['run']
+
+
+def test_portability_collects_independent_failures_without_masking_exit_status():
+    workflow = yaml.safe_load((ROOT / '.github/workflows/java-quality.yml').read_text())
+    job = workflow['jobs']['java-portability']
+    assert job['strategy']['fail-fast'] is False
+    assert job['strategy']['matrix']['os'] == [
+        'ubuntu-latest',
+        'macos-latest',
+        'windows-latest',
+    ]
+    steps = {step['name']: step for step in job['steps']}
+    posix = steps['Gradle check (POSIX)']
+    windows = steps['Gradle check (Windows)']
+    assert posix['run'] == './java/gradlew -p java check --continue'
+    assert windows['run'] == r'.\java\gradlew.bat -p java check --continue'
+    assert posix['if'] == "runner.os != 'Windows'"
+    assert windows['if'] == "runner.os == 'Windows'"
+    assert windows['shell'] == 'cmd'
+    assert 'continue-on-error' not in job
+    assert all('continue-on-error' not in step for step in job['steps'])
+    report = steps['Upload test results']
+    assert report['if'] == 'always()'
+    assert report['uses'].startswith('actions/upload-artifact@')
+    assert '**/build/test-results/**/*.xml' in report['with']['path']
+    assert '**/build/reports/tests/' in report['with']['path']
+
+
+def test_native_product_checks_block_candidates_without_replacing_canonical_gate():
+    workflow = yaml.safe_load((ROOT / '.github/workflows/distribution.yml').read_text())
+    jobs = workflow['jobs']
+    assert jobs['quality']['uses'] == './.github/workflows/quality.yml'
+    assert jobs['quality']['with']['full-mode'] is True
+    build = jobs['build']
+    assert build['needs'] == 'quality'
+    assert build['strategy']['fail-fast'] is False
+    assert {entry['platform'] for entry in build['strategy']['matrix']['include']} == {
+        'macos-arm64',
+        'macos-x64',
+        'linux-x64',
+        'windows-x64',
+    }
+    steps = build['steps']
+    named = {step['name']: step for step in steps}
+    posix = named['Build native runtime (POSIX)']
+    windows = named['Build native runtime (Windows)']
+    assert posix['run'] == (
+        './java/gradlew -p java check :java:app-cli:runtimeDistTar --continue --no-daemon'
+    )
+    assert windows['run'] == (
+        r'.\java\gradlew.bat -p java check :java:app-cli:runtimeDistZip --continue --no-daemon'
+    )
+    assert posix['if'] == "runner.os != 'Windows'"
+    assert windows['if'] == "runner.os == 'Windows'"
+    assert build['defaults']['run']['shell'] == 'bash'
+    assert windows['shell'] == 'cmd'
+    prepare = named['Prepare and launch actual native archive without external JDK']
+    upload = named['Upload native group including provenance and real smoke receipt']
+    assert steps.index(posix) < steps.index(prepare) < steps.index(upload)
+    assert steps.index(windows) < steps.index(prepare)
+    assert 'if' not in prepare and 'if' not in upload
+    assert all('continue-on-error' not in step for step in steps)
+    assert set(jobs['verify']['needs']) == {'quality', 'build'}
+    for job in jobs.values():
+        assert 'if' not in job
+        assert 'continue-on-error' not in job
+    assert all('continue-on-error' not in step for step in jobs['verify']['steps'])

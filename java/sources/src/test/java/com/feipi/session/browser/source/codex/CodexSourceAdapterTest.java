@@ -160,9 +160,12 @@ class CodexSourceAdapterTest {
       assertThat(stream.size()).isEqualTo(1);
       Candidate candidate = stream.orderedItems().get(0);
       assertThat(candidate.sessionKey()).isEqualTo("codex:missing-id");
+      assertThat(candidate.fingerprint().locator()).isEqualTo("missing-id");
       assertThat(candidate.fingerprint().sizeBytes()).isZero();
+      assertThat(candidate.fingerprint().lastModifiedMs()).isZero();
       assertThat(candidate.fingerprint().contentHash()).isEmpty();
       assertThat(candidate.metadata()).containsEntry("has_transcript", "false");
+      assertThat(adapter.discover(tempDir).orderedItems()).containsExactly(candidate);
     }
   }
 
