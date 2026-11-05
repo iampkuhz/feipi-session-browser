@@ -974,11 +974,18 @@ class CodexSourceSpecificContractTest {
     Candidate candidate = adapter.discover(tempDir).orderedItems().get(0);
     SourceResult.Success success = (SourceResult.Success) adapter.parse(candidate, null);
 
-    assertThat(success.records()).hasSize(3);
-    // 所有记录都应包含时间戳
+    // 后备 user 是同一源事件的内容表示，不增加原始事件计数。
+    assertThat(success.candidateCount()).isEqualTo(3);
+    assertThat(success.records()).hasSize(4);
+    assertThat(eventTypes(success))
+        .containsExactly("turn_context", "event_msg", "user", "tool_use");
     assertThat(success.records().get(0).timestamp()).hasValue("2026-06-23T10:00:00Z");
     assertThat(success.records().get(1).timestamp()).hasValue("2026-06-23T10:00:01Z");
-    assertThat(success.records().get(2).timestamp()).hasValue("2026-06-23T10:00:02Z");
+    assertThat(success.records().get(2).timestamp()).hasValue("2026-06-23T10:00:01Z");
+    assertThat(success.records().get(3).timestamp()).hasValue("2026-06-23T10:00:02Z");
+    assertThat(success.records().get(2).locator()).isEqualTo(success.records().get(1).locator());
+    assertThat(success.records().get(2).eventIndex()).isEqualTo(1);
+    assertThat(success.records().get(2).content()).isEqualTo("hello");
   }
 
   @Test

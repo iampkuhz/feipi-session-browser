@@ -91,8 +91,8 @@ public final class IncrementalScanEngine {
   /** 每 N 个候选项 flush 一次 index writer。 */
   private static final int FLUSH_INTERVAL = 100;
 
-  /** 当前 scan logic 版本；版本 7 使旧 Qoder message/role 内容在普通扫描时重算。 */
-  public static final int CURRENT_SCAN_LOGIC_VERSION = 7;
+  /** 当前 scan logic 版本；版本 8 重算旧索引中缺失的 Codex event_msg 正文，并保留 Qoder 修复。 */
+  public static final int CURRENT_SCAN_LOGIC_VERSION = 8;
 
   private final NormalizationEngine normalizationEngine;
   private final NormalizedArtifactWriter artifactWriter;

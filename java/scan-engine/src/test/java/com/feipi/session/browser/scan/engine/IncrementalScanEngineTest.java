@@ -280,7 +280,7 @@ class IncrementalScanEngineTest {
   }
 
   @ParameterizedTest
-  @ValueSource(ints = {0, 6})
+  @ValueSource(ints = {0, 6, 7})
   void scanLogicVersionTriggersRebuild(int previousVersion) throws Exception {
     Path root = tempDir.resolve("rebuild");
     Files.createDirectories(root);
@@ -289,7 +289,7 @@ class IncrementalScanEngineTest {
     insertStoredSession(
         "session-1", "/some/path.jsonl", 1000.0, "claude_code", "2025-01-01T00:00:00Z");
 
-    // 覆盖历史版本与 v0.4 的版本 6，源文件未变化也必须重算。
+    // 覆盖历史版本、v0.4 的版本 6 和早期修复版本 7，源文件未变化也必须重算。
     setScanLogicVersion(previousVersion);
 
     Candidate candidate = makeCandidate("some/path.jsonl", "session-1", 100, 500L);

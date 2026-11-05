@@ -266,10 +266,13 @@ public final class NormalizationEngine {
       long codexUserCount = countCodexUserMessages(records);
       long codexLlmCallCount =
           countCodexTokenCountAssistantMessages(classified.assistantMessages());
-      long codexAssistantCount =
-          useCodexLlmCallCounting(records) && codexLlmCallCount > 0
-              ? codexLlmCallCount
-              : codexAgentMessageCount;
+      long codexAssistantCount = codexAgentMessageCount;
+      if (useCodexLlmCallCounting(records) && codexLlmCallCount > 0) {
+        codexAssistantCount = codexLlmCallCount + countCodexUnmeteredMessageFallbacks(records);
+      } else if (codexAgentMessageCount == 0) {
+        // 无事件消息计数时，使用实际主调用；子调用不形成主会话轮次。
+        codexAssistantCount = countMainAssistantTurns(calls);
+      }
       session.put("userMessageCount", codexUserCount);
       session.put("assistantMessageCount", codexAssistantCount);
       // 缺工具 ID 的历史记录仍保留可观测计数；完整记录使用物化工具边，含 main 和 child。
@@ -484,6 +487,30 @@ public final class NormalizationEngine {
       if (TokenAccountant.isUsageClosingFrame(record.callId().orElse(""))
           && !isSubagentSidecarRecord(record)
           && record.relation().subagentId().isEmpty()) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  /** 只补计紧邻原 agent_message 的同源后备调用，不将权威响应项或子调用重复计数。 */
+  private static long countCodexUnmeteredMessageFallbacks(List<? extends SourceRecord> records) {
+    long count = 0;
+    for (int index = 1; index < records.size(); index++) {
+      SourceRecord original = records.get(index - 1);
+      SourceRecord fallback = records.get(index);
+      if ("event_msg".equals(original.eventType())
+          && "agent_message".equals(original.turnId().orElse(""))
+          && "assistant".equals(fallback.eventType())
+          && fallback.callId().isEmpty()
+          && fallback.turnId().isEmpty()
+          && fallback.usage().total() == 0
+          && !fallback.content().isBlank()
+          && original.locator().equals(fallback.locator())
+          && original.eventIndex() == fallback.eventIndex()
+          && original.relation().equals(fallback.relation())
+          && fallback.relation().subagentId().isEmpty()
+          && !isSubagentSidecarRecord(fallback)) {
         count++;
       }
     }

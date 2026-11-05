@@ -165,6 +165,109 @@ class NormalizationEngineTest {
         true);
   }
 
+  @Test
+  void codexWithoutAgentMessagesCountsOnlyObservedMainTurns() {
+    SourceRecord main =
+        codexFallbackRecord("main#event[0]", 0, "assistant", SourceRecordRelation.empty());
+    SourceRecordRelation relation =
+        new SourceRecordRelation(
+            Optional.of("child"),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty());
+    SourceRecord child = codexFallbackRecord("child#event[0]", 0, "assistant", relation);
+    assertThat(
+            ENGINE
+                .normalize(NormalizedAgent.CODEX, List.of(main, child), List.of(), List.of())
+                .session())
+        .containsEntry("assistantMessageCount", 1L)
+        .containsEntry("totalTokens", 0L);
+    assertThat(
+            ENGINE.normalize(NormalizedAgent.CODEX, List.of(child), List.of(), List.of()).session())
+        .containsEntry("assistantMessageCount", 0L)
+        .containsEntry("totalTokens", 0L);
+  }
+
+  @Test
+  void recentCodexCountsOnlyExactMainMessageFallbacksBesidesUsageFrames() {
+    SourceRecord closing =
+        new SourceRecord(
+            "test#event[0]",
+            0,
+            "assistant",
+            Optional.of("token_count:0"),
+            Optional.empty(),
+            Optional.of("2026-11-05T08:00:00Z"),
+            Optional.empty(),
+            SourceRecordUsage.empty(),
+            List.of(),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty());
+    SourceRecord original =
+        codexFallbackRecord("test#event[1]", 1, "event_msg", SourceRecordRelation.empty());
+    SourceRecord fallback =
+        codexFallbackRecord("test#event[1]", 1, "assistant", SourceRecordRelation.empty());
+    var exact =
+        ENGINE.normalize(
+            NormalizedAgent.CODEX, List.of(closing, original, fallback), List.of(), List.of());
+    assertThat(exact.session()).containsEntry("assistantMessageCount", 2L);
+
+    SourceRecordRelation child =
+        new SourceRecordRelation(
+            Optional.of("child"),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty());
+    List<List<SourceRecord>> excluded =
+        List.of(
+            List.of(
+                closing,
+                original,
+                codexFallbackRecord(
+                    "other#event[1]", 1, "assistant", SourceRecordRelation.empty())),
+            List.of(
+                closing,
+                original,
+                codexFallbackRecord("test#event[1]", 2, "assistant", SourceRecordRelation.empty())),
+            List.of(closing, original, SourceRecord.of("gap", 2, "meta"), fallback),
+            List.of(
+                closing,
+                codexFallbackRecord("child#event[1]", 1, "event_msg", child),
+                codexFallbackRecord("child#event[1]", 1, "assistant", child)),
+            List.of(
+                closing,
+                codexFallbackRecord(
+                    "/subagents/test#event[1]", 1, "event_msg", SourceRecordRelation.empty()),
+                codexFallbackRecord(
+                    "/subagents/test#event[1]", 1, "assistant", SourceRecordRelation.empty())));
+    for (List<SourceRecord> records : excluded) {
+      assertThat(ENGINE.normalize(NormalizedAgent.CODEX, records, List.of(), List.of()).session())
+          .containsEntry("assistantMessageCount", 1L);
+    }
+  }
+
+  private static SourceRecord codexFallbackRecord(
+      String locator, int index, String type, SourceRecordRelation relation) {
+    return new SourceRecord(
+        locator,
+        index,
+        type,
+        Optional.empty(),
+        Optional.empty(),
+        Optional.of("2026-11-05T08:00:01Z"),
+        "event_msg".equals(type) ? Optional.of("agent_message") : Optional.empty(),
+        SourceRecordUsage.empty(),
+        List.of(),
+        Optional.empty(),
+        Optional.empty(),
+        Optional.empty(),
+        relation,
+        "synthetic answer");
+  }
+
   @Nested
   @DisplayName("空事件")
   class EmptyEventsTests {

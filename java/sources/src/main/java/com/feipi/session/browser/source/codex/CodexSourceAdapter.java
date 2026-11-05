@@ -731,6 +731,7 @@ public final class CodexSourceAdapter implements SourceAdapter {
       Map<String, SourceRecordRelation> toolRelations,
       List<SourceDiagnostic> diagnostics,
       List<SourceRecord> records) {
+    int firstRecord = records.size();
     CodexParseState state = new CodexParseState();
     state.locator = locator;
     state.currentModel = initialModel == null ? "" : initialModel;
@@ -799,8 +800,92 @@ public final class CodexSourceAdapter implements SourceAdapter {
                         + "]",
                     "TOKEN_COUNTER_RESET",
                     locator)));
+    appendEventMessageFallbacks(events, records, firstRecord);
     collectCompletionDiagnostics(state, diagnostics);
     return events.size();
+  }
+
+  /**
+   * 仅在当前物理 rollout 缺少权威 assistant message 时补正文表示。
+   *
+   * <p>保留原 event_msg 供消息计数；后备记录复用原 locator/index，不是新增源事件。 candidateCount 仍计原事件，normalized
+   * eventCount 则包含后备表示。按显式输入/任务边界检查已有调用帧，仅向本段补 response_item 文本； 本段没有调用帧时才创建零 usage 的 assistant
+   * 表示，不从别的轮次借用 usage 或伪造 turnId。
+   */
+  private static void appendEventMessageFallbacks(
+      List<JsonNode> events, List<SourceRecord> records, int firstRecord) {
+    if (events.stream().anyMatch(event -> isResponseMessage(event, "assistant"))) {
+      return;
+    }
+    List<SourceRecord> fileRecords = new ArrayList<>(records.subList(firstRecord, records.size()));
+    boolean[] framedSegments = framedMessageSegments(fileRecords);
+    boolean hasUserMessage = events.stream().anyMatch(event -> isResponseMessage(event, "user"));
+    records.subList(firstRecord, records.size()).clear();
+    for (int index = 0; index < fileRecords.size(); index++) {
+      SourceRecord record = fileRecords.get(index);
+      records.add(record);
+      if (!"event_msg".equals(record.eventType())) {
+        continue;
+      }
+      String subtype = record.turnId().orElse("");
+      boolean user = "user_message".equals(subtype);
+      if ((user && hasUserMessage) || (!user && !"agent_message".equals(subtype))) {
+        continue;
+      }
+      JsonNode payload = events.get(record.eventIndex()).path("payload");
+      String content =
+          responseText(
+              payload.hasNonNull("message") ? payload.get("message") : payload.get("content"));
+      if (content.isBlank()) {
+        continue;
+      }
+      String type = user ? "user" : framedSegments[index] ? "response_item" : "assistant";
+      records.add(
+          new SourceRecord(
+              record.locator(),
+              record.eventIndex(),
+              type,
+              Optional.empty(),
+              record.model(),
+              record.timestamp(),
+              Optional.empty(),
+              SourceRecordUsage.empty(),
+              List.of(),
+              Optional.empty(),
+              Optional.empty(),
+              Optional.empty(),
+              record.relation(),
+              content));
+    }
+  }
+
+  /** 只使用显式事件边界分段，不按时间或相同正文猜测轮次身份。 */
+  private static boolean[] framedMessageSegments(List<SourceRecord> records) {
+    boolean[] framed = new boolean[records.size()];
+    int end = records.size();
+    for (int start = records.size() - 1; start >= 0; start--) {
+      SourceRecord record = records.get(start);
+      String subtype = record.turnId().orElse("");
+      boolean boundary =
+          "turn_context".equals(record.eventType())
+              || ("event_msg".equals(record.eventType())
+                  && ("user_message".equals(subtype) || "task_started".equals(subtype)));
+      if (start == 0 || boundary) {
+        boolean hasFrame =
+            records.subList(start, end).stream()
+                .anyMatch(item -> "assistant".equals(item.eventType()));
+        java.util.Arrays.fill(framed, start, end, hasFrame);
+        end = start;
+      }
+    }
+    return framed;
+  }
+
+  private static boolean isResponseMessage(JsonNode event, String role) {
+    JsonNode payload = event.path("payload");
+    return "response_item".equals(extractEventType(event))
+        && "message".equals(text(payload, "type"))
+        && role.equals(text(payload, "role"));
   }
 
   private static boolean hasResponseUsage(JsonNode event) {

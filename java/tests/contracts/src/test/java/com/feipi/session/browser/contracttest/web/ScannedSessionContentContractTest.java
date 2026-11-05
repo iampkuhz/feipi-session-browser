@@ -35,11 +35,22 @@ class ScannedSessionContentContractTest {
   @TempDir Path tempDir;
 
   @ParameterizedTest(name = "{0}: 扫描持久化后列表与 round 内容可读")
-  @ValueSource(strings = {"claude_code", "codex", "qoder"})
-  void scannedContentSurvivesReopenAndHttp(String agent) throws Exception {
+  @ValueSource(
+      strings = {
+        "claude_code",
+        "codex",
+        "qoder",
+        "codex_event_only",
+        "codex_event_usage",
+        "codex_dual",
+        "codex_multiturn",
+        "codex_response_only"
+      })
+  void scannedContentSurvivesReopenAndHttp(String scenario) throws Exception {
     Path sourceRoot = tempDir.resolve("source");
     Files.createDirectories(sourceRoot);
-    SourceAdapter adapter = writeSource(agent, sourceRoot);
+    SourceAdapter adapter = writeSource(scenario, sourceRoot);
+    String agent = adapter.sourceId().getValue();
     Path artifacts = tempDir.resolve("artifacts");
     String jdbcUrl = "jdbc:sqlite:" + tempDir.resolve("index.db").toAbsolutePath();
     try (var writer = DriverManager.getConnection(jdbcUrl)) {
@@ -71,7 +82,10 @@ class ScannedSessionContentContractTest {
         Path artifact = Path.of(rows.getString("path"));
         assertThat(artifact).isRegularFile();
         assertThat(artifact.toAbsolutePath()).startsWith(artifacts.toAbsolutePath());
-        assertThat(Files.readString(artifact)).contains(ANSWER);
+        assertThat(Files.readString(artifact)).contains(PROMPT, ANSWER);
+        if (scenario.equals("codex_multiturn")) {
+          assertThat(Files.readString(artifact)).contains(PROMPT + " second", ANSWER + " second");
+        }
         assertThat(rows.next()).isFalse();
       }
       var web =
@@ -86,7 +100,15 @@ class ScannedSessionContentContractTest {
             assertThat(rows.size()).isEqualTo(1);
             var row = rows.get(0);
             assertThat(row.path("title").asText()).isEqualTo(PROMPT);
-            assertThat(row.path("rounds").asInt()).isEqualTo(1);
+            int expectedRounds = scenario.equals("codex_multiturn") ? 2 : 1;
+            assertThat(row.path("rounds").asInt()).isEqualTo(expectedRounds);
+            if (scenario.startsWith("codex_")) {
+              assertThat(row.path("tokens").path("total").asLong())
+                  .isEqualTo(
+                      scenario.equals("codex_event_usage") || scenario.equals("codex_multiturn")
+                          ? 15
+                          : 0);
+            }
             String api = "/api/sessions/" + agent + "/" + SESSION_ID + "/";
             for (String resource :
                 List.of("meta", "metrics", "diagnostics", "rounds", "payloads")) {
@@ -95,12 +117,30 @@ class ScannedSessionContentContractTest {
               String body = response.body().string();
               assertThat(JSON.readTree(body).isObject()).as(resource).isTrue();
               if (resource.equals("rounds")) {
-                assertThat(JSON.readTree(body).path("roundCount").asInt()).isEqualTo(1);
+                assertThat(JSON.readTree(body).path("roundCount").asInt())
+                    .isEqualTo(expectedRounds);
+              }
+              if (resource.equals("payloads") && expectedRounds == 2) {
+                boolean secondRequestFound = false;
+                for (var payload : JSON.readTree(body).path("payloads")) {
+                  if (payload.path("kind").asText().equals("llm_request")) {
+                    var originalRequest = client.get(payload.path("apiUrl").asText());
+                    assertThat(originalRequest.code()).isEqualTo(200);
+                    secondRequestFound |=
+                        originalRequest.body().string().contains(PROMPT + " second");
+                  }
+                }
+                assertThat(secondRequestFound).as("第二轮 Request payload 保留原用户正文").isTrue();
               }
             }
             var round = client.get(api + "round/1");
             assertThat(round.code()).isEqualTo(200);
             assertThat(round.body().string()).contains(ANSWER);
+            if (expectedRounds == 2) {
+              var second = client.get(api + "round/2");
+              assertThat(second.code()).isEqualTo(200);
+              assertThat(second.body().string()).contains(ANSWER + " second");
+            }
             var detail = client.get("/sessions/" + agent + "/" + SESSION_ID);
             assertThat(detail.code()).isEqualTo(200);
             assertThat(detail.body().string()).contains("round");
@@ -128,7 +168,12 @@ class ScannedSessionContentContractTest {
                 .formatted(SESSION_ID, PROMPT, SESSION_ID, ANSWER, SESSION_ID));
         yield new ClaudeSourceAdapter();
       }
-      case "codex" -> {
+      case "codex",
+          "codex_event_only",
+          "codex_event_usage",
+          "codex_dual",
+          "codex_multiturn",
+          "codex_response_only" -> {
         write(
             root.resolve("session_index.jsonl"),
             "{\"id\":\""
@@ -138,13 +183,15 @@ class ScannedSessionContentContractTest {
                 + "\",\"updated_at\":\"2026-09-06T10:00:02Z\"}\n");
         write(
             root.resolve("sessions/2026/09/06/rollout-100-" + SESSION_ID + ".jsonl"),
-            """
+            agent.equals("codex")
+                ? """
             {"type":"session_meta","timestamp":"2026-09-06T10:00:00Z","payload":{"id":"%s","cwd":"/synthetic"}}
             {"type":"response_item","timestamp":"2026-09-06T10:00:00Z","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"%s"}]}}
             {"type":"response_item","timestamp":"2026-09-06T10:00:01Z","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"%s"}]}}
             {"type":"event_msg","timestamp":"2026-09-06T10:00:02Z","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":10,"output_tokens":5,"total_tokens":15},"last_token_usage":{"input_tokens":10,"output_tokens":5,"total_tokens":15}}}}
             """
-                .formatted(SESSION_ID, PROMPT, ANSWER));
+                    .formatted(SESSION_ID, PROMPT, ANSWER)
+                : codexEventTranscript(agent));
         yield new CodexSourceAdapter();
       }
       case "qoder" -> {
@@ -159,6 +206,48 @@ class ScannedSessionContentContractTest {
       }
       default -> throw new IllegalArgumentException(agent);
     };
+  }
+
+  private static String codexEventTranscript(String scenario) {
+    if (scenario.equals("codex_response_only")) {
+      return """
+          {"type":"session_meta","timestamp":"2026-11-05T10:00:00Z","payload":{"id":"%s","cwd":"/synthetic"}}
+          {"type":"response_item","timestamp":"2026-11-05T10:00:01Z","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"%s"}]}}
+          {"type":"response_item","timestamp":"2026-11-05T10:00:02Z","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"%s"}]}}
+          """
+          .formatted(SESSION_ID, PROMPT, ANSWER);
+    }
+    String events =
+        """
+        {"type":"session_meta","timestamp":"2026-11-05T10:00:00Z","payload":{"id":"%s","cwd":"/synthetic"}}
+        {"type":"turn_context","timestamp":"2026-11-05T10:00:00Z","payload":{"model":"synthetic-model"}}
+        {"type":"event_msg","timestamp":"2026-11-05T10:00:01Z","payload":{"type":"user_message","message":"%s"}}
+        {"type":"event_msg","timestamp":"2026-11-05T10:00:02Z","payload":{"type":"agent_message","message":"%s"}}
+        """
+            .formatted(SESSION_ID, PROMPT, ANSWER);
+    String tail =
+        scenario.equals("codex_multiturn")
+            ? """
+        {"type":"event_msg","timestamp":"2026-11-05T10:00:04Z","payload":{"type":"user_message","message":"%s second"}}
+        {"type":"event_msg","timestamp":"2026-11-05T10:00:05Z","payload":{"type":"agent_message","message":"%s second"}}
+        """
+                .formatted(PROMPT, ANSWER)
+            : "";
+    return events
+        + switch (scenario) {
+          case "codex_event_usage", "codex_multiturn" ->
+              """
+          {"type":"event_msg","timestamp":"2026-11-05T10:00:03Z","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":10,"output_tokens":5,"total_tokens":15}}}}
+          """;
+          case "codex_dual" ->
+              """
+          {"type":"response_item","timestamp":"2026-11-05T10:00:01Z","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"%s"}]}}
+          {"type":"response_item","timestamp":"2026-11-05T10:00:02Z","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"%s"}]}}
+          """
+                  .formatted(PROMPT, ANSWER);
+          default -> "";
+        }
+        + tail;
   }
 
   private static void write(Path path, String content) throws Exception {

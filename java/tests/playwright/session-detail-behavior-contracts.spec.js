@@ -463,3 +463,76 @@ test.describe('会话资源独立失败与恢复', () => {
     await expect(page.locator('[data-resource-error]')).toHaveCount(0);
   });
 });
+
+// 使用真实上传解析，而非 mock round/payload；这些场景必须留在 Gate 已选择的 spec 中。
+for (const shape of ['event-only', 'event-usage', 'dual', 'multiturn', 'response-only']) {
+  test(`Codex ${shape} renders original request and assistant text`, async ({ page, request, baseURL }, testInfo) => {
+    const prompt = `Synthetic Codex ${shape} original request`;
+    const answer = `Synthetic Codex ${shape} original assistant answer`;
+    const messages = [[prompt, answer]];
+    const events = [
+      { type: 'session_meta', payload: { id: 'synthetic-codex-content', cwd: '/synthetic' } },
+      { type: 'turn_context', payload: { model: 'synthetic-model' } },
+    ];
+    if (shape !== 'response-only') events.push(
+      { type: 'event_msg', payload: { type: 'user_message', message: prompt } },
+      { type: 'event_msg', payload: { type: 'agent_message', message: answer } },
+    );
+    if (shape === 'event-usage' || shape === 'multiturn') events.push({
+      type: 'event_msg', payload: { type: 'token_count', info: {
+        total_token_usage: { input_tokens: 10, output_tokens: 5, total_tokens: 15 },
+      } },
+    });
+    if (shape === 'dual' || shape === 'response-only') events.push(
+      { type: 'response_item', payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text: prompt }] } },
+      { type: 'response_item', payload: { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: answer }] } },
+    );
+    if (shape === 'multiturn') {
+      messages.push([prompt + ' second', answer + ' second']);
+      events.push(
+        { type: 'event_msg', payload: { type: 'user_message', message: messages[1][0] } },
+        { type: 'event_msg', payload: { type: 'agent_message', message: messages[1][1] } },
+      );
+    }
+    let importId;
+    try {
+      await page.goto('/imports');
+      await page.getByLabel('会话来源', { exact: true }).selectOption('codex');
+      const chooser = page.waitForEvent('filechooser');
+      await page.getByLabel('JSONL 文件', { exact: true }).click();
+      await (await chooser).setFiles({
+        name: `synthetic-codex-${shape}.jsonl`, mimeType: 'application/x-ndjson',
+        buffer: Buffer.from(events.map(JSON.stringify).join('\n') + '\n'),
+      });
+      const uploaded = page.waitForResponse((response) =>
+        new URL(response.url()).pathname === '/api/imports' && response.request().method() === 'POST');
+      await page.getByRole('button', { name: '导入并分析', exact: true }).click();
+      expect((await uploaded).status()).toBe(201);
+      await expect(page).toHaveURL(/\/imports\/[0-9a-f-]{36}$/);
+      importId = new URL(page.url()).pathname.split('/').pop();
+      await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+      await expect(page.locator('[data-trace-round-row]')).toHaveCount(messages.length);
+      await expect(page.locator('[aria-label="Total Tokens"] .sd-kpi__value')).toHaveText(
+        shape === 'event-usage' || shape === 'multiturn' ? '15 · Partial' : 'N/A · Unknown',
+      );
+      for (const [index, [userText, assistantText]] of messages.entries()) {
+        const round = page.locator('[data-trace-round-row]').nth(index);
+        await round.locator('[data-action="toggle-round"]').click();
+        for (const [title, original] of [['Request', userText], ['Response', assistantText]]) {
+          await round.getByRole('button', { name: title, exact: true }).click();
+          const modal = page.locator('dialog.payload-modal');
+          const block = modal.locator('.sd-content-block').filter({ has: page.getByText(title, { exact: true }) });
+          await expect(block.locator('pre')).toBeVisible();
+          await expect(block.locator('pre')).toContainText(original);
+          await page.screenshot({ path: testInfo.outputPath(`codex-${shape}-${index}-${title}.png`) });
+          await modal.getByRole('button', { name: 'Close', exact: true }).click();
+        }
+      }
+    } finally {
+      if (importId) {
+        const deleted = await request.delete(`/api/imports/${importId}`, { headers: { Origin: new URL(baseURL).origin } });
+        expect([204, 404]).toContain(deleted.status());
+      }
+    }
+  });
+}
