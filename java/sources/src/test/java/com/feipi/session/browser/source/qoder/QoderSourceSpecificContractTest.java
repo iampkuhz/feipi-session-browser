@@ -52,7 +52,7 @@ class QoderSourceSpecificContractTest {
     SourceResult.Success success = (SourceResult.Success) result;
     assertThat(success.records()).allSatisfy(r -> assertThat(r).isInstanceOf(SourceRecord.class));
     assertThat(eventTypes(success))
-        .containsExactly("message", "tool", "usage", "assistant", "unknown", "message");
+        .containsExactly("user", "tool", "usage", "assistant", "unknown", "message");
     assertThat(success.diagnostics())
         .extracting(SourceDiagnostic::code)
         .contains("CACHE_FORMAT_ROLE", "UNKNOWN_BLOCK_TYPE", "UNKNOWN_PART_TYPE");
@@ -67,6 +67,35 @@ class QoderSourceSpecificContractTest {
     assertThat(adapter.fingerprint(session))
         .usingRecursiveComparison()
         .isEqualTo(candidate.fingerprint());
+  }
+
+  @Test
+  void messageRolesAreExplicitAndDoNotOverrideOtherEventTypes() throws IOException {
+    Path project = tempDir.resolve("projects/demo");
+    Files.createDirectories(project);
+    Files.writeString(
+        project.resolve("roles.jsonl"),
+        """
+        {"type":"message","role":"user","parts":[{"type":"text","text":"synthetic user"}]}
+        {"type":"message","message":{"role":"assistant","parts":[{"type":"text","text":"synthetic answer"}]}}
+        {"type":"message","role":"user","isMeta":true,"parts":[{"type":"text","text":"synthetic meta"}]}
+        {"type":"message","message":{"role":"user"},"isMeta":true}
+        {"type":"message","role":"system"}
+        {"type":"message"}
+        {"type":"tool","role":"assistant"}
+        {"type":"usage","role":"assistant","usage":{"output_tokens":3}}
+        """);
+    Candidate candidate = adapter.discover(tempDir).orderedItems().getFirst();
+    SourceResult.Success success = (SourceResult.Success) adapter.parse(candidate, null);
+
+    assertThat(candidate.metadata()).containsEntry("title", "synthetic user");
+    assertThat(eventTypes(success))
+        .containsExactly(
+            "user", "assistant", "meta", "meta", "message", "message", "tool", "usage");
+    assertThat(success.records().get(0).content()).isEqualTo("synthetic user");
+    assertThat(success.records().get(1).content()).isEqualTo("synthetic answer");
+    assertThat(success.records().get(1).usage().outputTokens()).isZero();
+    assertThat(success.records().get(7).usage().outputTokens()).isEqualTo(3);
   }
 
   private static List<String> eventTypes(SourceResult.Success success) {

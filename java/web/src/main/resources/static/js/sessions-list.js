@@ -5,6 +5,8 @@
 (function () {
   'use strict';
 
+  var sessionsRequestGeneration = 0;
+
   // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`── Helpers ──────────────────────────────────────────────────────────────`
 
   function closest(el, selector) {
@@ -787,10 +789,11 @@
   /**
    * Fetch a page via JSON resource APIs and replace table body + pagination.
    * pushState only happens AFTER successful response — never before.
-   * On failure, does full reload to target URL — never leaves a loading/empty table.
+   * Each resource renders independently; failures expose a local retry without reloading.
    * After replacing pagination, re-augments sortable headers so new DOM has data-action.
    */
   function fetchPage(params, replaceState) {
+    var generation = ++sessionsRequestGeneration;
     var qs = new URLSearchParams();
     for (var k in params) {
       if (params[k] !== '' && params[k] != null) {
@@ -807,31 +810,70 @@
       return;
     }
 
+    // A new query owns the page; errors and retries from older queries are obsolete.
+    document.querySelectorAll('[data-resource-error]').forEach(function (error) { error.remove(); });
     // Show loading state
     showLoadingRow(tbody);
 
-    Promise.all([
-      fetch(apiUrl('/api/sessions/summary', qs), { headers: { 'Accept': 'application/json' } }).then(readJson),
-      fetch(apiUrl('/api/sessions/options', qs), { headers: { 'Accept': 'application/json' } }).then(readJson),
-      fetch(apiUrl('/api/sessions/rows', qs), { headers: { 'Accept': 'application/json' } }).then(readJson),
-      fetch(apiUrl('/api/sessions/active-filters', qs), { headers: { 'Accept': 'application/json' } }).then(readJson)
-    ])
-    .then(function (parts) {
-      renderSummary(parts[0]);
-      renderOptions(parts[1], parts[2].filters || {});
-      renderRows(parts[2]);
-      renderActiveFilters(parts[3]);
-      if (replaceState) {
-        window.history.replaceState({ api: true }, '', url);
-      } else {
-        window.history.pushState({ api: true }, '', url);
-      }
-    })
-    .catch(function (err) {
-      console.error('Sessions API pagination fallback:', err.message || err);
-      // Safe fallback: direct full-page navigation without restore attempt.
-      window.location.href = url;
+    var filters = params;
+    var resources = {
+      summary: renderSummary,
+      options: function (part) { renderOptions(part, filters); },
+      rows: function (part) {
+        filters = part.filters || params;
+        renderRows(part);
+        if (replaceState) window.history.replaceState({ api: true }, '', url);
+        else window.history.pushState({ api: true }, '', url);
+      },
+      'active-filters': renderActiveFilters
+    };
+    function load(name) {
+      if (generation !== sessionsRequestGeneration) return Promise.resolve();
+      return fetch(apiUrl('/api/sessions/' + name, qs), { headers: { 'Accept': 'application/json' } })
+        .then(readJson).then(function (part) {
+          if (generation !== sessionsRequestGeneration) return;
+          var error = document.querySelector('[data-resource-error="' + name + '"]');
+          if (error) error.remove();
+          resources[name](part);
+        }).catch(function (err) {
+          if (generation !== sessionsRequestGeneration) return;
+          showListResourceError(name, err, function () { return load(name); });
+        });
+    }
+    Object.keys(resources).forEach(load);
+  }
+
+  function showListResourceError(name, err, retry) {
+    var previous = document.querySelector('[data-resource-error="' + name + '"]');
+    if (previous) previous.remove();
+    var target = name === 'rows' ? document.querySelector('.table-card .data-table tbody')
+      : name === 'summary' ? document.querySelector('.page-head__stats')
+      : name === 'active-filters' ? document.querySelector('.active-filters')
+      : document.getElementById('session-filter-form');
+    if (!target) return;
+    var error = document.createElement(name === 'rows' ? 'tr' : 'div');
+    error.setAttribute('data-resource-error', name);
+    var content = error;
+    if (name === 'rows') {
+      content = document.createElement('td');
+      content.colSpan = 13;
+      error.appendChild(content);
+      var count = document.querySelector('.active-filters__count');
+      if (count && /Loading|Searching/.test(count.textContent)) count.textContent = 'Sessions unavailable';
+    }
+    content.setAttribute('role', 'alert');
+    content.appendChild(document.createTextNode('Unable to load ' + name + ' (' + (err.message || 'Request failed') + '). '));
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'btn';
+    button.textContent = 'Retry';
+    button.addEventListener('click', function () {
+      button.disabled = true;
+      retry().then(function () { button.disabled = false; });
     });
+    content.appendChild(button);
+    if (name === 'options') target.appendChild(error);
+    else target.replaceChildren(error);
   }
 
   function readJson(response) {

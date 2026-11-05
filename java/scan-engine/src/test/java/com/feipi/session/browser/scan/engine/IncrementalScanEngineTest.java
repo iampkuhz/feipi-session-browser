@@ -25,6 +25,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * {@link IncrementalScanEngine} 集成测试。
@@ -277,8 +279,9 @@ class IncrementalScanEngineTest {
     assertThat(summary.successCount()).isZero();
   }
 
-  @Test
-  void scanLogicVersionTriggersRebuild() throws Exception {
+  @ParameterizedTest
+  @ValueSource(ints = {0, 6})
+  void scanLogicVersionTriggersRebuild(int previousVersion) throws Exception {
     Path root = tempDir.resolve("rebuild");
     Files.createDirectories(root);
 
@@ -286,8 +289,8 @@ class IncrementalScanEngineTest {
     insertStoredSession(
         "session-1", "/some/path.jsonl", 1000.0, "claude_code", "2025-01-01T00:00:00Z");
 
-    // 设置旧的 scan logic version
-    setScanLogicVersion(0);
+    // 覆盖历史版本与 v0.4 的版本 6，源文件未变化也必须重算。
+    setScanLogicVersion(previousVersion);
 
     Candidate candidate = makeCandidate("some/path.jsonl", "session-1", 100, 500L);
 

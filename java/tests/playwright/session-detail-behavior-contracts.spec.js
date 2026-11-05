@@ -299,3 +299,167 @@ test('[UI-SD-042][UI-VISUAL-010] long session remains vertically scrollable with
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
   await expect.poll(() => page.evaluate(() => window.scrollY), { timeout: 5_000 }).toBeGreaterThan(0);
 });
+
+// 资源失败与逆序响应也必须由既有 browserBehaviorTests required Gate 持续验证。
+test.describe('会话资源独立失败与恢复', () => {
+  const detail = '/sessions/claude_code/hifi-viz-session-001';
+  async function failResource(page, pattern) {
+    let failing = true;
+    await page.route(pattern, (route) => failing
+      ? route.fulfill({ status: 500, contentType: 'application/json', body: '{}' })
+      : route.continue());
+    return () => { failing = false; };
+  }
+
+  test('diagnostics failure preserves expandable rounds and retry restores hydration', async ({ page }) => {
+    const recover = await failResource(page, '**/diagnostics');
+    await page.goto(detail);
+    const round = page.locator('[data-trace-round-row]').first();
+    await expect(round).toBeVisible();
+    await round.locator('[data-action="toggle-round"]').click();
+    await expect(round).toHaveAttribute('data-detail-loaded', 'true');
+    await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'false');
+    await expect(page.locator('[data-resource-error="diagnostics"]')).toContainText('HTTP 500');
+    recover();
+    await page.locator('[data-resource-error="diagnostics"] button').click();
+    await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+    await expect(page.locator('[data-resource-error]')).toHaveCount(0);
+  });
+
+  test('round failure replaces loading with retryable error', async ({ page }) => {
+    const recover = await failResource(page, '**/rounds');
+    await page.goto(detail);
+    const table = page.locator('.trace-table[data-trace-list] tbody');
+    await expect(table).toContainText('Unable to load rounds');
+    await expect(table).not.toContainText('Loading');
+    await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'false');
+    recover();
+    await table.getByRole('button', { name: 'Retry' }).click();
+    await expect(page.locator('[data-trace-round-row]').first()).toBeVisible();
+    await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+  });
+
+  test('list auxiliary failure preserves rows and supports retry', async ({ page }) => {
+    const recover = await failResource(page, '**/api/sessions/options*');
+    await page.goto('/sessions');
+    await expect(page.locator('.sessions-row').first()).toBeVisible();
+    await expect(page.locator('[data-resource-error="options"]')).toContainText('HTTP 500');
+    recover();
+    await page.locator('[data-resource-error="options"] button').click();
+    await expect(page.locator('[data-resource-error]')).toHaveCount(0);
+    await expect(page.locator('.sessions-row').first()).toBeVisible();
+  });
+
+  test('list rows failure stays on page and recovers without reload loop', async ({ page }) => {
+    let navigations = 0;
+    page.on('request', (request) => {
+      if (request.isNavigationRequest() && request.resourceType() === 'document'
+        && request.frame() === page.mainFrame()) navigations += 1;
+    });
+    const recover = await failResource(page, '**/api/sessions/rows*');
+    await page.goto('/sessions');
+    const table = page.locator('.data-table tbody');
+    await expect(table).toContainText('Unable to load rows');
+    await expect(table).not.toContainText('Loading');
+    await page.waitForTimeout(500);
+    expect(navigations).toBe(1);
+    recover();
+    await table.getByRole('button', { name: 'Retry' }).click();
+    await expect(page.locator('.sessions-row').first()).toBeVisible();
+    expect(navigations).toBe(1);
+  });
+
+  async function querySessions(page, query) {
+    await page.locator('#session-filter-form').evaluate((form, value) => {
+      form.querySelector('[name="q"]').value = value;
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    }, query);
+  }
+
+  function queryResource(route, query) {
+    const name = new URL(route.request().url()).pathname.split('/').pop();
+    const filters = { q: query };
+    const bodies = {
+      rows: { rows: [{ sessionKey: query, sessionId: query, title: `Query ${query}`, agent: 'claude_code', detailUrl: detail }], filters },
+      summary: { totalCount: query === 'B' ? 2 : 1, projectCount: 1, tokens: {} },
+      options: { models: [{ value: query, label: `Model ${query}` }] },
+      'active-filters': { chips: [{ key: 'q', label: 'Query', value: query }] },
+    };
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(bodies[name]) });
+  }
+
+  test('new query survives older delayed rows, auxiliary success and failure', async ({ page }) => {
+    let release;
+    const delayed = new Promise((resolve) => { release = resolve; });
+    let pending = 0;
+    let completed = 0;
+    await page.route('**/api/sessions/*', async (route) => {
+      const url = new URL(route.request().url());
+      const query = url.searchParams.get('q');
+      if (query !== 'A' && query !== 'B') return route.continue();
+      if (query === 'A') {
+        pending += 1;
+        await delayed;
+        if (url.pathname.endsWith('/active-filters')) {
+          await route.fulfill({ status: 500, body: '{}' });
+        } else await queryResource(route, query);
+        completed += 1;
+        return;
+      }
+      return queryResource(route, query);
+    });
+    await page.goto('/sessions');
+    await expect(page.locator('.sessions-row').first()).toBeVisible();
+    await querySessions(page, 'A');
+    await expect.poll(() => pending).toBe(4);
+    await querySessions(page, 'B');
+    await expect(page.locator('.sessions-row')).toContainText('Query B');
+    await expect(page.locator('#filter-model option')).toContainText(['All Models', 'Model B']);
+    release();
+    await expect.poll(() => completed).toBe(4);
+    // Wait until the browser has consumed the released fetch bodies, not just the route fulfill calls.
+    await page.waitForTimeout(300);
+    await expect(page.locator('.sessions-row')).toContainText('Query B');
+    await expect(page).toHaveURL(/q=B/);
+    await expect(page.locator('#filter-model option')).toContainText(['All Models', 'Model B']);
+    await expect(page.locator('.page-head__stats')).toContainText('2 sessions');
+    await expect(page.locator('.active-filters')).toContainText('B');
+    await expect(page.locator('[data-resource-error]')).toHaveCount(0);
+  });
+
+  test('old query retry cannot overwrite a newer successful query', async ({ page }) => {
+    let attempts = 0;
+    let retryStarted = false;
+    let release;
+    const delayed = new Promise((resolve) => { release = resolve; });
+    let completed = false;
+    await page.route('**/api/sessions/*', async (route) => {
+      const url = new URL(route.request().url());
+      const query = url.searchParams.get('q');
+      if (query !== 'A' && query !== 'B') return route.continue();
+      if (query === 'A' && url.pathname.endsWith('/rows')) {
+        attempts += 1;
+        if (attempts === 1) return route.fulfill({ status: 500, body: '{}' });
+        retryStarted = true;
+        await delayed;
+        await queryResource(route, query);
+        completed = true;
+        return;
+      }
+      return queryResource(route, query);
+    });
+    await page.goto('/sessions');
+    await expect(page.locator('.sessions-row').first()).toBeVisible();
+    await querySessions(page, 'A');
+    await page.locator('[data-resource-error="rows"] button').click();
+    await expect.poll(() => retryStarted).toBe(true);
+    await querySessions(page, 'B');
+    await expect(page.locator('.sessions-row')).toContainText('Query B');
+    release();
+    await expect.poll(() => completed).toBe(true);
+    await page.waitForTimeout(300);
+    await expect(page.locator('.sessions-row')).toContainText('Query B');
+    await expect(page).toHaveURL(/q=B/);
+    await expect(page.locator('[data-resource-error]')).toHaveCount(0);
+  });
+});

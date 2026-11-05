@@ -109,39 +109,95 @@
     var apiBase = getApiBase();
     if (!apiBase) return;
     var base = apiBase.replace(/\/$/, '');
-    Promise.all([
-      fetch(base + '/meta', { headers: { 'Accept': 'application/json' } }).then(readSessionJson),
-      fetch(base + '/metrics', { headers: { 'Accept': 'application/json' } }).then(readSessionJson),
-      fetch(base + '/diagnostics', { headers: { 'Accept': 'application/json' } }).then(readSessionJson),
-      fetch(base + '/rounds', { headers: { 'Accept': 'application/json' } }).then(readSessionJson),
-      fetch(base + '/payloads', { headers: { 'Accept': 'application/json' } }).then(readSessionJson)
-    ]).then(function(parts) {
-      applySessionMeta(parts[0]);
-      applySessionMetrics(parts[1]);
-      applySessionDiagnostics(parts[2]);
-      applySessionRounds(parts[3]);
-      applySessionPayloads(parts[4]);
-      document.body.setAttribute('data-session-api-hydrated', 'true');
-      document.body.setAttribute('data-session-round-count', String(parts[3].roundCount || 0));
-      document.body.setAttribute('data-session-payload-count', String(parts[4].payloadCount || 0));
-      document.body.setAttribute('data-session-anomaly-count', String(parts[2].anomalyCount || 0));
-      var params = new URLSearchParams(window.location.search || "");
-      var traceStatus = params.get("trace_status") || "all";
-      if (traceStatus === "failed" || traceStatus === "low-cache") {
-        setFilter(document.querySelector('[data-trace-page]') || document, traceStatus);
-      }
-      var initialRound = params.get("round") || "";
-      if (initialRound && typeof jumpRound === 'function') {
-        jumpRound(document.querySelector('[data-trace-page]') || document, initialRound, {
-          subagent: params.get("subagent") || "",
-          subagentRound: params.get("subagentround") || params.get("subagent_round") || "",
-          smooth: false
-        });
-      }
-    }).catch(function(err) {
-      console.error('Session Detail API hydration failed:', err.message || err);
-      document.body.setAttribute('data-session-api-hydrated', 'false');
+    var resources = {
+      meta: applySessionMeta,
+      metrics: applySessionMetrics,
+      diagnostics: applySessionDiagnostics,
+      rounds: applySessionRounds,
+      payloads: applySessionPayloads
+    };
+    Object.keys(resources).forEach(function (name) {
+      document.body.setAttribute('data-session-api-' + name + '-state', 'loading');
     });
+    function updateHydrated() {
+      var complete = Object.keys(resources).every(function (name) {
+        return document.body.getAttribute('data-session-api-' + name + '-state') === 'true';
+      });
+      document.body.setAttribute('data-session-api-hydrated', String(complete));
+    }
+    function load(name) {
+      document.body.setAttribute('data-session-api-' + name + '-state', 'loading');
+      updateHydrated();
+      return fetch(base + '/' + name, { headers: { 'Accept': 'application/json' } })
+        .then(readSessionJson).then(function (part) {
+          var error = document.querySelector('[data-resource-error="' + name + '"]');
+          if (error) error.remove();
+          resources[name](part);
+          if (name === 'rounds') {
+            document.body.setAttribute('data-session-round-count', String(part.roundCount || 0));
+            var params = new URLSearchParams(window.location.search || '');
+            var root = document.querySelector('[data-trace-page]') || document;
+            var status = params.get('trace_status') || 'all';
+            if (status === 'failed' || status === 'low-cache') setFilter(root, status);
+            if (params.get('round') && typeof jumpRound === 'function') {
+              jumpRound(root, params.get('round'), {
+                subagent: params.get('subagent') || '',
+                subagentRound: params.get('subagentround') || params.get('subagent_round') || '',
+                smooth: false
+              });
+            }
+          }
+          if (name === 'payloads') document.body.setAttribute('data-session-payload-count', String(part.payloadCount || 0));
+          if (name === 'diagnostics') document.body.setAttribute('data-session-anomaly-count', String(part.anomalyCount || 0));
+          document.body.setAttribute('data-session-api-' + name + '-state', 'true');
+          updateHydrated();
+        }).catch(function (err) {
+          document.body.setAttribute('data-session-api-' + name + '-state', 'false');
+          updateHydrated();
+          showSessionResourceError(name, err, function () { return load(name); });
+        });
+    }
+    Object.keys(resources).forEach(load);
+  }
+
+  function showSessionResourceError(name, err, retry) {
+    var selectors = {
+      meta: '[data-session-hero] h1, [data-session-meta-chips], [data-session-updated]',
+      metrics: '[data-session-metrics-shell] .sd-kpi:not([aria-label="Run Health"]) .sd-kpi__value, [data-session-metrics-shell] .sd-kpi:not([aria-label="Run Health"]) .sd-kpi__subgrid',
+      diagnostics: '[data-issue-strip], .sd-kpi[aria-label="Run Health"] .sd-kpi__value, .sd-kpi[aria-label="Run Health"] .sd-kpi__subgrid'
+    };
+    if (selectors[name]) qsa(document, selectors[name]).forEach(function (node) { node.textContent = 'Unavailable'; });
+    if (name === 'diagnostics') {
+      var strip = qs(document, '[data-issue-strip]');
+      if (strip) strip.classList.remove('sd-issue-strip--loading');
+    }
+    var target = name === 'rounds' ? qs(document, '.trace-table[data-trace-list] tbody')
+      : name === 'diagnostics' ? qs(document, '[data-session-diagnostics]')
+      : qs(document, '[data-session-hero]') || document.body;
+    if (!target) return;
+    var previous = document.querySelector('[data-resource-error="' + name + '"]');
+    if (previous) previous.remove();
+    var error = document.createElement(name === 'rounds' ? 'tr' : 'div');
+    error.setAttribute('data-resource-error', name);
+    var content = error;
+    if (name === 'rounds') {
+      content = document.createElement('td');
+      content.colSpan = 6;
+      error.appendChild(content);
+    }
+    content.setAttribute('role', 'alert');
+    content.appendChild(document.createTextNode('Unable to load ' + name + ' (' + (err.message || 'Request failed') + '). '));
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'btn';
+    button.textContent = 'Retry';
+    button.addEventListener('click', function () {
+      button.disabled = true;
+      retry().then(function () { button.disabled = false; });
+    });
+    content.appendChild(button);
+    if (name === 'rounds' || name === 'diagnostics') target.replaceChildren(error);
+    else target.appendChild(error);
   }
 
   function readSessionJson(response) {

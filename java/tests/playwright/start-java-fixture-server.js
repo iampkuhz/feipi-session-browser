@@ -237,14 +237,13 @@ async function startServer({ claimToken = '' } = {}) {
     const innerClaim = await reservePortClaim();
     innerPort = innerClaim.port;
     innerClaimPath = consumePortClaim(innerPort, innerClaim.token);
-    if (!fs.existsSync(launcher)) {
-      runChecked(
-        path.join(ROOT, 'java', process.platform === 'win32' ? 'gradlew.bat' : 'gradlew'),
-        ['-p', path.join(ROOT, 'java'), ':java:app-cli:installDist', '--console=plain'],
-        'Gradle installDist',
-        { timeout: 300_000 },
-      );
-    }
+    // 启动器存在不代表其 JAR/静态资源仍对应当前源码；由 Gradle 增量同步后再验页面。
+    runChecked(
+      path.join(ROOT, 'java', process.platform === 'win32' ? 'gradlew.bat' : 'gradlew'),
+      ['-p', path.join(ROOT, 'java'), ':java:app-cli:installDist', '--console=plain'],
+      'Gradle installDist',
+      { timeout: 300_000 },
+    );
 
     fs.mkdirSync(runTmpRoot, { recursive: true });
     runtimeDir = fs.mkdtempSync(path.join(runTmpRoot, 'playwright-java-fixture-'));

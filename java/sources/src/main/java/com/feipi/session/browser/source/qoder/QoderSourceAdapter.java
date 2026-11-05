@@ -257,11 +257,7 @@ public final class QoderSourceAdapter implements SourceAdapter {
   }
 
   private static boolean isUserEvent(JsonNode event) {
-    String type = text(event, "type");
-    if (!type.isEmpty()) {
-      return "user".equals(type);
-    }
-    return "user".equals(text(event, "role"));
+    return "user".equals(extractEventType(event));
   }
 
   private static String meaningfulProject(String cwd, String fallback) {
@@ -541,8 +537,9 @@ public final class QoderSourceAdapter implements SourceAdapter {
 
   private static String messageText(JsonNode event) {
     JsonNode message = JsonNodeReaders.objectChild(event, "message");
-    JsonNode content = message == null ? event.get("content") : message.get("content");
-    return contentText(content);
+    JsonNode container = message == null ? event : message;
+    String content = contentText(container.get("content"));
+    return content.isBlank() ? contentText(container.get("parts")) : content;
   }
 
   private static String firstMessageText(JsonNode event) {
@@ -898,19 +895,19 @@ public final class QoderSourceAdapter implements SourceAdapter {
    */
   private static String extractEventType(JsonNode event) {
     JsonNode typeNode = event.get("type");
-    if (typeNode != null && typeNode.isTextual()) {
-      if ("user".equals(typeNode.asText()) && isMetaEvent(event)) {
-        return "meta";
+    String type = typeNode != null && typeNode.isTextual() ? typeNode.asText() : "";
+    if ("message".equals(type)) {
+      String role = text(event, "role");
+      if (role.isEmpty()) {
+        role = text(JsonNodeReaders.objectChild(event, "message"), "role");
       }
-      return typeNode.asText();
-    }
-    if (hasRoleField(event)) {
-      if ("user".equals(event.get("role").asText()) && isMetaEvent(event)) {
-        return "meta";
+      if ("user".equals(role) || "assistant".equals(role)) {
+        type = role;
       }
-      return event.get("role").asText();
+    } else if (typeNode == null || !typeNode.isTextual()) {
+      type = hasRoleField(event) ? text(event, "role") : QoderConstants.EVENT_TYPE_UNKNOWN;
     }
-    return QoderConstants.EVENT_TYPE_UNKNOWN;
+    return "user".equals(type) && isMetaEvent(event) ? "meta" : type;
   }
 
   private static boolean isMetaEvent(JsonNode event) {
