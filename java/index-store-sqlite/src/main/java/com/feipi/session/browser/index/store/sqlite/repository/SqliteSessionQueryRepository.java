@@ -88,6 +88,69 @@ public final class SqliteSessionQueryRepository implements SessionQueryPort {
     this.indexConnection = Objects.requireNonNull(indexConnection, "indexConnection 不得为 null");
   }
 
+  /** 最新扫描状态直读数据库，独立于发布代号及数据查询缓存。 */
+  @Override
+  public Optional<com.feipi.session.browser.index.api.query.ScanStatus> latestScan() {
+    return execute(
+        "latest scan",
+        () -> {
+          try (ReadTransaction transaction = indexConnection.readTransaction();
+              PreparedStatement statement =
+                  transaction
+                      .connection()
+                      .prepareStatement(
+                          "SELECT id, status, mode, started_at, finished_at, error_count, failures_json, processed_count, EXISTS(SELECT 1 FROM index_metadata WHERE key = 'published_generation') AS published FROM scan_log ORDER BY id DESC LIMIT 1");
+              ResultSet result = statement.executeQuery()) {
+            if (!result.next()) return Optional.empty();
+            double finished = result.getDouble("finished_at");
+            Double finishedAt = result.wasNull() ? null : finished;
+            java.util.List<com.feipi.session.browser.index.api.write.ScanFailure> failures;
+            try {
+              failures =
+                  new com.fasterxml.jackson.databind.ObjectMapper()
+                      .readValue(
+                          result.getString("failures_json"),
+                          new com.fasterxml.jackson.core.type.TypeReference<
+                              java.util.List<
+                                  com.feipi.session.browser.index.api.write.ScanFailure>>() {});
+            } catch (com.fasterxml.jackson.core.JsonProcessingException exception) {
+              failures =
+                  java.util.List.of(
+                      com.feipi.session.browser.index.api.write.ScanFailure.generic());
+            }
+            return Optional.of(
+                new com.feipi.session.browser.index.api.query.ScanStatus(
+                    result.getLong("id"),
+                    result.getString("status"),
+                    result.getString("mode"),
+                    result.getDouble("started_at"),
+                    finishedAt,
+                    result.getInt("processed_count"),
+                    result.getInt("error_count"),
+                    failures,
+                    result.getInt("published") == 1));
+          }
+        });
+  }
+
+  /** 每次读取独立的已提交发布代号，不使用查询缓存。 */
+  @Override
+  public String publishedGeneration() {
+    return execute(
+        "published generation",
+        () -> {
+          try (ReadTransaction transaction = indexConnection.readTransaction();
+              PreparedStatement statement =
+                  transaction
+                      .connection()
+                      .prepareStatement(
+                          "SELECT value FROM index_metadata WHERE key = 'published_generation'");
+              ResultSet result = statement.executeQuery()) {
+            return result.next() ? result.getString(1) : "legacy";
+          }
+        });
+  }
+
   /**
    * 获取底层 index 连接。
    *
@@ -198,7 +261,11 @@ public final class SqliteSessionQueryRepository implements SessionQueryPort {
                 + " "
                 + sort.order().getValue()
                 + ", session_key ASC"
-            : sort.toSqlFragment();
+            : "round_count".equals(sort.sortKey())
+                ? "round_count IS NULL, round_count "
+                    + sort.order().getValue()
+                    + ", session_key ASC"
+                : sort.toSqlFragment();
 
     // 列表查询：SELECT + WHERE + ORDER BY + LIMIT + OFFSET
     String listSql =
@@ -270,9 +337,9 @@ public final class SqliteSessionQueryRepository implements SessionQueryPort {
     WhereClauses clauses = buildFilterClauses(filter);
     String sql =
         "SELECT COUNT(*) AS session_count,"
-            + " COUNT(DISTINCT "
+            + " COUNT(DISTINCT NULLIF("
             + CANONICAL_PROJECT_KEY_EXPR
-            + ") AS project_count,"
+            + ", '')) AS project_count,"
             + " COALESCE(SUM(fresh_input_tokens), 0) AS fresh_input_tokens,"
             + " COALESCE(SUM(cache_read_tokens), 0) AS cache_read_tokens,"
             + " COALESCE(SUM(cache_write_tokens), 0) AS cache_write_tokens,"
@@ -364,6 +431,10 @@ public final class SqliteSessionQueryRepository implements SessionQueryPort {
             + ") AS project_name"
             + " FROM sessions "
             + clauses.whereFragment()
+            + (clauses.whereFragment().isBlank() ? " WHERE " : " AND ")
+            + "NULLIF("
+            + projectKeyExpr
+            + ", '') IS NOT NULL"
             + " GROUP BY project_key"
             + " ORDER BY LOWER(project_name), LOWER(project_key)";
     try (ReadTransaction rt = indexConnection.readTransaction();
@@ -397,9 +468,9 @@ public final class SqliteSessionQueryRepository implements SessionQueryPort {
     WhereClauses clauses = buildFilterClauses(filter);
     String sql =
         "SELECT COUNT(*) AS session_count,"
-            + " COUNT(DISTINCT "
+            + " COUNT(DISTINCT NULLIF("
             + CANONICAL_PROJECT_KEY_EXPR
-            + ") AS project_count,"
+            + ", '')) AS project_count,"
             + " COALESCE(SUM(total_tokens), 0) AS total_tokens"
             + ", "
             + TokenProvenanceSqlMapper.aggregateColumns()
@@ -476,7 +547,7 @@ public final class SqliteSessionQueryRepository implements SessionQueryPort {
     if (failureStatus == FailureStatus.FAILED_ONLY) {
       clauses.add("failed_tool_count > 0");
     } else if (failureStatus == FailureStatus.SUCCESS_ONLY) {
-      clauses.add("failed_tool_count = 0");
+      clauses.add("content_measured = 1 AND failed_tool_count = 0");
     }
 
     String whereFragment = clauses.isEmpty() ? "" : "WHERE " + String.join(" AND ", clauses);

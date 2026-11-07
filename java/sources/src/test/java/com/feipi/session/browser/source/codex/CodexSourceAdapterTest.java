@@ -1,6 +1,7 @@
 package com.feipi.session.browser.source.codex;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.feipi.session.browser.source.spi.BoundedStream;
 import com.feipi.session.browser.source.spi.Candidate;
@@ -38,6 +39,53 @@ class CodexSourceAdapterTest {
   @BeforeEach
   void setUp() {
     adapter = new CodexSourceAdapter();
+  }
+
+  @Test
+  void invalidCandidateFailsDiscoveryInsteadOfSilentlyRemovingSession() throws IOException {
+    Files.writeString(
+        tempDir.resolve(CodexConstants.SESSION_INDEX_FILE), "{\"id\":\"invalid-fingerprint\"}\n");
+    Path sessions = Files.createDirectories(tempDir.resolve("sessions"));
+    Path rollout = Files.writeString(sessions.resolve("rollout-invalid-fingerprint.jsonl"), "{}\n");
+    Files.setLastModifiedTime(rollout, java.nio.file.attribute.FileTime.fromMillis(-1000));
+    assertThat(Files.getLastModifiedTime(rollout).toMillis()).isNegative();
+    assertThatThrownBy(() -> adapter.discover(tempDir))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Codex")
+        .hasMessageContaining("invalid-fingerprint")
+        .hasCauseInstanceOf(IllegalArgumentException.class);
+  }
+
+  @Test
+  void metadataOnlyRetainsReliableSourceFields() throws Exception {
+    try (var connection =
+            java.sql.DriverManager.getConnection(
+                "jdbc:sqlite:" + tempDir.resolve(CodexConstants.THREADS_DB));
+        var statement = connection.createStatement()) {
+      statement.execute(
+          "CREATE TABLE threads (id TEXT, created_at INTEGER, updated_at INTEGER, model TEXT, cwd TEXT, git_branch TEXT)");
+      statement.execute(
+          "INSERT INTO threads VALUES ('metadata', 1782216000, 1782216060, 'synthetic-model', '/synthetic/project', 'synthetic-branch')");
+    }
+    Candidate candidate = adapter.discover(tempDir).orderedItems().getFirst();
+    assertThat(candidate.metadata())
+        .containsEntry("started_at", "2026-06-23T12:00:00Z")
+        .containsEntry("ended_at", "2026-06-23T12:01:00Z")
+        .containsEntry("model", "synthetic-model")
+        .containsEntry("cwd", "/synthetic/project")
+        .containsEntry("git_branch", "synthetic-branch");
+  }
+
+  @Test
+  void absentOrInvalidSourceTimesRemainUnknown() throws IOException {
+    Files.writeString(
+        tempDir.resolve(CodexConstants.SESSION_INDEX_FILE),
+        "{\"id\":\"unknown-time\",\"created_at\":\"invalid\",\"updated_at\":\"2026-06-23T12:01:00Z\",\"cwd\":\"/synthetic/index-project\"}\n");
+    Candidate candidate = adapter.discover(tempDir).orderedItems().getFirst();
+    assertThat(candidate.metadata())
+        .doesNotContainKey("started_at")
+        .containsEntry("ended_at", "2026-06-23T12:01:00Z");
+    assertThat(candidate.projectKey()).isEqualTo("/synthetic/index-project");
   }
 
   @Nested

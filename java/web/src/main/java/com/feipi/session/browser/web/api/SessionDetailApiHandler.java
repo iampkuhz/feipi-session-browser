@@ -17,7 +17,11 @@ import com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionMetaRe
 import com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionMetricsResponse;
 import com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionPayloadsResponse;
 import com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionRoundsResponse;
+import io.javalin.http.BadRequestResponse;
 import io.javalin.http.Context;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -54,7 +58,10 @@ public final class SessionDetailApiHandler {
     SessionRecord row = detail.sessionRow();
     SessionDetailParityAnalyzer.Result parity =
         SessionDetailParityAnalyzer.analyze(
-            detail, loaded.annotated().artifact(), loaded.allowSourceFiles());
+            detail,
+            loaded.annotated().artifact(),
+            loaded.annotated().content(),
+            loaded.allowSourceFiles());
     ctx.json(
         new SessionMetaResponse(
             ApiResponses.SCHEMA_VERSION,
@@ -86,7 +93,10 @@ public final class SessionDetailApiHandler {
     SessionRecord row = detail.sessionRow();
     SessionDetailParityAnalyzer.Result parity =
         SessionDetailParityAnalyzer.analyze(
-            detail, loaded.annotated().artifact(), loaded.allowSourceFiles());
+            detail,
+            loaded.annotated().artifact(),
+            loaded.annotated().content(),
+            loaded.allowSourceFiles());
     Map<String, Object> parityMetrics = parity.metrics;
     ctx.json(
         new SessionMetricsResponse(
@@ -124,7 +134,10 @@ public final class SessionDetailApiHandler {
     SessionAnomalySummary anomalies = loaded.annotated().anomalies();
     SessionDetailParityAnalyzer.Result parity =
         SessionDetailParityAnalyzer.analyze(
-            loaded.annotated().detail(), loaded.annotated().artifact(), loaded.allowSourceFiles());
+            loaded.annotated().detail(),
+            loaded.annotated().artifact(),
+            loaded.annotated().content(),
+            loaded.allowSourceFiles());
     List<AnomalyDto> rows =
         anomalies.anomalies().stream().map(SessionDetailApiHandler::anomaly).toList();
     ctx.json(
@@ -137,7 +150,15 @@ public final class SessionDetailApiHandler {
             rows,
             parity.diagnostics,
             rows.isEmpty()
-                ? PageStateDto.empty("No diagnostics triggered", "This session has no anomalies.")
+                ? Boolean.TRUE.equals(parity.diagnostics.get("contentMeasured"))
+                    ? PageStateDto.empty(
+                        "No issue signals detected",
+                        "No anomalies were detected in observed indexed content; this does not"
+                            + " establish task completion or complete log coverage.")
+                    : PageStateDto.empty(
+                        "Diagnostics coverage unknown",
+                        "Session content is unavailable; absence of detected anomalies is not"
+                            + " evidence of a clean run.")
                 : PageStateDto.ready()));
   }
 
@@ -150,12 +171,19 @@ public final class SessionDetailApiHandler {
     SessionDetail detail = loaded.annotated().detail();
     SessionDetailParityAnalyzer.Result parity =
         SessionDetailParityAnalyzer.analyze(
-            detail, loaded.annotated().artifact(), loaded.allowSourceFiles());
+            detail,
+            loaded.annotated().artifact(),
+            loaded.annotated().content(),
+            loaded.allowSourceFiles());
     String traceStatus = ApiQueryParams.normalizeAll(ctx.queryParam("trace_status"));
     List<RoundIndexDto> rows =
-        RoundIndexProjection.pageDtos(detail, loaded.annotated().artifact(), parity).stream()
+        roundRows(loaded, parity).stream()
             .filter(round -> statusMatches(traceStatus, round))
             .toList();
+    if (paged(ctx, loaded)) {
+      sendWindow(ctx, loaded, rows, "rounds", traceStatus);
+      return;
+    }
     ctx.json(
         new SessionRoundsResponse(
             ApiResponses.SCHEMA_VERSION,
@@ -172,11 +200,19 @@ public final class SessionDetailApiHandler {
       return;
     }
     String payloadStatus = ApiQueryParams.normalizeAll(ctx.queryParam("status"));
+    if (loaded.annotated().artifact() == null && loaded.annotated().content() != null) {
+      sendContentPayloads(ctx, loaded, payloadStatus);
+      return;
+    }
     List<PayloadIndexDto> rows =
         loaded.annotated().detail().payloadSources().stream()
             .map(source -> SessionDetailApiResponses.payloadIndexDto(source, loaded.apiBase()))
             .filter(payload -> payloadStatusMatches(payloadStatus, payload.status()))
             .toList();
+    if (paged(ctx, loaded)) {
+      sendWindow(ctx, loaded, rows, "payloads", payloadStatus);
+      return;
+    }
     ctx.json(
         new SessionPayloadsResponse(
             ApiResponses.SCHEMA_VERSION,
@@ -184,6 +220,155 @@ public final class SessionDetailApiHandler {
             rows.size(),
             rows,
             payloadState(rows.size(), payloadStatus)));
+  }
+
+  private static List<RoundIndexDto> roundRows(
+      LoadedDetail loaded, SessionDetailParityAnalyzer.Result parity) {
+    if (loaded.annotated().artifact() != null || loaded.annotated().content() == null) {
+      return RoundIndexProjection.pageDtos(
+          loaded.annotated().detail(), loaded.annotated().artifact(), parity);
+    }
+    try {
+      return SessionContentProjection.rounds(
+          loaded.annotated().detail(), loaded.annotated().content());
+    } catch (IOException exception) {
+      throw (io.javalin.http.InternalServerErrorResponse)
+          new io.javalin.http.InternalServerErrorResponse("normalized content read failed")
+              .initCause(exception);
+    }
+  }
+
+  private static boolean paged(Context ctx, LoadedDetail loaded) {
+    return ctx.queryParam("cursor") != null
+        || ctx.queryParam("limit") != null
+        || (loaded.annotated().artifact() == null && loaded.annotated().content() != null);
+  }
+
+  private static int windowLimit(Context ctx) {
+    try {
+      int limit = ctx.queryParam("limit") == null ? 100 : Integer.parseInt(ctx.queryParam("limit"));
+      if (limit < 1 || limit > 500) throw new NumberFormatException();
+      return limit;
+    } catch (NumberFormatException exception) {
+      throw (BadRequestResponse)
+          new BadRequestResponse("limit must be within 1..500").initCause(exception);
+    }
+  }
+
+  private static String cursorScope(
+      Context ctx, LoadedDetail loaded, String section, String filter) {
+    return loaded.annotated().detail().cacheKey()
+        + "|"
+        + ctx.res().getHeader("X-Session-Index-Generation")
+        + "|"
+        + loaded.apiBase()
+        + "|"
+        + loaded.echo().visibility()
+        + "|"
+        + section
+        + "|"
+        + filter;
+  }
+
+  private static long windowOffset(Context ctx, String scope) {
+    if (ctx.queryParam("cursor") == null) return 0;
+    try {
+      return SessionContentCursor.decode(ctx.queryParam("cursor"), scope);
+    } catch (IllegalArgumentException exception) {
+      throw (BadRequestResponse)
+          new BadRequestResponse("invalid cursor for this snapshot and filter")
+              .initCause(exception);
+    }
+  }
+
+  private static <T> void sendWindow(
+      Context ctx, LoadedDetail loaded, List<T> rows, String section, String filter) {
+    int limit = windowLimit(ctx);
+    String scope = cursorScope(ctx, loaded, section, filter);
+    long offset = windowOffset(ctx, scope);
+    if (offset > rows.size()) throw new BadRequestResponse("cursor exceeds section total");
+    int end = (int) Math.min(rows.size(), offset + limit);
+    sendPage(
+        ctx,
+        loaded,
+        section,
+        filter,
+        rows.subList((int) offset, end),
+        rows.size(),
+        end < rows.size() ? SessionContentCursor.encode(scope, end) : null);
+  }
+
+  private static void sendPage(
+      Context ctx,
+      LoadedDetail loaded,
+      String section,
+      String filter,
+      List<?> rows,
+      long total,
+      String next) {
+    Map<String, Object> response = new LinkedHashMap<>();
+    response.put("schemaVersion", ApiResponses.SCHEMA_VERSION);
+    response.put(
+        "filters",
+        "rounds".equals(section)
+            ? loaded.echo().withTraceStatus(filter)
+            : loaded.echo().withPayloadStatus(filter));
+    response.put("rounds".equals(section) ? "roundCount" : "payloadCount", total);
+    response.put("total", total);
+    response.put(section, rows);
+    response.put("nextCursor", next);
+    response.put(
+        "state",
+        "rounds".equals(section) ? roundState(total, filter) : payloadState(total, filter));
+    ctx.json(response);
+  }
+
+  private static void sendContentPayloads(Context ctx, LoadedDetail loaded, String filter) {
+    int limit = windowLimit(ctx);
+    String scope = cursorScope(ctx, loaded, "payloads", filter);
+    long offset = windowOffset(ctx, scope);
+    var items = new ArrayList<PayloadIndexDto>();
+    long total = 0;
+    try (var cursor = loaded.annotated().content().openCursor()) {
+      while (cursor.hasNext()) {
+        for (var call : cursor.next().calls()) {
+          boolean child = call.scope() == com.feipi.session.browser.domain.enums.CallScope.SUBAGENT;
+          for (boolean request : new boolean[] {true, false}) {
+            String kind =
+                child
+                    ? (request ? "subagent_request" : "subagent_response")
+                    : (request ? "llm_request" : "llm_response");
+            String id = (child ? "sa:" : "main:") + (request ? "req:" : "resp:") + call.callId();
+            var item =
+                new PayloadIndexDto(
+                    id,
+                    kind,
+                    call.callId(),
+                    (request ? "Request " : "Response ") + call.callKey(),
+                    false,
+                    "available",
+                    loaded.apiBase() + "/payload/" + ApiQueryParams.url(id));
+            if (!payloadStatusMatches(filter, item.status())) continue;
+            if (total >= offset && items.size() < limit) items.add(item);
+            total++;
+          }
+        }
+      }
+    } catch (IOException exception) {
+      throw (io.javalin.http.InternalServerErrorResponse)
+          new io.javalin.http.InternalServerErrorResponse("normalized content read failed")
+              .initCause(exception);
+    }
+    if (offset > total) throw new BadRequestResponse("cursor exceeds section total");
+    long end = offset + items.size();
+    sendPage(
+        ctx,
+        loaded,
+        "payloads",
+        filter,
+        items,
+        total,
+        end < total ? SessionContentCursor.encode(scope, end) : null);
   }
 
   private LoadedDetail load(Context ctx) {
@@ -208,7 +393,8 @@ public final class SessionDetailApiHandler {
                         + ApiQueryParams.url(agent)
                         + "/"
                         + ApiQueryParams.url(sessionId),
-                    true))
+                    // 无冻结制品的兼容行不能从持续变化的源补出未发布计数。
+                    annotated.artifact() != null))
         .orElse(null);
   }
 

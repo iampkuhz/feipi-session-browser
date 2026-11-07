@@ -6,6 +6,7 @@ import com.feipi.session.browser.index.api.query.AgentEfficiency;
 import com.feipi.session.browser.index.api.query.AggregateMetrics;
 import com.feipi.session.browser.index.api.query.DashboardQueryPort;
 import com.feipi.session.browser.index.api.query.DashboardStats;
+import com.feipi.session.browser.index.api.query.EventActivity;
 import com.feipi.session.browser.index.api.query.KpiSupplement;
 import com.feipi.session.browser.index.api.query.TokenBreakdown;
 import com.feipi.session.browser.index.api.query.TrendDay;
@@ -118,6 +119,17 @@ public final class DashboardUseCase {
           "activityTrend", paramsHash, schemaVersion, () -> repository.activityTrend(filter));
     }
     return repository.activityTrend(filter);
+  }
+
+  /**
+   * 查询独立事件日观察；未来桶可能随时间恢复，因此不缓存某个时刻的排除结果。
+   *
+   * @param filter UTC 窗口与来源过滤器
+   * @return 同一索引快照中的观察子集及覆盖
+   */
+  public EventActivity eventActivity(TrendFilter filter) {
+    Objects.requireNonNull(filter, "filter 不得为 null");
+    return repository.eventActivity(filter);
   }
 
   /**

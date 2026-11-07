@@ -48,8 +48,9 @@ class WebStaticResourceContractTest {
 
     assertThat(linePath)
         .contains("var resolveX = xFn || xBandCenterPct;")
-        .contains("if (val == null || !isFinite(val)) {\n                    return;");
-    assertThat(missingPointBranch).doesNotContain("open = false");
+        .contains(
+            "if (val == null || !isFinite(val)) {\n                    open = false;\n                    return;");
+    assertThat(missingPointBranch).contains("open = false;", "return;");
     assertThat(promptChart)
         .contains("linePath(data, maxAvg, function(d, i) { return avgValues[i]; }, xBandCenterPct)")
         .contains("class=\"line-plot line-plot--bar-aligned\"")

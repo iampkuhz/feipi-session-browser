@@ -13,6 +13,7 @@ import com.feipi.session.browser.validation.ValidationSupport;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -103,7 +104,7 @@ public final class CallBuilder {
         List.of(),
         sourceUnits,
         Map.of(),
-        Map.of(),
+        new LinkedHashMap<String, Object>(record.usage().provenance()),
         frame.subagentId(),
         frame.parentToolName());
   }
@@ -159,9 +160,11 @@ public final class CallBuilder {
           toolExecution(
               toolCallId.get(),
               toolName.get(),
-              declarations.getOrDefault(toolCallId.get(), declaredByLastCall(calls, toolUseRecord)),
+              declarations.getOrDefault(toolCallId.get(), "unknown"),
               Optional.ofNullable(consumers.get(toolCallId.get())),
-              toolUseRecord.toolError(),
+              toolUseRecord
+                  .toolError()
+                  .or(() -> Optional.ofNullable(toolErrors.get(toolCallId.get()))),
               callScope(toolUseRecord),
               toolExecutionSubagentId(toolUseRecord)));
     }
@@ -204,18 +207,6 @@ public final class CallBuilder {
           .ifPresent(id -> errors.put(id, record.toolError().get()));
     }
     return errors;
-  }
-
-  private static String declaredByLastCall(List<NormalizedCall> calls, SourceRecord record) {
-    return calls.stream()
-        .filter(call -> call.scope() == callScope(record))
-        .filter(
-            call ->
-                call.scope() == CallScope.MAIN
-                    || call.subagentId().equals(displaySubagentId(record)))
-        .reduce((first, last) -> last)
-        .map(NormalizedCall::callId)
-        .orElse("unknown");
   }
 
   private static Map<String, String> mapToolResultConsumers(
@@ -263,18 +254,29 @@ public final class CallBuilder {
   private static Map<String, String> mapToolDeclarations(
       List<? extends SourceRecord> records, List<String> callIds) {
     Map<String, String> map = new LinkedHashMap<>();
-    if (callIds.isEmpty()) {
-      return map;
-    }
     Map<String, List<String>> scopedCalls = scopedCallIds(records, callIds);
     Map<String, Integer> nextIndices = new LinkedHashMap<>();
     Map<String, String> currentCallIds = new LinkedHashMap<>();
     Map<String, Boolean> currentClosingFrames = new LinkedHashMap<>();
+    // user 标记新模型输入；只有非 meta user 结束真实用户段，延迟结果不撤销声明。
+    var pendingInput = new HashSet<String>();
+    var pendingOwners = new HashSet<String>();
     for (SourceRecord record : records) {
       if (record == null) {
         continue;
       }
       String scope = recordScopeKey(record);
+      if ("user".equals(record.eventType())) {
+        if (!record.metaContext() && pendingOwners.contains(scope)) {
+          throw new IllegalArgumentException("TOOL_OWNER_UNAVAILABLE");
+        }
+        pendingInput.add(scope);
+      } else if ("assistant".equals(record.eventType())) {
+        pendingInput.remove(scope);
+        pendingOwners.remove(scope);
+      } else if ("tool_use".equals(record.eventType()) && pendingInput.contains(scope)) {
+        pendingOwners.add(scope);
+      }
       List<String> scopeCalls = scopedCalls.getOrDefault(scope, List.of());
       if (scopeCalls.isEmpty()) {
         continue;
@@ -297,10 +299,13 @@ public final class CallBuilder {
             declaredToolOwner(
                 scopeCalls,
                 nextAssistantIndex,
-                currentAssistantCallId,
+                pendingInput.contains(scope) ? "" : currentAssistantCallId,
                 currentClosingFrames.getOrDefault(scope, false));
         record.callId().ifPresent(toolCallId -> map.put(toolCallId, owner));
       }
+    }
+    if (!pendingOwners.isEmpty()) {
+      throw new IllegalArgumentException("TOOL_OWNER_UNAVAILABLE");
     }
     return map;
   }
@@ -333,15 +338,15 @@ public final class CallBuilder {
     return scoped;
   }
 
-  private static String extractCallId(SourceRecord record, int fallbackIndex) {
+  static String extractCallId(SourceRecord record, int fallbackIndex) {
     return record.callId().orElse("C" + fallbackIndex);
   }
 
-  private static String recordScopeKey(SourceRecord record) {
-    return callScope(record) == CallScope.MAIN ? "" : displaySubagentId(record).orElse("");
+  static String recordScopeKey(SourceRecord record) {
+    return ToolIdentityPlan.associationScope(record);
   }
 
-  private static CallScope callScope(SourceRecord record) {
+  static CallScope callScope(SourceRecord record) {
     boolean relationSubagent = relationValue(record, SourceRecordRelation::subagentId).isPresent();
     Optional<String> parentToolCallId =
         relationValue(record, SourceRecordRelation::parentToolCallId);
@@ -361,12 +366,12 @@ public final class CallBuilder {
     return subagentId(record).isPresent() ? CallScope.SUBAGENT : CallScope.MAIN;
   }
 
-  private static Optional<String> displaySubagentId(SourceRecord record) {
+  static Optional<String> displaySubagentId(SourceRecord record) {
     return relationValue(record, SourceRecordRelation::subagentId)
         .or(() -> subagentId(record).map(id -> "agent-" + id));
   }
 
-  private static Optional<String> toolExecutionSubagentId(SourceRecord record) {
+  static Optional<String> toolExecutionSubagentId(SourceRecord record) {
     return displaySubagentId(record);
   }
 

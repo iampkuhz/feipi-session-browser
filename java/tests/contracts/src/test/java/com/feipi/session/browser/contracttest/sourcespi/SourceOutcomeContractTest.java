@@ -3,11 +3,15 @@ package com.feipi.session.browser.contracttest.sourcespi;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.feipi.session.browser.domain.source.SourceRecord;
 import com.feipi.session.browser.source.spi.ParseIssueType;
 import com.feipi.session.browser.source.spi.ParseSeverity;
 import com.feipi.session.browser.source.spi.SourceDiagnostic;
 import com.feipi.session.browser.source.spi.SourceOutcome;
 import com.feipi.session.browser.source.spi.SourceResult;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;
@@ -21,6 +25,104 @@ import org.junit.jupiter.api.Test;
  */
 @DisplayName("Source SPI — SourceOutcome 与 SourceResult 密封类型契约")
 class SourceOutcomeContractTest {
+
+  @Test
+  @DisplayName("旧 Success 默认 JSON 保持五个属性及 null 值")
+  void legacySuccessJsonKeepsFiveProperties() throws Exception {
+    var result = new SourceResult.Success(List.of(), 3, null, null, "synthetic.jsonl");
+    var mapper = new ObjectMapper();
+    assertThat(mapper.readValue(mapper.writeValueAsString(result), SourceResult.Success.class))
+        .isEqualTo(result);
+    assertThat(mapper.readTree(mapper.writeValueAsString(result)))
+        .isEqualTo(
+            mapper.readTree(
+                """
+                {"diagnostics":[],"candidateCount":3,"records":[],
+                 "fingerprint":null,"locator":"synthetic.jsonl"}
+                """));
+  }
+
+  @Test
+  @DisplayName("旧 Success 保持五字段值语义与 record 文本格式")
+  void legacySuccessKeepsValueSemantics() {
+    var result = new SourceResult.Success(List.of(), 3, null, null, "synthetic.jsonl");
+    var equal = new SourceResult.Success(List.of(), 3, List.of(), null, "synthetic.jsonl");
+    assertThat(result).isEqualTo(equal).isNotEqualTo(null).isNotEqualTo("synthetic.jsonl");
+    assertThat(result.hashCode()).isEqualTo(equal.hashCode()).isEqualTo(-1_978_419_974);
+    assertThat(result.toString())
+        .isEqualTo(
+            "Success[diagnostics=[], candidateCount=3, records=[], fingerprint=null,"
+                + " locator=synthetic.jsonl]");
+    assertThat(result)
+        .isNotEqualTo(new SourceResult.Success(List.of(), 4, List.of(), null, "synthetic.jsonl"))
+        .isNotEqualTo(new SourceResult.Success(List.of(), 3, List.of(), null, "other.jsonl"))
+        .isNotEqualTo(
+            new SourceResult.Success(
+                List.of(),
+                3,
+                List.of(SourceRecord.of("synthetic.jsonl", 0, "unknown")),
+                null,
+                "synthetic.jsonl"));
+  }
+
+  @Test
+  @DisplayName("旧 Success 防御复制输入且 records 与 diagnostics 均不可变")
+  void legacySuccessCopiesAndFreezesBothLists() {
+    var record = SourceRecord.of("synthetic.jsonl", 0, "unknown");
+    var diagnostic = syntheticDiagnostic();
+    var records = new ArrayList<>(List.of(record));
+    var diagnostics = new ArrayList<>(List.of(diagnostic));
+    var result = new SourceResult.Success(diagnostics, 1, records, null, null);
+    records.clear();
+    diagnostics.clear();
+    assertThat(result.records()).containsExactly(record);
+    assertThat(result.diagnostics()).containsExactly(diagnostic);
+    assertThat(result)
+        .isEqualTo(new SourceResult.Success(List.of(diagnostic), 1, List.of(record), null, null));
+    assertThatThrownBy(() -> result.records().clear())
+        .isInstanceOf(UnsupportedOperationException.class);
+    assertThatThrownBy(() -> result.diagnostics().clear())
+        .isInstanceOf(UnsupportedOperationException.class);
+  }
+
+  @Test
+  @DisplayName("旧 Success 构造器保留 null records、诊断上限与负计数校验")
+  void legacySuccessConstructorKeepsValidation() {
+    assertThat(new SourceResult.Success(List.of(), 0, null, null, null).records()).isEmpty();
+    assertThatThrownBy(() -> new SourceResult.Success(null, 0, null, null, null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("diagnostics 不得为 null");
+    assertThatThrownBy(() -> new SourceResult.Success(List.of(), -1, null, null, null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("candidateCount 不得为负: -1");
+    var diagnostics = Collections.nCopies(SourceResult.MAX_DIAGNOSTICS, syntheticDiagnostic());
+    assertThat(new SourceResult.Success(diagnostics, 0, null, null, null).diagnostics())
+        .hasSize(SourceResult.MAX_DIAGNOSTICS);
+    assertThatThrownBy(
+            () ->
+                new SourceResult.Success(
+                    Collections.nCopies(SourceResult.MAX_DIAGNOSTICS + 1, syntheticDiagnostic()),
+                    0,
+                    null,
+                    null,
+                    null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("diagnostics size exceeds limit 1000");
+  }
+
+  private static SourceDiagnostic syntheticDiagnostic() {
+    return new SourceDiagnostic(
+        ParseSeverity.WARNING,
+        ParseIssueType.NON_OBJECT_SKIPPED,
+        "synthetic diagnostic",
+        1,
+        Optional.empty(),
+        "NON_OBJECT_SKIPPED",
+        "",
+        OptionalInt.empty(),
+        OptionalInt.empty(),
+        OptionalInt.empty());
+  }
 
   @Test
   @DisplayName("四种状态全部存在")

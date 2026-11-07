@@ -40,6 +40,36 @@ class SessionDetailParityMetricsTest {
   @TempDir Path directory;
 
   @Test
+  void metadataOnlyDiagnosticsReportsUnknownCoverageInsteadOfNoAnomalies() {
+    var detail = SessionDetailParityAnalyzerTest.healthDetail(false, 0);
+    var handler =
+        new SessionDetailApiHandler(
+            ctx ->
+                new SessionDetailApiHandler.LoadedDetail(
+                    new SessionDetailApiResponses.SessionDetailFilterEcho(
+                        "codex", "health", "standard", "", ""),
+                    new SessionDetailUseCase.AnnotatedDetailContext(
+                        detail,
+                        SessionAnomalySummary.empty(detail.sessionRow().sessionKey()),
+                        null),
+                    "/synthetic",
+                    false));
+    JavalinTest.test(
+        Javalin.create(config -> config.routes.get("/diagnostics", handler::handleDiagnostics)),
+        (app, client) -> {
+          var response = client.get("/diagnostics");
+          assertThat(response.code()).isEqualTo(200);
+          var body = new ObjectMapper().readTree(response.body().string());
+          assertThat(body.at("/parity/runHealth").asText()).isEqualTo("Unknown");
+          assertThat(body.at("/parity/attributionGapsAvailable").asBoolean()).isFalse();
+          assertThat(body.path("parity").has("attributionGaps")).isFalse();
+          assertThat(body.toString())
+              .contains("Diagnostics coverage unknown")
+              .doesNotContain("This session has no anomalies", "Completed");
+        });
+  }
+
+  @Test
   void artifactFailuresIncludeChildrenForEveryProviderWithoutInventingPayloadGaps()
       throws Exception {
     Path raw = directory.resolve("current-source.jsonl");

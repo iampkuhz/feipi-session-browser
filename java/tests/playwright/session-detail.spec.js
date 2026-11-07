@@ -172,6 +172,7 @@ test.describe('会话详情 — Phase 1', () => {
       'close-payload',
       'retry-attribution',
       'retry-round',
+      'load-content-page',
       'payload-mode',
       'select-subagent',
       'close-modal',
@@ -675,7 +676,11 @@ test.describe('会话详情 — Phase 1', () => {
     await expect(page.locator('[data-trace-panel]')).not.toContainText('/api/sessions/{agent}/{sessionId}/rounds');
     await expect(page.locator('[data-trace-panel]')).not.toContainText('/round/{roundIndex}');
     if (await page.locator('[data-action="select-subagent"][data-agent-scope="subagent"]').count() > 0) {
-      await expect(page.locator('[data-session-diagnostics]')).toContainText('Success · 0 failed');
+      const subagentRow = page.locator('[data-subagent-row]').filter({
+        has: page.locator('[data-agent-scope="subagent"]'),
+      });
+      await expect(subagentRow).toContainText('No failure signals · 0 failed');
+      await expect(subagentRow).not.toContainText('Success');
     }
   });
 

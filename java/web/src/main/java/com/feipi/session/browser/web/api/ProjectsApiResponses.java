@@ -47,6 +47,7 @@ public final class ProjectsApiResponses {
    * @param toolCalls 当前统计口径下的调用数量。
    * @param failedTools 当前统计口径下的工具数量。
    * @param state 页面或 API 状态描述。
+   * @param contentSampleCount 显式内容测量的会话数，包含已观测零，不代表完整源覆盖。
    */
   public record ProjectsSummaryResponse(
       String schemaVersion,
@@ -56,7 +57,40 @@ public final class ProjectsApiResponses {
       TokenSegments tokens,
       long toolCalls,
       long failedTools,
-      PageStateDto state) {
+      PageStateDto state,
+      long contentSampleCount) {
+    /**
+     * 兼容未提供内容覆盖的调用者，不从计数或 token 推断已测量。
+     *
+     * @param schemaVersion 响应 schema 版本号。
+     * @param filters 规范化后的过滤条件。
+     * @param projectCount 当前过滤条件下的项目数量。
+     * @param sessionCount 当前过滤条件下的 session 数量。
+     * @param tokens token 组成统计。
+     * @param toolCalls 当前统计口径下的调用数量。
+     * @param failedTools 当前统计口径下的工具数量。
+     * @param state 页面或 API 状态描述。
+     */
+    public ProjectsSummaryResponse(
+        String schemaVersion,
+        ProjectsFilterEcho filters,
+        long projectCount,
+        long sessionCount,
+        TokenSegments tokens,
+        long toolCalls,
+        long failedTools,
+        PageStateDto state) {
+      this(
+          schemaVersion,
+          filters,
+          projectCount,
+          sessionCount,
+          tokens,
+          toolCalls,
+          failedTools,
+          state,
+          0);
+    }
 
     /** 校验字段和业务不变量。 */
     public ProjectsSummaryResponse {
@@ -64,7 +98,12 @@ public final class ProjectsApiResponses {
       Objects.requireNonNull(filters, "filters must not be null");
       Objects.requireNonNull(tokens, "tokens must not be null");
       Objects.requireNonNull(state, "state must not be null");
-      if (projectCount < 0 || sessionCount < 0 || toolCalls < 0 || failedTools < 0) {
+      if (contentSampleCount < 0
+          || contentSampleCount > sessionCount
+          || projectCount < 0
+          || sessionCount < 0
+          || toolCalls < 0
+          || failedTools < 0) {
         throw new IllegalArgumentException("summary counts must be non-negative");
       }
     }
@@ -115,6 +154,7 @@ public final class ProjectsApiResponses {
    * @param firstSeen 该字段在 API 响应中的业务值。
    * @param lastSeen 该字段在 API 响应中的业务值。
    * @param detailUrl 该字段在 API 响应中的业务值。
+   * @param contentSampleCount 显式内容测量的会话数，包含已观测零，不代表完整源覆盖。
    */
   public record ProjectRowDto(
       String projectKey,
@@ -131,7 +171,61 @@ public final class ProjectsApiResponses {
       long assistantMessages,
       String firstSeen,
       String lastSeen,
-      String detailUrl) {
+      String detailUrl,
+      long contentSampleCount) {
+    /**
+     * 兼容未提供内容覆盖的调用者，不从计数或 token 推断已测量。
+     *
+     * @param projectKey 规范化 project key。
+     * @param projectName 项目显示名称。
+     * @param totalSessions session 汇总数量。
+     * @param claudeSessions 该字段在 API 响应中的业务值。
+     * @param codexSessions 该字段在 API 响应中的业务值。
+     * @param qoderSessions 该字段在 API 响应中的业务值。
+     * @param agents 非零 session 的 agent badge 列表。
+     * @param tokens token 组成统计。
+     * @param toolCalls 当前统计口径下的调用数量。
+     * @param failedTools 当前统计口径下的工具数量。
+     * @param userMessages 当前统计口径下的消息数量。
+     * @param assistantMessages 当前统计口径下的消息数量。
+     * @param firstSeen 该字段在 API 响应中的业务值。
+     * @param lastSeen 该字段在 API 响应中的业务值。
+     * @param detailUrl 该字段在 API 响应中的业务值。
+     */
+    public ProjectRowDto(
+        String projectKey,
+        String projectName,
+        long totalSessions,
+        long claudeSessions,
+        long codexSessions,
+        long qoderSessions,
+        List<ProjectAgentBadgeDto> agents,
+        TokenSegments tokens,
+        long toolCalls,
+        long failedTools,
+        long userMessages,
+        long assistantMessages,
+        String firstSeen,
+        String lastSeen,
+        String detailUrl) {
+      this(
+          projectKey,
+          projectName,
+          totalSessions,
+          claudeSessions,
+          codexSessions,
+          qoderSessions,
+          agents,
+          tokens,
+          toolCalls,
+          failedTools,
+          userMessages,
+          assistantMessages,
+          firstSeen,
+          lastSeen,
+          detailUrl,
+          0);
+    }
 
     /** 校验字段和业务不变量。 */
     public ProjectRowDto {
@@ -143,7 +237,9 @@ public final class ProjectsApiResponses {
       firstSeen = ApiResponses.empty(firstSeen);
       lastSeen = ApiResponses.empty(lastSeen);
       detailUrl = ApiResponses.empty(detailUrl);
-      if (totalSessions < 0
+      if (contentSampleCount < 0
+          || contentSampleCount > totalSessions
+          || totalSessions < 0
           || claudeSessions < 0
           || codexSessions < 0
           || qoderSessions < 0

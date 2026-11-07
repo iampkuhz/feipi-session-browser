@@ -13,6 +13,7 @@ import com.feipi.session.browser.query.api.ProjectListFilter;
 import com.feipi.session.browser.query.api.SessionListFilter;
 import com.feipi.session.browser.query.api.Sort;
 import com.feipi.session.browser.query.api.TitleFilter;
+import com.feipi.session.browser.web.IndexSnapshotGuard;
 import com.feipi.session.browser.web.model.PaginationModel;
 import com.feipi.session.browser.web.model.TokenTrendBuckets;
 import com.feipi.session.browser.web.model.WebDisplayValues;
@@ -83,6 +84,8 @@ public final class ProjectsPage {
       PaginationModel pagination = PaginationModel.of(currentPage, pageSize, (int) totalCount);
 
       Map<String, Object> context = new HashMap<>();
+      context.put(
+          IndexSnapshotGuard.PAGE_GENERATION, ctx.attribute(IndexSnapshotGuard.PAGE_GENERATION));
       context.put("projects", pageResult.items());
       context.put("project_summary", buildProjectsSummary(summaryResult.items(), totalCount));
       context.put("total_count", totalCount);
@@ -133,11 +136,7 @@ public final class ProjectsPage {
       SessionListUseCase.AnnotatedPageResult result =
           sessionUseCase.listWithAnomalies(sessionFilter);
       SessionListAggregate aggregate = sessionUseCase.aggregate(sessionFilter);
-      List<SessionRecord> allProjectSessions =
-          sessionUseCase
-              .listWithAnomalies(buildAllProjectSessionsFilter(decodedKey, project))
-              .page()
-              .items();
+      List<SessionRecord> allProjectSessions = sessionUseCase.allForProject(decodedKey);
 
       int currentPage = QueryParams.parsePage(params);
       int pageSize = QueryParams.parsePageSize(params);
@@ -145,6 +144,8 @@ public final class ProjectsPage {
       String trendGrain = normalizeTrendGrain(params.getOrDefault("grain", "day"));
 
       Map<String, Object> context = new HashMap<>();
+      context.put(
+          IndexSnapshotGuard.PAGE_GENERATION, ctx.attribute(IndexSnapshotGuard.PAGE_GENERATION));
       context.put("project", project);
       context.put("sessions", result.page().items());
       context.put("anomalies", result.anomalies());
@@ -215,15 +216,6 @@ public final class ProjectsPage {
     filter = filter.withPage(PageRequest.ofOffset(offset, pageSize));
 
     return filter;
-  }
-
-  private static SessionListFilter buildAllProjectSessionsFilter(
-      String projectKey, ProjectStats project) {
-    int limit = (int) Math.max(1, Math.min(Integer.MAX_VALUE, project.totalSessions()));
-    return SessionListFilter.defaults()
-        .withProject(ProjectFilter.of(projectKey))
-        .withSort(Sort.ofSession("started_at", "asc"))
-        .withPage(PageRequest.ofOffset(0, limit));
   }
 
   private static String normalizeTrendGrain(String raw) {

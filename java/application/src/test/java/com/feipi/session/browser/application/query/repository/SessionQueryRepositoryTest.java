@@ -55,6 +55,68 @@ class SessionQueryRepositoryTest {
     IndexSchema.withDefaults().ensureSchema(indexConnection.writerConnection());
     // 插入测试数据
     insertTestData();
+    indexConnection
+        .writeQueue()
+        .submit(
+            connection -> {
+              try (var statement = connection.createStatement()) {
+                statement.executeUpdate("UPDATE sessions SET content_measured = 1");
+              }
+            })
+        .join();
+  }
+
+  @Test
+  void roundsSortUsesPersistedLogicalRoundsAndPlacesUnknownLast() throws Exception {
+    indexConnection
+        .writeQueue()
+        .submit(
+            connection -> {
+              try (var statement = connection.createStatement()) {
+                statement.executeUpdate(
+                    "UPDATE sessions SET round_count = 2, llm_call_count = 5, content_measured = 1 WHERE session_key = 'claude_code:sess-001'");
+                statement.executeUpdate(
+                    "UPDATE sessions SET round_count = 1, llm_call_count = 8, content_measured = 1 WHERE session_key = 'codex:sess-002'");
+              }
+            })
+        .join();
+    var repository = new SqliteSessionQueryRepository(indexConnection);
+    var filter =
+        SessionListFilter.defaults()
+            .withSort(Sort.ofSession(SessionSortField.ROUND_COUNT, SortOrder.ASC));
+    var rows = repository.listSessions(filter).items();
+    assertThat(rows.get(0).sessionKey()).isEqualTo("codex:sess-002");
+    assertThat(rows.get(0).roundCount()).isEqualTo(1L);
+    assertThat(rows.get(0).llmCallCount()).isEqualTo(8L);
+    assertThat(rows.get(1).sessionKey()).isEqualTo("claude_code:sess-001");
+    assertThat(rows.get(2).roundCount()).isNull();
+    var descending =
+        repository
+            .listSessions(
+                filter.withSort(Sort.ofSession(SessionSortField.ROUND_COUNT, SortOrder.DESC)))
+            .items();
+    assertThat(descending.get(0).sessionKey()).isEqualTo("claude_code:sess-001");
+    assertThat(descending.get(2).roundCount()).isNull();
+  }
+
+  @Test
+  void unknownContentIsNotIncludedInNoFailuresFilter() throws Exception {
+    indexConnection
+        .writeQueue()
+        .submit(
+            connection -> {
+              try (var statement = connection.createStatement()) {
+                statement.executeUpdate(
+                    "UPDATE sessions SET content_measured = 0 WHERE session_key = 'claude_code:sess-003'");
+              }
+            })
+        .join();
+    var rows =
+        new SqliteSessionQueryRepository(indexConnection)
+            .listSessions(
+                SessionListFilter.defaults().withFailureStatus(FailureStatus.SUCCESS_ONLY))
+            .items();
+    assertThat(rows).extracting(SessionRecord::sessionKey).containsExactly("codex:sess-002");
   }
 
   @AfterEach

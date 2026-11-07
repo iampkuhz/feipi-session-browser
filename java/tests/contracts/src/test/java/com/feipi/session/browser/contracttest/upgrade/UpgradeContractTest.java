@@ -70,10 +70,41 @@ class UpgradeContractTest {
     }
 
     @Test
+    @DisplayName("缺扫描表的旧数据库可升级且保留会话与扩展数据")
+    void legacyDatabaseWithoutScanLogPreservesData() throws Exception {
+      createLegacyDatabaseWithoutTracking();
+      insertSessionData(dbPath, "fixture-preserved", "codex", "Preserved");
+      try (Connection conn = openConnectionTo(dbPath);
+          Statement stmt = conn.createStatement()) {
+        stmt.execute("DROP TABLE scan_log");
+        stmt.execute("ALTER TABLE sessions ADD COLUMN fixture_extension TEXT DEFAULT 'kept'");
+        stmt.execute(
+            "INSERT INTO session_artifacts VALUES ('fixture-preserved', 'fixture', 'synthetic-path')");
+      }
+      DatabaseUpgrader.withDefaults("0.4", backupDir).upgrade(dbPath);
+      assertSchemaComplete(dbPath);
+      try (Connection conn = openConnectionTo(dbPath);
+          Statement stmt = conn.createStatement();
+          var rows =
+              stmt.executeQuery(
+                  "SELECT fixture_extension, (SELECT COUNT(*) FROM session_artifacts) AS artifacts FROM sessions WHERE session_key='fixture-preserved'")) {
+        assertThat(rows.next()).isTrue();
+        assertThat(rows.getString("fixture_extension")).isEqualTo("kept");
+        assertThat(rows.getInt("artifacts")).isEqualTo(1);
+      }
+    }
+
+    @Test
     @DisplayName("无 schema_migrations 追踪表的旧数据库可升级")
     void legacyDatabaseWithoutTrackingTable() throws Exception {
       // 创建只有 sessions 表但无 schema_migrations 的旧数据库
       createLegacyDatabaseWithoutTracking();
+      try (Connection conn = openConnectionTo(dbPath);
+          Statement stmt = conn.createStatement()) {
+        stmt.execute("ALTER TABLE scan_log ADD COLUMN fixture_extension TEXT");
+        stmt.execute(
+            "INSERT INTO scan_log(started_at, fixture_extension) VALUES (123, 'scan-kept')");
+      }
 
       DatabaseUpgrader upgrader = DatabaseUpgrader.withDefaults("0.4", backupDir);
       UpgradeResult result = upgrader.upgrade(dbPath);
@@ -81,7 +112,17 @@ class UpgradeContractTest {
       // V001 用 IF NOT EXISTS，不会报错；migration 被记录
       assertThat(result.hadMigrations()).isTrue();
       assertThat(result.schemaVersionsApplied()).contains(new SchemaVersion(1));
-
+      try (Connection conn = openConnectionTo(dbPath);
+          Statement stmt = conn.createStatement();
+          var rows =
+              stmt.executeQuery(
+                  "SELECT started_at, fixture_extension, status, error_count FROM scan_log")) {
+        assertThat(rows.next()).isTrue();
+        assertThat(rows.getDouble("started_at")).isEqualTo(123);
+        assertThat(rows.getString("fixture_extension")).isEqualTo("scan-kept");
+        assertThat(rows.getString("status")).isEqualTo("unknown");
+        assertThat(rows.getInt("error_count")).isZero();
+      }
       assertSchemaComplete(dbPath);
     }
   }
@@ -141,9 +182,9 @@ class UpgradeContractTest {
       assertThat(second.hadMigrations()).isFalse();
       assertThat(third.hadMigrations()).isFalse();
 
-      // schema 版本始终为 V1
+      // 升级到当前 schema 后重复执行不会改变版本。
       SchemaVersion version = readCurrentSchemaVersion(dbPath);
-      assertThat(version.version()).isEqualTo(1);
+      assertThat(version).isEqualTo(IndexSchema.CURRENT_VERSION);
     }
   }
 

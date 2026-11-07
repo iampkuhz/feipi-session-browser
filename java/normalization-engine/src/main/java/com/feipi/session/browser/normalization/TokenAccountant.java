@@ -3,7 +3,12 @@ package com.feipi.session.browser.normalization;
 import com.feipi.session.browser.domain.normalized.NormalizedCallUsage;
 import com.feipi.session.browser.domain.source.SourceRecord;
 import com.feipi.session.browser.domain.source.SourceRecordUsage;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.ToLongFunction;
 
 /** 负责把源中性记录中的用量字段转换为归一化调用用量，并提供会话级聚合能力。 */
 public final class TokenAccountant {
@@ -33,6 +38,58 @@ public final class TokenAccountant {
         usage.cacheCreationInputTokens(),
         usage.outputTokens(),
         usage.total());
+  }
+
+  /** 按 Qoder 现有分量最大值规则保留贡献记录的证据，不从数值推断 provider 来源。 */
+  static Map<String, String> maxUsageProvenance(List<SourceRecordUsage> usages) {
+    Map<String, String> result = new LinkedHashMap<>();
+    mergeComponentProvenance(
+        usages, SourceRecordUsage::inputTokens, "freshInputTokenPrecision", result);
+    mergeComponentProvenance(
+        usages, SourceRecordUsage::cacheReadInputTokens, "cacheReadTokenPrecision", result);
+    mergeComponentProvenance(
+        usages, SourceRecordUsage::cacheCreationInputTokens, "cacheWriteTokenPrecision", result);
+    mergeComponentProvenance(
+        usages, SourceRecordUsage::outputTokens, "outputTokenPrecision", result);
+    return Map.copyOf(result);
+  }
+
+  /** 相同最大值的来源冲突保留 mixed；无来源空零不覆盖同响应已显式测得的零。 */
+  private static void mergeComponentProvenance(
+      List<SourceRecordUsage> usages,
+      ToLongFunction<SourceRecordUsage> value,
+      String key,
+      Map<String, String> result) {
+    long maximum = usages.stream().mapToLong(value).max().orElse(0);
+    Set<String> states = new LinkedHashSet<>();
+    Set<String> methods = new LinkedHashSet<>();
+    for (SourceRecordUsage usage : usages) {
+      if (value.applyAsLong(usage) != maximum) continue;
+      String state = usage.provenance().getOrDefault(key, "unknown");
+      if (maximum == 0 && "unknown".equals(state)) continue;
+      states.add(state);
+      String method = usage.provenance().getOrDefault("tokenEstimationMethod", "");
+      if (!method.isBlank()) methods.add(method);
+      for (String flag :
+          List.of("tokenContainsEstimated", "tokenContainsUnavailable", "tokenContainsUnknown")) {
+        if (Boolean.parseBoolean(usage.provenance().get(flag))) result.put(flag, "true");
+      }
+    }
+    if (states.isEmpty()) states.add("unknown");
+    result.put(key, states.size() == 1 ? states.iterator().next() : "mixed");
+    for (String state : states) {
+      switch (state) {
+        case "estimated" -> result.put("tokenContainsEstimated", "true");
+        case "unavailable" -> result.put("tokenContainsUnavailable", "true");
+        case "unknown" -> result.put("tokenContainsUnknown", "true");
+        default -> {}
+      }
+    }
+    if (!methods.isEmpty()) {
+      String previous = result.getOrDefault("tokenEstimationMethod", "");
+      if (!previous.isBlank()) methods.add(previous);
+      result.put("tokenEstimationMethod", String.join(",", methods));
+    }
   }
 
   /**

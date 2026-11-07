@@ -160,7 +160,9 @@ public final class SessionsApiResponses {
    * @param model 模型名称。
    * @param gitBranch Git branch 名称。
    * @param tokens token 组成统计。
-   * @param rounds round 列表。
+   * @param rounds 实测逻辑轮数，缺测为未知。
+   * @param llmCalls 实测模型调用数，缺测为未知。
+   * @param assistantMessages 有明确角色观测依据的助手消息数，缺测为未知。
    * @param tools 该字段在 API 响应中的业务值。
    * @param subagents 该字段在 API 响应中的业务值。
    * @param durationSeconds 持续时间秒数。
@@ -195,18 +197,20 @@ public final class SessionsApiResponses {
       /* 令牌分段统计 */
       TokenSegments tokens,
       /* 轮次数量 */
-      long rounds,
+      Long rounds,
+      Long llmCalls,
+      Long assistantMessages,
       /* 工具调用数量 */
-      long tools,
+      Long tools,
       /* 子代理数量 */
-      long subagents,
+      Long subagents,
       /* 持续时间秒数 */
       double durationSeconds,
       /* 处理时间秒数 */
       Double processSeconds,
       SessionTiming timing,
       /* 失败工具数量 */
-      long failedTools,
+      Long failedTools,
       /* 创建时间文本 */
       String createdAt,
       /* 更新时间文本 */
@@ -237,7 +241,12 @@ public final class SessionsApiResponses {
       projectUrl = ApiResponses.empty(projectUrl);
       Objects.requireNonNull(matchReasons, "matchReasons must not be null");
       matchReasons = List.copyOf(matchReasons);
-      if (rounds < 0 || tools < 0 || subagents < 0 || failedTools < 0) {
+      if ((rounds != null && rounds < 0)
+          || (llmCalls != null && llmCalls < 0)
+          || (assistantMessages != null && assistantMessages < 0)
+          || (tools != null && tools < 0)
+          || (subagents != null && subagents < 0)
+          || (failedTools != null && failedTools < 0)) {
         throw new IllegalArgumentException("row counts must be non-negative");
       }
       if (durationSeconds < 0 || (processSeconds != null && processSeconds < 0)) {

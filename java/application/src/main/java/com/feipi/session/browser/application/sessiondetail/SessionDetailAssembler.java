@@ -4,15 +4,14 @@ import com.feipi.session.browser.domain.enums.CallScope;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
 import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
+import com.feipi.session.browser.index.api.query.RoundAssembler;
 import com.feipi.session.browser.index.api.query.SessionRecord;
 import com.feipi.session.browser.query.api.CallRound;
 import com.feipi.session.browser.query.api.PayloadSource;
 import com.feipi.session.browser.query.api.PayloadSourceKind;
 import com.feipi.session.browser.query.api.PayloadVisibility;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -53,10 +52,7 @@ public final class SessionDetailAssembler {
     Objects.requireNonNull(artifact, "artifact 不得为 null");
     Objects.requireNonNull(visibility, "visibility 不得为 null");
 
-    List<CallRound> rounds = buildRounds(artifact.calls(), artifact.toolExecutions());
-    if (rounds.isEmpty() && sessionRow.userMessageCount() > 0) {
-      rounds = List.of(new CallRound(1, List.of(), List.of(), null));
-    }
+    List<CallRound> rounds = RoundAssembler.buildRounds(artifact, sessionRow.userMessageCount());
     List<PayloadSource> payloadSources = buildPayloadSources(artifact.calls(), visibility);
     String cacheKey = buildCacheKey(artifactPath, indexVersion);
 
@@ -70,6 +66,31 @@ public final class SessionDetailAssembler {
         cacheKey);
   }
 
+  /** 装配完整会话的计数，不保留大内容正文。 */
+  public static SessionDetail assemble(
+      SessionRecord row,
+      com.feipi.session.browser.domain.normalized.NormalizedSessionContent content,
+      PayloadVisibility visibility,
+      String path,
+      int version)
+      throws java.io.IOException {
+    var legacy = content.legacyArtifact();
+    if (legacy.isPresent()) {
+      return assemble(row, legacy.get(), visibility, path, version);
+    }
+    var reader = new SessionContentReader(content, row.userMessageCount());
+    return new SessionDetail(
+        row,
+        List.of(),
+        List.of(),
+        visibility,
+        path,
+        content.header().schemaVersion(),
+        buildCacheKey(path, version),
+        reader.roundIndex().roundCount(),
+        Math.toIntExact(Math.multiplyExact(content.header().totals().get("calls"), 2L)));
+  }
+
   /**
    * 将调用列表按轮次分组。
    *
@@ -79,144 +100,19 @@ public final class SessionDetailAssembler {
    * @return 轮次列表
    */
   public static List<CallRound> buildRounds(List<NormalizedCall> calls) {
-    return buildRounds(calls, List.of());
+    return RoundAssembler.buildRounds(calls);
   }
 
   /**
-   * 将调用列表按轮次分组，并把失败工具执行聚合到对应轮次。
+   * 使用共享分组逻辑构建轮次和工具失败关联。
    *
-   * @param calls 归一化调用列表，按遍历顺序排列
-   * @param toolExecutions 归一化工具执行列表，按遍历顺序排列
-   * @return 轮次列表
+   * @param calls 按遍历顺序排列的调用
+   * @param toolExecutions 已观测的工具执行
+   * @return 逻辑轮次列表
    */
   public static List<CallRound> buildRounds(
       List<NormalizedCall> calls, List<NormalizedToolExecution> toolExecutions) {
-    Objects.requireNonNull(calls, "calls 不得为 null");
-    Objects.requireNonNull(toolExecutions, "toolExecutions 不得为 null");
-    if (calls.isEmpty()) {
-      return List.of();
-    }
-
-    // callId → 所在轮次索引的映射
-    Map<String, Integer> callToRoundIndex = new LinkedHashMap<>();
-    Map<String, Integer> turnToRoundIndex = new LinkedHashMap<>();
-    List<List<String>> roundCallIds = new ArrayList<>();
-    List<List<String>> roundToolCallIds = new ArrayList<>();
-    List<String> roundParentCallIds = new ArrayList<>();
-    List<long[]> roundUsage = new ArrayList<>();
-
-    for (NormalizedCall call : calls) {
-      if (call.scope() == CallScope.MAIN) {
-        String turnKey = call.turnId().orElse("");
-        Integer existingRoundIdx = turnKey.isEmpty() ? null : turnToRoundIndex.get(turnKey);
-        if (existingRoundIdx != null) {
-          roundCallIds.get(existingRoundIdx).add(call.callId());
-          addUnique(roundToolCallIds.get(existingRoundIdx), toolIds(call));
-          addUsage(roundUsage.get(existingRoundIdx), call);
-          callToRoundIndex.put(call.callId(), existingRoundIdx);
-        } else {
-          // 主会话逻辑 turn 创建新轮次；同一个 provider turn 内的多条 request/response 记录合并展示。
-          int roundIdx = roundCallIds.size();
-          List<String> callIds = new ArrayList<>();
-          callIds.add(call.callId());
-          roundCallIds.add(callIds);
-          roundToolCallIds.add(new ArrayList<>(toolIds(call)));
-          roundParentCallIds.add("");
-          roundUsage.add(usageValues(call));
-          callToRoundIndex.put(call.callId(), roundIdx);
-          if (!turnKey.isEmpty()) {
-            turnToRoundIndex.put(turnKey, roundIdx);
-          }
-        }
-      } else {
-        // 子 agent 调用合并到父调用所在轮次
-        String parentCallId = call.parentCallId().orElse("");
-        Integer parentRoundIdx = callToRoundIndex.get(parentCallId);
-        if (parentRoundIdx != null) {
-          roundCallIds.get(parentRoundIdx).add(call.callId());
-          addUnique(roundToolCallIds.get(parentRoundIdx), toolIds(call));
-          addUsage(roundUsage.get(parentRoundIdx), call);
-          callToRoundIndex.put(call.callId(), parentRoundIdx);
-        } else {
-          // 无父调用映射，创建独立轮次
-          int roundIdx = roundCallIds.size();
-          List<String> callIds = new ArrayList<>();
-          callIds.add(call.callId());
-          roundCallIds.add(callIds);
-          roundToolCallIds.add(new ArrayList<>(toolIds(call)));
-          roundParentCallIds.add(parentCallId);
-          roundUsage.add(usageValues(call));
-          callToRoundIndex.put(call.callId(), roundIdx);
-        }
-      }
-    }
-
-    // 分配工具调用到对应轮次
-    // 工具调用的 declaredByCallId 决定它属于哪个轮次
-    // 这里只记录 callId 级别的关联，实际工具执行由外层 assembler 处理
-
-    List<CallRound> result = new ArrayList<>();
-    for (int i = 0; i < roundCallIds.size(); i++) {
-      long[] usage = roundUsage.get(i);
-      result.add(
-          new CallRound(
-              i + 1,
-              List.copyOf(roundCallIds.get(i)),
-              List.copyOf(roundToolCallIds.get(i)),
-              roundParentCallIds.get(i).isEmpty() ? null : roundParentCallIds.get(i),
-              usage[0],
-              usage[1],
-              usage[2],
-              usage[3],
-              usage[4],
-              failedToolCallIds(roundCallIds.get(i), toolExecutions)));
-    }
-    return result;
-  }
-
-  private static List<String> failedToolCallIds(
-      List<String> roundCalls, List<NormalizedToolExecution> toolExecutions) {
-    List<String> result = new ArrayList<>();
-    for (NormalizedToolExecution execution : toolExecutions) {
-      if (roundCalls.contains(execution.declaredByCallId()) && hasFailedStatus(execution)) {
-        result.add(execution.toolCallId());
-      }
-    }
-    return result;
-  }
-
-  private static boolean hasFailedStatus(NormalizedToolExecution execution) {
-    return execution.status().map(status -> !status.isBlank()).orElse(false);
-  }
-
-  private static List<String> toolIds(NormalizedCall call) {
-    return call.response().toolCallIds();
-  }
-
-  private static void addUnique(List<String> target, List<String> values) {
-    for (String value : values) {
-      if (!target.contains(value)) {
-        target.add(value);
-      }
-    }
-  }
-
-  private static long[] usageValues(NormalizedCall call) {
-    return new long[] {
-      call.usage().fresh(),
-      call.usage().cacheRead(),
-      call.usage().cacheWrite(),
-      call.usage().output(),
-      call.usage().total()
-    };
-  }
-
-  private static void addUsage(long[] target, NormalizedCall call) {
-    target[0] += call.usage().fresh();
-    target[1] += call.usage().cacheRead();
-    target[2] += call.usage().cacheWrite();
-    target[3] += call.usage().output();
-    target[4] += call.usage().total();
+    return RoundAssembler.buildRounds(calls, toolExecutions);
   }
 
   /**

@@ -114,71 +114,90 @@ public final class IsolatedSessionImportService implements SessionImportPort {
     Map<String, String> metadata = adapter.singleFileMetadata(file);
     var candidate = new Candidate(adapter.fingerprint(file), "import:" + id, "", metadata);
     SourceResult result = adapter.parse(candidate, null);
-    if (!(result instanceof SourceResult.Success success)
-        || result.diagnostics().stream()
-            .anyMatch(diagnostic -> diagnostic.severity() == ParseSeverity.ERROR)) {
+    if (!(result instanceof SourceResult.Success success)) {
       throw ImportInputValidator.failure("parse_failed");
     }
-    String logicalPath = "imports/" + id + "/upload.jsonl";
-    List<SourceRecord> records =
-        success.records().stream().map(record -> relocate(record, logicalPath)).toList();
-    long contentChars = records.stream().mapToLong(record -> record.content().length()).sum();
-    // 调用 payload 可能引用累积历史，先按最坏复制量拒绝，避免构造后才发现内存超限。
-    if (contentChars > limits.maxStoredBytes() / Math.max(1, records.size())) {
-      throw ImportInputValidator.failure("analysis_too_large");
+    try (success) {
+      if (success.diagnostics().stream()
+          .anyMatch(diagnostic -> diagnostic.severity() == ParseSeverity.ERROR)) {
+        throw ImportInputValidator.failure("parse_failed");
+      }
+      String logicalPath = "imports/" + id + "/upload.jsonl";
+      var sequence = success.recordSequence();
+      long count = 0;
+      long contentChars = 0;
+      boolean hasUser = false;
+      try (var cursor = sequence.openCursor()) {
+        while (cursor.hasNext()) {
+          var record = cursor.next();
+          count++;
+          contentChars = Math.addExact(contentChars, record.content().length());
+          hasUser |= "user".equals(record.eventType());
+        }
+      }
+      if (count != sequence.recordCount()) throw new IOException("Source record count mismatch");
+      // 调用 payload 可能引用累积历史，先按最坏复制量拒绝，避免构造后才发现内存超限。
+      if (contentChars > limits.maxStoredBytes() / Math.max(1, count)) {
+        throw ImportInputValidator.failure("analysis_too_large");
+      }
+      // 保持原导入容量：只有通过原最坏体积策略后才物化并替换为逻辑路径。
+      List<SourceRecord> records = new ArrayList<>();
+      try (var cursor = sequence.openCursor()) {
+        while (cursor.hasNext()) records.add(relocate(cursor.next(), logicalPath));
+      }
+      if (records.size() != count) throw new IOException("Source replay count mismatch");
+      List<SourceDiagnostic> diagnostics =
+          success.diagnostics().stream()
+              .map(
+                  diagnostic ->
+                      new SourceDiagnostic(
+                          diagnostic.severity(),
+                          diagnostic.issueType(),
+                          "来源诊断：" + diagnostic.code(),
+                          diagnostic.lineNo(),
+                          Optional.empty(),
+                          diagnostic.code(),
+                          logicalPath,
+                          diagnostic.column(),
+                          diagnostic.byteRangeStart(),
+                          diagnostic.byteRangeEnd()))
+              .toList();
+      var files =
+          List.of(
+              new NormalizedSourceFile(
+                  SourceFileRole.TRANSCRIPT,
+                  Path.of(logicalPath),
+                  Optional.empty(),
+                  Optional.empty()));
+      NormalizedSessionArtifact artifact =
+          new NormalizationEngine().normalize(source, records, diagnostics, files);
+      if (artifact.calls().isEmpty() && !hasUser) {
+        throw ImportInputValidator.failure("empty_input");
+      }
+      var allDiagnostics = new ArrayList<>(artifact.diagnostics());
+      allDiagnostics.add(
+          new NormalizedDiagnostic(
+              Map.of(
+                  "severity",
+                  "info",
+                  "code",
+                  "SINGLE_FILE_ONLY",
+                  "message",
+                  "仅分析上传的单个文件；未读取本机邻居、子会话或 sidecar，外部上下文可能缺失。")));
+      var catalog = ImportPayloadCatalog.read(file, logicalPath);
+      Map<String, Object> session = new LinkedHashMap<>(artifact.session());
+      applySingleFileMetadata(session, metadata);
+      return new NormalizedSessionArtifact(
+          artifact.schemaVersion(),
+          artifact.agent(),
+          artifact.sourceFiles(),
+          session,
+          ImportToolDeclarations.restore(artifact.calls(), artifact.toolExecutions(), catalog),
+          artifact.toolExecutions(),
+          allDiagnostics,
+          catalog,
+          artifact.sourceUnitSequences());
     }
-    List<SourceDiagnostic> diagnostics =
-        success.diagnostics().stream()
-            .map(
-                diagnostic ->
-                    new SourceDiagnostic(
-                        diagnostic.severity(),
-                        diagnostic.issueType(),
-                        "来源诊断：" + diagnostic.code(),
-                        diagnostic.lineNo(),
-                        Optional.empty(),
-                        diagnostic.code(),
-                        logicalPath,
-                        diagnostic.column(),
-                        diagnostic.byteRangeStart(),
-                        diagnostic.byteRangeEnd()))
-            .toList();
-    var files =
-        List.of(
-            new NormalizedSourceFile(
-                SourceFileRole.TRANSCRIPT,
-                Path.of(logicalPath),
-                Optional.empty(),
-                Optional.empty()));
-    NormalizedSessionArtifact artifact =
-        new NormalizationEngine().normalize(source, records, diagnostics, files);
-    if (artifact.calls().isEmpty()
-        && records.stream().noneMatch(record -> "user".equals(record.eventType()))) {
-      throw ImportInputValidator.failure("empty_input");
-    }
-    var allDiagnostics = new ArrayList<>(artifact.diagnostics());
-    allDiagnostics.add(
-        new NormalizedDiagnostic(
-            Map.of(
-                "severity",
-                "info",
-                "code",
-                "SINGLE_FILE_ONLY",
-                "message",
-                "仅分析上传的单个文件；未读取本机邻居、子会话或 sidecar，外部上下文可能缺失。")));
-    var catalog = ImportPayloadCatalog.read(file, logicalPath);
-    Map<String, Object> session = new LinkedHashMap<>(artifact.session());
-    applySingleFileMetadata(session, metadata);
-    return new NormalizedSessionArtifact(
-        artifact.schemaVersion(),
-        artifact.agent(),
-        artifact.sourceFiles(),
-        session,
-        ImportToolDeclarations.restore(artifact.calls(), artifact.toolExecutions(), catalog),
-        artifact.toolExecutions(),
-        allDiagnostics,
-        catalog,
-        artifact.sourceUnitSequences());
   }
 
   private static SourceRecord relocate(SourceRecord record, String logicalPath) {
@@ -200,7 +219,8 @@ public final class IsolatedSessionImportService implements SessionImportPort {
         record.responseMessageId(),
         record.responseStopReason(),
         record.timing(),
-        record.metaContext());
+        record.metaContext(),
+        record.messageRole());
   }
 
   /** 来源精度独立于数值；只覆盖显式估算段，正式 usage 保持解析器原值。 */

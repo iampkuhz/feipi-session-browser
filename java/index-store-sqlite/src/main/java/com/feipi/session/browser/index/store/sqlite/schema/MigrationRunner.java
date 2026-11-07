@@ -158,7 +158,14 @@ public final class MigrationRunner {
       WriteBatch.executeInTransaction(
           conn,
           c -> {
-            executeStatements(c, sql);
+            if (migration.sqlResource().equals("sql/V002__unknown_metadata.sql")) {
+              SessionMetadataMigration.apply(c);
+            } else {
+              if (migration.sqlResource().equals("sql/V005__scan_failure_details.sql")) {
+                ensureLegacyScanLog(c);
+              }
+              executeStatements(c, sql);
+            }
             try (PreparedStatement ps = c.prepareStatement(INSERT_APPLIED)) {
               ps.setInt(1, migration.version().version());
               ps.setString(2, migration.description());
@@ -168,6 +175,33 @@ public final class MigrationRunner {
           });
     } catch (SQLException e) {
       throw new SQLException("migration V" + migration.version().version() + " 执行失败，已回滚", e);
+    }
+  }
+
+  /** 在 V5 同一事务内补齐历史扫描表；保留已有行、扩展列及其数据。 */
+  private static void ensureLegacyScanLog(Connection conn) throws SQLException {
+    executeStatements(
+        conn,
+        "CREATE TABLE IF NOT EXISTS scan_log (id INTEGER PRIMARY KEY AUTOINCREMENT, started_at REAL NOT NULL)");
+    Set<String> columns = new LinkedHashSet<>();
+    try (Statement statement = conn.createStatement();
+        ResultSet rows = statement.executeQuery("PRAGMA table_info(scan_log)")) {
+      while (rows.next()) {
+        columns.add(rows.getString("name").toLowerCase(java.util.Locale.ROOT));
+      }
+    }
+    for (String definition :
+        List.of(
+            "started_at REAL NOT NULL DEFAULT 0",
+            "finished_at REAL",
+            "claude_count INTEGER DEFAULT 0",
+            "codex_count INTEGER DEFAULT 0",
+            "qoder_count INTEGER DEFAULT 0",
+            "mode TEXT DEFAULT 'full'",
+            "status TEXT DEFAULT 'unknown'")) {
+      if (!columns.contains(definition.substring(0, definition.indexOf(' ')))) {
+        executeStatements(conn, "ALTER TABLE scan_log ADD COLUMN " + definition);
+      }
     }
   }
 

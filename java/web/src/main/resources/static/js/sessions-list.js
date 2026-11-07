@@ -696,13 +696,13 @@
       '<td class="col-agent"><span class="badge ', agentClass, ' badge--has-dot" data-tooltip="', escapeHtml(agentLabel), '" role="status"><span class="badge-dot badge-dot--', agentDotClass, '" aria-hidden="true"></span>', agentText, '</span></td>',
       '<td class="mono col-model" title="', escapeHtml(row.model || ''), '">', escapeHtml(row.model || 'Unknown model'), '</td>',
       tokenCellHtml(tokens),
-      '<td class="num mono col-rounds">', formatNumber(row.rounds), '</td>',
-      '<td class="num mono col-tools">', formatNumber(row.tools), '</td>',
-      '<td class="num mono col-subagents">', formatNumber(row.subagents), '</td>',
+      '<td class="num mono col-rounds" aria-description="', escapeHtml((row.llmCalls == null ? 'Unknown' : formatNumber(row.llmCalls)) + ' LLM calls · ' + (row.assistantMessages == null ? 'Unknown' : formatNumber(row.assistantMessages)) + ' assistant messages'), '">', (row.rounds == null ? "—" : formatNumber(row.rounds)), '</td>',
+      '<td class="num mono col-tools">', (row.tools == null ? "—" : formatNumber(row.tools)), '</td>',
+      '<td class="num mono col-subagents">', (row.subagents == null ? "—" : formatNumber(row.subagents)), '</td>',
       '<td class="mono col-duration" data-wall-duration>', escapeHtml(SessionTiming.value(row.timing, 'wallSeconds')), '</td>',
       '<td class="mono col-process-time" data-task-active>', escapeHtml(SessionTiming.value(row.timing, 'activeTaskSeconds')), '</td>',
       '<td class="col-failure ', Number(row.failedTools || 0) === 0 ? 'muted' : '', '">',
-      Number(row.failedTools || 0) > 0 ? formatNumber(row.failedTools) + ' failed' : 'No failures', '</td>',
+      row.failedTools == null ? 'Unknown' : Number(row.failedTools) > 0 ? formatNumber(row.failedTools) + ' failed' : 'No failures', '</td>',
       '<td class="mono col-created" title="', escapeHtml(row.createdAt || ''), '">', escapeHtml(formatDateTime(row.createdAt)), '</td>',
       '<td class="muted col-updated">', escapeHtml(formatRelativeTime(row.updatedAt)), '</td>'
     ].join(''));
@@ -789,9 +789,10 @@
   /**
    * Fetch a page via JSON resource APIs and replace table body + pagination.
    * pushState only happens AFTER successful response — never before.
-   * Each resource renders independently; failures expose a local retry without reloading.
+   * Resources render only after their index generation agrees; ordinary failures retain local retry.
    * After replacing pagination, re-augments sortable headers so new DOM has data-action.
    */
+  var sessionsSnapshot = null;
   function fetchPage(params, replaceState) {
     var generation = ++sessionsRequestGeneration;
     var qs = new URLSearchParams();
@@ -827,20 +828,22 @@
       },
       'active-filters': renderActiveFilters
     };
-    function load(name) {
-      if (generation !== sessionsRequestGeneration) return Promise.resolve();
-      return fetch(apiUrl('/api/sessions/' + name, qs), { headers: { 'Accept': 'application/json' } })
-        .then(readJson).then(function (part) {
+    if (!sessionsSnapshot) sessionsSnapshot = window.IndexSnapshot.create();
+    sessionsSnapshot.load(Object.keys(resources).map(function (name) {
+      return {
+        key: name,
+        url: apiUrl('/api/sessions/' + name, qs),
+        apply: function (part) {
           if (generation !== sessionsRequestGeneration) return;
           var error = document.querySelector('[data-resource-error="' + name + '"]');
           if (error) error.remove();
           resources[name](part);
-        }).catch(function (err) {
-          if (generation !== sessionsRequestGeneration) return;
-          showListResourceError(name, err, function () { return load(name); });
-        });
-    }
-    Object.keys(resources).forEach(load);
+        },
+        error: function (err, retry) {
+          if (generation === sessionsRequestGeneration) showListResourceError(name, err, retry);
+        }
+      };
+    }));
   }
 
   function showListResourceError(name, err, retry) {
@@ -874,11 +877,6 @@
     content.appendChild(button);
     if (name === 'options') target.appendChild(error);
     else target.replaceChildren(error);
-  }
-
-  function readJson(response) {
-    if (!response.ok) throw new Error('HTTP ' + response.status);
-    return response.json();
   }
 
   /**

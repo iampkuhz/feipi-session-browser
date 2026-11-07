@@ -167,7 +167,7 @@ final class ScanCommand implements Callable<Integer> {
       return 0;
     }
 
-    ScanConfig config = ScanConfig.defaults(sourceEntries, artifactDir);
+    ScanConfig config = new ScanConfig(sourceEntries, artifactDir, agentFilter, 1);
     String agentLabel = agent != null ? " (" + agent + ")" : "";
 
     try (Connection conn = ConnectionFactory.withDefaults(jdbcUrl).create()) {
@@ -199,7 +199,13 @@ final class ScanCommand implements Callable<Integer> {
 
     double elapsed = (System.currentTimeMillis() - startMs) / 1000.0;
     printIncrementalSummary(summary);
-    System.out.printf("%nIncremental scan complete in %.1fs%n", elapsed);
+    System.out.printf(
+        "%nIncremental scan %s in %.1fs%n",
+        summary.errorCount() == 0
+            ? "complete; published successfully"
+            : "FAILED; previous published index retained",
+        elapsed);
+    printFailures(summary.issues());
     return summary.errorCount() == 0 ? 0 : 1;
   }
 
@@ -214,7 +220,13 @@ final class ScanCommand implements Callable<Integer> {
 
     double elapsed = (System.currentTimeMillis() - startMs) / 1000.0;
     printFullSummary(summary);
-    System.out.printf("%nScan complete in %.1fs%n", elapsed);
+    System.out.printf(
+        "%nScan %s in %.1fs%n",
+        summary.errorCount() == 0
+            ? "complete; published successfully"
+            : "FAILED; previous published index retained",
+        elapsed);
+    printFailures(summary.issues());
     return summary.errorCount() == 0 ? 0 : 1;
   }
 
@@ -284,6 +296,25 @@ final class ScanCommand implements Callable<Integer> {
     return msg != null && msg.toLowerCase().contains("database is locked");
   }
 
+  /** 打印不含会话键、路径、preview 或原始异常消息的失败摘要。 */
+  private static void printFailures(
+      java.util.List<com.feipi.session.browser.scan.engine.ScanIssue> issues) {
+    for (var failure : com.feipi.session.browser.scan.engine.ScanDiagnostics.failures(issues)) {
+      System.err.printf(
+          "  source=%s phase=%s code=%s line=%s%n",
+          failure.source(),
+          failure.phase(),
+          failure.code(),
+          failure.line() == 0 ? "unknown" : failure.line());
+      if ("NORMALIZED_CALL_LIMIT_EXCEEDED".equals(failure.code()))
+        System.err.println(
+            "  Supported normalized calls per session: 10000. Large-source support has not been restored by this failed scan.");
+    }
+    if (!issues.isEmpty())
+      System.err.println(
+          "  No partial results were published. Retry with the same scan command after resolving the cause.");
+  }
+
   /** 打印全量扫描汇总。 */
   private static void printFullSummary(ScanSummary summary) {
     int claudeCount = getCountForSource(summary, "claude_code");
@@ -296,7 +327,8 @@ final class ScanCommand implements Callable<Integer> {
     if (qoderCount > 0) {
       System.out.printf("  Qoder:       %d sessions%n", qoderCount);
     }
-    System.out.printf("  Total:       %d sessions%n", total);
+    System.out.printf(
+        "  Total:       %d sessions processed (not published if scan fails)%n", total);
   }
 
   /** 打印增量扫描汇总。 */
@@ -307,13 +339,13 @@ final class ScanCommand implements Callable<Integer> {
     int skipped = summary.unchangedCount() + summary.skippedCount();
     int total = sumAllSourceCounts(summary);
 
-    System.out.printf("  Updated Claude: %d sessions%n", claudeCount);
-    System.out.printf("  Updated Codex:  %d sessions%n", codexCount);
+    System.out.printf("  Processed Claude: %d sessions%n", claudeCount);
+    System.out.printf("  Processed Codex:  %d sessions%n", codexCount);
     if (qoderCount > 0) {
-      System.out.printf("  Updated Qoder:  %d sessions%n", qoderCount);
+      System.out.printf("  Processed Qoder:  %d sessions%n", qoderCount);
     }
     System.out.printf("  Skipped:        %d sessions%n", skipped);
-    System.out.printf("  Total updated:  %d sessions%n", total);
+    System.out.printf("  Processed (not published on failure): %d sessions%n", total);
   }
 
   /** 从 ScanSummary 提取指定源的计数。 */
@@ -427,7 +459,8 @@ final class ScanCommand implements Callable<Integer> {
     public void onSourceEnd(String sourceName, int successCount) {
       String displayName = toDisplayName(sourceName);
       // 如果 onCandidateProcessed 没有因为 total=0 而打印过，仍需确保换行
-      System.out.printf("  %s: %d sessions indexed%n", displayName, successCount);
+      System.out.printf(
+          "  %s: %d sessions processed (publication pending)%n", displayName, successCount);
     }
 
     /** 将 source id 值转换为人类可读名称。 */

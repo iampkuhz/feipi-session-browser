@@ -677,6 +677,31 @@ class AggregateQueryRepositoryTest {
   @DisplayName("agentEfficiency：Agent 效率")
   class AgentEfficiencyTests {
 
+    @BeforeEach
+    void markSyntheticObservationsAsMeasured() throws Exception {
+      // 本组明确验证已解析内容和完整 provider usage；手写 sessions 行本身不构成测量证据。
+      indexConnection
+          .writeQueue()
+          .submit(
+              c -> {
+                try (var statement = c.createStatement()) {
+                  statement.executeUpdate(
+                      """
+              INSERT INTO session_artifacts(session_key, artifact_type, path)
+              SELECT session_key, 'normalized', 'synthetic-observed-artifact' FROM sessions
+              """);
+                  statement.executeUpdate(
+                      """
+              UPDATE sessions SET content_measured = 1, fresh_input_token_precision = 'provider_reported',
+                cache_read_token_precision = 'provider_reported',
+                cache_write_token_precision = 'provider_reported',
+                output_token_precision = 'provider_reported'
+              """);
+                }
+              })
+          .get();
+    }
+
     @Test
     @DisplayName("按 agent + model 分组")
     void groupsByAgentAndModel() throws Exception {
@@ -696,6 +721,8 @@ class AggregateQueryRepositoryTest {
       // P95 最近秩为 ceil(0.95 * 2) = 2（从 1 起），index = 1，对应 5400.0。
       AgentEfficiency claude =
           rows.stream().filter(r -> r.model().equals("claude-3-opus")).findFirst().orElseThrow();
+      assertThat(claude.durationSampleCount()).isEqualTo(2);
+      assertThat(claude.contentSampleCount()).isEqualTo(2);
       assertThat(claude.p95Duration()).isEqualTo(5400.0);
       // 平均时长 = (3600 + 5400) / 2 = 4500.0
       assertThat(claude.avgDuration()).isEqualTo(4500.0);
@@ -710,6 +737,7 @@ class AggregateQueryRepositoryTest {
       // claude 缓存读取合计 = 30000 + 50000 = 80000
       // claude 输入侧合计 = (50000+30000+20000) + (100000+50000+40000) = 290000
       // 缓存复用比率 = 80000 / 290000 ≈ 0.2759
+      assertThat(claude.tokenSampleCount()).isEqualTo(2);
       assertThat(claude.cacheReuseRatio()).isNotNull();
       assertThat(claude.cacheReuseRatio()).isEqualTo(0.2759);
     }

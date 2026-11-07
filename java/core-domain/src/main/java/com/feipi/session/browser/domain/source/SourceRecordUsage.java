@@ -4,7 +4,9 @@ import com.feipi.session.browser.domain.annotation.DomainModel;
 import com.feipi.session.browser.validation.ValidationSupport;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
+import java.util.Map;
 
 /**
  * 源中性 token 用量。
@@ -15,6 +17,7 @@ import jakarta.validation.constraints.PositiveOrZero;
  * @param cacheReadInputTokens 缓存读取输入 token 数，单位 token；未提供时为 0
  * @param cacheCreationInputTokens 缓存创建输入 token 数，单位 token；未提供时为 0
  * @param outputTokens 输出 token 数，单位 token；未提供时为 0
+ * @param provenance 本记录各 token 分量的来源精度；空 map 表示 unknown，不从数值推断
  */
 @DomainModel
 public record SourceRecordUsage(
@@ -28,20 +31,41 @@ public record SourceRecordUsage(
     @PositiveOrZero long cacheCreationInputTokens,
 
     /* 输出 token 数，单位 token；未提供时为 0。 */
-    @PositiveOrZero long outputTokens) {
+    @PositiveOrZero long outputTokens,
+
+    /* 本记录用量来源精度；空 map 表示未知。 */
+    @NotNull Map<String, String> provenance) {
 
   /** 紧凑构造器，校验约束。 */
   public SourceRecordUsage {
+    provenance = Map.copyOf(provenance);
     try {
       ValidationSupport.validateCanonicalConstructor(
           SourceRecordUsage.class,
           inputTokens,
           cacheReadInputTokens,
           cacheCreationInputTokens,
-          outputTokens);
+          outputTokens,
+          provenance);
     } catch (ConstraintViolationException e) {
       translateValidation(e);
     }
+  }
+
+  /**
+   * 兼容未携带来源精度的旧构造入口，不根据 token 数值推断来源。
+   *
+   * @param inputTokens 新鲜输入 token 数
+   * @param cacheReadInputTokens 缓存读取 token 数
+   * @param cacheCreationInputTokens 缓存创建 token 数
+   * @param outputTokens 输出 token 数
+   */
+  public SourceRecordUsage(
+      long inputTokens,
+      long cacheReadInputTokens,
+      long cacheCreationInputTokens,
+      long outputTokens) {
+    this(inputTokens, cacheReadInputTokens, cacheCreationInputTokens, outputTokens, Map.of());
   }
 
   /**

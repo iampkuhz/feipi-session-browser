@@ -11,6 +11,7 @@ import com.feipi.session.browser.domain.enums.CallScope;
 import com.feipi.session.browser.domain.normalized.NormalizedAgent;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
+import com.feipi.session.browser.domain.normalized.NormalizedSessionContent;
 import com.feipi.session.browser.domain.normalized.NormalizedSourceFile;
 import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
 import com.feipi.session.browser.domain.normalized.SourceFileRole;
@@ -18,6 +19,7 @@ import com.feipi.session.browser.domain.normalized.SourceUnitDirection;
 import com.feipi.session.browser.domain.normalized.SourceUnitRefRange;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
@@ -139,6 +141,59 @@ public final class CanonicalJsonWriter {
    */
   public byte[] serialize(NormalizedSessionArtifact artifact) {
     return serializeObject(toCanonicalMap(artifact));
+  }
+
+  /** 逐个领域对象写入输出流，不将完整内容单元或文件预先编码为字节数组。 */
+  void writeContent(OutputStream output, NormalizedSessionContent content) throws IOException {
+    var validation = new ContentWriteValidation(content.header());
+    try (var generator = mapper.getFactory().createGenerator(output);
+        var cursor = content.openCursor()) {
+      generator.writeStartObject();
+      generator.writeStringField("storageFormat", "session-content.units.v1");
+      generator.writeObjectFieldStart("header");
+      generator.writeStringField("schemaVersion", content.header().schemaVersion());
+      generator.writeStringField("agent", content.header().agent().getValue());
+      generator.writeObjectField("session", content.header().session().toMap());
+      generator.writeObjectField("totals", content.header().totals());
+      generator.writeEndObject();
+      generator.writeArrayFieldStart("units");
+      while (cursor.hasNext()) {
+        var unit = cursor.next();
+        validation.accept(unit);
+        generator.writeStartObject();
+        generator.writeNumberField("unitIndex", unit.unitIndex());
+        generator.writeArrayFieldStart("sourceFiles");
+        for (var source : unit.sourceFiles()) {
+          generator.writeObject(sourceFileMap(content.header().agent(), source));
+        }
+        generator.writeEndArray();
+        generator.writeArrayFieldStart("calls");
+        for (var call : unit.calls()) {
+          generator.writeObject(callMap(call));
+        }
+        generator.writeEndArray();
+        generator.writeArrayFieldStart("toolExecutions");
+        for (var tool : unit.toolExecutions()) {
+          generator.writeObject(toolExecutionMap(tool));
+        }
+        generator.writeEndArray();
+        generator.writeArrayFieldStart("diagnostics");
+        for (var diagnostic : unit.diagnostics()) {
+          generator.writeObject(diagnosticMap(diagnostic));
+        }
+        generator.writeEndArray();
+        generator.writeObjectField("sourceUnitCatalog", unit.sourceUnitCatalog());
+        generator.writeArrayFieldStart("sourceUnitSequences");
+        for (var chunk : unit.sourceUnitSequences()) {
+          generator.writeObject(chunk);
+        }
+        generator.writeEndArray();
+        generator.writeEndObject();
+      }
+      validation.finish();
+      generator.writeEndArray();
+      generator.writeEndObject();
+    }
   }
 
   private static Map<String, Object> toCanonicalMap(NormalizedSessionArtifact artifact) {

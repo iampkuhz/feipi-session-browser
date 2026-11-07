@@ -30,7 +30,13 @@ public final class SqliteSessionResultSetMapper {
           + " total_tokens, failed_tool_count, subagent_instance_count,"
           + " indexed_at, file_mtime, file_path, "
           + TokenProvenanceSqlMapper.COLUMNS
-          + ", timing_json";
+          + ", timing_json, round_count, llm_call_count, content_measured, user_message_measured,"
+          + " assistant_message_measured";
+
+  private static Long nullableLong(ResultSet rs, String column) throws SQLException {
+    long value = rs.getLong(column);
+    return rs.wasNull() ? null : value;
+  }
 
   /** 防止实例化。 */
   private SqliteSessionResultSetMapper() {}
@@ -75,6 +81,11 @@ public final class SqliteSessionResultSetMapper {
         rs.getDouble("file_mtime"),
         SqliteSqlUtils.nullToEmpty(rs.getString("file_path")),
         TokenProvenanceSqlMapper.read(rs),
-        SessionTimingSqlMapper.read(rs));
+        SessionTimingSqlMapper.read(rs),
+        nullableLong(rs, "round_count"),
+        nullableLong(rs, "llm_call_count"),
+        rs.getInt("content_measured") == 1,
+        rs.getInt("user_message_measured") == 1,
+        rs.getInt("assistant_message_measured") == 1);
   }
 }

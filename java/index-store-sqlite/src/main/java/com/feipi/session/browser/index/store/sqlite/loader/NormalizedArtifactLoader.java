@@ -1,8 +1,5 @@
 package com.feipi.session.browser.index.store.sqlite.loader;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.feipi.session.browser.common.validation.ParamChecks;
 import com.feipi.session.browser.domain.enums.CallScope;
 import com.feipi.session.browser.domain.normalized.NormalizedAgent;
@@ -40,13 +37,14 @@ import java.util.Optional;
  */
 public final class NormalizedArtifactLoader {
 
-  private static final ObjectMapper MAPPER =
-      new ObjectMapper()
-          .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-          .configure(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS, true);
-
   /** 防止外部实例化。 */
   private NormalizedArtifactLoader() {}
+
+  /** 打开可重放内容，不将有界单元展平为完整集合。 */
+  public static com.feipi.session.browser.domain.normalized.NormalizedSessionContent open(Path path)
+      throws IOException {
+    return NormalizedContentReader.open(path);
+  }
 
   /**
    * 从磁盘路径加载归一化制品。
@@ -67,11 +65,9 @@ public final class NormalizedArtifactLoader {
       throw new IOException("归一化制品文件不可读: " + artifactPath);
     }
 
-    byte[] content = Files.readAllBytes(artifactPath);
-    Map<String, Object> root =
-        MAPPER.readValue(content, new TypeReference<Map<String, Object>>() {});
-
-    return fromMap(root);
+    return open(artifactPath)
+        .legacyArtifact()
+        .orElseThrow(() -> new IOException("此制品为流式内容，请使用 open(Path) 读取，不能隐式转换为旧制品"));
   }
 
   /**
@@ -85,6 +81,9 @@ public final class NormalizedArtifactLoader {
    */
   public static NormalizedSessionArtifact fromMap(Map<String, Object> root) {
     Objects.requireNonNull(root, "root 不得为 null");
+    if (root.containsKey("storageFormat")) {
+      throw new IllegalArgumentException("storageFormat requires open(Path), not legacy fromMap");
+    }
 
     String schemaVersion =
         asString(root, "schemaVersion", NormalizedConstants.SCHEMA_VERSION, "schema_version");
@@ -112,13 +111,13 @@ public final class NormalizedArtifactLoader {
         session,
         calls,
         toolExecutions,
-        List.of(),
-        Map.of(),
-        Map.of());
+        NormalizedContentCodec.diagnostics(root),
+        NormalizedContentCodec.catalog(root),
+        NormalizedContentCodec.sequences(root));
   }
 
   /** 解析 calls 列表。 */
-  private static List<NormalizedCall> parseCalls(Map<String, Object> root) {
+  static List<NormalizedCall> parseCalls(Map<String, Object> root) {
     Object callsObj = root.get("calls");
     if (!(callsObj instanceof List<?> callsList)) {
       return List.of();
@@ -169,10 +168,11 @@ public final class NormalizedArtifactLoader {
         usage,
         request,
         response,
-        List.of(),
+        NormalizedContentCodec.ranges(
+            firstValue(cm, "sourceUnitRefRanges", "source_unit_ref_ranges")),
         asMapList(firstValue(cm, "sourceUnits", "source_units")),
-        Map.of(),
-        Map.of(),
+        asMap(firstValue(cm, "attributionCandidates", "attribution_candidates")),
+        asMap(firstValue(cm, "usageSource", "usage_source")),
         optionalString(cm, "subagentId", "subagent_id"),
         optionalString(cm, "parentToolName", "parent_tool_name"));
   }
@@ -228,7 +228,7 @@ public final class NormalizedArtifactLoader {
   }
 
   /** 解析工具执行列表。 */
-  private static List<NormalizedToolExecution> parseToolExecutions(Map<String, Object> root) {
+  static List<NormalizedToolExecution> parseToolExecutions(Map<String, Object> root) {
     Object execObj = firstValue(root, "toolExecutions", "tool_executions");
     if (!(execObj instanceof List<?> execList)) {
       return List.of();
@@ -263,14 +263,14 @@ public final class NormalizedArtifactLoader {
               status,
               exitCode,
               durationMs,
-              List.of(),
+              asStringList(em, "filesTouched", "files_touched"),
               subagentId));
     }
     return result;
   }
 
   /** 解析源文件列表。 */
-  private static List<NormalizedSourceFile> parseSourceFiles(Map<String, Object> root) {
+  static List<NormalizedSourceFile> parseSourceFiles(Map<String, Object> root) {
     Object sfObj = firstValue(root, "sourceFiles", "source_files");
     if (sfObj == null) {
       Object sourceObj = root.get("source");

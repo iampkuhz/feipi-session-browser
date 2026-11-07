@@ -18,26 +18,30 @@ import java.util.Set;
 final class SessionTimingCalculator {
   private SessionTimingCalculator() {}
 
+  /** 沿用旧列表入口，逐条汇总后计算相同的显式任务计时。 */
   static SessionTiming calculate(List<? extends SourceRecord> records, Double wallSeconds) {
-    Map<TaskKey, List<SourceTiming>> tasks = new LinkedHashMap<>();
-    List<Interval> intervals = new ArrayList<>();
-    Set<String> seenTurns = new HashSet<>();
-    long incomplete = 0;
-    long completed = 0;
-    long aborted = 0;
-    long missingTurnDurations = 0;
-    long measuredTurns = 0;
-    long mainUsers = 0;
-    double workloadMs = 0;
-    double taskWorkloadMs = 0;
-    long unplacedTasks = 0;
-    double modelMs = 0;
-    double toolMs = 0;
-    long modelMeasurements = 0;
-    long toolMeasurements = 0;
-    for (SourceRecord record : records) {
+    var accumulator = new Accumulator();
+    records.forEach(accumulator::accept);
+    return accumulator.finish(wallSeconds);
+  }
+
+  /** 只保留计时证据及任务身份，不延长记录正文的生命周期。 */
+  static final class Accumulator {
+    private final Map<TaskKey, List<SourceTiming>> tasks = new LinkedHashMap<>();
+    private final Set<String> seenTurns = new HashSet<>();
+    private long missingTaskIdentities;
+    private long missingTurnDurations;
+    private long measuredTurns;
+    private long mainUsers;
+    private double workloadMs;
+
+    /** 创建独立会话的计时累加器。 */
+    Accumulator() {}
+
+    /** 接收当前记录的显式计时标量，不保存源记录或正文。 */
+    void accept(SourceRecord record) {
       if (!mainRecord(record)) {
-        continue;
+        return;
       }
       if ("user".equals(record.eventType())) {
         mainUsers++;
@@ -47,7 +51,7 @@ final class SessionTimingCalculator {
       if ("turn_duration".equals(timing.kind())) {
         String id = timing.eventId().isBlank() ? "event:" + record.eventIndex() : timing.eventId();
         if (!seenTurns.add(scope + "#" + id)) {
-          continue;
+          return;
         }
         if (timing.durationMs().isPresent()) {
           workloadMs += timing.durationMs().getAsLong();
@@ -58,7 +62,7 @@ final class SessionTimingCalculator {
       } else if (List.of("task_started", "task_complete", "turn_aborted").contains(timing.kind())) {
         if (timing.turnId().isBlank()) {
           if (seenTurns.add(scope + "#missing:" + record.eventIndex())) {
-            incomplete++;
+            missingTaskIdentities++;
           }
         } else {
           tasks
@@ -67,97 +71,111 @@ final class SessionTimingCalculator {
         }
       }
     }
-    for (List<SourceTiming> evidence : tasks.values()) {
-      List<SourceTiming> ends =
-          evidence.stream()
-              .filter(t -> !"task_started".equals(t.kind()))
-              .map(SessionTimingCalculator::withoutEventId)
-              .distinct()
-              .toList();
-      if (ends.size() != 1) {
-        incomplete++;
-        continue;
-      }
-      SourceTiming end = ends.getFirst();
-      if ("turn_aborted".equals(end.kind())) {
-        aborted++;
-      } else {
-        completed++;
-      }
-      List<Instant> starts =
-          evidence.stream()
-              .filter(t -> "task_started".equals(t.kind()))
-              .flatMap(t -> t.startedAt().stream())
-              .map(SessionTimingCalculator::instant)
-              .flatMap(Optional::stream)
-              .distinct()
-              .toList();
-      Optional<Instant> start = end.startedAt().flatMap(SessionTimingCalculator::instant);
-      if (start.isEmpty() && starts.size() == 1) {
-        start = Optional.of(starts.getFirst());
-      }
-      Optional<Instant> finish = end.completedAt().flatMap(SessionTimingCalculator::instant);
-      if (end.durationMs().isPresent()) {
-        long durationMs = end.durationMs().getAsLong();
-        if (start.isPresent()) {
-          finish = Optional.of(start.get().plusMillis(durationMs));
-        } else if (finish.isPresent()) {
-          start = Optional.of(finish.get().minusMillis(durationMs));
+
+    /** 根据已收集证据求任务窗口并集；重复计算不会累加上次结果。 */
+    SessionTiming finish(Double wallSeconds) {
+      List<Interval> intervals = new ArrayList<>();
+      long incomplete = missingTaskIdentities;
+      long completed = 0;
+      long aborted = 0;
+      double taskWorkloadMs = 0;
+      long unplacedTasks = 0;
+      double modelMs = 0;
+      double toolMs = 0;
+      long modelMeasurements = 0;
+      long toolMeasurements = 0;
+      for (List<SourceTiming> evidence : tasks.values()) {
+        List<SourceTiming> ends =
+            evidence.stream()
+                .filter(t -> !"task_started".equals(t.kind()))
+                .map(SessionTimingCalculator::withoutEventId)
+                .distinct()
+                .toList();
+        if (ends.size() != 1) {
+          incomplete++;
+          continue;
+        }
+        SourceTiming end = ends.getFirst();
+        if ("turn_aborted".equals(end.kind())) {
+          aborted++;
         } else {
-          taskWorkloadMs += durationMs;
-          unplacedTasks++;
+          completed++;
+        }
+        List<Instant> starts =
+            evidence.stream()
+                .filter(t -> "task_started".equals(t.kind()))
+                .flatMap(t -> t.startedAt().stream())
+                .map(SessionTimingCalculator::instant)
+                .flatMap(Optional::stream)
+                .distinct()
+                .toList();
+        Optional<Instant> start = end.startedAt().flatMap(SessionTimingCalculator::instant);
+        if (start.isEmpty() && starts.size() == 1) {
+          start = Optional.of(starts.getFirst());
+        }
+        Optional<Instant> finish = end.completedAt().flatMap(SessionTimingCalculator::instant);
+        if (end.durationMs().isPresent()) {
+          long durationMs = end.durationMs().getAsLong();
+          if (start.isPresent()) {
+            finish = Optional.of(start.get().plusMillis(durationMs));
+          } else if (finish.isPresent()) {
+            start = Optional.of(finish.get().minusMillis(durationMs));
+          } else {
+            taskWorkloadMs += durationMs;
+            unplacedTasks++;
+          }
+        }
+        boolean incompleteTask =
+            evidence.stream().noneMatch(t -> "task_started".equals(t.kind())) || starts.size() > 1;
+        if (start.isPresent() && finish.isPresent() && !finish.get().isBefore(start.get())) {
+          intervals.add(new Interval(start.get(), finish.get()));
+        } else {
+          incompleteTask = true;
+        }
+        if (incompleteTask) {
+          incomplete++;
+        }
+        if (end.modelDurationMs().isPresent()) {
+          modelMs += end.modelDurationMs().getAsLong();
+          modelMeasurements++;
+        }
+        if (end.toolDurationMs().isPresent()) {
+          toolMs += end.toolDurationMs().getAsLong();
+          toolMeasurements++;
         }
       }
-      boolean incompleteTask =
-          evidence.stream().noneMatch(t -> "task_started".equals(t.kind())) || starts.size() > 1;
-      if (start.isPresent() && finish.isPresent() && !finish.get().isBefore(start.get())) {
-        intervals.add(new Interval(start.get(), finish.get()));
-      } else {
-        incompleteTask = true;
+      Double active = intervals.isEmpty() ? null : unionMillis(intervals) / 1000.0;
+      long closed = completed + aborted;
+      boolean workloadPartial = missingTurnDurations > 0 || mainUsers > measuredTurns;
+      Double agentTurn = null;
+      if (measuredTurns > 0) {
+        agentTurn = workloadMs / 1000.0;
+      } else if (unplacedTasks > 0) {
+        agentTurn = taskWorkloadMs / 1000.0;
       }
-      if (incompleteTask) {
-        incomplete++;
-      }
-      if (end.modelDurationMs().isPresent()) {
-        modelMs += end.modelDurationMs().getAsLong();
-        modelMeasurements++;
-      }
-      if (end.toolDurationMs().isPresent()) {
-        toolMs += end.toolDurationMs().getAsLong();
-        toolMeasurements++;
-      }
+      String workloadBasis =
+          measuredTurns > 0
+              ? "main_agent_turn_duration"
+              : unplacedTasks > 0 ? "main_task_duration_sum" : "";
+      return new SessionTiming(
+          wallSeconds,
+          wallSeconds == null ? "unknown" : "measured",
+          active,
+          active == null ? "unknown" : incomplete > 0 ? "partial" : "measured",
+          "main_task_windows",
+          agentTurn,
+          agentTurn == null
+              ? "unknown"
+              : workloadPartial || unplacedTasks > 0 ? "partial" : "measured",
+          workloadBasis,
+          modelMeasurements == 0 ? null : modelMs / 1000.0,
+          measurementPrecision(modelMeasurements, closed, incomplete),
+          toolMeasurements == 0 ? null : toolMs / 1000.0,
+          measurementPrecision(toolMeasurements, closed, incomplete),
+          completed,
+          incomplete,
+          aborted);
     }
-    Double active = intervals.isEmpty() ? null : unionMillis(intervals) / 1000.0;
-    long closed = completed + aborted;
-    boolean workloadPartial = missingTurnDurations > 0 || mainUsers > measuredTurns;
-    Double agentTurn = null;
-    if (measuredTurns > 0) {
-      agentTurn = workloadMs / 1000.0;
-    } else if (unplacedTasks > 0) {
-      agentTurn = taskWorkloadMs / 1000.0;
-    }
-    String workloadBasis =
-        measuredTurns > 0
-            ? "main_agent_turn_duration"
-            : unplacedTasks > 0 ? "main_task_duration_sum" : "";
-    return new SessionTiming(
-        wallSeconds,
-        wallSeconds == null ? "unknown" : "measured",
-        active,
-        active == null ? "unknown" : incomplete > 0 ? "partial" : "measured",
-        "main_task_windows",
-        agentTurn,
-        agentTurn == null
-            ? "unknown"
-            : workloadPartial || unplacedTasks > 0 ? "partial" : "measured",
-        workloadBasis,
-        modelMeasurements == 0 ? null : modelMs / 1000.0,
-        measurementPrecision(modelMeasurements, closed, incomplete),
-        toolMeasurements == 0 ? null : toolMs / 1000.0,
-        measurementPrecision(toolMeasurements, closed, incomplete),
-        completed,
-        incomplete,
-        aborted);
   }
 
   private static String measurementPrecision(long measurements, long closed, long incomplete) {

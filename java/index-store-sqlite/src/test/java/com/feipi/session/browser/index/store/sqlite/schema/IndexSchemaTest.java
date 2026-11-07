@@ -36,12 +36,12 @@ class IndexSchemaTest {
   class EmptyDatabase {
 
     @Test
-    @DisplayName("ensureSchema 在空数据库上创建全部表并返回 V1")
+    @DisplayName("ensureSchema 在空数据库上创建全部表并返回 V1/V2")
     void ensureSchemaOnEmptyDb() throws SQLException {
       IndexSchema schema = IndexSchema.withDefaults();
       List<SchemaVersion> applied = schema.ensureSchema(conn);
 
-      assertThat(applied).hasSize(1);
+      assertThat(applied).hasSize(6);
       assertThat(applied.get(0).version()).isEqualTo(1);
 
       // 验证所有表存在
@@ -56,7 +56,7 @@ class IndexSchemaTest {
       schema.ensureSchema(conn);
 
       Set<String> columns = getTableColumns("sessions");
-      assertThat(columns).hasSize(37);
+      assertThat(columns).hasSize(42);
       assertThat(columns)
           .contains(
               "fresh_input_token_precision",
@@ -199,7 +199,7 @@ class IndexSchemaTest {
 
       // 验证全部列已存在
       Set<String> columns = getTableColumns("sessions");
-      assertThat(columns).hasSize(37);
+      assertThat(columns).hasSize(42);
       assertThat(columns)
           .contains(
               "fresh_input_token_precision",
@@ -214,7 +214,7 @@ class IndexSchemaTest {
     }
 
     @Test
-    @DisplayName("ensureSchema 在部分列数据库中自动修复并标记 V1 已应用")
+    @DisplayName("ensureSchema 在部分列数据库中自动修复并标记 V2 已应用")
     void ensureSchemaRepairsAndApplies() throws SQLException {
       // 创建只有部分列的旧数据库
       try (Statement stmt = conn.createStatement()) {
@@ -233,7 +233,7 @@ class IndexSchemaTest {
 
       // V001 用 IF NOT EXISTS 不报错，repairMissingColumns 补充缺失列
       Set<String> columns = getTableColumns("sessions");
-      assertThat(columns).hasSize(37);
+      assertThat(columns).hasSize(42);
       assertThat(columns)
           .contains(
               "fresh_input_token_precision",
@@ -246,7 +246,7 @@ class IndexSchemaTest {
               "token_contains_unknown");
 
       // schema_migrations 记录 V1
-      assertThat(schema.currentVersion(conn).version()).isEqualTo(1);
+      assertThat(schema.currentVersion(conn).version()).isEqualTo(6);
     }
   }
 

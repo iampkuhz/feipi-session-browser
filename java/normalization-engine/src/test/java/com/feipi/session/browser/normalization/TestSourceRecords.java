@@ -21,22 +21,40 @@ final class TestSourceRecords {
   static SourceRecord from(JsonNode node, int index) {
     String type = text(node, "type").orElse("unknown");
     return new SourceRecord(
-        text(node, "locator").orElse("test#event[" + index + "]"),
-        index,
-        type,
-        firstText(node, "id", "uuid"),
-        text(node, "model"),
-        text(node, "timestamp"),
-        firstText(node, "turn_id", "turnId"),
-        usage(node),
-        toolCalls(node),
-        text(node, "tool_use_id"),
-        text(node, "name"),
-        text(node, "is_error").filter("true"::equals).isPresent()
-            ? Optional.of("tool_error")
-            : Optional.empty(),
-        com.feipi.session.browser.domain.source.SourceRecordRelation.empty(),
-        content(node));
+            text(node, "locator").orElse("test#event[" + index + "]"),
+            index,
+            type,
+            firstText(node, "id", "uuid"),
+            text(node, "model"),
+            text(node, "timestamp"),
+            firstText(node, "turn_id", "turnId"),
+            usage(node),
+            toolCalls(node),
+            text(node, "tool_use_id"),
+            text(node, "name"),
+            text(node, "is_error").filter("true"::equals).isPresent()
+                ? Optional.of("tool_error")
+                : Optional.empty(),
+            com.feipi.session.browser.domain.source.SourceRecordRelation.empty(),
+            content(node))
+        .withMessageRole(messageRole(node, type));
+  }
+
+  /** 模拟 adapter 的显式源角色证据，usage frame 不是真消息。 */
+  private static Optional<String> messageRole(JsonNode node, String type) {
+    String subtype = firstText(node, "turn_id", "turnId").orElse("");
+    if ("event_msg".equals(type)) {
+      return "user_message".equals(subtype)
+          ? Optional.of("user")
+          : "agent_message".equals(subtype) ? Optional.of("assistant") : Optional.empty();
+    }
+    String id = firstText(node, "id", "uuid").orElse("");
+    if (id.startsWith("token_count:")
+        || id.startsWith("token_usage_record:")
+        || id.startsWith("tc:")) {
+      return Optional.empty();
+    }
+    return "user".equals(type) || "assistant".equals(type) ? Optional.of(type) : Optional.empty();
   }
 
   static List<SourceRecord> records(JsonNode... nodes) {

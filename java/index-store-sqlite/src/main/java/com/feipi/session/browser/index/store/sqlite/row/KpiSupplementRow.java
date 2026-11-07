@@ -24,6 +24,13 @@ import jakarta.validation.constraints.PositiveOrZero;
  * @param lowReadSessions eligible sessions 中 cache read ratio {@code < 20%} 的 session 数
  * @param affectedFailureSessions {@code failed_tool_count > 0} 的 session 数
  * @param repeatedFailureSessions {@code failed_tool_count > 1} 的 session 数
+ * @param durationSampleCount 具有有效墙钟时长的内容样本数
+ * @param tokenSampleCount 具有完整提供方令牌计量的样本数
+ * @param contentSampleCount 具有可读取规范化内容的样本数
+ * @param userMessageSampleCount 用户消息有效测量样本数
+ * @param assistantMessageSampleCount 助手消息有效测量样本数
+ * @param avgUserMessagesPerSession 用户消息有效样本均值，无样本为空
+ * @param avgAssistantMessagesPerSession 助手消息有效样本均值，无样本为空
  */
 public record KpiSupplementRow(
     /* 最近 24 小时内有 session 的 project 去重数。 */ @PositiveOrZero long activeProjects24h,
@@ -39,8 +46,86 @@ public record KpiSupplementRow(
         Double p50CacheRatio,
     /* 符合条件会话中缓存读取比例低于二成的会话数量。 */ @PositiveOrZero long lowReadSessions,
     /* 失败工具数大于零的会话数量。 */ @PositiveOrZero long affectedFailureSessions,
-    /* 失败工具数大于一的会话数量。 */ @PositiveOrZero long repeatedFailureSessions)
+    /* 失败工具数大于一的会话数量。 */ @PositiveOrZero long repeatedFailureSessions,
+    @PositiveOrZero long durationSampleCount,
+    @PositiveOrZero long tokenSampleCount,
+    @PositiveOrZero long contentSampleCount,
+    @PositiveOrZero long userMessageSampleCount,
+    @PositiveOrZero long assistantMessageSampleCount,
+    @Finite @PositiveOrZero Double avgUserMessagesPerSession,
+    @Finite @PositiveOrZero Double avgAssistantMessagesPerSession)
     implements KpiSupplement {
+
+  /** 兼容未提供独立消息测量的调用者，不从内容覆盖推断消息覆盖。 */
+  public KpiSupplementRow(
+      long activeProjects24h,
+      long activeProjects7d,
+      long newProjects7d,
+      long activeProjectsPrevious7d,
+      long todaySessions,
+      double avgDailySessions7d,
+      double medianDurationSeconds,
+      long eligibleSessions,
+      Double p50CacheRatio,
+      long lowReadSessions,
+      long affectedFailureSessions,
+      long repeatedFailureSessions,
+      long durationSampleCount,
+      long tokenSampleCount,
+      long contentSampleCount) {
+    this(
+        activeProjects24h,
+        activeProjects7d,
+        newProjects7d,
+        activeProjectsPrevious7d,
+        todaySessions,
+        avgDailySessions7d,
+        medianDurationSeconds,
+        eligibleSessions,
+        p50CacheRatio,
+        lowReadSessions,
+        affectedFailureSessions,
+        repeatedFailureSessions,
+        durationSampleCount,
+        tokenSampleCount,
+        contentSampleCount,
+        0,
+        0,
+        null,
+        null);
+  }
+
+  /** 兼容未提供测量样本数的调用者；不推断覆盖。 */
+  public KpiSupplementRow(
+      long activeProjects24h,
+      long activeProjects7d,
+      long newProjects7d,
+      long activeProjectsPrevious7d,
+      long todaySessions,
+      double avgDailySessions7d,
+      double medianDurationSeconds,
+      long eligibleSessions,
+      Double p50CacheRatio,
+      long lowReadSessions,
+      long affectedFailureSessions,
+      long repeatedFailureSessions) {
+    this(
+        activeProjects24h,
+        activeProjects7d,
+        newProjects7d,
+        activeProjectsPrevious7d,
+        todaySessions,
+        avgDailySessions7d,
+        medianDurationSeconds,
+        eligibleSessions,
+        p50CacheRatio,
+        lowReadSessions,
+        affectedFailureSessions,
+        repeatedFailureSessions,
+        0,
+        0,
+        0);
+  }
 
   /** 紧凑构造器，校验 record component 约束。 */
   public KpiSupplementRow {
@@ -57,6 +142,13 @@ public record KpiSupplementRow(
         p50CacheRatio,
         lowReadSessions,
         affectedFailureSessions,
-        repeatedFailureSessions);
+        repeatedFailureSessions,
+        durationSampleCount,
+        tokenSampleCount,
+        contentSampleCount,
+        userMessageSampleCount,
+        assistantMessageSampleCount,
+        avgUserMessagesPerSession,
+        avgAssistantMessagesPerSession);
   }
 }

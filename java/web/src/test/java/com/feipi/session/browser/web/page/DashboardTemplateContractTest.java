@@ -45,6 +45,38 @@ class DashboardTemplateContractTest {
         .doesNotContain("type=\"application/json\"");
   }
 
+  @Test
+  @DisplayName("事件日观察独立于 cohort，并披露未恢复及未来排除范围")
+  void eventActivityHasIndependentSemanticSection() {
+    String template = dashboardTemplate();
+    assertThat(template)
+        .contains(
+            "session-start cohort", "data-chart-card=\"sessions\"", "data-chart-card=\"tokens\"");
+    int start = template.indexOf("data-chart-card=\"event-activity\"");
+    assertThat(start).isNotNegative();
+    int end = template.indexOf("</section>", start);
+    assertThat(end).isGreaterThan(start);
+    String section = template.substring(start, end);
+    assertThat(section)
+        .contains(
+            "data-event-activity-state",
+            "data-event-activity-days",
+            "data-event-activity-coverage",
+            "data-event-activity-undated",
+            "data-event-activity-future")
+        .containsIgnoringCase("unknown")
+        .containsIgnoringCase("Codex")
+        .containsIgnoringCase("legacy")
+        .containsIgnoringCase("Claude")
+        .containsIgnoringCase("Qoder")
+        .containsPattern("(?is)(observed.*user.*messages|观察.*user.*消息)")
+        .containsPattern("(?s)(不保证|不等于|不是|≠).*真人")
+        .containsPattern("(?s)(usage.*报告日|usage report day)")
+        .containsPattern("(?s)(不是|不等于|≠).*实际.*消耗")
+        .containsPattern("(?s)(缺日志|缺失日志|missing logs)")
+        .containsPattern("(?s)(缺时间|缺失时间|missing timestamps)");
+  }
+
   private static String dashboardTemplate() {
     try (var input =
         DashboardTemplateContractTest.class

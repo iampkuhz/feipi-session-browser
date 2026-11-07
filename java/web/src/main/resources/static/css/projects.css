@@ -413,7 +413,11 @@
   padding: 6px 10px;
   font-size: 11px;
   font-weight: 600;
-  white-space: nowrap;
+  /* 长计量覆盖说明必须换行，透明伪元素也不能撑宽页面。 */
+  white-space: normal;
+  width: max-content;
+  max-width: min(280px, calc(100vw - 32px));
+  overflow-wrap: anywhere;
   z-index: 10;
   pointer-events: none;
   opacity: 0;
@@ -441,6 +445,18 @@
 .p-projects [data-tooltip]:hover::before {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
+}
+
+/* 最右 KPI 和 agent 行尾的说明靠值右侧对齐，完整保留文字且不越出可视区域。 */
+.p-projects .metric-card:last-child [data-tooltip]::after,
+.p-projects .agent-mix-row > [data-tooltip]:last-child::after {
+  left: auto;
+  right: 0;
+  transform: translateY(4px);
+}
+.p-projects .metric-card:last-child [data-tooltip]:hover::after,
+.p-projects .agent-mix-row > [data-tooltip]:last-child:hover::after {
+  transform: translateY(0);
 }
 
 /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Session copy button: minimal border ──────────────────────` */
@@ -661,12 +677,17 @@
 
 .p-projects .agent-mix-row {
   display: grid;
-  grid-template-columns: minmax(120px, 1fr) auto auto auto;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   align-items: center;
   color: var(--text-subtle);
   text-decoration: none;
   font-size: 12px;
+}
+
+.p-projects .agent-mix-row > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .p-projects .project-session-filter {

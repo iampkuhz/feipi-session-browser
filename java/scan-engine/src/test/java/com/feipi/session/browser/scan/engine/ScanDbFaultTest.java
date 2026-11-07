@@ -38,6 +38,60 @@ class ScanDbFaultTest {
 
   @TempDir Path tempDir;
 
+  @Test
+  void failedScanPreservesPublishedRowsAndVersionAcrossBatchFlush() throws Exception {
+    Path database = tempDir.resolve("atomic.db");
+    try (Connection writer = DriverManager.getConnection("jdbc:sqlite:" + database);
+        Connection reader = DriverManager.getConnection("jdbc:sqlite:" + database)) {
+      SqliteTestHelper.configureConnection(writer);
+      var port = SqliteTestHelper.createIndexWriter(writer);
+      port.ensureSchema();
+      try (Statement statement = writer.createStatement()) {
+        statement.execute(
+            "INSERT INTO sessions (session_key, agent, session_id, project_key, ended_at)"
+                + " VALUES ('old', 'codex', 'old', 'project', '2026-01-01T00:00:00Z')");
+      }
+      port.saveScanLogicVersion(7, java.time.Instant.EPOCH);
+      long scan = port.startScan(1);
+      port.clearExistingIndex();
+      port.saveScanLogicVersion(8, java.time.Instant.EPOCH);
+      port.writeMissingTranscriptSession(
+          new com.feipi.session.browser.index.api.write.MissingTranscriptSession(
+              "new",
+              "codex",
+              "new",
+              "New",
+              "project",
+              "Project",
+              "",
+              "2026-01-01T00:00:00Z",
+              "",
+              "codex",
+              java.time.Instant.EPOCH));
+      assertThat(port.pendingWriteCount()).isPositive();
+      port.flushPendingWrites();
+      try (Statement statement = reader.createStatement();
+          ResultSet result = statement.executeQuery("SELECT session_key FROM sessions")) {
+        assertThat(result.next()).isTrue();
+        assertThat(result.getString(1)).isEqualTo("old");
+      }
+      port.failScan(scan, 2, Map.of());
+      assertThat(port.loadStoredSessionFingerprints()).containsKey("old");
+      assertThat(port.loadScanLogicVersion()).isEqualTo(7);
+      try (Statement statement = reader.createStatement();
+          ResultSet result = statement.executeQuery("SELECT status FROM scan_log")) {
+        assertThat(result.next()).isTrue();
+        assertThat(result.getString(1)).isEqualTo("failure");
+      }
+      long retry = port.startScan(3);
+      port.clearExistingIndex();
+      port.saveScanLogicVersion(8, java.time.Instant.EPOCH);
+      port.completeScan(retry, 4, Map.of());
+      assertThat(port.loadStoredSessionFingerprints()).isEmpty();
+      assertThat(port.loadScanLogicVersion()).isEqualTo(8);
+    }
+  }
+
   @Nested
   @DisplayName("Schema 故障")
   class SchemaFault {
@@ -197,8 +251,8 @@ class ScanDbFaultTest {
     }
 
     @Test
-    @DisplayName("扫描产生错误时 scan_log 仍标记 success（错误在 issues 中）")
-    void scanWithErrorsLogsSuccess() throws Exception {
+    @DisplayName("扫描产生错误时 scan_log 标记 failure")
+    void scanWithErrorsLogsFailure() throws Exception {
       Connection conn = SqliteTestHelper.createInMemoryConnection();
       conn.setAutoCommit(false);
       try {
@@ -218,12 +272,12 @@ class ScanDbFaultTest {
 
         assertThat(summary.errorCount()).isEqualTo(1);
 
-        // scan_log 仍为 success，因为错误是候选项级别的
+        // 候选项错误同样阻止发布并标记失败
         try (Statement stmt = conn.createStatement();
             ResultSet rs =
                 stmt.executeQuery("SELECT status FROM scan_log ORDER BY id DESC LIMIT 1")) {
           assertThat(rs.next()).isTrue();
-          assertThat(rs.getString("status")).isEqualTo("success");
+          assertThat(rs.getString("status")).isEqualTo("failure");
         }
       } finally {
         SqliteTestHelper.closeQuietly(conn);

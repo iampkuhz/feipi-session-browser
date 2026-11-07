@@ -125,11 +125,28 @@
       });
       document.body.setAttribute('data-session-api-hydrated', String(complete));
     }
-    function load(name) {
-      document.body.setAttribute('data-session-api-' + name + '-state', 'loading');
-      updateHydrated();
-      return fetch(base + '/' + name, { headers: { 'Accept': 'application/json' } })
-        .then(readSessionJson).then(function (part) {
+    var snapshot = window.IndexSnapshot.create();
+    var pendingDeepLink = null;
+    function applyPublishedDeepLink() {
+      var pending = pendingDeepLink;
+      pendingDeepLink = null;
+      if (!pending || pending.rounds !== sessionDetailState.rounds
+          || document.body.getAttribute('data-session-api-rounds-state') !== 'true'
+          || !document.body.hasAttribute('data-index-generation')
+          || document.querySelector('[data-snapshot-batch-error]')) return;
+      // The coordinator Promise resolves only after it publishes the checked generation.
+      jumpRound(pending.root, pending.params.get('round'), {
+        subagent: pending.params.get('subagent') || '',
+        subagentRound: pending.params.get('subagentround') || pending.params.get('subagent_round') || '',
+        smooth: false
+      });
+    }
+    window.addEventListener('index-snapshot-restored', applyPublishedDeepLink);
+    snapshot.load(Object.keys(resources).map(function (name) {
+      return {
+        key: name,
+        url: base + '/' + name,
+        apply: function (part) {
           var error = document.querySelector('[data-resource-error="' + name + '"]');
           if (error) error.remove();
           resources[name](part);
@@ -140,24 +157,142 @@
             var status = params.get('trace_status') || 'all';
             if (status === 'failed' || status === 'low-cache') setFilter(root, status);
             if (params.get('round') && typeof jumpRound === 'function') {
-              jumpRound(root, params.get('round'), {
-                subagent: params.get('subagent') || '',
-                subagentRound: params.get('subagentround') || params.get('subagent_round') || '',
-                smooth: false
-              });
+              pendingDeepLink = { root: root, params: params, rounds: sessionDetailState.rounds };
             }
           }
           if (name === 'payloads') document.body.setAttribute('data-session-payload-count', String(part.payloadCount || 0));
           if (name === 'diagnostics') document.body.setAttribute('data-session-anomaly-count', String(part.anomalyCount || 0));
           document.body.setAttribute('data-session-api-' + name + '-state', 'true');
           updateHydrated();
-        }).catch(function (err) {
+        },
+        error: function (err, retry) {
           document.body.setAttribute('data-session-api-' + name + '-state', 'false');
           updateHydrated();
-          showSessionResourceError(name, err, function () { return load(name); });
-        });
+          showSessionResourceError(name, err, function () {
+            return Promise.resolve(retry()).then(applyPublishedDeepLink);
+          });
+        }
+      };
+    })).then(applyPublishedDeepLink);
+  }
+
+  // Continuations are bound to the already rendered IndexSnapshot, never a new snapshot.
+  function readSessionContentPage(url) {
+    var expected = document.body.getAttribute('data-index-generation') || '';
+    var headers = { Accept: 'application/json' };
+    if (expected && expected !== 'legacy') headers['X-Session-Index-Generation'] = expected;
+    return fetch(url, { headers: headers, cache: 'no-store' }).then(function (response) {
+      var current = document.body.getAttribute('data-index-generation') || '';
+      var actual = response.headers.get('X-Session-Index-Generation') || '';
+      if (current !== expected || response.status === 409 || (expected && expected !== 'legacy' && actual !== expected)) {
+        throw new Error('Index changed; refresh the page before continuing');
+      }
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      return response.json();
+    }).then(function (data) {
+      if ((document.body.getAttribute('data-index-generation') || '') !== expected) throw new Error('Index changed; refresh the page before continuing');
+      return data;
+    });
+  }
+
+  function contentPager(target, section, loaded, total, cursor, load, existing) {
+    var pager = existing || document.createElement('div');
+    pager.setAttribute('data-content-pagination', section);
+    pager.replaceChildren();
+    var label = document.createElement('span');
+    var sectionLabel = { rounds: 'Rounds', payloads: 'Payload index', 'round-members': 'Round records', 'round-tools': 'Tools in this member page' }[section] || section;
+    label.textContent = sectionLabel + ': ' + loaded + ' / ' + total + ' loaded. ';
+    pager.appendChild(label);
+    if (cursor) {
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'sd-btn sd-btn--secondary sd-btn--sm';
+      button.setAttribute('data-action', 'load-content-page');
+      button.textContent = 'Load more';
+      button.loadContentPage = function () {
+        if (button.disabled) return;
+        button.disabled = true;
+        button.textContent = 'Loading…';
+        var error = pager.querySelector('[role="alert"]');
+        if (error) error.remove();
+        Promise.resolve().then(function () { return load(cursor); }).catch(function (err) {
+          if (!pager.isConnected) return;
+          var message = document.createElement('span');
+          message.setAttribute('role', 'alert');
+          message.textContent = ' Unable to load: ' + err.message + '. ';
+          pager.appendChild(message);
+          button.textContent = /refresh/i.test(err.message) ? 'Refresh page' : 'Retry';
+          if (/refresh/i.test(err.message)) button.loadContentPage = function () { window.location.reload(); };
+        }).finally(function () { button.disabled = false; });
+      };
+      pager.appendChild(button);
     }
-    Object.keys(resources).forEach(load);
+    if (!existing) target.appendChild(pager);
+    return pager;
+  }
+
+  function updateSessionContentPager(section, response, loaded) {
+    var previous = document.querySelector('[data-content-pagination="' + section + '"]');
+    if (!response.nextCursor && !previous) return;
+    var target;
+    if (section === 'rounds') {
+      target = qs(document, '.trace-table[data-trace-list]');
+      if (target) target = target.parentNode;
+    } else {
+      target = qs(document, '[data-content-payload-index]');
+      if (!target) {
+        target = document.createElement('section');
+        target.setAttribute('data-content-payload-index', '');
+        (qs(document, '[data-trace-page]') || document.querySelector('main') || document.body).appendChild(target);
+      }
+    }
+    if (!target) return;
+    contentPager(target, section, loaded, response.total ?? response[section === 'rounds' ? 'roundCount' : 'payloadCount'], response.nextCursor, function (cursor) {
+      var url = getApiBase().replace(/\/$/, '') + '/' + section + '?cursor=' + encodeURIComponent(cursor);
+      if (section === 'rounds' && sessionDetailState.roundFilter) url += '&trace_status=' + encodeURIComponent(sessionDetailState.roundFilter);
+      var ticket = sessionDetailState.filterTicket;
+      var epoch = sessionDetailState.roundsEpoch;
+      return readSessionContentPage(url).then(function (part) {
+        if (section === 'rounds' && (ticket !== sessionDetailState.filterTicket || epoch !== sessionDetailState.roundsEpoch)) return;
+        if (!target.isConnected) return;
+        if (section === 'rounds') appendSessionRounds(part);
+        else applySessionPayloads(part, true);
+      });
+    }, previous);
+  }
+
+  function reloadPagedRoundsFilter(status) {
+    if (!sessionDetailState.roundsPaged) return;
+    var ticket = (sessionDetailState.filterTicket || 0) + 1;
+    sessionDetailState.filterTicket = ticket;
+    sessionDetailState.roundFilter = status;
+    var previous = qs(document, '[data-content-pagination="rounds"]');
+    if (previous) previous.remove();
+    var url = getApiBase().replace(/\/$/, '') + '/rounds?trace_status=' + encodeURIComponent(status);
+    return readSessionContentPage(url).then(function (part) {
+      if (sessionDetailState.filterTicket !== ticket) return;
+      applySessionRounds(part);
+      setFilter(document, status);
+    }).catch(function (error) {
+      if (sessionDetailState.filterTicket !== ticket) return;
+      showSessionResourceError('rounds', error, function () { return reloadPagedRoundsFilter(status); });
+    });
+  }
+
+  function appendSessionRounds(response) {
+    var tbody = qs(document, '.trace-table[data-trace-list] tbody');
+    if (!tbody) return;
+    var globalIndex = sessionDetailState.rounds.reduce(function (sum, round) { return sum + Math.max(1, Number(round.callCount || 1)); }, 1);
+    (response.rounds || []).forEach(function (round) {
+      tbody.appendChild(roundRow(round, globalIndex, sessionDetailState.maxRoundTokens));
+      globalIndex += Math.max(1, Number(round.callCount || 1));
+      sessionDetailState.rounds.push(round);
+    });
+    updateSessionContentPager('rounds', response, sessionDetailState.rounds.length);
+    var active = qs(document, '[data-action^="status-"].is-active');
+    if (active) setFilter(document, active.getAttribute('data-action').replace('status-', ''));
+    setupTokenTooltips();
+    syncToggleAllButton(document);
   }
 
   function showSessionResourceError(name, err, retry) {
@@ -198,11 +333,6 @@
     content.appendChild(button);
     if (name === 'rounds' || name === 'diagnostics') target.replaceChildren(error);
     else target.appendChild(error);
-  }
-
-  function readSessionJson(response) {
-    if (!response.ok) throw new Error('HTTP ' + response.status);
-    return response.json();
   }
 
   function applySessionMeta(meta) {
@@ -246,7 +376,10 @@
 
   function applySessionMetrics(metrics) {
     if (!metrics || !metrics.tokens) return;
+    sessionDetailState.metrics = metrics;
     var parity = metrics.parity || {};
+    var hasContent = hasSessionContent();
+    function observed(value) { return hasContent && typeof value === 'number' ? formatNumber(value) : 'N/A'; }
     setKpi('Total Tokens', TokenProvenance.total(metrics.tokens, formatSessionCompact), [
       measuredTokenSubline('Fresh', metrics.tokens, 'fresh', parity.freshShare),
       measuredTokenSubline('Cache Read', metrics.tokens, 'cacheRead', parity.cacheReadShare),
@@ -259,14 +392,14 @@
     setKpi('Cache Health', TokenProvenance.ratio(metrics.tokens, metrics.cacheReadRatio), [
       subline('Input-side Tokens', measuredInput ? formatSessionCompact(inputSide) : 'N/A · Partial'),
       subline('Low-cache Rounds', measuredInput && parity.lowCacheRoundsAvailable === true && typeof parity.lowCacheRounds === 'number' ? formatNumber(parity.lowCacheRounds) : 'N/A'),
-      subline('Fresh Spike Rounds', formatNumber(parity.freshSpikeRounds || 0))
+      subline('Fresh Spike Rounds', observed(parity.freshSpikeRounds))
     ]);
     TokenProvenance.attach(qs(document, '.sd-kpi[aria-label="Cache Health"]'), metrics.tokens);
-    setKpi('Workload', formatNumber(parity.workloadCalls || (Number(metrics.userMessages || 0) + Number(metrics.assistantMessages || 0))), [
-      subline('Main Calls', formatNumber(parity.mainCalls || metrics.assistantMessages)),
-      subline('Subagent Calls', formatNumber(parity.subagentCalls || 0)),
-      subline('Tool Calls', formatNumber(parity.toolCalls || metrics.toolCalls)),
-      subline('Subagent Runs', formatNumber(parity.subagentRuns || metrics.subagents))
+    setKpi('Workload', observed(parity.workloadCalls ?? (Number(metrics.userMessages || 0) + Number(metrics.assistantMessages || 0))), [
+      subline('Main Calls', observed(parity.mainCalls ?? metrics.assistantMessages)),
+      subline('Subagent Calls', observed(parity.subagentCalls)),
+      subline('Tool Calls', observed(parity.toolCalls ?? metrics.toolCalls)),
+      subline('Subagent Runs', observed(parity.subagentRuns ?? metrics.subagents))
     ]);
     var timingCard = qs(document, '[data-session-timing], .sd-kpi[aria-label="Source Task Active"], .sd-kpi[aria-label="Active Time"]');
     setKpi(timingCard ? timingCard.getAttribute('aria-label') : 'Active Time', SessionTiming.value(metrics.timing, 'activeTaskSeconds'), [
@@ -278,26 +411,34 @@
     SessionTiming.applyDetail(timingCard, metrics.timing);
     document.body.setAttribute('data-session-api-total-tokens', String(metrics.tokens.total || 0));
     document.body.setAttribute('data-session-api-failed-tools', String(metrics.failedTools || 0));
+    if (sessionDetailState.diagnostics) applySessionDiagnostics(sessionDetailState.diagnostics);
+  }
+
+  function hasSessionContent() {
+    return sessionDetailState.roundsLoaded ? sessionDetailState.rounds.length > 0
+      : Number((sessionDetailState.metrics || {}).roundCount || 0) > 0;
   }
 
   function applySessionDiagnostics(diagnostics) {
     if (!diagnostics) return;
+    sessionDetailState.diagnostics = diagnostics;
     var parity = diagnostics.parity || {};
+    var hasContent = hasSessionContent();
     var count = Number(parity.issueRounds || diagnostics.anomalyCount || 0);
-    setKpi('Run Health', parity.runHealth || (count > 0 ? 'Completed with issue signals' : 'Completed'), [
-      subline('Issue Rounds', formatNumber(count)),
-      rateSubline('Failed Tools', parity.failedTools || 0, parity.failedToolsTotal || parity.toolCalls || (parity.toolImpact && parity.toolImpact.allToolCalls) || 0, parity.failedToolsRate),
-      subline('Payload Gaps', formatNumber(parity.payloadGaps || 0)),
-      subline('Attribution Gaps', formatNumber(parity.attributionGaps || 0))
+    setKpi('Run Health', !hasContent ? 'Unknown' : (count > 0 ? 'Issue signals detected' : 'No issue signals detected'), [
+      subline('Issue Rounds', hasContent ? formatNumber(count) : 'N/A'),
+      hasContent ? rateSubline('Failed Tools', parity.failedTools || 0, parity.failedToolsTotal || parity.toolCalls || (parity.toolImpact && parity.toolImpact.allToolCalls) || 0, parity.failedToolsRate) : subline('Failed Tools', 'N/A'),
+      subline('Payload Gaps', hasContent && typeof parity.payloadGaps === 'number' ? formatNumber(parity.payloadGaps) : 'N/A'),
+      subline('Attribution Gaps', hasContent && (parity.attributionGapsAvailable === true || parity.attributionGaps > 0) ? formatNumber(parity.attributionGaps) : 'N/A')
     ]);
     var strip = qs(document, '[data-issue-strip]');
     if (strip) {
-      strip.classList.toggle('sd-issue-strip--ok', count === 0);
+      strip.classList.toggle('sd-issue-strip--ok', hasContent && count === 0);
       strip.classList.remove('sd-issue-strip--loading');
       strip.replaceChildren();
       var title = document.createElement('span');
       title.className = 'sd-issue-title';
-      title.textContent = count > 0 ? 'Issue Signals' : 'No issue signals';
+      title.textContent = !hasContent ? 'Unknown · No round content available' : (count > 0 ? 'Issue Signals' : 'No issue signals detected');
       strip.appendChild(title);
       (parity.issueStrip || []).forEach(function (issue) {
         var button = document.createElement('button');
@@ -311,7 +452,7 @@
       if (count === 0) {
         var ok = document.createElement('span');
         ok.className = 'sd-issue-ok-badge';
-        ok.textContent = 'All rounds completed successfully';
+        ok.textContent = hasContent ? 'Issue checks do not establish completion or content completeness' : 'Session completion and failures are not established';
         strip.appendChild(ok);
       }
     }
@@ -322,7 +463,15 @@
   function applySessionRounds(roundsResponse) {
     var tbody = qs(document, '.trace-table[data-trace-list] tbody');
     if (!tbody || !roundsResponse) return;
+    sessionDetailState.roundsEpoch = (sessionDetailState.roundsEpoch || 0) + 1;
+    var previousPager = document.querySelector('[data-content-pagination="rounds"]');
+    if (previousPager) previousPager.remove();
+    sessionDetailState.roundsPaged = Boolean(roundsResponse.nextCursor || roundsResponse.total != null);
     var rows = roundsResponse.rounds || [];
+    sessionDetailState.roundsLoaded = true;
+    sessionDetailState.rounds = rows;
+    if (sessionDetailState.metrics) applySessionMetrics(sessionDetailState.metrics);
+    else if (sessionDetailState.diagnostics) applySessionDiagnostics(sessionDetailState.diagnostics);
     if (!rows.length) {
       var tr = document.createElement('tr');
       var td = document.createElement('td');
@@ -334,6 +483,7 @@
         + '</p></div>');
       tr.appendChild(td);
       tbody.replaceChildren(tr);
+      if (sessionDetailState.diagnosticsParity) renderDiagnosticsCards(sessionDetailState.diagnosticsParity);
       return;
     }
     sessionDetailState.rounds = rows;
@@ -346,6 +496,7 @@
       globalCallIndex += Math.max(1, Number(round.callCount || 1));
       return row;
     }));
+    updateSessionContentPager('rounds', roundsResponse, rows.length);
     setupTokenTooltips();
     if (sessionDetailState.diagnosticsParity) renderDiagnosticsCards(sessionDetailState.diagnosticsParity);
     syncToggleAllButton(document);
@@ -392,12 +543,18 @@
     return tr;
   }
 
-  function applySessionPayloads(payloadsResponse) {
+  function applySessionPayloads(payloadsResponse, append) {
     if (!payloadsResponse) return;
     var container = qs(document, '[data-payload-sources-container]');
     if (!container) return;
     var payloads = payloadsResponse.payloads || [];
-    container.replaceChildren.apply(container, payloads.map(function (payload) {
+    if (!append) {
+      container.replaceChildren();
+      sessionDetailState.payloadIndexCount = 0;
+      var oldIndex = qs(document, '[data-content-payload-index]');
+      if (oldIndex) oldIndex.remove();
+    }
+    payloads.forEach(function (payload) {
       var tpl = document.createElement('template');
       tpl.setAttribute('data-payload-source', payload.payloadId || '');
       tpl.setAttribute('data-payload-kind', payload.kind || '');
@@ -406,13 +563,30 @@
       tpl.setAttribute('data-payload-index-only', 'true');
       tpl.setAttribute('data-payload-api-url', payload.apiUrl || '');
       tpl.setAttribute('data-payload-title', payload.title || payload.payloadId || 'Payload');
-      return tpl;
-    }));
+      container.appendChild(tpl);
+    });
+    sessionDetailState.payloadIndexCount = (sessionDetailState.payloadIndexCount || 0) + payloads.length;
+    updateSessionContentPager('payloads', payloadsResponse, sessionDetailState.payloadIndexCount);
+    var index = qs(document, '[data-content-payload-index]');
+    if (index) payloads.forEach(function (payload) {
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'sd-btn sd-btn--secondary sd-btn--sm';
+      button.setAttribute('data-action', 'open-payload');
+      button.setAttribute('data-payload-id', payload.payloadId || '');
+      button.setAttribute('data-payload-kind', payload.kind || '');
+      button.textContent = payload.title || payload.payloadId;
+      index.insertBefore(button, index.querySelector('[data-content-pagination="payloads"]'));
+    });
   }
 
   function renderDiagnosticsCards(parity) {
     var root = qs(document, '[data-session-diagnostics]');
     if (!root || !parity) return;
+    if (!hasSessionContent()) {
+      setMarkup(root, '<article class="sd-diagnostic-card sd-diagnostic-card--wide"><header class="sd-diagnostic-card__head"><h2>Content evidence unavailable</h2><span>Unknown</span></header><div class="sd-diagnostic-card__body"><div class="sd-card-empty">No round content is available. Agent, tool and failure counts are N/A, not measured zero.</div></div></article>');
+      return;
+    }
     var agents = parity.agents || [];
     var toolImpact = parity.toolImpact || {};
     var contextSegments = parity.contextSegments || [];
@@ -446,7 +620,7 @@
       var rateClass = failures > 0 ? ' sd-rate--warn' : ' sd-rate--ok';
       var failureLabel = row.failureLabel || (formatNumber(row.failures) + ' failed · ' + (row.failureRate || 'N/A'));
       if (scope !== 'main' && failures === 0) {
-        failureLabel = 'Success · 0 failed';
+        failureLabel = 'No failure signals · 0 failed';
       }
       return '<tr class="sd-subagent-row' + active + '" data-subagent-row>'
         + '<td class="sd-subagent-table__agent"><button type="button" class="sd-subagent-select' + active + '" data-action="select-subagent" data-subagent="'
@@ -504,7 +678,9 @@
 
   function tokenRoundChartHtml(rounds, label) {
     if (!rounds || !rounds.length) {
-      return '<div class="sd-card-empty">Round timeline is loading from /rounds API.</div>';
+      return '<div class="sd-card-empty">' + (sessionDetailState.roundsLoaded
+        ? 'No normalized rounds available. The source log may be missing.'
+        : 'Round timeline is loading from /rounds API.') + '</div>';
     }
     var maxTotal = Math.max(1, sessionDetailState.maxRoundTokens || 1);
     var plotWidth = Math.max(320, rounds.length * 32 + 44);

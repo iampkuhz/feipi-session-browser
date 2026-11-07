@@ -6,6 +6,7 @@ import com.feipi.session.browser.query.api.PayloadSource;
 import com.feipi.session.browser.query.api.PayloadVisibility;
 import com.feipi.session.browser.validation.ValidationSupport;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
 import java.util.List;
 
 /**
@@ -30,6 +31,8 @@ import java.util.List;
  * @param artifactPath 归一化制品路径，未关联制品时为空字符串
  * @param artifactSchemaVersion 制品 schema 版本，未关联制品时为空字符串
  * @param cacheKey 缓存键，包含制品 hash 和 index 版本信息
+ * @param totalRoundCount 完整逻辑会话轮次总数，不是当前物化列表大小
+ * @param totalPayloadSourceCount 完整调用 request/response 来源总数
  */
 public record SessionDetail(
     /* 数据库会话行数据。 */
@@ -51,7 +54,9 @@ public record SessionDetail(
     @NotNull String artifactSchemaVersion,
 
     /* 缓存键，包含制品 hash 和 index 版本信息。 */
-    @NotNull String cacheKey) {
+    @NotNull String cacheKey,
+    @PositiveOrZero int totalRoundCount,
+    @PositiveOrZero int totalPayloadSourceCount) {
 
   /**
    * 紧凑构造器，验证详情不变量并执行防御性拷贝。
@@ -67,13 +72,36 @@ public record SessionDetail(
         visibility,
         artifactPath,
         artifactSchemaVersion,
-        cacheKey);
+        cacheKey,
+        totalRoundCount,
+        totalPayloadSourceCount);
 
     rounds = List.copyOf(rounds);
     payloadSources = List.copyOf(payloadSources);
     artifactPath = artifactPath == null ? "" : artifactPath;
     artifactSchemaVersion = artifactSchemaVersion == null ? "" : artifactSchemaVersion;
     cacheKey = cacheKey == null ? "" : cacheKey;
+  }
+
+  /** 为已经完整物化的旧详情保留兼容构造入口。 */
+  public SessionDetail(
+      SessionRecord row,
+      List<CallRound> rounds,
+      List<PayloadSource> sources,
+      PayloadVisibility visibility,
+      String path,
+      String schema,
+      String cacheKey) {
+    this(
+        row,
+        rounds,
+        sources,
+        visibility,
+        path,
+        schema,
+        cacheKey,
+        rounds == null ? 0 : rounds.size(),
+        sources == null ? 0 : sources.size());
   }
 
   /**
@@ -89,12 +117,12 @@ public record SessionDetail(
 
   /** 详情包含的轮次数量。 */
   public int roundCount() {
-    return rounds.size();
+    return totalRoundCount;
   }
 
   /** 详情包含的 payload 来源数量。 */
   public int payloadSourceCount() {
-    return payloadSources.size();
+    return totalPayloadSourceCount;
   }
 
   /** 是否有关联的归一化制品。 */

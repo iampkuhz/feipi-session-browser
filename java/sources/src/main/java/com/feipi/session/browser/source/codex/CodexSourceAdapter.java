@@ -131,13 +131,14 @@ public final class CodexSourceAdapter implements SourceAdapter {
         }
 
         String sessionKey = "codex:" + disc.sessionId();
-        String projectKey = extractProjectKeyFromThreadInfo(disc);
-
         Map<String, String> meta = buildCandidateMetadata(disc);
+        String projectKey = meta.getOrDefault("cwd", "");
         Candidate candidate = new Candidate(fp, sessionKey, projectKey, meta);
         candidates.add(candidate);
       } catch (Exception e) {
-        LOG.log(Level.FINE, "跳过无法处理的会话: " + disc.sessionId(), e);
+        LOG.log(Level.FINE, "Codex 候选构建失败: " + disc.sessionId(), e);
+        throw new IllegalStateException(
+            "Codex 候选构建失败 (" + e.getClass().getSimpleName() + "): " + disc.sessionId(), e);
       }
     }
 
@@ -146,11 +147,44 @@ public final class CodexSourceAdapter implements SourceAdapter {
         candidates, SourceConstants.MAX_CANDIDATES_PER_DISCOVERY, Optional.of(bySessionKey));
   }
 
+  /** 源数据库时间按纪元秒解析；索引时间按标准时间文本解析。 */
+  private static Optional<String> sourceTimestamp(String value) {
+    if (value == null || value.isBlank()) {
+      return Optional.empty();
+    }
+    try {
+      return Optional.of(java.time.Instant.ofEpochSecond(Long.parseLong(value)).toString());
+    } catch (NumberFormatException ignored) {
+      try {
+        return Optional.of(java.time.Instant.parse(value).toString());
+      } catch (java.time.DateTimeException invalid) {
+        return Optional.empty();
+      }
+    } catch (java.time.DateTimeException invalid) {
+      return Optional.empty();
+    }
+  }
+
   /** 从发现结果构建 Candidate 元数据。 */
   private static Map<String, String> buildCandidateMetadata(
       CodexDiscovery.CodexSessionDiscovery disc) {
     Map<String, String> meta = new java.util.HashMap<>();
     meta.put("has_transcript", String.valueOf(disc.hasFile()));
+    for (Map<String, String> source :
+        java.util.stream.Stream.of(disc.threadInfo(), disc.indexEntry())
+            .filter(Objects::nonNull)
+            .toList()) {
+      for (String field : List.of("cwd", "git_branch", "model")) {
+        String value = source.getOrDefault(field, "");
+        if (!value.isBlank()) {
+          meta.putIfAbsent(field, value);
+        }
+      }
+      sourceTimestamp(source.get("created_at"))
+          .ifPresent(value -> meta.putIfAbsent("started_at", value));
+      sourceTimestamp(source.get("updated_at"))
+          .ifPresent(value -> meta.putIfAbsent("ended_at", value));
+    }
 
     // 优先从 threads.db 取 title
     if (disc.threadInfo() != null) {
@@ -229,7 +263,9 @@ public final class CodexSourceAdapter implements SourceAdapter {
       return provenance.metadata();
     }
     try {
-      List<JsonNode> events = new JsonlReader().read(disc.rolloutPath()).events();
+      var result = CodexMetadataProjection.read(new JsonlReader(), disc.rolloutPath());
+      List<JsonNode> events =
+          CodexActivityRange.create(result.events(), result.diagnostics()).events();
       appendTokenProvenance(events, provenance);
       Map<String, String> parentMeta = readFirstSessionMeta(disc.rolloutPath());
       List<Path> children =
@@ -240,7 +276,10 @@ public final class CodexSourceAdapter implements SourceAdapter {
       for (Path child : children) {
         String id = readFirstSessionMeta(child).getOrDefault("id", "").trim();
         if (relations.containsKey(id)) {
-          appendTokenProvenance(new JsonlReader().read(child).events(), provenance);
+          var childResult = CodexMetadataProjection.read(new JsonlReader(), child);
+          appendTokenProvenance(
+              CodexActivityRange.create(childResult.events(), childResult.diagnostics()).events(),
+              provenance);
         }
       }
     } catch (IOException e) {
@@ -253,37 +292,14 @@ public final class CodexSourceAdapter implements SourceAdapter {
   private static void appendTokenProvenance(
       List<JsonNode> events, CodexTokenProvenance provenance) {
     CodexUsageSelection selection = new CodexUsageSelection(events);
-    if (!selection.modernEvents.isEmpty()) {
-      selection.usageIndices.forEach(
-          index ->
-              provenance.addUsage(
-                  hasResponseUsage(events.get(index))
-                      ? events.get(index).path("payload").path("usage")
-                      : cumulativeUsageNode(events.get(index))));
-      if (!selection.ambiguousEvents.isEmpty()) {
-        provenance.addUnknown();
-      }
-      return;
-    }
-    boolean observed = false;
-    TokenTotals previousTotals = null;
-    for (JsonNode event : events) {
-      if (!isTokenCount(event)) {
-        continue;
-      }
-      JsonNode usage = cumulativeUsageNode(event);
-      if (usage == null) {
-        continue;
-      }
-      TokenTotals totals = cumulativeTotals(event);
-      if (previousTotals != null && totals.sameAs(previousTotals)) {
-        continue;
-      }
-      previousTotals = totals;
-      provenance.addUsage(usage);
-      observed = true;
-    }
-    if (!observed) {
+    selection.usageIndices.forEach(
+        index ->
+            provenance.addProvenance(
+                hasResponseUsage(events.get(index))
+                    ? CodexTokenProvenance.forUsage(
+                        events.get(index).path("payload").path("usage"), true)
+                    : selection.legacyDeltas.get(index).provenance()));
+    if (!selection.ambiguousEvents.isEmpty() || selection.usageIndices.isEmpty()) {
       provenance.addUnknown();
     }
   }
@@ -292,7 +308,9 @@ public final class CodexSourceAdapter implements SourceAdapter {
   @Override
   public Map<String, String> singleFileMetadata(Path filePath) throws IOException {
     CodexTokenProvenance provenance = new CodexTokenProvenance();
-    appendTokenProvenance(new JsonlReader().read(filePath).events(), provenance);
+    var result = CodexEventProjection.read(new JsonlReader(), filePath);
+    appendTokenProvenance(
+        CodexActivityRange.create(result.events(), result.diagnostics()).events(), provenance);
     return provenance.metadata();
   }
 
@@ -303,7 +321,7 @@ public final class CodexSourceAdapter implements SourceAdapter {
 
   /** 在原始事件身份和完整线程累计锚点上选择 usage，不把数值残差猜成现代响应。 */
   private static final class CodexUsageSelection {
-    private final Map<Integer, JsonNode> modernEvents = new LinkedHashMap<>();
+    private final Map<Integer, TokenTotals> modernEvents = new LinkedHashMap<>();
     private final Map<Integer, SourceRecordUsage> legacyDeltas = new LinkedHashMap<>();
     private final Set<Integer> usageIndices = new java.util.LinkedHashSet<>();
     private final Set<Integer> ambiguousEvents = new java.util.LinkedHashSet<>();
@@ -327,7 +345,7 @@ public final class CodexSourceAdapter implements SourceAdapter {
         if (hasResponseUsage(event)) {
           String responseId = text(event.path("payload"), "response_id");
           if (responseId.isBlank() || responseIds.add(responseId)) {
-            modernEvents.put(index, event);
+            modernEvents.put(index, usageTotals(event.path("payload").path("usage"), true));
             String turn = text(event.path("payload"), "turn_id");
             modernTurns.add(turn);
             usageIndices.add(index);
@@ -341,6 +359,44 @@ public final class CodexSourceAdapter implements SourceAdapter {
       }
       if (!modernEvents.isEmpty()) {
         selectLegacyEvents(events);
+      } else {
+        selectLegacyOnly(events);
+      }
+    }
+
+    private Map<String, String> baselineProvenance = CodexTokenProvenance.reportedZero();
+
+    private void selectLegacyOnly(List<JsonNode> events) {
+      TokenTotals previous = TokenTotals.zero();
+      boolean ambiguous = false;
+      for (int index = 0; index < events.size(); index++) {
+        JsonNode event = events.get(index);
+        if (!isTokenCount(event)) continue;
+        JsonNode usage = cumulativeUsageNode(event);
+        if (usage == null) {
+          if (hasLastTokenUsage(event)) ambiguousEvents.add(index);
+          continue;
+        }
+        TokenTotals current = cumulativeTotals(event);
+        if (!current.covers(previous)) {
+          if (!ambiguous) resetEvents.add(index);
+          ambiguous = true;
+        }
+        if (ambiguous) {
+          ambiguousEvents.add(index);
+          continue;
+        }
+        if (!current.sameAs(previous) || usageIndices.isEmpty()) {
+          Map<String, String> precision = CodexTokenProvenance.forUsage(usage, false);
+          legacyDeltas.put(
+              index,
+              withUsageProvenance(
+                  current.deltaSince(previous),
+                  CodexTokenProvenance.deltaProvenance(precision, baselineProvenance)));
+          usageIndices.add(index);
+          baselineProvenance = precision;
+        }
+        previous = current;
       }
     }
 
@@ -364,6 +420,13 @@ public final class CodexSourceAdapter implements SourceAdapter {
     private void advanceModern(int index, JsonNode event) {
       TokenTotals total = anchors.get(index);
       TokenTotals usage = usageTotals(event.path("payload").path("usage"), true);
+      baselineProvenance =
+          total != null
+              ? CodexTokenProvenance.forUsage(
+                  event.path("payload").path("thread_token_usage"), true)
+              : CodexTokenProvenance.deltaProvenance(
+                  CodexTokenProvenance.forUsage(event.path("payload").path("usage"), true),
+                  baselineProvenance);
       latestModernIndex = index;
       latestModernUsage = usage;
       if (total != null) {
@@ -408,7 +471,12 @@ public final class CodexSourceAdapter implements SourceAdapter {
         rememberLegacy(index, total, false);
         return;
       }
-      legacyDeltas.put(index, total.deltaSince(baseline));
+      legacyDeltas.put(
+          index,
+          withUsageProvenance(
+              total.deltaSince(baseline),
+              CodexTokenProvenance.deltaProvenance(legacyPrecision(usage), baselineProvenance)));
+      baselineProvenance = legacyPrecision(usage);
       usageIndices.add(index);
       baseline = total;
       rememberLegacy(index, total, true);
@@ -429,7 +497,7 @@ public final class CodexSourceAdapter implements SourceAdapter {
           && baseline.covers(total)
           && total.covers(legacyBaseline)
           && last != null
-          && CodexTokenProvenance.hasCompleteUsage(last)
+          && CodexTokenProvenance.hasCompleteUsage(last, legacyIncludesCache(last))
           && legacyTotals(last).sameComponents(latestModernUsage)
           && total.minus(legacyBaseline).sameComponents(latestModernUsage);
     }
@@ -448,11 +516,7 @@ public final class CodexSourceAdapter implements SourceAdapter {
     private boolean ownsLegacyDelta(int index, JsonNode event, TokenTotals total, String turn) {
       Map.Entry<Integer, TokenTotals> next = anchors.higherEntry(index);
       if (next != null) {
-        TokenTotals before =
-            next.getValue()
-                .minus(
-                    usageTotals(
-                        modernEvents.get(next.getKey()).path("payload").path("usage"), true));
+        TokenTotals before = next.getValue().minus(modernEvents.get(next.getKey()));
         return before.covers(total) && before.covers(baseline);
       }
       if (!turn.isBlank() && !modernTurns.contains("") && !modernTurns.contains(turn)) {
@@ -462,18 +526,24 @@ public final class CodexSourceAdapter implements SourceAdapter {
       return anchored && last != null && legacyTotals(last).sameComponents(total.minus(baseline));
     }
 
+    private static boolean legacyIncludesCache(JsonNode usage) {
+      return usage.has("cached_input_tokens") && !usage.has("cache_read_input_tokens");
+    }
+
+    private static Map<String, String> legacyPrecision(JsonNode usage) {
+      return CodexTokenProvenance.forUsage(usage, legacyIncludesCache(usage));
+    }
+
     private static TokenTotals legacyTotals(JsonNode usage) {
-      boolean includesCache =
-          usage.has("cached_input_tokens") && !usage.has("cache_read_input_tokens");
-      return usageTotals(usage, includesCache);
+      return usageTotals(usage, legacyIncludesCache(usage));
     }
 
     private static TokenTotals threadTotals(JsonNode event) {
       JsonNode payload = event.path("payload");
       JsonNode thread = payload.path("thread_token_usage");
       JsonNode usage = payload.path("usage");
-      if (!CodexTokenProvenance.hasCompleteUsage(thread)
-          || !CodexTokenProvenance.hasCompleteUsage(usage)) {
+      if (!CodexTokenProvenance.hasCompleteUsage(thread, true)
+          || !CodexTokenProvenance.hasCompleteUsage(usage, true)) {
         return null;
       }
       TokenTotals total = usageTotals(thread, true);
@@ -569,17 +639,6 @@ public final class CodexSourceAdapter implements SourceAdapter {
     }
   }
 
-  /** 从发现结果提取项目键。 */
-  private static String extractProjectKeyFromThreadInfo(CodexDiscovery.CodexSessionDiscovery disc) {
-    if (disc.threadInfo() != null) {
-      String cwd = disc.threadInfo().getOrDefault("cwd", "");
-      if (!cwd.isEmpty()) {
-        return cwd;
-      }
-    }
-    return "";
-  }
-
   /**
    * 为指定源文件生成指纹。
    *
@@ -655,154 +714,241 @@ public final class CodexSourceAdapter implements SourceAdapter {
       return new SourceResult.Skipped(List.of(), "文件不存在: " + filePath);
     }
 
-    try {
-      JsonlReaderResult result = jsonlReader.read(filePath);
+    try (var owner = new CodexRecordOwner()) {
       String locator = candidate.fingerprint().locator();
-      // 从候选元数据初始化模型，确保早期事件可使用发现阶段提取的模型
-      String metaModel = candidate.metadata().get("model");
-      String initialModel = metaModel == null || metaModel.isBlank() ? "" : metaModel;
-      List<SourceDiagnostic> diagnostics = new ArrayList<>(result.diagnostics());
-      List<JsonNode> events = result.events();
-      List<SourceRecord> records = new ArrayList<>(events.size());
-      Map<String, String> parentMeta = readFirstSessionMeta(filePath);
-      List<Path> childRollouts =
-          CodexDiscovery.isSubagentMetaEvent(parentMeta)
-              ? List.of()
-              : childRolloutFiles(
-                  filePath, parentThreadIdForParent(parentMeta, candidate.sessionKey()));
-      Map<String, SourceRecordRelation> spawnRelations =
-          spawnRelations(events, childRollouts, diagnostics, locator);
+      List<SourceDiagnostic> diagnostics;
+      int candidateCount;
+      try (var batch = CodexEventBatch.read(jsonlReader, filePath)) {
+        JsonlReaderResult result = batch.result();
+        // 从候选元数据初始化模型，确保早期事件可使用发现阶段提取的模型
+        String metaModel = candidate.metadata().get("model");
+        String initialModel = metaModel == null || metaModel.isBlank() ? "" : metaModel;
+        diagnostics = new ArrayList<>(result.diagnostics());
+        var range = CodexActivityRange.create(batch.events(), result.diagnostics());
+        List<JsonNode> events = range.events();
+        Map<String, String> parentMeta = readFirstSessionMeta(filePath);
+        List<Path> childRollouts =
+            CodexDiscovery.isSubagentMetaEvent(parentMeta)
+                ? List.of()
+                : childRolloutFiles(
+                    filePath, parentThreadIdForParent(parentMeta, candidate.sessionKey()));
+        Map<String, SourceRecordRelation> spawnRelations =
+            spawnRelations(events, childRollouts, diagnostics, locator);
 
-      int candidateCount =
-          appendParsedEvents(
-              events,
-              locator,
-              initialModel,
-              SourceRecordRelation.empty(),
-              spawnRelations,
-              diagnostics,
-              records);
-      // 注意：此处设置 events = null 无法降低峰值内存，因为 result.events() 仍持有同一 List 引用。
-      // JsonlReaderResult 是不可变 record，其 events 字段在 parse() 方法作用域结束前不会被释放。
-      // 真正的内存优化需要流式解析或修改 JsonlReaderResult 接口，当前不在范围内。
+        candidateCount =
+            appendParsedEvents(
+                range,
+                new CodexParseState(locator, range.initialModel(initialModel), cancellation),
+                SourceRecordRelation.empty(),
+                spawnRelations,
+                diagnostics,
+                owner.spool);
+        // 每个事件写入批次 spool 前已投影；正文和身份逐条重放，非文本原文按 locator 读取。
 
-      if (!childRollouts.isEmpty()) {
-        for (Path childRollout : childRollouts) {
-          Map<String, String> childMeta = readFirstSessionMeta(childRollout);
-          String childId = childMeta.getOrDefault("id", "").trim();
-          SourceRecordRelation parentRelation = spawnRelations.get(childId);
-          if (parentRelation == null) {
-            diagnostics.add(
-                codexInfoDiagnostic(
-                    "Subagent rollout has parent metadata but no unambiguous spawn_agent output: "
-                        + childId,
-                    "SUBAGENT_SPAWN_UNMATCHED",
-                    childRollout.toString()));
-            continue;
+        if (!childRollouts.isEmpty()) {
+          for (Path childRollout : childRollouts) {
+            Map<String, String> childMeta = readFirstSessionMeta(childRollout);
+            String childId = childMeta.getOrDefault("id", "").trim();
+            SourceRecordRelation parentRelation = spawnRelations.get(childId);
+            if (parentRelation == null) {
+              diagnostics.add(
+                  codexInfoDiagnostic(
+                      "Subagent rollout has parent metadata but no unambiguous spawn_agent output: "
+                          + childId,
+                      "SUBAGENT_SPAWN_UNMATCHED",
+                      childRollout.toString()));
+              continue;
+            }
+            try (var childBatch = CodexEventBatch.read(jsonlReader, childRollout)) {
+              JsonlReaderResult childResult = childBatch.result();
+              diagnostics.addAll(childResult.diagnostics());
+              var childRange =
+                  CodexActivityRange.create(childBatch.events(), childResult.diagnostics());
+              candidateCount +=
+                  appendParsedEvents(
+                      childRange,
+                      new CodexParseState(
+                          childRollout.toAbsolutePath().toString(),
+                          childRange.initialModel(initialModel),
+                          cancellation),
+                      parentRelation,
+                      spawnRelations(
+                          childRange.events(), List.of(), diagnostics, childRollout.toString()),
+                      diagnostics,
+                      owner.spool);
+            }
           }
-          JsonlReaderResult childResult = jsonlReader.read(childRollout);
-          diagnostics.addAll(childResult.diagnostics());
-          candidateCount +=
-              appendParsedEvents(
-                  childResult.events(),
-                  childRollout.toAbsolutePath().toString(),
-                  initialModel,
-                  parentRelation,
-                  spawnRelations(
-                      childResult.events(), List.of(), diagnostics, childRollout.toString()),
-                  diagnostics,
-                  records);
         }
       }
-
-      return new SourceResult.Success(
-          diagnostics, candidateCount, List.copyOf(records), candidate.fingerprint(), locator);
+      return owner.finish(diagnostics, candidateCount, candidate);
+    } catch (CancelledMapping e) {
+      return new SourceResult.Skipped(List.of(), "解析已取消");
+    } catch (java.io.UncheckedIOException e) {
+      return new SourceResult.Fatal(List.of(), "事件重放读取失败: " + filePath + " - " + e.getMessage());
     } catch (IOException e) {
       String detail = "文件读取失败: " + filePath + " - " + e.getMessage();
       return new SourceResult.Fatal(List.of(), detail);
     }
   }
 
+  /** 最终 spool 仅在 managed 工厂成功后转移所有权，小表示同时受数量和全部载荷预算约束。 */
+  private static final class CodexRecordOwner implements AutoCloseable {
+    private final CodexRecordSpool spool;
+    private boolean transferred;
+
+    private CodexRecordOwner() throws IOException {
+      spool = new CodexRecordSpool();
+    }
+
+    private SourceResult.Success finish(
+        List<SourceDiagnostic> diagnostics, int count, Candidate candidate) throws IOException {
+      spool.seal();
+      if (spool.recordCount() <= 1024 && spool.payloadBytes() <= 2L * 1024 * 1024) {
+        List<SourceRecord> records = new ArrayList<>();
+        try (var cursor = spool.openCursor()) {
+          while (cursor.hasNext()) records.add(cursor.next());
+        }
+        return new SourceResult.Success(
+            diagnostics,
+            count,
+            records,
+            candidate.fingerprint(),
+            candidate.fingerprint().locator());
+      }
+      var success =
+          SourceResult.Success.managed(
+              diagnostics,
+              count,
+              spool,
+              candidate.fingerprint(),
+              candidate.fingerprint().locator());
+      transferred = true;
+      return success;
+    }
+
+    @Override
+    public void close() throws IOException {
+      if (!transferred) spool.close();
+    }
+  }
+
+  /** 取消不发布部分成功，外层 finally 仍清理所有中间文件。 */
+  private static final class CancelledMapping extends IOException {
+    private static final long serialVersionUID = 1L;
+  }
+
   private static int appendParsedEvents(
-      List<JsonNode> events,
-      String locator,
-      String initialModel,
+      CodexActivityRange range,
+      CodexParseState state,
       SourceRecordRelation defaultRelation,
       Map<String, SourceRecordRelation> toolRelations,
       List<SourceDiagnostic> diagnostics,
-      List<SourceRecord> records) {
-    int firstRecord = records.size();
-    CodexParseState state = new CodexParseState();
-    state.locator = locator;
-    state.currentModel = initialModel == null ? "" : initialModel;
-    CodexUsageSelection selection = new CodexUsageSelection(events);
-    boolean hasResponseUsage = !selection.modernEvents.isEmpty();
-    boolean hasTokenUsage =
-        hasResponseUsage || events.stream().anyMatch(CodexSourceAdapter::hasCumulativeUsage);
-    Set<String> responseIds = new HashSet<>();
-    TokenTotals previousTotals = TokenTotals.zero();
-    for (int eventIndex = 0; eventIndex < events.size(); eventIndex++) {
-      JsonNode event = events.get(eventIndex);
-      String rawEventType = extractEventType(event);
-      String ts = extractTimestamp(event);
-      collectEventDiagnostics(state, event, eventIndex, rawEventType, locator, diagnostics);
-      updateCurrentModel(state, event);
+      CodexRecordSpool records)
+      throws IOException {
+    try (var rawRecords = new CodexRecordSpool()) {
+      List<JsonNode> events = range.events();
+      String locator = state.locator;
+      CancellationSignal cancellation = state.cancellation;
+      CodexUsageSelection selection = new CodexUsageSelection(events);
+      boolean hasResponseUsage = !selection.modernEvents.isEmpty();
+      boolean hasTokenUsage =
+          hasResponseUsage || events.stream().anyMatch(CodexSourceAdapter::hasCumulativeUsage);
+      Set<String> responseIds = new HashSet<>();
+      TokenTotals previousTotals = TokenTotals.zero();
+      for (int eventIndex = range.start(); eventIndex < events.size(); eventIndex++) {
+        if (cancellation != null && cancellation.isCancelled()) throw new CancelledMapping();
+        JsonNode event = events.get(eventIndex);
+        String rawEventType = extractEventType(event);
+        String ts = extractTimestamp(event);
+        collectEventDiagnostics(state, event, eventIndex, rawEventType, locator, diagnostics);
+        updateCurrentModel(state, event);
 
-      CodexRecordMapping mapped;
-      if (hasResponseUsage(event)) {
-        mapped =
-            new CodexRecordMapping(
-                mapResponseUsage(event, eventIndex, locator, state.currentModel, responseIds),
-                previousTotals);
-      } else if (hasResponseUsage && isTokenCount(event)) {
-        SourceRecordUsage legacy = selection.legacyDeltas.get(eventIndex);
-        mapped =
-            new CodexRecordMapping(
-                legacy == null
-                    ? basicRecord(
-                        locator + "#event[" + eventIndex + "]", eventIndex, rawEventType, ts)
-                    : new SourceRecord(
-                        locator + "#event[" + eventIndex + "]",
-                        eventIndex,
-                        "assistant",
-                        Optional.of("token_count:" + eventIndex),
-                        optionalText(state.currentModel),
-                        optionalText(ts),
-                        Optional.empty(),
-                        legacy,
-                        List.of(),
-                        Optional.empty(),
-                        Optional.empty(),
-                        Optional.empty()),
-                previousTotals);
-      } else {
-        mapped =
-            mapCodexRecord(
-                event, eventIndex, locator, state.currentModel, hasTokenUsage, previousTotals, ts);
+        CodexRecordMapping mapped;
+        if (hasResponseUsage(event)) {
+          mapped =
+              new CodexRecordMapping(
+                  mapResponseUsage(event, eventIndex, locator, state.currentModel, responseIds),
+                  previousTotals);
+        } else if (isTokenCount(event)) {
+          SourceRecordUsage legacy = selection.legacyDeltas.get(eventIndex);
+          mapped =
+              new CodexRecordMapping(
+                  legacy == null || legacy.total() == 0
+                      ? neutralUsageRecord(
+                          locator + "#event[" + eventIndex + "]",
+                          eventIndex,
+                          rawEventType,
+                          ts,
+                          state.currentModel,
+                          legacy == null
+                              ? withUsageProvenance(
+                                  SourceRecordUsage.empty(), new CodexTokenProvenance().metadata())
+                              : legacy)
+                      : new SourceRecord(
+                          locator + "#event[" + eventIndex + "]",
+                          eventIndex,
+                          "assistant",
+                          Optional.of("token_count:" + eventIndex),
+                          optionalText(state.currentModel),
+                          optionalText(ts),
+                          Optional.empty(),
+                          legacy,
+                          List.of(),
+                          Optional.empty(),
+                          Optional.empty(),
+                          Optional.empty()),
+                  previousTotals);
+        } else {
+          mapped =
+              mapCodexRecord(
+                  event,
+                  eventIndex,
+                  locator,
+                  state.currentModel,
+                  hasTokenUsage,
+                  previousTotals,
+                  ts);
+        }
+        previousTotals = mapped.previousTotals();
+        rawRecords.add(
+            withRelation(mapped.record(), relationForEvent(event, defaultRelation, toolRelations)));
+        // 工具正文/输入已由 SourceRecord 持有；后备与 usage 分段不再读取这些中间树。
+        // 就地释放也覆盖 result.events() 的别名，不改变物理顺序、身份或原始来源。
+        if (event.path("payload")
+            instanceof com.fasterxml.jackson.databind.node.ObjectNode payload) {
+          if ("tool_result".equals(mapped.record().eventType())) {
+            payload.remove("output");
+          } else if ("tool_use".equals(mapped.record().eventType())
+              && !mapped.record().toolCalls().isEmpty()) {
+            payload.remove(
+                "function_call".equals(payload.path("type").asText()) ? "arguments" : "input");
+          }
+        }
       }
-      previousTotals = mapped.previousTotals();
-      records.add(
-          withRelation(mapped.record(), relationForEvent(event, defaultRelation, toolRelations)));
+      selection.ambiguousEvents.forEach(
+          index ->
+              diagnostics.add(
+                  codexInfoDiagnostic(
+                      "Usage ownership cannot be established at event[" + index + "]",
+                      "TOKEN_USAGE_AMBIGUOUS",
+                      locator)));
+      selection.resetEvents.forEach(
+          index ->
+              diagnostics.add(
+                  codexInfoDiagnostic(
+                      (selection.modernEvents.isEmpty()
+                              ? "Legacy cumulative counter decreased; ownership is unknown at"
+                                  + " event["
+                              : "Modern cumulative counter decreased or restarted at event[")
+                          + index
+                          + "]",
+                      "TOKEN_COUNTER_RESET",
+                      locator)));
+      rawRecords.seal();
+      appendEventMessageFallbacks(events, rawRecords, records, cancellation, selection);
+      collectCompletionDiagnostics(state, diagnostics);
+      return events.size();
     }
-    selection.ambiguousEvents.forEach(
-        index ->
-            diagnostics.add(
-                codexInfoDiagnostic(
-                    "Usage ownership cannot be established at event[" + index + "]",
-                    "TOKEN_USAGE_AMBIGUOUS",
-                    locator)));
-    selection.resetEvents.forEach(
-        index ->
-            diagnostics.add(
-                codexInfoDiagnostic(
-                    "Modern thread usage establishes a restarted cumulative counter at event["
-                        + index
-                        + "]",
-                    "TOKEN_COUNTER_RESET",
-                    locator)));
-    appendEventMessageFallbacks(events, records, firstRecord);
-    collectCompletionDiagnostics(state, diagnostics);
-    return events.size();
   }
 
   /**
@@ -813,33 +959,70 @@ public final class CodexSourceAdapter implements SourceAdapter {
    * 表示，不从别的轮次借用 usage 或伪造 turnId。
    */
   private static void appendEventMessageFallbacks(
-      List<JsonNode> events, List<SourceRecord> records, int firstRecord) {
-    if (events.stream().anyMatch(event -> isResponseMessage(event, "assistant"))) {
-      return;
+      List<JsonNode> events,
+      CodexRecordSpool rawRecords,
+      CodexRecordSpool records,
+      CancellationSignal cancellation,
+      CodexUsageSelection selection)
+      throws IOException {
+    Set<Integer> mirroredEvents = completeMessageMirrors(events);
+    List<SourceRecord> fileRecords =
+        new java.util.AbstractList<>() {
+          @Override
+          public int size() {
+            return rawRecords.size();
+          }
+
+          @Override
+          public SourceRecord get(int ordinal) {
+            SourceRecord record = rawRecords.get(ordinal);
+            return mirroredEvents.contains(record.eventIndex())
+                ? withRelation(
+                    basicRecord(
+                        record.locator(),
+                        record.eventIndex(),
+                        "event_msg",
+                        record.timestamp().orElse("")),
+                    record.relation())
+                : record;
+          }
+        };
+    int[] segments = messageSegments(events, fileRecords);
+    boolean[] framedSegments = framedMessageSegments(fileRecords, segments);
+    Map<Integer, SourceRecordUsage> zeroFrames =
+        responseFrames(events, fileRecords, segments, framedSegments, selection);
+    Set<Integer> zeroSegments = new HashSet<>();
+    zeroFrames.keySet().forEach(index -> zeroSegments.add(segments[index]));
+    for (int index = 0; index < framedSegments.length; index++) {
+      framedSegments[index] |= zeroSegments.contains(segments[index]);
     }
-    List<SourceRecord> fileRecords = new ArrayList<>(records.subList(firstRecord, records.size()));
-    boolean[] framedSegments = framedMessageSegments(fileRecords);
-    boolean hasUserMessage = events.stream().anyMatch(event -> isResponseMessage(event, "user"));
-    records.subList(firstRecord, records.size()).clear();
+    boolean[] authoritativeUsers = responseMessageSegments(events, fileRecords, segments, "user");
+    boolean[] authoritativeAssistants =
+        responseMessageSegments(events, fileRecords, segments, "assistant");
     for (int index = 0; index < fileRecords.size(); index++) {
+      if (cancellation != null && cancellation.isCancelled()) throw new CancelledMapping();
       SourceRecord record = fileRecords.get(index);
+      if (zeroFrames.containsKey(index)) {
+        record = responseFrame(record, zeroFrames.get(index));
+      }
       records.add(record);
       if (!"event_msg".equals(record.eventType())) {
         continue;
       }
       String subtype = record.turnId().orElse("");
       boolean user = "user_message".equals(subtype);
-      if ((user && hasUserMessage) || (!user && !"agent_message".equals(subtype))) {
+      if ((user && authoritativeUsers[index])
+          || (!user && (!"agent_message".equals(subtype) || authoritativeAssistants[index]))) {
         continue;
       }
-      JsonNode payload = events.get(record.eventIndex()).path("payload");
-      String content =
-          responseText(
-              payload.hasNonNull("message") ? payload.get("message") : payload.get("content"));
+      String content = eventMessageContent(events.get(record.eventIndex()));
       if (content.isBlank()) {
         continue;
       }
-      String type = user ? "user" : framedSegments[index] ? "response_item" : "assistant";
+      String type =
+          user
+              ? "user"
+              : framedSegments[index] ? CodexConstants.EVENT_TYPE_RESPONSE_ITEM : "assistant";
       records.add(
           new SourceRecord(
               record.locator(),
@@ -859,31 +1042,266 @@ public final class CodexSourceAdapter implements SourceAdapter {
     }
   }
 
-  /** 只使用显式事件边界分段，不按时间或相同正文猜测轮次身份。 */
-  private static boolean[] framedMessageSegments(List<SourceRecord> records) {
-    boolean[] framed = new boolean[records.size()];
-    int end = records.size();
-    for (int start = records.size() - 1; start >= 0; start--) {
-      SourceRecord record = records.get(start);
-      String subtype = record.turnId().orElse("");
-      boolean boundary =
-          "turn_context".equals(record.eventType())
-              || ("event_msg".equals(record.eventType())
-                  && ("user_message".equals(subtype) || "task_started".equals(subtype)));
-      if (start == 0 || boundary) {
-        boolean hasFrame =
-            records.subList(start, end).stream()
-                .anyMatch(item -> "assistant".equals(item.eventType()));
-        java.util.Arrays.fill(framed, start, end, hasFrame);
-        end = start;
+  /** 调用依据独立于计量归属：正文可证调用，工具声明另需 closing counter。 */
+  private static Map<Integer, SourceRecordUsage> responseFrames(
+      List<JsonNode> events,
+      List<SourceRecord> records,
+      int[] segments,
+      boolean[] framed,
+      CodexUsageSelection selection) {
+    Map<Integer, Integer> bodies = new LinkedHashMap<>();
+    Set<Integer> outputs = new HashSet<>();
+    Set<Integer> planned = new HashSet<>();
+    Map<Integer, SourceRecordUsage> frames = new LinkedHashMap<>();
+    SourceRecordUsage unknown =
+        withUsageProvenance(SourceRecordUsage.empty(), new CodexTokenProvenance().metadata());
+    for (int index = 0; index < records.size(); index++) {
+      SourceRecord record = records.get(index);
+      int segment = segments[index];
+      JsonNode event = events.get(record.eventIndex());
+      if ("assistant".equals(record.messageRole().orElse("")) && !record.content().isBlank()) {
+        bodies.putIfAbsent(segment, index);
+        outputs.add(segment);
+      } else if ("tool_use".equals(record.eventType()) && !record.toolCalls().isEmpty()) {
+        outputs.add(segment);
+      } else if (isEventMessage(event, "agent_message")
+          && record.turnId().filter("agent_message"::equals).isPresent()
+          && !eventMessageContent(event).isBlank()) {
+        outputs.add(segment);
+      }
+      if (framed[index]
+          || planned.contains(segment)
+          || !outputs.contains(segment)
+          || !isTokenCount(event)
+          || cumulativeUsageNode(event) == null
+          || !cumulativeTotals(event).sameAs(TokenTotals.zero())
+          || selection.ambiguousEvents.contains(record.eventIndex())) {
+        continue;
+      }
+      SourceRecordUsage selected = selection.legacyDeltas.get(record.eventIndex());
+      // 被选择的 closing 保留原分量精度；重复累计值只能证明输出存在，不能背书实测零。
+      frames.put(index, selected == null ? unknown : selected);
+      planned.add(segment);
+    }
+    for (var body : bodies.entrySet()) {
+      int index = body.getValue();
+      if (!framed[index]
+          && !planned.contains(body.getKey())
+          && CodexConstants.EVENT_TYPE_RESPONSE_ITEM.equals(records.get(index).eventType())) {
+        frames.put(index, unknown);
       }
     }
-    return framed;
+    return frames;
+  }
+
+  private static SourceRecord responseFrame(SourceRecord record, SourceRecordUsage usage) {
+    return new SourceRecord(
+        record.locator(),
+        record.eventIndex(),
+        "assistant",
+        Optional.of(
+            (CodexConstants.EVENT_TYPE_RESPONSE_ITEM.equals(record.eventType())
+                    ? "unmetered_response:"
+                    : "token_count:")
+                + record.eventIndex()),
+        record.model(),
+        record.timestamp(),
+        record.turnId(),
+        usage,
+        record.toolCalls(),
+        record.toolUseId(),
+        record.toolName(),
+        record.toolError(),
+        record.relation(),
+        record.content(),
+        record.responseMessageId(),
+        record.responseStopReason(),
+        record.timing(),
+        record.metaContext(),
+        record.messageRole());
+  }
+
+  /** 仅把连续完整、且源身份精确相同的问答表示视为镜像。 */
+  private static Set<Integer> completeMessageMirrors(List<JsonNode> events) {
+    Set<Integer> mirrors = new HashSet<>();
+    for (int index = 0; index + 3 < events.size(); index++) {
+      int[] roles = {-1, -1, -1, -1};
+      boolean complete = true;
+      for (int offset = 0; offset < 4; offset++) {
+        JsonNode event = events.get(index + offset);
+        int slot;
+        if (isEventMessage(event, "user_message")) {
+          slot = 0;
+        } else if (isEventMessage(event, "agent_message")) {
+          slot = 1;
+        } else if (isResponseMessage(event, "user")) {
+          slot = 2;
+        } else if (isResponseMessage(event, "assistant")) {
+          slot = 3;
+        } else {
+          complete = false;
+          break;
+        }
+        if (roles[slot] >= 0) {
+          complete = false;
+          break;
+        }
+        roles[slot] = index + offset;
+      }
+      if (!complete || roles[0] >= roles[1] || roles[2] >= roles[3]) {
+        continue;
+      }
+      if (sameMessageIdentity(events, roles[0], roles[1], roles[2], roles[3])) {
+        mirrors.add(roles[0]);
+        mirrors.add(roles[1]);
+        index += 3;
+      }
+    }
+    return mirrors;
+  }
+
+  private static boolean isEventMessage(JsonNode event, String subtype) {
+    return "event_msg".equals(extractEventType(event))
+        && subtype.equals(text(event.path("payload"), "type"));
+  }
+
+  private static String messageTurnId(JsonNode event) {
+    String payloadId = text(event.path("payload"), "turn_id");
+    return payloadId.isBlank() ? text(event, "turn_id") : payloadId;
+  }
+
+  private static boolean sameMessageIdentity(
+      List<JsonNode> events,
+      int eventUser,
+      int eventAssistant,
+      int responseUser,
+      int responseAssistant) {
+    Set<String> turnIds = new HashSet<>();
+    boolean timestampsMatch = true;
+    for (int offset = 0; offset < 2; offset++) {
+      JsonNode event = events.get(offset == 0 ? eventUser : eventAssistant);
+      JsonNode response = events.get(offset == 0 ? responseUser : responseAssistant);
+      String content = eventMessageContent(event);
+      if (content.isBlank()
+          || !content.equals(responseText(response.path("payload").get("content")))) {
+        return false;
+      }
+      String eventTurn = messageTurnId(event);
+      String responseTurn = messageTurnId(response);
+      if (!eventTurn.isBlank()) {
+        turnIds.add(eventTurn);
+      }
+      if (!responseTurn.isBlank()) {
+        turnIds.add(responseTurn);
+      }
+      String timestamp = extractTimestamp(event);
+      timestampsMatch &=
+          sourceTimestamp(timestamp).isPresent() && timestamp.equals(extractTimestamp(response));
+    }
+    if (turnIds.size() > 1) {
+      return false;
+    }
+    boolean sameTurn =
+        !messageTurnId(events.get(eventUser)).isBlank()
+            && messageTurnId(events.get(eventUser)).equals(messageTurnId(events.get(responseUser)));
+    return timestampsMatch || sameTurn;
+  }
+
+  /** 仅配对相邻且非空同文的输入镜像，禁止跨输入查找相同正文。 */
+  private static int[] messageSegments(List<JsonNode> events, List<SourceRecord> records) {
+    int[] segments = new int[records.size()];
+    int segment = 0;
+    String pendingRepresentation = "";
+    CodexFallbackPlan.Fingerprint pendingFingerprint = null;
+    int pendingOrdinal = -1;
+    for (int index = 0; index < records.size(); index++) {
+      SourceRecord record = records.get(index);
+      JsonNode event = events.get(record.eventIndex());
+      String subtype = record.turnId().orElse("");
+      boolean eventUser = "event_msg".equals(record.eventType()) && "user_message".equals(subtype);
+      boolean responseUser = isResponseMessage(event, "user");
+      if (eventUser || responseUser) {
+        String representation = eventUser ? "event_msg" : CodexConstants.EVENT_TYPE_RESPONSE_ITEM;
+        String content =
+            eventUser
+                ? eventMessageContent(event)
+                : responseText(event.path("payload").get("content"));
+        boolean mirror =
+            !pendingRepresentation.isEmpty()
+                && !pendingRepresentation.equals(representation)
+                && !content.isBlank()
+                && CodexFallbackPlan.fingerprint(content).equals(pendingFingerprint)
+                && content.equals(
+                    "event_msg".equals(pendingRepresentation)
+                        ? eventMessageContent(events.get(pendingOrdinal))
+                        : responseText(events.get(pendingOrdinal).path("payload").get("content")));
+        if (!mirror) {
+          segment++;
+        }
+        pendingRepresentation = mirror ? "" : representation;
+        pendingFingerprint = mirror ? null : CodexFallbackPlan.fingerprint(content);
+        pendingOrdinal = mirror ? -1 : record.eventIndex();
+      } else {
+        pendingRepresentation = "";
+        pendingFingerprint = null;
+        pendingOrdinal = -1;
+        if ("turn_context".equals(record.eventType())
+            || ("event_msg".equals(record.eventType()) && "task_started".equals(subtype))) {
+          segment++;
+        }
+      }
+      segments[index] = segment;
+    }
+    return segments;
+  }
+
+  private static String eventMessageContent(JsonNode event) {
+    JsonNode payload = event.path("payload");
+    return responseText(
+        payload.hasNonNull("message") ? payload.get("message") : payload.get("content"));
+  }
+
+  /** 不能仅凭角色判断权威表示；只有当前输入分段内相同且非空的正文才算镜像。 */
+  private static boolean[] responseMessageSegments(
+      List<JsonNode> events, List<SourceRecord> records, int[] segments, String role) {
+    CodexFallbackPlan bodies = new CodexFallbackPlan();
+    for (int index = 0; index < records.size(); index++) {
+      JsonNode event = events.get(records.get(index).eventIndex());
+      if (isResponseMessage(event, role)) {
+        String content = responseText(event.path("payload").get("content"));
+        if (!content.isBlank()) {
+          bodies.add(segments[index], records.get(index).eventIndex(), content);
+        }
+      }
+    }
+    boolean[] authoritative = new boolean[records.size()];
+    for (int index = 0; index < records.size(); index++) {
+      authoritative[index] =
+          bodies.contains(
+              segments[index],
+              eventMessageContent(events.get(records.get(index).eventIndex())),
+              ordinal -> responseText(events.get(ordinal).path("payload").get("content")));
+    }
+    return authoritative;
+  }
+
+  private static boolean[] framedMessageSegments(List<SourceRecord> records, int[] segments) {
+    Set<Integer> framed = new HashSet<>();
+    for (int index = 0; index < records.size(); index++) {
+      if ("assistant".equals(records.get(index).eventType())) {
+        framed.add(segments[index]);
+      }
+    }
+    boolean[] result = new boolean[records.size()];
+    for (int index = 0; index < records.size(); index++) {
+      result[index] = framed.contains(segments[index]);
+    }
+    return result;
   }
 
   private static boolean isResponseMessage(JsonNode event, String role) {
     JsonNode payload = event.path("payload");
-    return "response_item".equals(extractEventType(event))
+    return CodexConstants.EVENT_TYPE_RESPONSE_ITEM.equals(extractEventType(event))
         && "message".equals(text(payload, "type"))
         && role.equals(text(payload, "role"));
   }
@@ -909,7 +1327,41 @@ public final class CodexSourceAdapter implements SourceAdapter {
         optionalText(model),
         optionalText(extractTimestamp(event)),
         optionalText(text(payload, "turn_id")),
-        usageTotals(payload.path("usage"), true).deltaSince(TokenTotals.zero()),
+        withUsageProvenance(
+            usageTotals(payload.path("usage"), true).deltaSince(TokenTotals.zero()),
+            CodexTokenProvenance.forUsage(payload.path("usage"), true)),
+        List.of(),
+        Optional.empty(),
+        Optional.empty(),
+        Optional.empty());
+  }
+
+  private static SourceRecordUsage withUsageProvenance(
+      SourceRecordUsage usage, Map<String, String> provenance) {
+    return new SourceRecordUsage(
+        usage.inputTokens(),
+        usage.cacheReadInputTokens(),
+        usage.cacheCreationInputTokens(),
+        usage.outputTokens(),
+        provenance);
+  }
+
+  private static SourceRecord neutralUsageRecord(
+      String locator,
+      int index,
+      String type,
+      String timestamp,
+      String model,
+      SourceRecordUsage usage) {
+    return new SourceRecord(
+        locator,
+        index,
+        type,
+        Optional.empty(),
+        optionalText(model),
+        optionalText(timestamp),
+        Optional.empty(),
+        usage,
         List.of(),
         Optional.empty(),
         Optional.empty(),
@@ -935,7 +1387,8 @@ public final class CodexSourceAdapter implements SourceAdapter {
         record.responseMessageId(),
         record.responseStopReason(),
         record.timing(),
-        record.metaContext());
+        record.metaContext(),
+        record.messageRole());
   }
 
   private static SourceRecordRelation relationForEvent(
@@ -1037,6 +1490,18 @@ public final class CodexSourceAdapter implements SourceAdapter {
     return Map.copyOf(relations);
   }
 
+  /** 复用原关联解析，仅为 discovery 留下可核对的 child 身份。 */
+  static JsonNode metadataSpawnOutput(JsonNode output) {
+    var projected = MAPPER.createObjectNode();
+    parseSpawnAgentResult(output)
+        .ifPresent(
+            result -> {
+              projected.put("agent_id", result.agentId());
+              projected.put("task_name", result.agentPath());
+            });
+    return projected;
+  }
+
   private static Optional<SpawnAgentResult> parseSpawnAgentResult(JsonNode output) {
     if (output == null || output.isMissingNode() || output.isNull()) {
       return Optional.empty();
@@ -1107,7 +1572,7 @@ public final class CodexSourceAdapter implements SourceAdapter {
     JsonNode payload = payloadNode.get();
     String rawType = extractEventType(event);
     String payloadType = text(payload, "type");
-    if (!"response_item".equals(rawType)
+    if (!CodexConstants.EVENT_TYPE_RESPONSE_ITEM.equals(rawType)
         || !("function_call".equals(payloadType)
             || "custom_tool_call".equals(payloadType)
             || "function_call_output".equals(payloadType)
@@ -1255,11 +1720,17 @@ public final class CodexSourceAdapter implements SourceAdapter {
                               ? payload.get("message")
                               : payload.get("content"))
                       : "")
-              .withTiming(JsonSourceRecordMapper.extractTiming(event)),
+              .withTiming(JsonSourceRecordMapper.extractTiming(event))
+              .withMessageRole(
+                  "user_message".equals(payloadType)
+                      ? Optional.of("user")
+                      : "agent_message".equals(payloadType)
+                          ? Optional.of("assistant")
+                          : Optional.empty()),
           previousTotals);
     }
 
-    if ("response_item".equals(rawType)) {
+    if (CodexConstants.EVENT_TYPE_RESPONSE_ITEM.equals(rawType)) {
       return new CodexRecordMapping(
           mapResponseItem(
               recordLocator, eventIndex, payload, currentModel, hasTokenUsage, timestamp),
@@ -1322,37 +1793,39 @@ public final class CodexSourceAdapter implements SourceAdapter {
       String role = text(payload, "role");
       if ("user".equals(role)) {
         return new SourceRecord(
-            recordLocator,
-            eventIndex,
-            "user",
-            Optional.empty(),
-            optionalText(currentModel),
-            optionalText(timestamp),
-            Optional.of("message"),
-            SourceRecordUsage.empty(),
-            List.of(),
-            Optional.empty(),
-            Optional.empty(),
-            Optional.empty(),
-            SourceRecordRelation.empty(),
-            responseText(payload.get("content")));
+                recordLocator,
+                eventIndex,
+                "user",
+                Optional.empty(),
+                optionalText(currentModel),
+                optionalText(timestamp),
+                Optional.empty(),
+                SourceRecordUsage.empty(),
+                List.of(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                SourceRecordRelation.empty(),
+                responseText(payload.get("content")))
+            .withMessageRole(Optional.of(role));
       }
       if ("assistant".equals(role)) {
         return new SourceRecord(
-            recordLocator,
-            eventIndex,
-            hasTokenUsage ? "response_item" : "assistant",
-            Optional.empty(),
-            optionalText(currentModel),
-            optionalText(timestamp),
-            Optional.of("message"),
-            SourceRecordUsage.empty(),
-            List.of(),
-            Optional.empty(),
-            Optional.empty(),
-            Optional.empty(),
-            SourceRecordRelation.empty(),
-            responseText(payload.get("content")));
+                recordLocator,
+                eventIndex,
+                hasTokenUsage ? CodexConstants.EVENT_TYPE_RESPONSE_ITEM : "assistant",
+                Optional.empty(),
+                optionalText(currentModel),
+                optionalText(timestamp),
+                Optional.empty(),
+                SourceRecordUsage.empty(),
+                List.of(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                SourceRecordRelation.empty(),
+                responseText(payload.get("content")))
+            .withMessageRole(Optional.of(role));
       }
     }
     if ("reasoning".equals(payloadType) && !hasTokenUsage) {
@@ -1363,14 +1836,15 @@ public final class CodexSourceAdapter implements SourceAdapter {
           Optional.empty(),
           optionalText(currentModel),
           optionalText(timestamp),
-          Optional.of("reasoning"),
+          Optional.empty(),
           SourceRecordUsage.empty(),
           List.of(),
           Optional.empty(),
           Optional.empty(),
           Optional.empty());
     }
-    return basicRecord(recordLocator, eventIndex, "response_item", timestamp);
+    return basicRecord(
+        recordLocator, eventIndex, CodexConstants.EVENT_TYPE_RESPONSE_ITEM, timestamp);
   }
 
   private static String toolInput(JsonNode payload, String payloadType) {
@@ -1702,7 +2176,14 @@ public final class CodexSourceAdapter implements SourceAdapter {
     private int tokenCountEvents;
     private boolean hasCumulativeTokenUsage;
     private String currentModel = "";
-    private String locator = "";
+    private String locator;
+    private final CancellationSignal cancellation;
+
+    private CodexParseState(String locator, String initialModel, CancellationSignal cancellation) {
+      this.locator = locator;
+      this.currentModel = initialModel == null ? "" : initialModel;
+      this.cancellation = cancellation;
+    }
   }
 
   /**
@@ -1791,32 +2272,11 @@ public final class CodexSourceAdapter implements SourceAdapter {
   }
 
   private static TokenTotals usageTotals(JsonNode usage, boolean responseUsage) {
-    long inputTokens = readLong(usage, "input_tokens", "inputTokens", "prompt_tokens");
-    long cacheRead =
-        readLong(
-            usage,
-            "cached_input_tokens",
-            "cache_read_input_tokens",
-            "cacheReadInputTokens",
-            "cached_tokens");
-    long cacheWrite =
-        readLong(
-            usage,
-            "cache_write_input_tokens",
-            "cache_creation_input_tokens",
-            "cacheCreationInputTokens");
-    boolean includesCache =
-        responseUsage
-            || (usage.has("cached_input_tokens") && !usage.has("cache_read_input_tokens"));
-    long freshInput =
-        includesCache
-            ? Math.max(0L, inputTokens - cacheRead - (responseUsage ? cacheWrite : 0L))
-            : inputTokens;
     return new TokenTotals(
-        freshInput,
-        cacheRead,
-        cacheWrite,
-        readLong(usage, "output_tokens", "outputTokens", "completion_tokens"),
+        CodexTokenProvenance.freshInputAmount(usage, responseUsage),
+        CodexTokenProvenance.component(usage, "cacheReadTokenPrecision"),
+        CodexTokenProvenance.component(usage, "cacheWriteTokenPrecision"),
+        CodexTokenProvenance.component(usage, "outputTokenPrecision"),
         readLong(usage, "total_tokens", "total_token_usage", "tokens_used"));
   }
 
@@ -1861,7 +2321,8 @@ public final class CodexSourceAdapter implements SourceAdapter {
     for (String fieldName : fieldNames) {
       JsonNode child = node.get(fieldName);
       if (child != null && child.isNumber()) {
-        return child.asLong();
+        Long value = CodexTokenProvenance.readUsageLong(node, List.of(fieldName));
+        return value == null ? 0 : value;
       }
     }
     return 0L;

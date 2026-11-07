@@ -48,14 +48,19 @@ class NormalizationEngineTest {
   void metaContextIsNotHumanPromptButRemainsInItsOwnRequestScope() {
     String main = "synthetic/main.jsonl#event[";
     String child = "synthetic/main/subagents/agent-synthetic.jsonl#event[";
-    SourceRecord human = SourceRecord.of(main + "0]", 0, "user").withContent("human prompt");
+    SourceRecord human =
+        SourceRecord.of(main + "0]", 0, "user")
+            .withContent("human prompt")
+            .withMessageRole(Optional.of("user"));
     SourceRecord meta =
         metaContext(SourceRecord.of(main + "1]", 1, "user").withContent("  meta context\n"));
     SourceRecord childMeta =
         metaContext(SourceRecord.of(child + "0]", 0, "user").withContent("child meta"));
     SourceRecord childTask = SourceRecord.of(child + "1]", 1, "user").withContent("child task");
     SourceRecord mainAnswer =
-        SourceRecord.of(main + "2]", 2, "assistant").withContent("main answer");
+        SourceRecord.of(main + "2]", 2, "assistant")
+            .withContent("main answer")
+            .withMessageRole(Optional.of("assistant"));
     SourceRecord childAnswer =
         SourceRecord.of(child + "2]", 2, "assistant").withContent("child answer");
     var artifact =
@@ -162,13 +167,15 @@ class NormalizationEngineTest {
         record.responseMessageId(),
         record.responseStopReason(),
         record.timing(),
-        true);
+        true,
+        record.messageRole());
   }
 
   @Test
   void codexWithoutAgentMessagesCountsOnlyObservedMainTurns() {
     SourceRecord main =
-        codexFallbackRecord("main#event[0]", 0, "assistant", SourceRecordRelation.empty());
+        codexFallbackRecord("main#event[0]", 0, "assistant", SourceRecordRelation.empty())
+            .withMessageRole(Optional.of("assistant"));
     SourceRecordRelation relation =
         new SourceRecordRelation(
             Optional.of("child"),
@@ -212,7 +219,7 @@ class NormalizationEngineTest {
     var exact =
         ENGINE.normalize(
             NormalizedAgent.CODEX, List.of(closing, original, fallback), List.of(), List.of());
-    assertThat(exact.session()).containsEntry("assistantMessageCount", 2L);
+    assertThat(exact.session()).containsEntry("assistantMessageCount", 1L);
 
     SourceRecordRelation child =
         new SourceRecordRelation(
@@ -245,27 +252,33 @@ class NormalizationEngineTest {
                     "/subagents/test#event[1]", 1, "assistant", SourceRecordRelation.empty())));
     for (List<SourceRecord> records : excluded) {
       assertThat(ENGINE.normalize(NormalizedAgent.CODEX, records, List.of(), List.of()).session())
-          .containsEntry("assistantMessageCount", 1L);
+          .containsEntry(
+              "assistantMessageCount",
+              records.get(1).relation().subagentId().isPresent()
+                      || records.get(1).locator().contains("/subagents/")
+                  ? 0L
+                  : 1L);
     }
   }
 
   private static SourceRecord codexFallbackRecord(
       String locator, int index, String type, SourceRecordRelation relation) {
     return new SourceRecord(
-        locator,
-        index,
-        type,
-        Optional.empty(),
-        Optional.empty(),
-        Optional.of("2026-11-05T08:00:01Z"),
-        "event_msg".equals(type) ? Optional.of("agent_message") : Optional.empty(),
-        SourceRecordUsage.empty(),
-        List.of(),
-        Optional.empty(),
-        Optional.empty(),
-        Optional.empty(),
-        relation,
-        "synthetic answer");
+            locator,
+            index,
+            type,
+            Optional.empty(),
+            Optional.empty(),
+            Optional.of("2026-11-05T08:00:01Z"),
+            "event_msg".equals(type) ? Optional.of("agent_message") : Optional.empty(),
+            SourceRecordUsage.empty(),
+            List.of(),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty(),
+            relation,
+            "synthetic answer")
+        .withMessageRole("event_msg".equals(type) ? Optional.of("assistant") : Optional.empty());
   }
 
   @Nested
@@ -493,22 +506,23 @@ class NormalizationEngineTest {
         String content,
         List<SourceToolCall> tools) {
       return new SourceRecord(
-          file + "#event[" + index + "]",
-          index,
-          "assistant",
-          Optional.of(file + ":chunk-" + index),
-          Optional.of("synthetic-model"),
-          Optional.of(timestamp),
-          Optional.of(messageId),
-          usage,
-          tools,
-          Optional.empty(),
-          Optional.empty(),
-          Optional.empty(),
-          SourceRecordRelation.empty(),
-          content,
-          Optional.of(messageId),
-          Optional.empty());
+              file + "#event[" + index + "]",
+              index,
+              "assistant",
+              Optional.of(file + ":chunk-" + index),
+              Optional.of("synthetic-model"),
+              Optional.of(timestamp),
+              Optional.of(messageId),
+              usage,
+              tools,
+              Optional.empty(),
+              Optional.empty(),
+              Optional.empty(),
+              SourceRecordRelation.empty(),
+              content,
+              Optional.of(messageId),
+              Optional.empty())
+          .withMessageRole(Optional.of("assistant"));
     }
 
     @Test
@@ -588,7 +602,7 @@ class NormalizationEngineTest {
             List.of(),
             List.of());
 
-    assertThat(artifact.session()).containsEntry("assistantMessageCount", 2L);
+    assertThat(artifact.session()).containsEntry("assistantMessageCount", 1L);
     assertThat(artifact.session()).containsEntry("userMessageCount", 0L);
     assertThat(artifact.calls()).hasSize(3);
   }
@@ -867,7 +881,7 @@ class NormalizationEngineTest {
     }
 
     @Test
-    @DisplayName("Codex 运行索引兼容：边界前结束的 token_count 会话仍按 agent_message 计数")
+    @DisplayName("Codex 早期日期只按显式消息计数，不按 usage frame")
     void codexLegacyRuntimeIndexUsesAgentMessageBeforeCutoff() {
       ObjectNode agentMsg =
           MAPPER
@@ -899,7 +913,7 @@ class NormalizationEngineTest {
     }
 
     @Test
-    @DisplayName("Codex 运行索引兼容：跨过边界的 token_count 会话按 LLM call 计数")
+    @DisplayName("Codex 后期日期仍按显式消息计数，不按 usage frame")
     void codexPostRolloutRuntimeIndexUsesTokenCountAfterCutoff() {
       ObjectNode agentMsg =
           MAPPER
@@ -927,7 +941,7 @@ class NormalizationEngineTest {
               List.of(),
               List.of());
 
-      assertThat(artifact.session()).containsEntry("assistantMessageCount", 2L);
+      assertThat(artifact.session()).containsEntry("assistantMessageCount", 1L);
       // 两次调用间隔不是模型执行；无显式计量时旧数字键为0，typed timing明确unknown。
       assertThat(artifact.session()).containsEntry("modelExecutionSeconds", 0.0);
       assertThat(
@@ -939,7 +953,7 @@ class NormalizationEngineTest {
     }
 
     @Test
-    @DisplayName("Codex 双表示共存时相邻同文只计数一次")
+    @DisplayName("Codex 无明确镜像身份的异种同文保留独立观察")
     void codexPairsAdjacentRepresentations() {
       // 旧格式：event_msg + user_message
       ObjectNode oldFormatUserMsg =
@@ -962,8 +976,8 @@ class NormalizationEngineTest {
               List.of(),
               List.of());
 
-      // 双表示共存时，配对计数（1 条），不重复计数
-      assertThat(artifact.session()).containsEntry("userMessageCount", 1L);
+      // normalization 无源身份不能仅按同文猜镜像；源层精确镜像由合同测试覆盖。
+      assertThat(artifact.session()).containsEntry("userMessageCount", 2L);
       assertThat(artifact.session()).containsEntry("assistantMessageCount", 1L);
     }
 
@@ -1034,7 +1048,7 @@ class NormalizationEngineTest {
               TestSourceRecords.records(event, mirror, different, repeated),
               List.of(),
               List.of());
-      assertThat(artifact.session()).containsEntry("userMessageCount", 3L);
+      assertThat(artifact.session()).containsEntry("userMessageCount", 4L);
     }
 
     @Test

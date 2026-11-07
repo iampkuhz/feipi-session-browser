@@ -26,6 +26,7 @@ public final class QueryCache {
   private final Map<String, CacheEntry> cache;
   private final ReentrantReadWriteLock lock;
   private volatile long invalidationToken;
+  private java.util.function.Supplier<String> generation = () -> "legacy";
 
   /**
    * 创建指定容量的缓存。
@@ -46,6 +47,16 @@ public final class QueryCache {
             return size() > maxSize;
           }
         };
+  }
+
+  /**
+   * 装配当前数据范围的发布代号读取器，仅在服务启动时设置。
+   *
+   * @param generation 已发布索引代号读取器
+   */
+  public void setGenerationSupplier(java.util.function.Supplier<String> generation) {
+    this.generation = Objects.requireNonNull(generation, "generation 不得为 null");
+    invalidateAll();
   }
 
   /**
@@ -74,19 +85,22 @@ public final class QueryCache {
     Objects.requireNonNull(queryName, "queryName 不得为 null");
     Objects.requireNonNull(loader, "loader 不得为 null");
 
-    String key = buildKey(queryName, paramsHash, schemaVersion);
+    String observedGeneration = generation.get();
+    String key = buildKey(queryName, paramsHash, schemaVersion) + ":g" + observedGeneration;
 
-    // 先尝试读锁
-    lock.readLock().lock();
+    // LRU 读取会更新访问顺序，因此缓存命中检查也使用写锁
+    lock.writeLock().lock();
     try {
       CacheEntry entry = cache.get(key);
-      if (entry != null && entry.invalidationToken == this.invalidationToken) {
+      if (entry != null
+          && entry.invalidationToken == this.invalidationToken
+          && observedGeneration.equals(generation.get())) {
         @SuppressWarnings("unchecked")
         T value = (T) entry.value;
         return value;
       }
     } finally {
-      lock.readLock().unlock();
+      lock.writeLock().unlock();
     }
 
     // 缓存未命中，计算并写入
@@ -94,14 +108,18 @@ public final class QueryCache {
     try {
       // 双重检查
       CacheEntry entry = cache.get(key);
-      if (entry != null && entry.invalidationToken == this.invalidationToken) {
+      if (entry != null
+          && entry.invalidationToken == this.invalidationToken
+          && observedGeneration.equals(generation.get())) {
         @SuppressWarnings("unchecked")
         T value = (T) entry.value;
         return value;
       }
 
       T value = loader.get();
-      cache.put(key, new CacheEntry(value, invalidationToken));
+      if (observedGeneration.equals(generation.get())) {
+        cache.put(key, new CacheEntry(value, invalidationToken));
+      }
       return value;
     } finally {
       lock.writeLock().unlock();

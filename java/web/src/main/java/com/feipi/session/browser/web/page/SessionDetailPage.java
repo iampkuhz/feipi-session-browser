@@ -9,6 +9,7 @@ import com.feipi.session.browser.query.api.CallRound;
 import com.feipi.session.browser.query.api.PayloadSource;
 import com.feipi.session.browser.query.api.PayloadVisibility;
 import com.feipi.session.browser.query.api.SessionAnomalySummary;
+import com.feipi.session.browser.web.IndexSnapshotGuard;
 import com.feipi.session.browser.web.model.PayloadSourceSummaries;
 import com.feipi.session.browser.web.model.SessionDetailRequest;
 import com.feipi.session.browser.web.model.SessionDetailViewModels;
@@ -198,9 +199,10 @@ public final class SessionDetailPage {
       String sessionId,
       PayloadVisibility visibility) {
 
-    ctx.html(
-        templates.render(
-            "session.html", buildContext(detail, anomalies, agent, sessionId, visibility)));
+    Map<String, Object> context = buildContext(detail, anomalies, agent, sessionId, visibility);
+    context.put(
+        IndexSnapshotGuard.PAGE_GENERATION, ctx.attribute(IndexSnapshotGuard.PAGE_GENERATION));
+    ctx.html(templates.render("session.html", context));
   }
 
   /**

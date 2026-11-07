@@ -28,6 +28,24 @@ class JsonlReaderTest {
 
   private final JsonlReader reader = new JsonlReader();
 
+  @Test
+  void largeSparseFileHeaderDetectionDoesNotNarrowSizeBeforeClamping() throws Exception {
+    Path path = tempDir.resolve("large-sparse.jsonl");
+    try (var file = new java.io.RandomAccessFile(path.toFile(), "rw")) {
+      file.write("{}\r\n".getBytes(StandardCharsets.UTF_8));
+      file.setLength((long) Integer.MAX_VALUE + 2);
+    }
+    assertThat(Files.size(path)).isGreaterThan(Integer.MAX_VALUE);
+    try (var reader =
+        new BoundedPhysicalLineReader(
+            new java.io.InputStreamReader(Files.newInputStream(path), StandardCharsets.UTF_8))) {
+      var first = reader.next(32, 16);
+      assertThat(first.text()).isEqualTo("{}");
+      assertThat(first.bytesConsumed()).isEqualTo(4);
+      assertThat(first.overflow()).isFalse();
+    }
+  }
+
   // ─── 辅助方法 ─────────────────────────────────────────────────────────
 
   /** 将内容写入临时文件并返回路径。 */

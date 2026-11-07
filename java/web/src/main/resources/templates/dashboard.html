@@ -54,15 +54,15 @@
                         {% if agent_scope == 'codex' %}aria-current="true"{% endif %}>Codex</button>
             </div>
         </div>
-        <div class="grain-control" aria-label="Time grain">
+        <div class="grain-control" aria-label="Time grain：UTC session-start cohort，包含当前未完成桶">
             <button class="grain-control__btn{% if grain == 'day' %} is-active{% endif %}"
-                    data-action="grain" data-grain="day"
+                    data-action="grain" data-grain="day" aria-description="最近 30 个 UTC 自然日，含当前未完成日"
                     {% if grain == 'day' %}aria-current="true"{% endif %}>Day</button>
             <button class="grain-control__btn{% if grain == 'week' %} is-active{% endif %}"
-                    data-action="grain" data-grain="week"
+                    data-action="grain" data-grain="week" aria-description="最近 20 个 UTC ISO 周，含当前未完成周"
                     {% if grain == 'week' %}aria-current="true"{% endif %}>Week</button>
             <button class="grain-control__btn{% if grain == 'month' %} is-active{% endif %}"
-                    data-action="grain" data-grain="month"
+                    data-action="grain" data-grain="month" aria-description="最近 12 个 UTC 自然月，含当前未完成月"
                     {% if grain == 'month' %}aria-current="true"{% endif %}>Month</button>
         </div>
     </div>
@@ -109,6 +109,21 @@
     {% endfor %}
 </section>
 
+<section class="chart-card event-activity-section" data-chart-card="event-activity" aria-label="UTC Event Activity">
+    <div class="chart-card__head"><h2>UTC Event Activity — 事件日观察</h2></div>
+    <p class="chart-card__note">Observed user messages 是显式主 user 消息观察下界，不等于完整真人问题。
+        Tokens 仅为现代 Codex usage 报告日，不是实际消耗发生日；legacy、Claude、Qoder tokens、缺日志、缺时间均未恢复。
+        与下方 session-start cohort 会话整段累计图独立；无观察日期不补实测零。</p>
+    <p data-event-activity-state role="status">Unknown — Loading…</p>
+    <p data-event-activity-coverage>覆盖计数针对当前 agent 全部来源集合，不限日窗口。</p>
+    <p data-event-activity-future>未来事件所在日桶保守排除，混有已发生事件的同日桶也暂不计入；这是观察下界。</p>
+    <div class="event-activity-scroll"><table class="event-activity-table">
+        <thead><tr><th scope="col">UTC bucket</th><th scope="col">Observed user messages</th><th scope="col">Fresh</th><th scope="col">Cache read</th><th scope="col">Cache write</th><th scope="col">Output</th></tr></thead>
+        <tbody data-event-activity-days></tbody>
+    </table></div>
+    <p data-event-activity-undated>Undated usage 不分配到任何日期；金额无实测样本为 N/A，实测零保留 0。</p>
+</section>
+
 {# ── Trend 总览区：趋势图表与缓存健康图同级展示 ── #}
 
 <section class="trend-section">
@@ -133,7 +148,10 @@
                     <span class="chart-stat" data-stat="range-total-prompts">Range total: Loading…</span>
                 </div>
             </div>
-            <p class="chart-card__note">{{ chart_notes.prompts }}</p>
+            <p class="chart-card__note">{{ chart_notes.prompts }}
+                折线均值仅使用 user 消息数已测量的会话；Day/Week/Month 按实测消息和 / 样本数加权，包含实测 0，未知不参与。
+                tooltip 披露测量样本 / cohort 会话数；是开始会话的累计观察消息，不是事件当日提问量或完整真人历史。
+            </p>
             <div class="chart-container" id="prompt-activity-chart" data-dashboard-chart="prompts"></div>
         </section>
 

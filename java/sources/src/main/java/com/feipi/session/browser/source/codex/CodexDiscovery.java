@@ -66,10 +66,17 @@ public final class CodexDiscovery {
 
     // 第一步：读 threads.db
     Path threadsDbPath = rootPath.resolve(CodexConstants.THREADS_DB);
-    List<Map<String, String>> allThreads = ThreadsDbReader.readThreads(threadsDbPath);
+    var threadsResult = ThreadsDbReader.readThreadsWithDiagnostics(threadsDbPath);
+    if (threadsResult.diagnostic().isPresent()) {
+      var diagnostic = threadsResult.diagnostic().orElseThrow();
+      throw new IllegalStateException(
+          "Codex threads DB 发现失败 (" + diagnostic.code() + "): " + diagnostic.message());
+    }
+    List<Map<String, String>> allThreads = threadsResult.threads();
 
     // 第二步：过滤 subagent threads，保留顶层
     Map<String, Map<String, String>> topLevelThreads = new LinkedHashMap<>();
+    Set<String> excludedThreadIds = new LinkedHashSet<>();
     for (Map<String, String> thread : allThreads) {
       String id = thread.getOrDefault("id", "");
       if (id.isEmpty()) {
@@ -77,6 +84,8 @@ public final class CodexDiscovery {
       }
       if (!isSubagentThread(thread)) {
         topLevelThreads.put(id, thread);
+      } else {
+        excludedThreadIds.add(id);
       }
     }
 
@@ -84,6 +93,9 @@ public final class CodexDiscovery {
     Map<String, Map<String, String>> indexEntries = readSessionIndex(rootPath);
     Set<String> allSessionIds = new LinkedHashSet<>(topLevelThreads.keySet());
     for (String id : indexEntries.keySet()) {
+      if (excludedThreadIds.contains(id)) {
+        continue;
+      }
       if (!topLevelThreads.containsKey(id)) {
         allSessionIds.add(id);
       }
@@ -92,6 +104,9 @@ public final class CodexDiscovery {
     // 第四步：过滤 index-only entries 中的 subagent sessions（与 Python 对齐）
     Map<String, Map<String, String>> filteredIndexEntries = new LinkedHashMap<>();
     for (String id : indexEntries.keySet()) {
+      if (excludedThreadIds.contains(id)) {
+        continue;
+      }
       if (!topLevelThreads.containsKey(id)) {
         // index-only entry：需要通过 rollout 文件的 session_meta 判断是否为 subagent
         Path rolloutFile = locateRolloutFile(rootPath, id, null);
@@ -214,9 +229,11 @@ public final class CodexDiscovery {
       entry.put("id", id);
       entry.put("thread_name", JsonNodeReaders.textOrEmpty(node, "thread_name"));
       entry.put("updated_at", JsonNodeReaders.textOrEmpty(node, "updated_at"));
-      String model = JsonNodeReaders.textOrEmpty(node, "model");
-      if (!model.isEmpty()) {
-        entry.put("model", model);
+      for (String field : List.of("model", "created_at", "cwd", "git_branch")) {
+        String value = JsonNodeReaders.textOrEmpty(node, field);
+        if (!value.isEmpty()) {
+          entry.put(field, value);
+        }
       }
       entries.put(id, entry);
     }

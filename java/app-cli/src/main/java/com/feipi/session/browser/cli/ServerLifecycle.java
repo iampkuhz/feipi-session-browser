@@ -3,6 +3,9 @@ package com.feipi.session.browser.cli;
 import com.feipi.session.browser.application.QueryCache;
 import com.feipi.session.browser.application.QueryCompositionRoot;
 import com.feipi.session.browser.application.imports.ImportedSessionUseCase;
+import com.feipi.session.browser.application.sessiondetail.NormalizedArtifactReader;
+import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
+import com.feipi.session.browser.domain.normalized.NormalizedSessionContent;
 import com.feipi.session.browser.index.store.sqlite.connection.ConnectionFactory;
 import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
 import com.feipi.session.browser.index.store.sqlite.loader.NormalizedArtifactLoader;
@@ -158,7 +161,8 @@ public final class ServerLifecycle {
       LOG.info("查询引擎就绪");
 
       // 阶段 3：创建并绑定 Web 服务器（先于扫描，确保尽快可访问）
-      WebConfig webConfig = new WebConfig(host, port, "/static");
+      WebConfig webConfig =
+          new WebConfig(host, port, "/static", BuildInfoVersionProvider.readAppVersion());
       importedSessions =
           new ImportedSessionUseCase(
               new IsolatedSessionImportService(
@@ -261,7 +265,17 @@ public final class ServerLifecycle {
         sessionRepository,
         aggregateRepository,
         detailRepository,
-        NormalizedArtifactLoader::load,
+        new NormalizedArtifactReader() {
+          @Override
+          public NormalizedSessionArtifact load(Path path) throws IOException {
+            return NormalizedArtifactLoader.load(path);
+          }
+
+          @Override
+          public NormalizedSessionContent open(Path path) throws IOException {
+            return NormalizedArtifactLoader.open(path);
+          }
+        },
         schemaVersion.version(),
         QueryCache.withDefaultSize());
   }

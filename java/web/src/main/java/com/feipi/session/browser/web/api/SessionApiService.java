@@ -2,12 +2,14 @@ package com.feipi.session.browser.web.api;
 
 import com.feipi.session.browser.application.SessionDetailUseCase;
 import com.feipi.session.browser.application.sessiondetail.PayloadLookup;
+import com.feipi.session.browser.application.sessiondetail.SessionContentReader;
 import com.feipi.session.browser.application.sessiondetail.SessionDetail;
 import com.feipi.session.browser.domain.enums.CallScope;
 import com.feipi.session.browser.domain.normalized.NormalizedAgent;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedConstants;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
+import com.feipi.session.browser.domain.normalized.NormalizedSessionContent;
 import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
 import com.feipi.session.browser.index.api.query.SessionRecord;
 import com.feipi.session.browser.query.api.CallRound;
@@ -32,6 +34,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class SessionApiService {
 
   private final ContextLoader contextLoader;
+  private final java.util.function.Supplier<String> generation;
   private final ConcurrentHashMap<String, VersionedContext> contextCache =
       new ConcurrentHashMap<>();
   private final java.util.concurrent.atomic.AtomicLong cacheVersion =
@@ -55,7 +58,19 @@ public final class SessionApiService {
    * @param contextLoader 当前范围内的详情加载器
    */
   public SessionApiService(ContextLoader contextLoader) {
+    this(contextLoader, () -> "legacy");
+  }
+
+  /**
+   * 创建按索引发布代号隔离缓存的服务。
+   *
+   * @param contextLoader 当前范围内的详情加载器
+   * @param generation 当前范围内的索引代号读取器
+   */
+  public SessionApiService(
+      ContextLoader contextLoader, java.util.function.Supplier<String> generation) {
     this.contextLoader = Objects.requireNonNull(contextLoader, "contextLoader 不得为 null");
+    this.generation = Objects.requireNonNull(generation, "generation 不得为 null");
   }
 
   /** 允许个人索引或独立导入提供同一详情投影。 */
@@ -87,15 +102,20 @@ public final class SessionApiService {
     Objects.requireNonNull(sessionKey, "sessionKey 不得为 null");
     Objects.requireNonNull(visibility, "visibility 不得为 null");
 
-    String cacheKey = sessionKey + ":" + visibility.name();
+    String observedGeneration = generation.get();
+    String cacheKey = sessionKey + ":" + visibility.name() + ":g" + observedGeneration;
     long currentVersion = cacheVersion.get();
     VersionedContext cached = contextCache.get(cacheKey);
-    if (cached != null && cached.version == currentVersion) {
+    if (cached != null
+        && cached.version == currentVersion
+        && observedGeneration.equals(generation.get())) {
       return Optional.of(cached.context);
     }
 
     Optional<SessionApiContext> context = loadContext(sessionKey, visibility);
-    context.ifPresent(ctx -> putCache(cacheKey, ctx, currentVersion));
+    if (observedGeneration.equals(generation.get()) && currentVersion == cacheVersion.get()) {
+      context.ifPresent(ctx -> putCache(cacheKey, ctx, currentVersion));
+    }
     return context;
   }
 
@@ -116,9 +136,10 @@ public final class SessionApiService {
     NormalizedSessionArtifact artifact = context.artifact();
     PayloadLookup payloadLookup =
         artifact == null
-            ? emptyPayloadLookup(visibility)
+            ? context.content() == null ? emptyPayloadLookup(visibility) : null
             : PayloadLookup.fromArtifact(artifact, visibility);
-    return Optional.of(new SessionApiContext(context.detail(), artifact, payloadLookup));
+    return Optional.of(
+        new SessionApiContext(context.detail(), artifact, payloadLookup, context.content()));
   }
 
   /** 创建空 payload lookup，用于无制品场景。 */
@@ -186,9 +207,42 @@ public final class SessionApiService {
    * @param detail 会话详情（包含行数据、轮次和 payload 来源）
    * @param artifact 归一化制品，无制品时为 null
    * @param payloadLookup payload 查找表
+   * @param content 可独立重放的冻结内容；没有发布制品的兼容行不提供此内容
    */
   public record SessionApiContext(
-      SessionDetail detail, NormalizedSessionArtifact artifact, PayloadLookup payloadLookup) {
+      SessionDetail detail,
+      NormalizedSessionArtifact artifact,
+      PayloadLookup payloadLookup,
+      NormalizedSessionContent content) {
+
+    /**
+     * 保留旧制品调用方的构造方式，并为现有制品建立可重放内容视图。
+     *
+     * @param detail 当前会话详情与可见性策略
+     * @param artifact 可选的旧格式归一化制品
+     * @param payloadLookup 旧格式制品的载荷查找表
+     */
+    public SessionApiContext(
+        SessionDetail detail, NormalizedSessionArtifact artifact, PayloadLookup payloadLookup) {
+      this(
+          detail,
+          artifact,
+          payloadLookup,
+          artifact == null ? null : NormalizedSessionContent.fromArtifact(artifact));
+    }
+
+    /**
+     * 为当前不可变快照创建有界查询读取器，不展开整个会话正文。
+     *
+     * @return 按窗口读取冻结内容的查询器
+     */
+    public SessionContentReader contentReader() {
+      try {
+        return new SessionContentReader(content, detail.sessionRow().userMessageCount());
+      } catch (IOException exception) {
+        throw new SessionDataException("normalized content read failed", exception);
+      }
+    }
 
     /**
      * 紧凑构造器，验证不变量。
@@ -197,7 +251,7 @@ public final class SessionApiService {
      */
     public SessionApiContext {
       Objects.requireNonNull(detail, "detail 不得为 null");
-      Objects.requireNonNull(payloadLookup, "payloadLookup 不得为 null");
+      if (content == null) Objects.requireNonNull(payloadLookup, "payloadLookup 不得为 null");
     }
 
     /** 获取会话行数据。 */

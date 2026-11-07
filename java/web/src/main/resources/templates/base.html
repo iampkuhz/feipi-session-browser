@@ -26,7 +26,7 @@
     <link rel="stylesheet" href="/static/css/session-timing.css">
     {% endif %}
 </head>
-<body>
+<body{% if index_generation is defined and index_generation is not empty %} data-index-generation="{{ index_generation }}"{% endif %}>
     <div class="shell {% block shell_class %}{% endblock %}" data-session-detail-shell>
         <aside class="sidebar" aria-label="Primary navigation">
             <div class="brand-card">
@@ -34,7 +34,7 @@
                 <div>
                     <div class="brand-title">Agent Run Profiler</div>
                     <div class="brand-meta">
-                        <span>v0.9.0</span>
+                        <span>{{ app_version }}</span>
                         <span class="pill pill--neutral">Local</span>
                     </div>
                 </div>
@@ -95,6 +95,7 @@
             </header>
 
             <section class="content">
+                <div data-scan-status-banner></div>
                 {% block content %}{% endblock %}
             </section>
 
@@ -106,11 +107,13 @@
     <script>{{ mhtml_js | raw }}</script>
     {% else %}
     <script src="/static/js/ui_primitives.js"></script>
+    <script src="/static/js/index-snapshot.js"></script>
     <script src="/static/js/token-provenance.js"></script>
     <script src="/static/js/session-timing.js"></script>
     <script src="/static/js/view-state.js"></script>
     <script src="/static/js/payload_viewer.js"></script>
     <script src="/static/js/app.js"></script>
+    <script src="/static/js/scan-status.js"></script>
     <script src="/static/js/data-table.js"></script>
     <script src="/static/js/timeline.js"></script>
     <script src="/static/js/trace-interactions.js"></script>

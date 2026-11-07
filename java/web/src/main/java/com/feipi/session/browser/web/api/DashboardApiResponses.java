@@ -2,15 +2,37 @@ package com.feipi.session.browser.web.api;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.feipi.session.browser.domain.normalized.TokenProvenance;
+import com.feipi.session.browser.index.api.query.EventActivity;
 import com.feipi.session.browser.web.api.PageApiDtos.PageStateDto;
 import com.feipi.session.browser.web.api.PageApiDtos.TokenSegments;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /** Dashboard resource APIs 的类型化 JSON 响应。 */
 public final class DashboardApiResponses {
 
   private DashboardApiResponses() {}
+
+  /**
+   * 独立的源事件 UTC 日观察响应；覆盖集合与日期窗口明确分离。
+   *
+   * @param basis 消息日期依据
+   * @param tokenBasis token 报告日依据，不是实际消费日
+   * @param coverage 部分观察或未知，不声明完整历史
+   * @param windowDays 日桶查询窗口天数
+   * @param days 窗口内已发生的实际日桶，不补空日
+   * @param coverageCounts 所选全部来源的覆盖计数，不限日窗口
+   * @param undatedTokens 无法日期化的 usage 分量
+   */
+  public record EventActivityResponse(
+      String basis,
+      String tokenBasis,
+      String coverage,
+      int windowDays,
+      List<EventActivity.Day> days,
+      Map<String, Long> coverageCounts,
+      Map<String, EventActivity.TokenComponent> undatedTokens) {}
 
   /**
    * 表示 DashboardFilterEcho 数据。
@@ -139,6 +161,13 @@ public final class DashboardApiResponses {
    * @param cacheReadRatio 当前统计口径下的指标值。
    * @param cacheReadStatistics 仅输入完整计量会话的缓存分布统计。
    * @param state 页面或 API 状态描述。
+   * @param contentSampleCount 具有可读取内容的样本数
+   * @param durationSampleCount 具有有效墙钟时长的样本数
+   * @param tokenSampleCount 具有完整提供方令牌计量的样本数
+   * @param userMessageSampleCount user 消息数已显式测量的样本数，包含实测零。
+   * @param assistantMessageSampleCount assistant 消息数已显式测量的样本数，包含实测零。
+   * @param avgUserMessagesPerSession 仅 user 消息测量样本的均值；无样本为 null。
+   * @param avgAssistantMessagesPerSession 仅 assistant 消息测量样本的均值；无样本为 null。
    */
   public record DashboardSummaryResponse(
       String schemaVersion,
@@ -153,7 +182,89 @@ public final class DashboardApiResponses {
       long assistantMessages,
       RatioDto cacheReadRatio,
       CacheReadStatistics cacheReadStatistics,
-      PageStateDto state) {
+      PageStateDto state,
+      long contentSampleCount,
+      long durationSampleCount,
+      long tokenSampleCount,
+      long userMessageSampleCount,
+      long assistantMessageSampleCount,
+      Double avgUserMessagesPerSession,
+      Double avgAssistantMessagesPerSession) {
+
+    /** 兼容未提供独立消息样本的调用者，不从内容覆盖推断消息覆盖。 */
+    public DashboardSummaryResponse(
+        String schemaVersion,
+        DashboardFilterEcho filters,
+        long sessionCount,
+        long projectCount,
+        AgentCounts agents,
+        TokenSegments tokens,
+        long toolCalls,
+        long failedTools,
+        long userMessages,
+        long assistantMessages,
+        RatioDto cacheReadRatio,
+        CacheReadStatistics cacheReadStatistics,
+        PageStateDto state,
+        long contentSampleCount,
+        long durationSampleCount,
+        long tokenSampleCount) {
+      this(
+          schemaVersion,
+          filters,
+          sessionCount,
+          projectCount,
+          agents,
+          tokens,
+          toolCalls,
+          failedTools,
+          userMessages,
+          assistantMessages,
+          cacheReadRatio,
+          cacheReadStatistics,
+          state,
+          contentSampleCount,
+          durationSampleCount,
+          tokenSampleCount,
+          0,
+          0,
+          null,
+          null);
+    }
+
+    /** 兼容未提供样本数的调用者，不推断测量覆盖。 */
+    public DashboardSummaryResponse(
+        String schemaVersion,
+        DashboardFilterEcho filters,
+        long sessionCount,
+        long projectCount,
+        AgentCounts agents,
+        TokenSegments tokens,
+        long toolCalls,
+        long failedTools,
+        long userMessages,
+        long assistantMessages,
+        RatioDto cacheReadRatio,
+        CacheReadStatistics cacheReadStatistics,
+        PageStateDto state) {
+      this(
+          schemaVersion,
+          filters,
+          sessionCount,
+          projectCount,
+          agents,
+          tokens,
+          toolCalls,
+          failedTools,
+          userMessages,
+          assistantMessages,
+          cacheReadRatio,
+          cacheReadStatistics,
+          state,
+          0,
+          0,
+          0);
+    }
 
     /** 校验字段和业务不变量。 */
     public DashboardSummaryResponse {
@@ -164,7 +275,17 @@ public final class DashboardApiResponses {
       Objects.requireNonNull(cacheReadRatio, "cacheReadRatio must not be null");
       Objects.requireNonNull(cacheReadStatistics, "cacheReadStatistics must not be null");
       Objects.requireNonNull(state, "state must not be null");
-      if (sessionCount < 0
+      if (userMessageSampleCount < 0
+          || assistantMessageSampleCount < 0
+          || avgUserMessagesPerSession != null
+              && (!Double.isFinite(avgUserMessagesPerSession) || avgUserMessagesPerSession < 0)
+          || avgAssistantMessagesPerSession != null
+              && (!Double.isFinite(avgAssistantMessagesPerSession)
+                  || avgAssistantMessagesPerSession < 0)
+          || contentSampleCount < 0
+          || durationSampleCount < 0
+          || tokenSampleCount < 0
+          || sessionCount < 0
           || projectCount < 0
           || toolCalls < 0
           || failedTools < 0
@@ -326,6 +447,14 @@ public final class DashboardApiResponses {
    * @param qoderPrompts Qoder prompt 数量。
    * @param assistantTurns 该字段在 API 响应中的业务值。
    * @param toolCalls 当前统计口径下的调用数量。
+   * @param measuredUserMessages 当前范围显式 user 消息测量样本的累计消息数。
+   * @param userMessageSampleCount 当前范围 user 消息数已测量的会话数，包含实测零。
+   * @param claudeMeasuredUserMessages Claude Code显式 user 消息测量样本的累计消息数。
+   * @param claudeUserMessageSampleCount Claude Code user 消息数已测量的会话数，包含实测零。
+   * @param codexMeasuredUserMessages Codex显式 user 消息测量样本的累计消息数。
+   * @param codexUserMessageSampleCount Codex user 消息数已测量的会话数，包含实测零。
+   * @param qoderMeasuredUserMessages Qoder显式 user 消息测量样本的累计消息数。
+   * @param qoderUserMessageSampleCount Qoder user 消息数已测量的会话数，包含实测零。
    */
   public record PromptTrendPoint(
       String date,
@@ -334,7 +463,52 @@ public final class DashboardApiResponses {
       long codexPrompts,
       long qoderPrompts,
       long assistantTurns,
-      long toolCalls) {
+      long toolCalls,
+      long measuredUserMessages,
+      long userMessageSampleCount,
+      long claudeMeasuredUserMessages,
+      long claudeUserMessageSampleCount,
+      long codexMeasuredUserMessages,
+      long codexUserMessageSampleCount,
+      long qoderMeasuredUserMessages,
+      long qoderUserMessageSampleCount) {
+
+    /**
+     * 兼容缺少消息测量样本的调用者，不从原始计数推断覆盖。
+     *
+     * @param date UTC 开始日 cohort 日期。
+     * @param claudePrompts Claude Code 累计 user 消息数。
+     * @param codexPrompts Codex 累计 user 消息数。
+     * @param qoderPrompts Qoder 累计 user 消息数。
+     * @param totalPrompts 当前范围累计 user 消息数。
+     * @param assistantTurns 累计 assistant 消息数，不是逻辑轮数。
+     * @param toolCalls 累计工具调用数。
+     */
+    public PromptTrendPoint(
+        String date,
+        long totalPrompts,
+        long claudePrompts,
+        long codexPrompts,
+        long qoderPrompts,
+        long assistantTurns,
+        long toolCalls) {
+      this(
+          date,
+          totalPrompts,
+          claudePrompts,
+          codexPrompts,
+          qoderPrompts,
+          assistantTurns,
+          toolCalls,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0);
+    }
 
     /** 校验字段和业务不变量。 */
     public PromptTrendPoint {
@@ -344,7 +518,15 @@ public final class DashboardApiResponses {
           || codexPrompts < 0
           || qoderPrompts < 0
           || assistantTurns < 0
-          || toolCalls < 0) {
+          || toolCalls < 0
+          || measuredUserMessages < 0
+          || userMessageSampleCount < 0
+          || claudeMeasuredUserMessages < 0
+          || claudeUserMessageSampleCount < 0
+          || codexMeasuredUserMessages < 0
+          || codexUserMessageSampleCount < 0
+          || qoderMeasuredUserMessages < 0
+          || qoderUserMessageSampleCount < 0) {
         throw new IllegalArgumentException("prompt trend counts must be non-negative");
       }
     }
@@ -568,6 +750,9 @@ public final class DashboardApiResponses {
    * @param cacheReuseRatio cache 复用比例。
    * @param failedPerSession 单 session 失败工具数量。
    * @param provenance 同一 agent/model 范围的 token 计量来源。
+   * @param durationSampleCount 具有有效墙钟时长的样本数
+   * @param tokenSampleCount 具有完整提供方令牌计量的样本数
+   * @param contentSampleCount 具有可读取内容的样本数
    */
   public record AgentEfficiencyDto(
       String agent,
@@ -580,7 +765,46 @@ public final class DashboardApiResponses {
       Double toolsPerRound,
       Double cacheReuseRatio,
       Double failedPerSession,
-      TokenProvenance provenance) {
+      TokenProvenance provenance,
+      long durationSampleCount,
+      long tokenSampleCount,
+      long contentSampleCount) {
+
+    /** token 均值仅使用完整 provider 四段样本，不代表模型组的全覆盖总量。 */
+    @com.fasterxml.jackson.annotation.JsonProperty("avgTokensBasis")
+    public String avgTokensBasis() {
+      return "complete_provider_reported";
+    }
+
+    /** 兼容未提供样本数的调用者，不推断测量覆盖。 */
+    public AgentEfficiencyDto(
+        String agent,
+        String model,
+        long sessionCount,
+        double avgDurationSeconds,
+        double p95DurationSeconds,
+        long avgTokensPerSession,
+        double avgToolsPerSession,
+        Double toolsPerRound,
+        Double cacheReuseRatio,
+        Double failedPerSession,
+        TokenProvenance provenance) {
+      this(
+          agent,
+          model,
+          sessionCount,
+          avgDurationSeconds,
+          p95DurationSeconds,
+          avgTokensPerSession,
+          avgToolsPerSession,
+          toolsPerRound,
+          cacheReuseRatio,
+          failedPerSession,
+          provenance,
+          0,
+          0,
+          0);
+    }
 
     /** 兼容未提供计量来源的历史调用者。 */
     public AgentEfficiencyDto(
@@ -614,7 +838,10 @@ public final class DashboardApiResponses {
       model = ApiResponses.required(model, "model");
       provenance = provenance == null ? TokenProvenance.unknown(sessionCount) : provenance;
       cacheReuseRatio = RatioDto.of(cacheReuseRatio, provenance).value();
-      if (sessionCount < 0
+      if (durationSampleCount < 0
+          || tokenSampleCount < 0
+          || contentSampleCount < 0
+          || sessionCount < 0
           || avgDurationSeconds < 0
           || p95DurationSeconds < 0
           || avgTokensPerSession < 0

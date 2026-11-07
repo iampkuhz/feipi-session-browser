@@ -97,8 +97,10 @@ public final class WebCompositionRoot {
     this.queryRoot = Objects.requireNonNull(queryRoot, "queryRoot 不得为 null");
     this.config = Objects.requireNonNull(config, "config 不得为 null");
     this.imports = imports;
-    this.templates = new PebbleEnvironment();
-    this.apiService = new SessionApiService(queryRoot.sessionDetail());
+    this.templates = new PebbleEnvironment("templates", config.appVersion());
+    this.apiService =
+        new SessionApiService(
+            queryRoot.sessionDetail()::getDetailContext, queryRoot::publishedGeneration);
     this.app =
         createAndConfigureJavalin(
             queryRoot, config, templates, apiService, imports, this::closeImportsSafely);
@@ -187,23 +189,26 @@ public final class WebCompositionRoot {
     SessionDetailPage sessionDetailPage = new SessionDetailPage(queryRoot, templates);
     GlossaryPage glossaryPage = new GlossaryPage(templates);
 
-    javalinConfig.routes.get("/", dashboardPage::handle);
-    javalinConfig.routes.get("/dashboard", dashboardPage::handle);
-    javalinConfig.routes.get("/projects", projectsPage::handleList);
+    IndexSnapshotGuard pageSnapshot = new IndexSnapshotGuard(queryRoot::publishedGeneration);
+    javalinConfig.routes.get("/", pageSnapshot.wrapPage(dashboardPage::handle));
+    javalinConfig.routes.get("/dashboard", pageSnapshot.wrapPage(dashboardPage::handle));
+    javalinConfig.routes.get("/projects", pageSnapshot.wrapPage(projectsPage::handleList));
     javalinConfig.routes.get(
         "/projects/<key>",
-        ctx -> {
-          String key = ctx.pathParam("key");
-          projectsPage.handleDetail(ctx, key);
-        });
-    javalinConfig.routes.get("/sessions", sessionsPage::handle);
+        pageSnapshot.wrapPage(
+            ctx -> {
+              String key = ctx.pathParam("key");
+              projectsPage.handleDetail(ctx, key);
+            }));
+    javalinConfig.routes.get("/sessions", pageSnapshot.wrapPage(sessionsPage::handle));
     javalinConfig.routes.get(
         "/sessions/{agent}/{sessionId}",
-        ctx -> {
-          String agentParam = ctx.pathParam("agent");
-          String sessionIdParam = ctx.pathParam("sessionId");
-          sessionDetailPage.handle(ctx, agentParam, sessionIdParam);
-        });
+        pageSnapshot.wrapPage(
+            ctx -> {
+              String agentParam = ctx.pathParam("agent");
+              String sessionIdParam = ctx.pathParam("sessionId");
+              sessionDetailPage.handle(ctx, agentParam, sessionIdParam);
+            }));
     javalinConfig.routes.get("/glossary", glossaryPage::handle);
 
     if (imports != null) {
@@ -255,21 +260,33 @@ public final class WebCompositionRoot {
       io.javalin.config.JavalinConfig javalinConfig,
       QueryCompositionRoot queryRoot,
       SessionApiService apiService) {
+    javalinConfig.routes.get(
+        "/api/scan-status",
+        new com.feipi.session.browser.web.api.ScanStatusApiHandler(queryRoot)::handle);
+    IndexSnapshotGuard snapshot = new IndexSnapshotGuard(queryRoot::publishedGeneration);
     DashboardApiHandler dashboardApiHandler = new DashboardApiHandler(queryRoot);
-    javalinConfig.routes.get("/api/dashboard/summary", dashboardApiHandler::handleSummary);
     javalinConfig.routes.get(
-        "/api/dashboard/trends/sessions", dashboardApiHandler::handleSessionsTrend);
-    javalinConfig.routes.get("/api/dashboard/trends/tokens", dashboardApiHandler::handleTokenTrend);
+        "/api/dashboard/event-activity", snapshot.wrap(dashboardApiHandler::handleEventActivity));
     javalinConfig.routes.get(
-        "/api/dashboard/trends/prompts", dashboardApiHandler::handlePromptTrend);
+        "/api/dashboard/summary", snapshot.wrap(dashboardApiHandler::handleSummary));
     javalinConfig.routes.get(
-        "/api/dashboard/trends/cache-health", dashboardApiHandler::handleCacheHealth);
+        "/api/dashboard/trends/sessions", snapshot.wrap(dashboardApiHandler::handleSessionsTrend));
     javalinConfig.routes.get(
-        "/api/dashboard/agents/contribution", dashboardApiHandler::handleAgentContribution);
+        "/api/dashboard/trends/tokens", snapshot.wrap(dashboardApiHandler::handleTokenTrend));
     javalinConfig.routes.get(
-        "/api/dashboard/agents/efficiency", dashboardApiHandler::handleAgentEfficiency);
+        "/api/dashboard/trends/prompts", snapshot.wrap(dashboardApiHandler::handlePromptTrend));
     javalinConfig.routes.get(
-        "/api/dashboard/agents/{agent}/deep-dive", dashboardApiHandler::handleAgentDeepDive);
+        "/api/dashboard/trends/cache-health",
+        snapshot.wrap(dashboardApiHandler::handleCacheHealth));
+    javalinConfig.routes.get(
+        "/api/dashboard/agents/contribution",
+        snapshot.wrap(dashboardApiHandler::handleAgentContribution));
+    javalinConfig.routes.get(
+        "/api/dashboard/agents/efficiency",
+        snapshot.wrap(dashboardApiHandler::handleAgentEfficiency));
+    javalinConfig.routes.get(
+        "/api/dashboard/agents/{agent}/deep-dive",
+        snapshot.wrap(dashboardApiHandler::handleAgentDeepDive));
 
     ExportApiHandler exportApiHandler = new ExportApiHandler(queryRoot);
     javalinConfig.routes.get(
@@ -289,49 +306,62 @@ public final class WebCompositionRoot {
     javalinConfig.routes.get("/api/glossary/round-signals", glossaryApiHandler::handleRoundSignals);
 
     ProjectsApiHandler projectsApiHandler = new ProjectsApiHandler(queryRoot);
-    javalinConfig.routes.get("/api/projects/summary", projectsApiHandler::handleSummary);
-    javalinConfig.routes.get("/api/projects/rows", projectsApiHandler::handleRows);
     javalinConfig.routes.get(
-        "/api/projects/active-filters", projectsApiHandler::handleActiveFilters);
+        "/api/projects/summary", snapshot.wrap(projectsApiHandler::handleSummary));
+    javalinConfig.routes.get("/api/projects/rows", snapshot.wrap(projectsApiHandler::handleRows));
+    javalinConfig.routes.get(
+        "/api/projects/active-filters", snapshot.wrap(projectsApiHandler::handleActiveFilters));
     ProjectDetailApiHandler projectDetailApiHandler = new ProjectDetailApiHandler(queryRoot);
     javalinConfig.routes.get(
-        "/api/projects/{projectKey}/summary", projectDetailApiHandler::handleSummary);
+        "/api/projects/{projectKey}/summary",
+        snapshot.wrap(projectDetailApiHandler::handleSummary));
     javalinConfig.routes.get(
-        "/api/projects/{projectKey}/token-trend", projectDetailApiHandler::handleTokenTrend);
+        "/api/projects/{projectKey}/token-trend",
+        snapshot.wrap(projectDetailApiHandler::handleTokenTrend));
     javalinConfig.routes.get(
-        "/api/projects/{projectKey}/agent-mix", projectDetailApiHandler::handleAgentMix);
+        "/api/projects/{projectKey}/agent-mix",
+        snapshot.wrap(projectDetailApiHandler::handleAgentMix));
     javalinConfig.routes.get(
-        "/api/projects/{projectKey}/tool-hotspots", projectDetailApiHandler::handleToolHotspots);
+        "/api/projects/{projectKey}/tool-hotspots",
+        snapshot.wrap(projectDetailApiHandler::handleToolHotspots));
     javalinConfig.routes.get(
         "/api/projects/{projectKey}/sessions/summary",
-        projectDetailApiHandler::handleSessionsSummary);
+        snapshot.wrap(projectDetailApiHandler::handleSessionsSummary));
     javalinConfig.routes.get(
-        "/api/projects/{projectKey}/sessions/rows", projectDetailApiHandler::handleSessionsRows);
+        "/api/projects/{projectKey}/sessions/rows",
+        snapshot.wrap(projectDetailApiHandler::handleSessionsRows));
 
     SessionsApiHandler sessionsListApiHandler = new SessionsApiHandler(queryRoot);
-    javalinConfig.routes.get("/api/sessions/summary", sessionsListApiHandler::handleSummary);
-    javalinConfig.routes.get("/api/sessions/options", sessionsListApiHandler::handleOptions);
-    javalinConfig.routes.get("/api/sessions/rows", sessionsListApiHandler::handleRows);
     javalinConfig.routes.get(
-        "/api/sessions/active-filters", sessionsListApiHandler::handleActiveFilters);
+        "/api/sessions/summary", snapshot.wrap(sessionsListApiHandler::handleSummary));
+    javalinConfig.routes.get(
+        "/api/sessions/options", snapshot.wrap(sessionsListApiHandler::handleOptions));
+    javalinConfig.routes.get(
+        "/api/sessions/rows", snapshot.wrap(sessionsListApiHandler::handleRows));
+    javalinConfig.routes.get(
+        "/api/sessions/active-filters", snapshot.wrap(sessionsListApiHandler::handleActiveFilters));
 
     SessionDetailApiHandler sessionDetailApiHandler = new SessionDetailApiHandler(queryRoot);
     javalinConfig.routes.get(
-        "/api/sessions/{agent}/{sessionId}/meta", sessionDetailApiHandler::handleMeta);
+        "/api/sessions/{agent}/{sessionId}/meta",
+        snapshot.wrap(sessionDetailApiHandler::handleMeta));
     javalinConfig.routes.get(
-        "/api/sessions/{agent}/{sessionId}/metrics", sessionDetailApiHandler::handleMetrics);
+        "/api/sessions/{agent}/{sessionId}/metrics",
+        snapshot.wrap(sessionDetailApiHandler::handleMetrics));
     javalinConfig.routes.get(
         "/api/sessions/{agent}/{sessionId}/diagnostics",
-        sessionDetailApiHandler::handleDiagnostics);
+        snapshot.wrap(sessionDetailApiHandler::handleDiagnostics));
     javalinConfig.routes.get(
-        "/api/sessions/{agent}/{sessionId}/rounds", sessionDetailApiHandler::handleRounds);
+        "/api/sessions/{agent}/{sessionId}/rounds",
+        snapshot.wrap(sessionDetailApiHandler::handleRounds));
     javalinConfig.routes.get(
-        "/api/sessions/{agent}/{sessionId}/payloads", sessionDetailApiHandler::handlePayloads);
+        "/api/sessions/{agent}/{sessionId}/payloads",
+        snapshot.wrap(sessionDetailApiHandler::handlePayloads));
 
     SessionApiHandler apiHandler = new SessionApiHandler(apiService);
     SessionApiRouter apiRouter = new SessionApiRouter(apiHandler);
 
-    javalinConfig.routes.get("/api/sessions/*", apiRouter::route);
+    javalinConfig.routes.get("/api/sessions/*", snapshot.wrap(apiRouter::route));
     javalinConfig.routes.get(
         "/api/*",
         ctx -> {

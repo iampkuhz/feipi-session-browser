@@ -243,13 +243,15 @@
 
   function attributionApiUrl(button, kind) {
     var payloadId = button.getAttribute("data-payload-id") || "";
+    var callId = button.getAttribute("data-attribution-call-id") || "";
+    var identityQuery = callId ? "?call_id=" + encodeURIComponent(callId) : "";
 
     // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Try main LLM call pattern: llm-R{round}-IX{call}-...`
     var m = payloadId.match(/^llm-R(\d+)-IX(\d+)-/);
     if (m) {
       var apiBase = _getSessionScopedApiBase();
       if (!apiBase) return "";
-      return apiBase + "/attribution/" + m[1] + "/" + m[2] + "/" + kind;
+      return apiBase + "/attribution/" + m[1] + "/" + m[2] + "/" + kind + identityQuery;
     }
 
     // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Try subagent pattern: sub-{sa_id}-IX{n}-request-attribution / sub-{sa_id}-IX{n}-response-attribution`
@@ -259,7 +261,7 @@
       var saCallIdx = sa_m[2];
       var subagentApiBase = _getSessionScopedApiBase();
       if (!subagentApiBase) return "";
-      return subagentApiBase + "/attribution/subagent/" + encodeURIComponent(saId) + "/" + saCallIdx + "/" + kind;
+      return subagentApiBase + "/attribution/subagent/" + encodeURIComponent(saId) + "/" + saCallIdx + "/" + kind + identityQuery;
     }
 
     return "";
@@ -588,6 +590,7 @@
     var cacheKey = url;
     var modal = ensurePayloadModal();
     if (roundIdx) modal.setAttribute("data-bucket-detail-round", roundIdx);
+    else modal.removeAttribute("data-bucket-detail-round");
 
     // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Store session source for bucket-detail API`
     var pageInfo = _getPageSourceAndSessionId();

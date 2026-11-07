@@ -154,18 +154,18 @@ public final class DiagnosePipeline {
   // ===== 原始解析层 =====
 
   /**
-   * Raw 层内部结果：原始统计、解析记录、诊断和底层 SourceResult。
+   * Raw 层内部结果：原始统计、不可变解析记录、诊断和必要的源定位信息。
    *
    * @param rawInfo 原始统计信息
    * @param records 解析后的源记录列表
    * @param diagnostics 解析诊断信息列表
-   * @param result 底层源解析结果
+   * @param locator 成功解析的主 transcript 定位信息，可为 null
    */
   private record RawResult(
       DiagnoseOutputModel.RawInfo rawInfo,
       List<SourceRecord> records,
       List<SourceDiagnostic> diagnostics,
-      SourceResult result) {}
+      String locator) {}
 
   private static RawResult parseRaw(
       String agent,
@@ -192,30 +192,32 @@ public final class DiagnosePipeline {
       SourceResult result = adapter.parse(candidate, null);
 
       if (result instanceof SourceResult.Success success) {
-        List<SourceRecord> records = success.records();
-        List<SourceDiagnostic> diags = success.diagnostics();
-        List<String> errors = new ArrayList<>();
-        for (SourceDiagnostic diag : diags) {
-          if (diag.severity().name().equals("ERROR")) {
-            errors.add(diag.message());
+        try (success) {
+          List<SourceRecord> records = success.records();
+          List<SourceDiagnostic> diags = success.diagnostics();
+          List<String> errors = new ArrayList<>();
+          for (SourceDiagnostic diag : diags) {
+            if (diag.severity().name().equals("ERROR")) {
+              errors.add(diag.message());
+            }
           }
+          DiagnoseOutputModel.RawInfo rawInfo = RawSummarizer.summarize(records, errors);
+          return new RawResult(rawInfo, records, diags, success.locator());
         }
-        DiagnoseOutputModel.RawInfo rawInfo = RawSummarizer.summarize(records, errors);
-        return new RawResult(rawInfo, records, diags, result);
       } else if (result instanceof SourceResult.Skipped skipped) {
         warnings.add("解析跳过: " + skipped.message());
         return new RawResult(
             new DiagnoseOutputModel.RawInfo("UNAVAILABLE", 0, Map.of(), 0, 0, 0, 0, 0, List.of()),
             List.of(),
             List.of(),
-            result);
+            null);
       } else if (result instanceof SourceResult.Fatal fatal) {
         List<String> errors = List.of(fatal.errorDetail());
         return new RawResult(
             new DiagnoseOutputModel.RawInfo("ERROR", 0, Map.of(), 0, 0, 0, 0, 0, errors),
             List.of(),
             fatal.diagnostics(),
-            result);
+            null);
       }
     } catch (Exception e) {
       LOG.log(Level.FINE, "源解析异常", e);
@@ -267,13 +269,11 @@ public final class DiagnosePipeline {
 
   private static List<NormalizedSourceFile> buildSourceFiles(RawResult rawResult) {
     List<NormalizedSourceFile> files = new ArrayList<>();
-    if (rawResult.result() instanceof SourceResult.Success success) {
-      // 主 transcript 文件
-      String locator = success.locator() != null ? success.locator() : "transcript";
-      files.add(
-          new NormalizedSourceFile(
-              SourceFileRole.TRANSCRIPT, Path.of(locator), Optional.empty(), Optional.empty()));
-    }
+    // 仅保存成功解析时复制的定位信息，不把源结果所有者带入后续归一化。
+    String locator = rawResult.locator() != null ? rawResult.locator() : "transcript";
+    files.add(
+        new NormalizedSourceFile(
+            SourceFileRole.TRANSCRIPT, Path.of(locator), Optional.empty(), Optional.empty()));
     // 为 subagent records 的 locator 添加额外 source files
     var subagentLocators =
         rawResult.records().stream()

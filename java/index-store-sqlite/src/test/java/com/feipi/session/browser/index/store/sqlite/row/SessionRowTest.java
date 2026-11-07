@@ -171,11 +171,10 @@ class SessionRowTest {
     }
 
     @Test
-    @DisplayName("endedAt 为空字符串时抛异常")
-    void emptyEndedAtRejected() {
-      assertThatThrownBy(
-              () ->
-                  new SessionRow(
+    @DisplayName("endedAt 未知允许为空字符串")
+    void emptyEndedAtRemainsUnknown() {
+      assertThat(
+              new SessionRow(
                       "claude_code:test-id",
                       "claude_code",
                       "test-id",
@@ -203,8 +202,9 @@ class SessionRowTest {
                       0,
                       0,
                       0,
-                      null))
-          .isInstanceOf(ConstraintViolationException.class);
+                      null)
+                  .endedAt())
+          .isEmpty();
     }
 
     @Test

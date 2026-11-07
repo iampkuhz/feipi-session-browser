@@ -100,19 +100,68 @@ function startIdentityProxy(port, innerPort) {
       response.end(JSON.stringify(FIXTURE_IDENTITY));
       return;
     }
+    let upstreamResponse;
+    let failed = false;
+    let cancelled = false;
+    function diagnose(phase, error) {
+      const code = error && typeof error.code === 'string' && /^[A-Z0-9_]{1,40}$/.test(error.code)
+        ? error.code : 'UNKNOWN';
+      console.warn('[playwright-fixture-transport] ' + JSON.stringify({
+        phase, code, reusedSocket: upstream.reusedSocket === true,
+        complete: upstreamResponse ? upstreamResponse.complete === true : false,
+      }));
+    }
+    function releaseUpstream() {
+      if (upstreamResponse && !upstreamResponse.destroyed) upstreamResponse.destroy();
+      if (!upstream.destroyed) upstream.destroy();
+    }
+    function fail(phase, error) {
+      if (failed || cancelled) return;
+      failed = true;
+      diagnose(phase, error);
+      if (!response.destroyed && !response.writableEnded) {
+        if (!response.headersSent) {
+          response.writeHead(502, { 'content-type': 'text/plain; charset=utf-8' });
+          response.end('fixture upstream unavailable');
+        } else {
+          // A partial body is never a successful response, even after headers were sent.
+          response.destroy();
+        }
+      }
+      releaseUpstream();
+    }
+    function cancel(phase, error) {
+      if (cancelled || failed) return;
+      cancelled = true;
+      diagnose(phase, error);
+      releaseUpstream();
+    }
     const upstream = http.request({
       headers: request.headers,
       host: '127.0.0.1',
       method: request.method,
       path: request.url,
       port: innerPort,
-    }, (upstreamResponse) => {
-      response.writeHead(upstreamResponse.statusCode || 502, upstreamResponse.headers);
-      upstreamResponse.pipe(response);
+    }, (incoming) => {
+      upstreamResponse = incoming;
+      incoming.on('aborted', () => fail('upstream_response_aborted', { code: 'UPSTREAM_ABORTED' }));
+      incoming.on('error', error => fail('upstream_response_error', error));
+      incoming.on('close', () => {
+        if (!incoming.complete) fail('upstream_response_incomplete_close', { code: 'UPSTREAM_INCOMPLETE' });
+      });
+      if (cancelled || failed || response.destroyed) {
+        releaseUpstream();
+        return;
+      }
+      response.writeHead(incoming.statusCode || 502, incoming.headers);
+      incoming.pipe(response);
     });
-    upstream.on('error', (error) => {
-      if (!response.headersSent) response.writeHead(502, { 'content-type': 'text/plain' });
-      response.end(`fixture upstream unavailable: ${error.message}`);
+    upstream.on('error', error => fail('upstream_request_error', error));
+    request.on('aborted', () => cancel('downstream_request_aborted', { code: 'DOWNSTREAM_ABORTED' }));
+    request.on('error', error => cancel('downstream_request_error', error));
+    response.on('error', error => cancel('downstream_response_error', error));
+    response.on('close', () => {
+      if (!response.writableFinished) cancel('downstream_response_incomplete_close', { code: 'DOWNSTREAM_CLOSED' });
     });
     request.pipe(upstream);
   });

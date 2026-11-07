@@ -12,6 +12,7 @@ import com.feipi.session.browser.index.api.query.KpiSupplement;
 import com.feipi.session.browser.index.api.query.TrendDay;
 import com.feipi.session.browser.query.api.AgentFilter;
 import com.feipi.session.browser.query.api.TrendFilter;
+import com.feipi.session.browser.web.IndexSnapshotGuard;
 import com.feipi.session.browser.web.model.WebDisplayValues;
 import com.feipi.session.browser.web.template.DisplayFormatters;
 import com.feipi.session.browser.web.template.PebbleEnvironment;
@@ -51,7 +52,7 @@ public final class DashboardPage {
 
   /** grain 到趋势窗口天数的映射。 */
   private static final Map<String, Integer> GRAIN_DAYS =
-      Map.of("day", 30, "week", 140, "month", 360);
+      Map.of("day", 30, "week", 140, "month", 366);
 
   private final QueryCompositionRoot queryRoot;
   private final PebbleEnvironment templates;
@@ -101,13 +102,15 @@ public final class DashboardPage {
 
       // 组装模板上下文
       Map<String, Object> context = new HashMap<>();
+      context.put(
+          IndexSnapshotGuard.PAGE_GENERATION, ctx.attribute(IndexSnapshotGuard.PAGE_GENERATION));
       context.put("stats", stats);
       context.put("agent_scope", agentScope);
       context.put("grain", grain);
       context.put("is_single_agent", !"all".equals(agentScope));
       context.put("active_page", "dashboard");
       context.put("hide_sidebar_extra", true);
-      context.put("kpis", buildKpis(stats, kpiSupplement, trendRows, activityRows));
+      context.put("kpis", buildKpis(stats, kpiSupplement));
       context.put("trend", buildTrend(trendRows));
       context.put("prompt_activity", buildPromptActivity(activityRows));
       Map<String, Object> cacheHealth = buildCacheHealth(unfilteredTrendRows, agentScope);
@@ -168,10 +171,7 @@ public final class DashboardPage {
   }
 
   private static List<Map<String, Object>> buildKpis(
-      DashboardStats stats,
-      KpiSupplement supplement,
-      List<TrendDay> trendRows,
-      List<ActivityTrend> activityRows) {
+      DashboardStats stats, KpiSupplement supplement) {
     long inputSide =
         stats.totalFreshInputTokens()
             + stats.totalCacheReadTokens()
@@ -182,94 +182,27 @@ public final class DashboardPage {
     long totalUserMessages = stats.totalUserMessages();
     long totalAssistantMessages = stats.totalAssistantMessages();
 
-    // 说明:Badge 计算——对比当前可见窗口最后两个 range point
-    long latestSessions =
-        trendRows.isEmpty() ? 0 : trendRows.get(trendRows.size() - 1).totalCount();
-    long prevSessions = trendRows.size() < 2 ? 0 : trendRows.get(trendRows.size() - 2).totalCount();
-    long sessionDelta = latestSessions - prevSessions;
-
-    long latestTokens = trendRows.isEmpty() ? 0 : trendRows.get(trendRows.size() - 1).totalTokens();
-    long prevTokens = trendRows.size() < 2 ? 0 : trendRows.get(trendRows.size() - 2).totalTokens();
-
-    long latestPrompts =
-        activityRows.isEmpty() ? 0 : activityRows.get(activityRows.size() - 1).totalPrompts();
-    long prevPrompts =
-        activityRows.size() < 2 ? 0 : activityRows.get(activityRows.size() - 2).totalPrompts();
-    long promptDelta = latestPrompts - prevPrompts;
-
-    long latestFailed = trendRows.isEmpty() ? 0 : trendRows.get(trendRows.size() - 1).failedTools();
-    long prevFailed = trendRows.size() < 2 ? 0 : trendRows.get(trendRows.size() - 2).failedTools();
-    long failedDelta = latestFailed - prevFailed;
-
-    // 说明:Cache Read Ratio badge——最后两个可计算点的百分点变化
-    String cacheRatioBadge = null;
+    // 日期 badge 由客户端按当前 UTC 日历粒度及紧邻前桶计算，SSR 不冒用两个非空日。
+    String cacheRatioBadge = "N/A";
     String cacheRatioBadgeTone = "neutral";
-    if (reportedInput(stats.tokenProvenance())) {
-      Double latest = null;
-      Double prev = null;
-      for (int i = trendRows.size() - 1; i >= 0 && latest == null; i--) {
-        TrendDay r = trendRows.get(i);
-        long is = r.freshInputTokens() + r.cacheReadTokens() + r.cacheWriteTokens();
-        if (is > 0 && reportedInput(r.tokenProvenance())) {
-          latest = (double) r.cacheReadTokens() / is;
-          for (int j = i - 1; j >= 0; j--) {
-            TrendDay p = trendRows.get(j);
-            long pis = p.freshInputTokens() + p.cacheReadTokens() + p.cacheWriteTokens();
-            if (pis > 0 && reportedInput(p.tokenProvenance())) {
-              prev = (double) p.cacheReadTokens() / pis;
-              break;
-            }
-          }
-          break;
-        }
-      }
-      if (latest != null && prev != null) {
-        double deltaPp = (latest - prev) * 100.0;
-        if (Math.abs(deltaPp) < 0.05) {
-          deltaPp = 0.0;
-        }
-        cacheRatioBadge = String.format(java.util.Locale.ROOT, "%+.1fpp", deltaPp);
-        cacheRatioBadgeTone = deltaPp >= 0 ? "positive" : "negative";
-      } else if (latest != null) {
-        cacheRatioBadge = "N/A";
-      }
-    }
-
-    // 说明:Token badge 百分比
-    String tokenBadge;
-    String tokenBadgeTone;
-    if (prevTokens > 0) {
-      double pct = ((double) (latestTokens - prevTokens) / prevTokens) * 100.0;
-      tokenBadge = String.format(java.util.Locale.ROOT, "%+.1f%%", pct);
-      tokenBadgeTone = "neutral";
-    } else {
-      tokenBadge = latestTokens > 0 ? "N/A" : null;
-      tokenBadgeTone = "neutral";
-    }
-
-    // 说明:Project badge——最近 7d 相对上个 7d 的变化
+    String tokenBadge = "N/A";
+    String tokenBadgeTone = "neutral";
+    String sessionBadge = "N/A";
+    String sessionBadgeTone = "neutral";
+    String promptBadge = "N/A";
+    String promptBadgeTone = "neutral";
+    String failedBadge = "N/A";
+    String failedBadgeTone = "neutral";
+    // Projects 独立比较两个相邻的七自然日窗口，不随图表粒度变化。
     long projectDelta = supplement.activeProjects7d() - supplement.activeProjectsPrevious7d();
     String projectBadge = projectDelta > 0 ? "+" + projectDelta : String.valueOf(projectDelta);
     String projectBadgeTone = projectDelta >= 0 ? "positive" : "negative";
 
-    // 说明:Sessions badge
-    String sessionBadge = formatDeltaBadge(sessionDelta);
-    String sessionBadgeTone;
-    sessionBadgeTone = sessionDelta >= 0 ? "positive" : "negative";
-
-    // 说明:Prompt Activity badge
-    String promptBadge = formatDeltaBadge(promptDelta);
-    String promptBadgeTone;
-    promptBadgeTone = promptDelta >= 0 ? "positive" : "negative";
-
-    // 说明:Failed Tools badge
-    String failedBadge = formatDeltaBadge(failedDelta);
-    String failedBadgeTone;
-    failedBadgeTone = failedDelta <= 0 ? "positive" : "negative";
-
     // 说明:二级指标计算
-    double avgRounds = totalSessions > 0 ? (double) totalAssistantMessages / totalSessions : 0;
-    double promptsPerSession = totalSessions > 0 ? (double) totalUserMessages / totalSessions : 0;
+    long userMessageSamples = supplement.userMessageSampleCount();
+    long assistantMessageSamples = supplement.assistantMessageSampleCount();
+    Double avgAssistantMessages = supplement.avgAssistantMessagesPerSession();
+    Double promptsPerSession = supplement.avgUserMessagesPerSession();
     Double cacheRatio =
         inputSide > 0 && reportedInput(stats.tokenProvenance())
             ? (double) stats.totalCacheReadTokens() / inputSide
@@ -319,12 +252,20 @@ public final class DashboardPage {
                         "最近 7 个自然日每日 session 数的算术平均值。"),
                     secondary(
                         "Median Duration",
-                        DisplayFormatters.formatDuration(supplement.medianDurationSeconds()),
-                        "当前 scope 下 session duration 的中位数。"),
+                        supplement.durationSampleCount() > 0
+                            ? DisplayFormatters.formatDuration(supplement.medianDurationSeconds())
+                            : "N/A",
+                        "已测量 wall duration 的中位数，样本数 " + supplement.durationSampleCount() + "。"),
                     secondary(
-                        "Avg Rounds",
-                        String.format(java.util.Locale.ROOT, "%.1f", avgRounds),
-                        "当前 scope 下每个 session 的 LLM round 数平均值。")))),
+                        "Avg Assistant Messages",
+                        assistantMessageSamples > 0 && avgAssistantMessages != null
+                            ? String.format(java.util.Locale.ROOT, "%.1f", avgAssistantMessages)
+                            : "N/A",
+                        "当前筛选范围：assistant 消息测量样本 "
+                            + assistantMessageSamples
+                            + " / "
+                            + totalSessions
+                            + "；仅这些会话参与均值，保留实测 0，不是逻辑轮数；usage 或内容可用不代表消息已测。")))),
         kpi(
             new KpiCard(
                 "Total Tokens",
@@ -355,26 +296,30 @@ public final class DashboardPage {
             new KpiCard(
                 "Prompt Activity",
                 formatDashboardInteger(totalUserMessages),
-                "用户发起输入数量，按 user message 事件计数",
+                "索引可观察 user 消息集合累计，不代表完整真人历史；均值使用独立消息测量样本子集。",
                 "💬",
                 "green",
                 promptBadge,
                 promptBadgeTone,
                 List.of(
                     secondary(
-                        "Assistant Turns",
+                        "Assistant Messages",
                         formatDashboardInteger(totalAssistantMessages),
-                        "assistant message 事件总数。"),
+                        "索引可观察 assistant 消息集合累计；不是逻辑轮数，也不代表全部消息均已测量。"),
                     secondary(
                         "Tool Calls",
                         formatDashboardInteger(totalToolCalls),
                         "tool call 事件总数，不区分成功和失败。"),
                     secondary(
                         "Prompts / Session",
-                        totalSessions > 0
+                        userMessageSamples > 0 && promptsPerSession != null
                             ? String.format(java.util.Locale.ROOT, "%.1f", promptsPerSession)
                             : "N/A",
-                        "User Prompts / Sessions；sessions 为 0 时显示 N/A。")))),
+                        "当前筛选范围：user 消息测量样本 "
+                            + userMessageSamples
+                            + " / "
+                            + totalSessions
+                            + "；仅这些会话参与均值，保留实测 0，不代表完整真人历史；usage 或内容可用不代表消息已测。")))),
         kpi(
             new KpiCard(
                 "Cache Read Ratio",
@@ -438,7 +383,11 @@ public final class DashboardPage {
     row.put("icon_color", card.iconColor());
     row.put("badge", card.badge());
     row.put("badge_tone", card.badgeTone() == null ? "neutral" : card.badgeTone());
-    row.put("badge_description", card.badge() == null ? "" : card.description());
+    row.put(
+        "badge_description",
+        "Projects".equals(card.label())
+            ? "UTC 最近七自然日（含当前未完成日）与紧邻前七日的活跃项目数之差；不随 Day/Week/Month 改变。"
+            : "UTC session-start cohort：当前日历桶与紧邻前桶比较；当前桶未完成。等待当前粒度数据，非事件实际发生日。");
     row.put("secondary", card.secondary() == null ? List.of() : card.secondary());
     return row;
   }
@@ -496,17 +445,9 @@ public final class DashboardPage {
     if (n >= COMPACT_THOUSAND) {
       return String.format(java.util.Locale.ROOT, "%.1fK", n / COMPACT_THOUSAND);
     }
-    return String.valueOf((long) n);
-  }
-
-  private static String formatDeltaBadge(long delta) {
-    if (delta > 0) {
-      return "+" + formatDashboardCompact(delta);
-    }
-    if (delta < 0) {
-      return "-" + formatDashboardCompact(Math.abs(delta));
-    }
-    return "0";
+    return n == Math.rint(n)
+        ? String.valueOf((long) n)
+        : String.format(java.util.Locale.ROOT, "%.2f", n);
   }
 
   private static List<Map<String, Object>> buildTrend(List<TrendDay> rows) {
@@ -664,7 +605,7 @@ public final class DashboardPage {
           case "month" -> "自然月";
           default -> "天";
         };
-    String cohort = "按 UTC 开始日，按" + bucket;
+    String cohort = "session-start cohort：按 UTC 开始日，按" + bucket;
     Map<String, String> notes = new LinkedHashMap<>();
     notes.put(
         "sessions",
@@ -676,7 +617,11 @@ public final class DashboardPage {
             + "未知开始日期不计入。");
     notes.put(
         "prompts",
-        cohort + "归组：该批 " + scope + " 会话的整段累计 user prompts；" + "平均 prompts 的分母为同一批开始会话，不是事件实际发生日。");
+        cohort
+            + "归组：该批 "
+            + scope
+            + " 会话的整段累计 user prompts；"
+            + "平均 prompts 的分母为同一批开始会话中的 user 消息实测样本，保留实测 0，不是事件实际发生日或完整真人提问量。");
     notes.put(
         "tokens",
         cohort
@@ -690,7 +635,8 @@ public final class DashboardPage {
             + "归组 "
             + scope
             + " 的 Cache Read Ratio；使用该批会话整段 input，"
-            + "不是逐次真实消费日。Average 为同桶全局平均；缺测/未知为 N/A。");
+            + "不是逐次真实消费日。Latest 为当前未完成桶，Lowest 仅比较可见窗口同粒度可计算桶；"
+            + "Average 为同桶全局 token 加权比率，缺测/未知为 N/A。");
     notes.put("model_mix", "当前 Java index 暂未暴露完整模型占比图数据时显示明细表或空态。");
     notes.put("tool_dist", "当前 index 保存聚合工具调用数，不保存工具名称分布。");
     return notes;
@@ -947,13 +893,12 @@ public final class DashboardPage {
       map.put(
           "cache_read",
           row.cacheReuseRatio() == null ? "N/A" : percentLabel(row.cacheReuseRatio()));
-      map.put("failure_raw", row.failedPerSession() == null ? 0.0 : row.failedPerSession());
+      map.put("failure_raw", row.failedPerSession() == null ? -1 : row.failedPerSession());
       map.put(
           "failure",
-          String.format(
-              java.util.Locale.ROOT,
-              "%.2f / session",
-              row.failedPerSession() == null ? 0.0 : row.failedPerSession()));
+          row.failedPerSession() == null
+              ? "N/A"
+              : String.format(java.util.Locale.ROOT, "%.2f / session", row.failedPerSession()));
       map.put(
           "tool_calls_per_session",
           row.avgTools() == 0.0

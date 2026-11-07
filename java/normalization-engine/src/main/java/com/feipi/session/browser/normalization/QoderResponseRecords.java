@@ -206,7 +206,8 @@ final class QoderResponseRecords {
         record.responseMessageId(),
         record.responseStopReason(),
         record.timing(),
-        record.metaContext());
+        record.metaContext(),
+        record.messageRole());
   }
 
   private static SourceRecord mergeGroup(
@@ -272,7 +273,8 @@ final class QoderResponseRecords {
         first.responseMessageId(),
         lastStopReason,
         first.timing(),
-        first.metaContext());
+        first.metaContext(),
+        first.messageRole());
   }
 
   private static SourceRecordUsage mergeUsage(List<SourceRecord> group) {
@@ -287,6 +289,11 @@ final class QoderResponseRecords {
       maxCacheWrite = Math.max(maxCacheWrite, usage.cacheCreationInputTokens());
       maxOutput = Math.max(maxOutput, usage.outputTokens());
     }
-    return new SourceRecordUsage(maxInput, maxCacheRead, maxCacheWrite, maxOutput);
+    return new SourceRecordUsage(
+        maxInput,
+        maxCacheRead,
+        maxCacheWrite,
+        maxOutput,
+        TokenAccountant.maxUsageProvenance(group.stream().map(SourceRecord::usage).toList()));
   }
 }

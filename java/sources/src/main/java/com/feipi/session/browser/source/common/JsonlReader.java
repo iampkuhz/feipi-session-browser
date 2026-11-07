@@ -7,7 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.feipi.session.browser.source.spi.ParseIssueType;
 import com.feipi.session.browser.source.spi.ParseSeverity;
 import com.feipi.session.browser.source.spi.SourceDiagnostic;
-import java.io.BufferedReader;
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.CharacterCodingException;
@@ -22,6 +22,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.function.Consumer;
+import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
 
 /**
@@ -95,16 +96,84 @@ public final class JsonlReader {
    * @throws IOException 当文件读取失败时
    */
   public JsonlReaderResult read(Path path) throws IOException {
-    Objects.requireNonNull(path, "path 不得为 null");
+    return read(path, UnaryOperator.identity());
+  }
 
-    // 读取前快照：检测活跃写入
+  /**
+   * 在每个对象通过原有解析及缓冲区检查后投影，再加入结果列表；默认读取入口保持原始对象。
+   *
+   * @param path JSONL 文件路径
+   * @param eventProjection 逐对象投影，不得返回 null 或非对象节点
+   * @return 保留原统计、诊断与停止状态的读取结果
+   * @throws IOException 文件读取失败时抛出
+   */
+  public JsonlReaderResult read(Path path, UnaryOperator<JsonNode> eventProjection)
+      throws IOException {
+    return readInternal(
+        path,
+        eventProjection,
+        null,
+        Files.size(path),
+        Files.getLastModifiedTime(path).toMillis(),
+        null);
+  }
+
+  /**
+   * 仅对完整验证且规则精确确认的值提前投影；原路径仍用于变化检测和原始字节定位。
+   *
+   * @param path 原始 JSONL 路径
+   * @param rules 固定 schema 投影规则
+   * @param eventProjection 原有逐对象投影
+   * @return 保留原始来源定位的读取结果
+   * @throws IOException 输入或私有临时文件读写失败
+   */
+  public JsonlReaderResult readPreprojected(
+      Path path, List<JsonlPreprojection.Rule> rules, UnaryOperator<JsonNode> eventProjection)
+      throws IOException {
     long sizeBefore = Files.size(path);
     long mtimeBefore = Files.getLastModifiedTime(path).toMillis();
+    try (var projected = JsonlPreprojection.create(path, rules, config.maxBufferSize())) {
+      return readInternal(path, eventProjection, projected, sizeBefore, mtimeBefore, null);
+    }
+  }
 
-    // 检测行终止符字节长度（\n = 1, \r\n = 2），用于字节偏移估算
-    int terminatorByteLen = detectLineTerminatorByteLen(path);
+  /**
+   * 逐对象写入调用方拥有的 sink，不在返回值中再次持有事件；clear 用于非法 UTF8 的整批回滚。
+   *
+   * @param path 原始来源路径
+   * @param rules 固定预投影规则
+   * @param eventProjection 原有逐对象投影
+   * @param sink 接收 add/size/clear 的空目标；调用方负责其生命周期及 IO 异常转换
+   * @return events 为空的统计与诊断结果，stats 保留实际处理数量
+   * @throws IOException 来源或临时文件读取失败
+   */
+  public JsonlReaderResult readPreprojectedTo(
+      Path path,
+      List<JsonlPreprojection.Rule> rules,
+      UnaryOperator<JsonNode> eventProjection,
+      List<JsonNode> sink)
+      throws IOException {
+    Objects.requireNonNull(sink, "sink 不得为 null");
+    if (!sink.isEmpty()) throw new IllegalArgumentException("sink 必须为空");
+    long sizeBefore = Files.size(path);
+    long mtimeBefore = Files.getLastModifiedTime(path).toMillis();
+    try (var projected = JsonlPreprojection.create(path, rules, config.maxBufferSize())) {
+      return readInternal(path, eventProjection, projected, sizeBefore, mtimeBefore, sink);
+    }
+  }
 
-    List<JsonNode> events = new ArrayList<>();
+  private JsonlReaderResult readInternal(
+      Path path,
+      UnaryOperator<JsonNode> eventProjection,
+      JsonlPreprojection projected,
+      long sizeBefore,
+      long mtimeBefore,
+      List<JsonNode> sink)
+      throws IOException {
+    Objects.requireNonNull(path, "path 不得为 null");
+    Objects.requireNonNull(eventProjection, "eventProjection 不得为 null");
+
+    List<JsonNode> events = sink == null ? new ArrayList<>() : sink;
     List<SourceDiagnostic> diagnostics = new ArrayList<>();
     List<String> currentLines = new ArrayList<>();
     int depth = 0;
@@ -119,51 +188,60 @@ public final class JsonlReader {
     boolean stopped = false;
     boolean recordHasMismatch = false;
 
-    try (BufferedReader reader =
-        new BufferedReader(
-            new InputStreamReader(Files.newInputStream(path), utf8ReportingDecoder()))) {
-      String line;
-      boolean firstLine = true;
+    try (DataInputStream rawPositions = projected == null ? null : projected.positions();
+        BoundedPhysicalLineReader reader =
+            new BoundedPhysicalLineReader(
+                new InputStreamReader(
+                    Files.newInputStream(projected == null ? path : projected.projected()),
+                    utf8ReportingDecoder()))) {
+      BoundedPhysicalLineReader.Line physical;
       long byteOffset = 0;
-
-      while ((line = reader.readLine()) != null) {
+      while ((physical =
+              reader.next(
+                  config.maxBufferSize() - bufferChars - (bufferChars > 0 ? 1 : 0),
+                  config.maxPreviewLength()))
+          != null) {
         totalLines++;
         long lineStartByteOffset = byteOffset;
-
-        // 跳过 UTF-8 BOM（仅第一个字符，3 字节 EF BB BF）
-        if (firstLine && !line.isEmpty() && line.charAt(0) == JsonlConstants.BOM) {
-          line = line.substring(1);
-          byteOffset += 3; // UTF-8 BOM 占 3 字节
+        byteOffset += rawPositions == null ? physical.bytesConsumed() : rawPositions.readLong();
+        boolean rawNonEmpty = rawPositions != null && rawPositions.readBoolean();
+        String stripped = physical.text();
+        if (physical.overflow() && !stopped) {
+          if (currentLines.isEmpty()) {
+            recordStartByteOffset = lineStartByteOffset;
+            recordStartLine = totalLines;
+          }
+          nonEmptyLines++;
+          String preview =
+              currentLines.isEmpty()
+                  ? stripped
+                  : previewFromLines(currentLines, config.maxPreviewLength());
+          diagnostics.add(
+              buildBadJsonDiagnostic(
+                  recordStartLine,
+                  preview,
+                  JsonlConstants.CODE_BUFFER_OVERFLOW,
+                  recordStartByteOffset,
+                  byteOffset));
+          currentLines.clear();
+          bufferChars = 0;
+          depth = curlyDepth = squareDepth = 0;
+          recordHasMismatch = false;
+          continue;
         }
-        firstLine = false;
-
-        String stripped = stripTrailingChars(line);
         if (stripped.isEmpty()) {
+          if (rawNonEmpty) nonEmptyLines++;
           // 空行仍消耗字节（行终止符）
-          byteOffset += estimateUtf8ByteLength(line) + terminatorByteLen;
+
           continue;
         }
         nonEmptyLines++;
 
         // 达到 maxRecords 后，仅追踪深度以跳过当前记录，不做解析
         if (stopped) {
-          for (int i = 0; i < stripped.length(); i++) {
-            char ch = stripped.charAt(i);
-            if (ch == '{') {
-              depth++;
-              curlyDepth++;
-            } else if (ch == '}') {
-              depth--;
-              curlyDepth--;
-            } else if (ch == '[') {
-              depth++;
-              squareDepth++;
-            } else if (ch == ']') {
-              depth--;
-              squareDepth--;
-            }
-          }
-          byteOffset += estimateUtf8ByteLength(stripped) + terminatorByteLen;
+          curlyDepth += physical.curlyDelta();
+          squareDepth += physical.squareDelta();
+          depth = curlyDepth + squareDepth;
           // 深度回到 0 且括号平衡时，当前记录结束，解除 stopped
           if (depth <= 0 && curlyDepth <= 0 && squareDepth <= 0) {
             depth = 0;
@@ -209,22 +287,21 @@ public final class JsonlReader {
                   preview,
                   JsonlConstants.CODE_BUFFER_OVERFLOW,
                   recordStartByteOffset,
-                  byteOffset + estimateUtf8ByteLength(stripped) + terminatorByteLen));
+                  byteOffset));
           currentLines.clear();
           bufferChars = 0;
           depth = 0;
           curlyDepth = 0;
           squareDepth = 0;
           recordHasMismatch = false;
-          byteOffset += estimateUtf8ByteLength(stripped) + terminatorByteLen;
+
           continue;
         }
 
         // 深度变为负数：多余的闭合括号，立即刷新并报告
         if (depth < 0) {
           String full = String.join("\n", currentLines).strip();
-          long recordEndByteOffset =
-              byteOffset + estimateUtf8ByteLength(stripped) + terminatorByteLen;
+          long recordEndByteOffset = byteOffset;
           String code =
               recordHasMismatch
                   ? JsonlConstants.CODE_BRACKET_MISMATCH
@@ -237,7 +314,8 @@ public final class JsonlReader {
                 events,
                 diagnostics,
                 recordStartByteOffset,
-                recordEndByteOffset);
+                recordEndByteOffset,
+                eventProjection);
           }
           // 报告多余括号
           diagnostics.add(
@@ -249,7 +327,7 @@ public final class JsonlReader {
           curlyDepth = 0;
           squareDepth = 0;
           recordHasMismatch = false;
-          byteOffset += estimateUtf8ByteLength(stripped) + terminatorByteLen;
+
           continue;
         }
 
@@ -258,8 +336,7 @@ public final class JsonlReader {
           // 注意：curlyDepth/squareDepth 可能各自不为零（如 {"a":] 中 curly=1,square=-1），
           // 但深度之和为零即表示所有括号已闭合或多余
           String full = String.join("\n", currentLines).strip();
-          long recordEndByteOffset =
-              byteOffset + estimateUtf8ByteLength(stripped) + terminatorByteLen;
+          long recordEndByteOffset = byteOffset;
           currentLines.clear();
           bufferChars = 0;
 
@@ -290,15 +367,14 @@ public final class JsonlReader {
                 events,
                 diagnostics,
                 recordStartByteOffset,
-                recordEndByteOffset);
+                recordEndByteOffset,
+                eventProjection);
           }
           depth = 0;
           curlyDepth = 0;
           squareDepth = 0;
           recordHasMismatch = false;
         }
-
-        byteOffset += estimateUtf8ByteLength(stripped) + terminatorByteLen;
       }
     } catch (CharacterCodingException e) {
       diagnostics.clear();
@@ -306,7 +382,7 @@ public final class JsonlReader {
       diagnostics.add(buildInvalidUtf8Diagnostic(Math.max(1, totalLines + 1)));
       JsonlStats stats =
           new JsonlStats(totalLines, nonEmptyLines, 0, countSkippedEvents(diagnostics));
-      return new JsonlReaderResult(events, diagnostics, stats, false);
+      return new JsonlReaderResult(sink == null ? events : List.of(), diagnostics, stats, false);
     }
 
     readCompleteHook.accept(path);
@@ -336,7 +412,7 @@ public final class JsonlReader {
               "File modified during read; results may be incomplete",
               -1));
       return new JsonlReaderResult(
-          events,
+          sink == null ? events : List.of(),
           diagnostics,
           new JsonlStats(totalLines, nonEmptyLines, events.size(), countSkippedEvents(diagnostics)),
           stoppedByLimit);
@@ -344,7 +420,8 @@ public final class JsonlReader {
 
     int eventsSkipped = countSkippedEvents(diagnostics);
     JsonlStats stats = new JsonlStats(totalLines, nonEmptyLines, events.size(), eventsSkipped);
-    return new JsonlReaderResult(events, diagnostics, stats, stoppedByLimit);
+    return new JsonlReaderResult(
+        sink == null ? events : List.of(), diagnostics, stats, stoppedByLimit);
   }
 
   // ─── 括号扫描 ──────────────────────────────────────────────────────────
@@ -441,65 +518,6 @@ public final class JsonlReader {
     if (lines.size() < JsonlConstants.MAX_LINES_PER_RECORD) {
       lines.add(line);
     }
-  }
-
-  /**
-   * 检测文件的行终止符字节长度。
-   *
-   * <p>读取文件开头的字节，如果检测到 {@code \r\n} 返回 2，否则返回 1。 用于字节偏移的近似估算。
-   *
-   * @param path 文件路径
-   * @return 行终止符字节长度
-   */
-  private static int detectLineTerminatorByteLen(Path path) throws IOException {
-    byte[] head = new byte[Math.min(4096, (int) Math.max(1, Files.size(path)))];
-    int bytesRead;
-    try (var is = Files.newInputStream(path)) {
-      bytesRead = is.read(head);
-    }
-    if (bytesRead <= 0) {
-      return 1;
-    }
-    for (int i = 0; i < bytesRead - 1; i++) {
-      if (head[i] == '\r' && head[i + 1] == '\n') {
-        return 2;
-      }
-      if (head[i] == '\n') {
-        return 1;
-      }
-    }
-    return 1;
-  }
-
-  /**
-   * 估算字符串的 UTF-8 字节长度。
-   *
-   * <p>逐字符计算，避免 {@code String#getBytes(...)} 为超大 JSONL 行额外复制完整 byte array。
-   *
-   * @param text 待估算的字符串
-   * @return UTF-8 字节长度
-   */
-  private static int estimateUtf8ByteLength(String text) {
-    int length = 0;
-    for (int i = 0; i < text.length(); i++) {
-      char ch = text.charAt(i);
-      if (ch <= 0x7F) {
-        length++;
-      } else if (ch <= 0x7FF) {
-        length += 2;
-      } else if (Character.isHighSurrogate(ch)
-          && i + 1 < text.length()
-          && Character.isLowSurrogate(text.charAt(i + 1))) {
-        length += 4;
-        i++;
-      } else if (Character.isSurrogate(ch)) {
-        // String#getBytes(UTF_8) 使用替代字节编码孤立 surrogate；UTF-8 decoder 正常不会产出此类字符。
-        length++;
-      } else {
-        length += 3;
-      }
-    }
-    return length;
   }
 
   private static CharsetDecoder utf8ReportingDecoder() {
@@ -624,6 +642,14 @@ public final class JsonlReader {
     return preview.toString().strip();
   }
 
+  private static JsonNode projectEvent(JsonNode node, UnaryOperator<JsonNode> eventProjection) {
+    JsonNode projected = Objects.requireNonNull(eventProjection.apply(node), "投影事件不得为 null");
+    if (!projected.isObject()) {
+      throw new IllegalArgumentException("投影事件必须为 JSON 对象");
+    }
+    return projected;
+  }
+
   /**
    * 尝试解析 JSON 文本，失败时尝试拆分拼接对象。
    *
@@ -633,6 +659,7 @@ public final class JsonlReader {
    * @param diagnostics 诊断信息列表
    * @param startByte 记录起始字节偏移
    * @param endByte 记录结束字节偏移
+   * @param eventProjection 通过原始解析检查后的对象投影
    */
   private void tryParseJson(
       String text,
@@ -640,11 +667,12 @@ public final class JsonlReader {
       List<JsonNode> events,
       List<SourceDiagnostic> diagnostics,
       long startByte,
-      long endByte) {
+      long endByte,
+      UnaryOperator<JsonNode> eventProjection) {
     try {
       JsonNode node = mapper.readTree(text);
       if (node.isObject()) {
-        events.add(node);
+        events.add(projectEvent(node, eventProjection));
       } else {
         String typeName = typeNameFor(node);
         diagnostics.add(buildNonObjectDiagnostic(lineNo, typeName, text, startByte, endByte));
@@ -660,7 +688,7 @@ public final class JsonlReader {
         try {
           JsonNode node = mapper.readTree(part);
           if (node.isObject()) {
-            events.add(node);
+            events.add(projectEvent(node, eventProjection));
           } else {
             String typeName = typeNameFor(node);
             diagnostics.add(buildNonObjectDiagnostic(lineNo, typeName, part, startByte, endByte));
@@ -779,7 +807,9 @@ public final class JsonlReader {
   }
 
   private static OptionalInt optionalByte(long value) {
-    return value >= 0 ? OptionalInt.of((int) value) : OptionalInt.empty();
+    return value >= 0 && value <= Integer.MAX_VALUE
+        ? OptionalInt.of((int) value)
+        : OptionalInt.empty();
   }
 
   /** 表示诊断上下文的轻量值对象。 */
@@ -817,14 +847,5 @@ public final class JsonlReader {
       }
     }
     return count;
-  }
-
-  /** 去除尾部空白字符（与 Python {@code rstrip()} 行为一致）。 */
-  private static String stripTrailingChars(String text) {
-    int end = text.length();
-    while (end > 0 && Character.isWhitespace(text.charAt(end - 1))) {
-      end--;
-    }
-    return text.substring(0, end);
   }
 }

@@ -108,9 +108,13 @@ dependencies {
 tasks.named<Test>("test") {
     // 发行目录契约必须消费本轮准备完成的产物，不能依赖上次构建留下的目录。
     dependsOn(tasks.named("installDist"))
+    dependsOn("generateRuntimeLauncher")
     val installDir = layout.buildDirectory.dir("install/app-cli")
     inputs.dir(installDir).withPropertyName("cliInstallDistribution")
     systemProperty("cli.install.dir", installDir.get().asFile.absolutePath)
+    val runtimeDir = layout.buildDirectory.dir("distributions/runtime-base/app-cli")
+    inputs.dir(runtimeDir).withPropertyName("cliRuntimeDistribution")
+    systemProperty("cli.runtime.dir", runtimeDir.get().asFile.absolutePath)
 }
 
 // ============================================================
@@ -325,12 +329,14 @@ val jdepsModuleList = tasks.register("jdepsModuleList") {
             .sorted()
 
         // 基础模块：仅包含运行时真实依赖的 JDK 模块。
-        // java.desktop/java.management/java.naming 经 jdeps 和运行时验证确认不需要：
+        // java.desktop/java.management 不属于当前运行时必需路径：
         //   - java.desktop：仅 jackson-databind 可选 AWT 引用，运行时通过反射守卫跳过
-        //   - java.management/java.naming：Jetty JNDI/JMX 路径，本应用不使用
+        //   - java.management：本应用不使用 Jetty JMX
+        // java.naming：Jetty 正常 Web 初始化动态加载 NamingException，jdeps 静态分析无法捕获
+        // jdk.zipfs：Jetty 通过 FileSystems provider 读取 JAR 内的 classpath 静态资源
         // java.net.http：StopCommand 使用 HttpClient 发送 HTTP 请求
         val baseModules = listOf(
-            "java.base", "java.logging", "java.sql", "java.net.http",
+            "java.base", "java.logging", "java.sql", "java.net.http", "java.naming", "jdk.zipfs",
         )
         val allModules = (modules + baseModules).distinct().sorted()
 

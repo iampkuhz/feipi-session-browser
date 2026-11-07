@@ -23,6 +23,11 @@ public interface DashboardQueryPort {
   /** 返回每日 prompt 活动趋势行。 */
   List<ActivityTrend> activityTrend(TrendFilter filter);
 
+  /** 返回独立的源事件日观察子集；旧实现明确不支持，不能以空集合冒充实测零。 */
+  default EventActivity eventActivity(TrendFilter filter) {
+    throw new UnsupportedOperationException("source-event activity is not available");
+  }
+
   /** 返回 token 分类总量。 */
   TokenBreakdown tokenBreakdown();
 

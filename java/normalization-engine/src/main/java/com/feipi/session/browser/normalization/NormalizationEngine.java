@@ -1,6 +1,5 @@
 package com.feipi.session.browser.normalization;
 
-import com.feipi.session.browser.domain.enums.CallScope;
 import com.feipi.session.browser.domain.normalized.ByteRange;
 import com.feipi.session.browser.domain.normalized.NormalizedAgent;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
@@ -14,8 +13,6 @@ import com.feipi.session.browser.domain.normalized.SourceUnitCatalogEntry;
 import com.feipi.session.browser.domain.normalized.SourceUnitDirection;
 import com.feipi.session.browser.domain.source.SourceRecord;
 import com.feipi.session.browser.domain.source.SourceRecordUsage;
-import com.feipi.session.browser.source.spi.ParseIssueType;
-import com.feipi.session.browser.source.spi.ParseSeverity;
 import com.feipi.session.browser.source.spi.SourceDiagnostic;
 import com.feipi.session.browser.validation.ValidationSupport;
 import jakarta.validation.constraints.PositiveOrZero;
@@ -28,7 +25,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.OptionalInt;
 import java.util.Set;
 
 /**
@@ -54,14 +50,6 @@ import java.util.Set;
 public final class NormalizationEngine {
 
   /**
-   * Codex main 运行索引中 assistant turn 口径切换的经验边界。
-   *
-   * <p>该边界用于兼容 18999 参考索引的历史缓存状态：边界前已结束的 rollout 仍按 {@code event_msg.agent_message} 计数；跨过该边界或边界后结束的
-   * rollout 使用去重后的 {@code event_msg.token_count} LLM call 数。
-   */
-  private static final Instant CODEX_LLM_CALL_COUNT_CUTOFF = Instant.parse("2026-06-20T16:00:00Z");
-
-  /**
    * 从源中性记录列表构建归一化制品。
    *
    * <p>{@code agent} 参数必须为合法的 {@link NormalizedAgent} 枚举值，例如 {@link NormalizedAgent#CLAUDE_CODE}、
@@ -80,6 +68,49 @@ public final class NormalizationEngine {
       List<SourceDiagnostic> diagnostics,
       List<NormalizedSourceFile> sourceFiles) {
 
+    try {
+      var content = normalizeContent(agent, records, diagnostics, sourceFiles);
+      if (content.header().totals().get("calls") > NormalizedConstants.MAX_COLLECTION_SIZE) {
+        throw new IllegalArgumentException(
+            "calls size exceeds limit " + NormalizedConstants.MAX_COLLECTION_SIZE);
+      }
+      return content.toArtifact();
+    } catch (java.io.IOException exception) {
+      throw new java.io.UncheckedIOException(exception);
+    }
+  }
+
+  /**
+   * 以无正文计划归一化借用的 Codex 序列；返回内容的生命周期不能超过序列。
+   *
+   * @param agent 来源平台，仅支持 Codex
+   * @param records 调用者拥有的可重放源序列
+   * @param diagnostics 输入诊断
+   * @param sourceFiles 来源文件
+   * @return 可独立重复遍历的有界内容
+   * @throws java.io.IOException 源读取失败时
+   */
+  public com.feipi.session.browser.domain.normalized.NormalizedSessionContent normalizeContent(
+      NormalizedAgent agent,
+      com.feipi.session.browser.domain.source.SourceRecordSequence records,
+      List<SourceDiagnostic> diagnostics,
+      List<NormalizedSourceFile> sourceFiles)
+      throws java.io.IOException {
+    Objects.requireNonNull(agent, "agent 不得为 null");
+    Objects.requireNonNull(diagnostics, "diagnostics 不得为 null");
+    if (agent != NormalizedAgent.CODEX) {
+      throw new IllegalArgumentException("managed normalization currently supports CODEX only");
+    }
+    return new ManagedSessionContent(
+        ManagedNormalizationPlan.create(records, diagnostics, sourceFiles));
+  }
+
+  /** 使用原有列表路径归一化，保留其它 provider 的合并规则。 */
+  public com.feipi.session.browser.domain.normalized.NormalizedSessionContent normalizeContent(
+      NormalizedAgent agent,
+      List<SourceRecord> records,
+      List<SourceDiagnostic> diagnostics,
+      List<NormalizedSourceFile> sourceFiles) {
     Objects.requireNonNull(agent, "agent 不得为 null");
     Objects.requireNonNull(records, "records 不得为 null");
     Objects.requireNonNull(diagnostics, "diagnostics 不得为 null");
@@ -87,6 +118,8 @@ public final class NormalizationEngine {
 
     records = List.copyOf(records);
     List<SourceRecord> originalRecords = records;
+    var eventActivity = new EventActivityAccumulator(agent);
+    originalRecords.forEach(eventActivity::accept);
 
     // 0. Qoder 专用预处理：合并同 turnId 的 assistant 分片
     if (agent == NormalizedAgent.QODER) {
@@ -94,6 +127,14 @@ public final class NormalizationEngine {
     } else if (agent == NormalizedAgent.CLAUDE_CODE) {
       records = ClaudeResponseRecords.merge(records);
     }
+
+    var identities = new ToolIdentityPlan(sourceFiles);
+    for (int i = 0; i < records.size(); i++) identities.accept(i, records.get(i));
+    identities.finish();
+    var projected = new ArrayList<SourceRecord>(records.size());
+    for (int i = 0; i < records.size(); i++) projected.add(identities.project(i, records.get(i)));
+    records = projected;
+    sourceFiles = identities.sourceFiles();
 
     // 1. 事件分类
     EventClassifier.ClassifiedEvents classified = EventClassifier.classify(records);
@@ -110,22 +151,10 @@ public final class NormalizationEngine {
     for (SourceDiagnostic diag : diagnostics) {
       allDiagnostics.add(toMap(diag));
     }
-    for (SourceRecord unknownRecord : classified.unknownEvents()) {
-      String type = unknownRecord.eventType();
-      SourceDiagnostic unknownDiag =
-          new SourceDiagnostic(
-              ParseSeverity.WARNING,
-              ParseIssueType.NON_OBJECT_SKIPPED,
-              "Unknown event type: " + type,
-              1,
-              Optional.empty(),
-              ParseIssueType.NON_OBJECT_SKIPPED.name(),
-              "",
-              OptionalInt.empty(),
-              OptionalInt.empty(),
-              OptionalInt.empty());
-      allDiagnostics.add(toMap(unknownDiag));
-    }
+    List<Map<String, Object>> unknownDiagnostics =
+        UnknownEventDiagnostics.collect(agent, classified.unknownEvents());
+    allDiagnostics.addAll(unknownDiagnostics);
+    allDiagnostics.addAll(identities.diagnostics);
 
     // 5. 构建会话元数据：事件计数 + 聚合 token 用量 + 守恒计数
     Map<String, Object> session =
@@ -136,23 +165,58 @@ public final class NormalizationEngine {
             calls,
             toolExecutions);
 
+    if (!unknownDiagnostics.isEmpty()) {
+      long occurrences =
+          unknownDiagnostics.stream()
+              .mapToLong(diagnostic -> ((Number) diagnostic.get("occurrenceCount")).longValue())
+              .sum();
+      session = new LinkedHashMap<>(session);
+      session.put(
+          "unknownEventDiagnosticCoverage",
+          Map.of(
+              "occurrences",
+              occurrences,
+              "groups",
+              unknownDiagnostics.size(),
+              "grouping",
+              "sourceLocator,eventType,eventMsgSubtype",
+              "positionUnit",
+              "sourceEventIndex"));
+    }
+
+    session = new LinkedHashMap<>(session);
+    session.put("eventActivity", eventActivity.snapshot());
+
     // 6. 构建源单元目录
     Map<String, SourceUnitCatalogEntry> sourceUnitCatalog = buildSourceUnitCatalog(sourceFiles);
 
-    // 7. 组装制品
-    return new NormalizedSessionArtifact(
-        NormalizedConstants.SCHEMA_VERSION,
-        agent,
-        sourceFiles,
-        session,
-        calls,
-        toolExecutions,
-        allDiagnostics,
-        sourceUnitCatalog,
-        Map.of());
+    var typedDiagnostics =
+        allDiagnostics.stream()
+            .map(com.feipi.session.browser.domain.normalized.NormalizedDiagnostic::fromMap)
+            .toList();
+    var header =
+        new com.feipi.session.browser.domain.normalized.NormalizedContentHeader(
+            NormalizedConstants.SCHEMA_VERSION,
+            agent,
+            com.feipi.session.browser.domain.normalized.NormalizedSessionMetadata.fromMap(session),
+            Map.of(
+                "calls",
+                (long) calls.size(),
+                "toolExecutions",
+                (long) toolExecutions.size(),
+                "diagnostics",
+                (long) typedDiagnostics.size(),
+                "sourceFiles",
+                (long) sourceFiles.size(),
+                "sourceUnitCatalog",
+                (long) sourceUnitCatalog.size(),
+                "sourceUnitSequenceEntries",
+                0L));
+    return com.feipi.session.browser.domain.normalized.NormalizedSessionContent.fromLists(
+        header, sourceFiles, calls, toolExecutions, typedDiagnostics, sourceUnitCatalog, Map.of());
   }
 
-  private static Map<String, Object> toMap(SourceDiagnostic diag) {
+  static Map<String, Object> toMap(SourceDiagnostic diag) {
     Map<String, Object> map = new LinkedHashMap<>();
     map.put("severity", diag.severity().name());
     map.put("issueType", diag.issueType().name());
@@ -244,42 +308,26 @@ public final class NormalizationEngine {
     session.put("executedTools", conservation.executedTools());
     session.put("consumedResults", conservation.consumedResults());
 
-    // Dashboard 必需字段
+    // 消息是源显式观察，不是调用、轮次或 usage frame。分片使用已合并记录。
+    List<SourceRecord> messageRecords = classified.allEvents();
+    long userMessages = countObservedMessages(messageRecords, "user");
+    long assistantMessages = countObservedMessages(messageRecords, "assistant");
+    session.put("userMessageCount", userMessages);
+    session.put("assistantMessageCount", assistantMessages);
+    // 无该角色证据不能证明真实零；这表示可观察样本，不承诺完整历史覆盖。
+    session.put("userMessageCountMeasured", userMessages > 0);
+    session.put("assistantMessageCountMeasured", assistantMessages > 0);
     if (agent == NormalizedAgent.CODEX) {
-      // Codex 语义子类型计数：通过 turnId 编码的 payload 子类型精确统计
-      // 用户消息按相邻跨表示配对，避免全会话格式优先导致混合记录漏计。
-      long codexAgentMessageCount = 0;
-      long codexToolCount = 0;
-      for (SourceRecord record : records) {
-        String et = record.eventType();
-        String ti = record.turnId().orElse("");
-        if ("event_msg".equals(et)
-            && "agent_message".equals(ti)
-            && record.relation().subagentId().isEmpty()
-            && !isSubagentSidecarRecord(record)) {
-          codexAgentMessageCount++;
-        } else if ("tool_use".equals(et)
-            && ("function_call".equals(ti) || "custom_tool_call".equals(ti))) {
-          codexToolCount++;
-        }
-      }
-      long codexUserCount = countCodexUserMessages(records);
-      long codexLlmCallCount =
-          countCodexTokenCountAssistantMessages(classified.assistantMessages());
-      long codexAssistantCount = codexAgentMessageCount;
-      if (useCodexLlmCallCounting(records) && codexLlmCallCount > 0) {
-        codexAssistantCount = codexLlmCallCount + countCodexUnmeteredMessageFallbacks(records);
-      } else if (codexAgentMessageCount == 0) {
-        // 无事件消息计数时，使用实际主调用；子调用不形成主会话轮次。
-        codexAssistantCount = countMainAssistantTurns(calls);
-      }
-      session.put("userMessageCount", codexUserCount);
-      session.put("assistantMessageCount", codexAssistantCount);
-      // 缺工具 ID 的历史记录仍保留可观测计数；完整记录使用物化工具边，含 main 和 child。
+      long codexToolCount =
+          records.stream()
+              .filter(record -> "tool_use".equals(record.eventType()))
+              .filter(
+                  record ->
+                      List.of("function_call", "custom_tool_call")
+                          .contains(record.turnId().orElse("")))
+              .count();
       session.put("toolCallCount", Math.max(codexToolCount, toolExecutions.size()));
     } else {
-      session.put("userMessageCount", countUserMessages(classified.userMessages()));
-      session.put("assistantMessageCount", countMainAssistantTurns(calls));
       session.put("toolCallCount", (long) toolExecutions.size());
       TokenComponents mergedUsage =
           agent == NormalizedAgent.CLAUDE_CODE
@@ -414,123 +462,26 @@ public final class NormalizationEngine {
     }
   }
 
-  private static long countMainAssistantTurns(List<NormalizedCall> calls) {
-    Set<String> seen = new LinkedHashSet<>();
-    long count = 0;
-    for (NormalizedCall call : calls) {
-      if (call.scope() != CallScope.MAIN) {
-        continue;
-      }
-      String key = call.turnId().orElse(call.callId());
-      if (seen.add(key)) {
-        count++;
-      }
-    }
-    return count;
-  }
-
-  /** 只配对相邻的异种表示；时间戳不是消息身份，同文重复轮次仍分别计数。 */
-  private static long countCodexUserMessages(List<? extends SourceRecord> records) {
-    long count = 0;
-    SourceRecord pending = null;
+  /** 只计主会话原始显式消息，同一源事件拆分的文本块仍是一条消息。 */
+  private static long countObservedMessages(List<SourceRecord> records, String role) {
+    Set<String> observed = new LinkedHashSet<>();
     for (SourceRecord record : records) {
-      if (record.relation().subagentId().isPresent() || isSubagentSidecarRecord(record)) {
-        continue;
-      }
-      String type = record.eventType();
-      boolean user =
-          "user".equals(type)
-              || ("event_msg".equals(type) && "user_message".equals(record.turnId().orElse("")));
-      if (!user) {
-        if ("assistant".equals(type)
-            || "tool_use".equals(type)
-            || "tool_result".equals(type)
-            || "response_item".equals(type)
-            || "event_msg".equals(type)) {
-          pending = null;
-        }
-        continue;
-      }
-      if (pending != null
-          && !pending.eventType().equals(type)
-          && !record.content().isBlank()
-          && record.content().equals(pending.content())) {
-        pending = null;
-      } else {
-        count++;
-        pending = record;
-      }
-    }
-    return count;
-  }
-
-  private static long countUserMessages(List<SourceRecord> userMessages) {
-    long count = 0;
-    for (SourceRecord record : userMessages) {
-      if (record.metaContext()
+      if (!record.messageRole().filter(role::equals).isPresent()
+          || record.metaContext()
           || record.toolUseId().isPresent()
+          || record.relation().subagentId().isPresent()
           || isSubagentSidecarRecord(record)) {
         continue;
       }
-      count++;
+      int suffix = record.locator().lastIndexOf("#event[");
+      String source = suffix < 0 ? record.locator() : record.locator().substring(0, suffix);
+      observed.add(source + "#event[" + record.eventIndex() + "]");
     }
-    return count;
+    return observed.size();
   }
 
   private static boolean isSubagentSidecarRecord(SourceRecord record) {
     return record.locator().replace('\\', '/').contains("/subagents/");
-  }
-
-  private static long countCodexTokenCountAssistantMessages(List<SourceRecord> assistantMessages) {
-    long count = 0;
-    for (SourceRecord record : assistantMessages) {
-      if (TokenAccountant.isUsageClosingFrame(record.callId().orElse(""))
-          && !isSubagentSidecarRecord(record)
-          && record.relation().subagentId().isEmpty()) {
-        count++;
-      }
-    }
-    return count;
-  }
-
-  /** 只补计紧邻原 agent_message 的同源后备调用，不将权威响应项或子调用重复计数。 */
-  private static long countCodexUnmeteredMessageFallbacks(List<? extends SourceRecord> records) {
-    long count = 0;
-    for (int index = 1; index < records.size(); index++) {
-      SourceRecord original = records.get(index - 1);
-      SourceRecord fallback = records.get(index);
-      if ("event_msg".equals(original.eventType())
-          && "agent_message".equals(original.turnId().orElse(""))
-          && "assistant".equals(fallback.eventType())
-          && fallback.callId().isEmpty()
-          && fallback.turnId().isEmpty()
-          && fallback.usage().total() == 0
-          && !fallback.content().isBlank()
-          && original.locator().equals(fallback.locator())
-          && original.eventIndex() == fallback.eventIndex()
-          && original.relation().equals(fallback.relation())
-          && fallback.relation().subagentId().isEmpty()
-          && !isSubagentSidecarRecord(fallback)) {
-        count++;
-      }
-    }
-    return count;
-  }
-
-  private static boolean useCodexLlmCallCounting(List<? extends SourceRecord> records) {
-    Optional<Instant> lastTimestamp = Optional.empty();
-    for (SourceRecord record : records) {
-      Optional<String> timestamp = record.timestamp();
-      if (timestamp.isEmpty() || timestamp.get().isBlank()) {
-        continue;
-      }
-      try {
-        lastTimestamp = Optional.of(Instant.parse(timestamp.get()));
-      } catch (Exception ignored) {
-        // 忽略无法解析的 provider 时间戳，继续寻找下一个可解析时间。
-      }
-    }
-    return lastTimestamp.map(ts -> !ts.isBefore(CODEX_LLM_CALL_COUNT_CUTOFF)).orElse(false);
   }
 
   private static TokenComponents aggregateMergedAssistantUsage(
@@ -646,7 +597,7 @@ public final class NormalizationEngine {
    * @param sourceFiles 源文件列表
    * @return 不可变的目录 map
    */
-  private static Map<String, SourceUnitCatalogEntry> buildSourceUnitCatalog(
+  static Map<String, SourceUnitCatalogEntry> buildSourceUnitCatalog(
       List<NormalizedSourceFile> sourceFiles) {
     if (sourceFiles.isEmpty()) {
       return Map.of();

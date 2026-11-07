@@ -55,7 +55,9 @@ final class FingerprintComparator {
     double storedMtimeSec = stored.fileMtime();
 
     if (Double.compare(candidateMtimeSec, storedMtimeSec) <= 0) {
-      return CandidateState.UNCHANGED;
+      return CandidateMetadataFingerprint.changed(candidate, stored.candidateMetadataFingerprint())
+          ? CandidateState.CHANGED
+          : CandidateState.UNCHANGED;
     }
 
     return CandidateState.CHANGED;
@@ -82,44 +84,16 @@ final class FingerprintComparator {
     // projectKey 比较：复用 FullScanEngine.meaningfulProject 逻辑
     String candidateProjectKey =
         FullScanEngine.meaningfulProject(candidateCwd, candidate.projectKey());
-    if (candidateProjectKey.isEmpty()) {
-      // 回退到 sessionId（与 processTranscriptMissingCandidate 一致）
-      candidateProjectKey = extractSessionId(candidate.sessionKey());
-    }
     if (!candidateProjectKey.equals(stored.projectKey())) {
       return true;
     }
 
-    String candidateTimestamp = meta.get("timestamp");
-    if (candidateTimestamp != null
-        && !candidateTimestamp.isEmpty()
-        && !candidateTimestamp.equals("0")) {
-      try {
-        double tsMs = Double.parseDouble(candidateTimestamp);
-        if (tsMs > 0) {
-          String candidateEndedAt = java.time.Instant.ofEpochMilli((long) tsMs).toString();
-          if (!candidateEndedAt.equals(stored.endedAt())) {
-            return true;
-          }
-        }
-      } catch (NumberFormatException ignored) {
-        // 忽略无效 timestamp
-      }
+    if (!meta.getOrDefault("started_at", "").equals(stored.startedAt())
+        || !meta.getOrDefault("git_branch", "").equals(stored.gitBranch())
+        || !meta.getOrDefault("model", "").equals(stored.model())
+        || !meta.getOrDefault("source", stored.agent()).equals(stored.source())) {
+      return true;
     }
-
-    return false;
-  }
-
-  /**
-   * 从 sessionKey 提取 sessionId（格式：agent:sessionId）。
-   *
-   * <p>与 {@link FullScanEngine#processTranscriptMissingCandidate} 的 sessionId 提取逻辑一致。
-   */
-  private static String extractSessionId(String sessionKey) {
-    int colonIdx = sessionKey.indexOf(':');
-    if (colonIdx >= 0 && colonIdx < sessionKey.length() - 1) {
-      return sessionKey.substring(colonIdx + 1);
-    }
-    return sessionKey;
+    return !FullScanEngine.metadataEndedAt(meta).equals(stored.endedAt());
   }
 }

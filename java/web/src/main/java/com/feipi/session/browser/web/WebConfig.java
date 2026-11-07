@@ -12,8 +12,14 @@ import com.feipi.session.browser.common.validation.ParamChecks;
  * @param host 监听地址，非空
  * @param port 监听端口，0 表示随机端口，范围 [0, 65535]
  * @param staticPath 静态资源 classpath 路径，null 表示不挂载静态资源
+ * @param appVersion 实际构建版本；缺失时不猜测版本
  */
-public record WebConfig(String host, int port, String staticPath) {
+public record WebConfig(String host, int port, String staticPath, String appVersion) {
+
+  /** 兼容未提供构建信息的嵌入入口。 */
+  public WebConfig(String host, int port, String staticPath) {
+    this(host, port, staticPath, null);
+  }
 
   /** 默认监听地址。 */
   public static final String DEFAULT_HOST = "127.0.0.1";

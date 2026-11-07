@@ -19,6 +19,7 @@ import jakarta.validation.constraints.PositiveOrZero;
  * @param toolCallCount 工具调用数量。
  * @param failedToolCount 失败工具数量。
  * @param tokenProvenance 相同查询范围的四段计量来源
+ * @param contentSampleCount 显式内容测量的会话数，包含已观测零，不代表完整源覆盖。
  */
 public record ProjectListSummaryRow(
     /* 当前过滤条件下的项目数量。 */ @PositiveOrZero long projectCount,
@@ -30,8 +31,47 @@ public record ProjectListSummaryRow(
     /* token 汇总数量。 */ @PositiveOrZero long totalTokens,
     /* 工具调用数量。 */ @PositiveOrZero long toolCallCount,
     /* 失败工具数量。 */ @PositiveOrZero long failedToolCount,
-    /* 相同查询范围的四段计量来源。 */ TokenProvenance tokenProvenance)
+    /* 相同查询范围的四段计量来源。 */ TokenProvenance tokenProvenance,
+    @PositiveOrZero long contentSampleCount)
     implements ProjectListSummary {
+  /**
+   * 兼容未提供内容覆盖的调用者，不从计数或 token 推断已测量。
+   *
+   * @param projectCount 当前过滤条件下的项目数量。
+   * @param sessionCount 当前过滤条件下的 session 数量。
+   * @param freshInputTokens 新鲜输入令牌数量。
+   * @param cacheReadTokens 缓存读取令牌数量。
+   * @param cacheWriteTokens 缓存写入令牌数量。
+   * @param outputTokens 输出令牌数量。
+   * @param totalTokens token 汇总数量。
+   * @param toolCallCount 工具调用数量。
+   * @param failedToolCount 失败工具数量。
+   * @param tokenProvenance 相同查询范围的四段计量来源
+   */
+  public ProjectListSummaryRow(
+      long projectCount,
+      long sessionCount,
+      long freshInputTokens,
+      long cacheReadTokens,
+      long cacheWriteTokens,
+      long outputTokens,
+      long totalTokens,
+      long toolCallCount,
+      long failedToolCount,
+      TokenProvenance tokenProvenance) {
+    this(
+        projectCount,
+        sessionCount,
+        freshInputTokens,
+        cacheReadTokens,
+        cacheWriteTokens,
+        outputTokens,
+        totalTokens,
+        toolCallCount,
+        failedToolCount,
+        tokenProvenance,
+        0);
+  }
 
   /** 紧凑构造器，校验 record component 约束和 token 总和不变量。 */
   public ProjectListSummaryRow {
@@ -50,7 +90,8 @@ public record ProjectListSummaryRow(
         totalTokens,
         toolCallCount,
         failedToolCount,
-        tokenProvenance);
+        tokenProvenance,
+        contentSampleCount);
     TokenChecks.requireTokenSegments(
         freshInputTokens, cacheReadTokens, cacheWriteTokens, outputTokens, totalTokens);
   }

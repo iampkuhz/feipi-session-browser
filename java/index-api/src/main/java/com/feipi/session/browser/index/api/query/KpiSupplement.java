@@ -37,4 +37,39 @@ public interface KpiSupplement {
 
   /** 返回发生多次工具调用失败的会话数。 */
   long repeatedFailureSessions();
+
+  /** 返回可验证起止时间的 wall 时长样本数，包含实测零。 */
+  default long durationSampleCount() {
+    return 0;
+  }
+
+  /** 返回四段 token 均由 provider 上报的完整样本数，包含实测零。 */
+  default long tokenSampleCount() {
+    return 0;
+  }
+
+  /** 返回显式内容测量且存在 normalized artifact 的样本数，包含观测到的零。 */
+  default long contentSampleCount() {
+    return 0;
+  }
+
+  /** 返回显式测量 user 消息数量的会话数，保留测量到的零。 */
+  default long userMessageSampleCount() {
+    return 0;
+  }
+
+  /** 返回显式测量 assistant 消息数量的会话数，保留测量到的零。 */
+  default long assistantMessageSampleCount() {
+    return 0;
+  }
+
+  /** 返回仅 user 消息测量样本的消息均值；没有样本时返回 null。 */
+  default Double avgUserMessagesPerSession() {
+    return null;
+  }
+
+  /** 返回仅 assistant 消息测量样本的消息均值；没有样本时返回 null。 */
+  default Double avgAssistantMessagesPerSession() {
+    return null;
+  }
 }

@@ -1,9 +1,10 @@
 package com.feipi.session.browser.scan.engine;
 
-import com.feipi.session.browser.domain.enums.CallScope;
-import com.feipi.session.browser.domain.normalized.NormalizedCall;
+import com.feipi.session.browser.domain.normalized.NormalizedConstants;
+import com.feipi.session.browser.domain.normalized.NormalizedContentHeader;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
-import com.feipi.session.browser.domain.normalized.TokenProvenance;
+import com.feipi.session.browser.domain.normalized.NormalizedSessionContent;
+import com.feipi.session.browser.domain.normalized.NormalizedSessionMetadata;
 import com.feipi.session.browser.index.api.write.IndexWriterPort;
 import com.feipi.session.browser.index.api.write.MissingTranscriptSession;
 import com.feipi.session.browser.normalization.NormalizationEngine;
@@ -21,12 +22,12 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -61,7 +62,7 @@ public final class FullScanEngine {
 
   private static final Logger log = LoggerFactory.getLogger(FullScanEngine.class);
 
-  /** 每 N 个候选项 flush 一次 index writer，防止单事务过大。 */
+  /** 每 N 个候选项 flush 一次 index writer，限制待写队列内存。 */
   private static final int FLUSH_INTERVAL = 100;
 
   private final NormalizationEngine normalizationEngine;
@@ -122,9 +123,17 @@ public final class FullScanEngine {
     long startMs = System.currentTimeMillis();
     double startEpoch = startMs / 1000.0;
 
+    // 每次扫描使用不可变制品代，失败不得覆盖上一已发布代。
+    config =
+        new ScanConfig(
+            config.sourceEntries(),
+            config.artifactOutputDir().resolve(UUID.randomUUID().toString()),
+            config.agentFilter(),
+            config.parseParallelism());
+
     // 确保 artifact 输出目录存在
     try {
-      Files.createDirectories(config.artifactOutputDir());
+      Files.createDirectories(config.artifactOutputDir().getParent());
     } catch (IOException e) {
       log.error("无法创建 artifact 输出目录: {}", config.artifactOutputDir(), e);
       return buildErrorSummary(startMs, e.getMessage());
@@ -142,18 +151,6 @@ public final class FullScanEngine {
       return buildErrorSummary(startMs, "Schema initialization failed: " + exceptionMessage(e));
     }
 
-    // 1b. 清理旧 index 数据（full scan 每次重建完整索引，避免旧逻辑残留）
-    try {
-      long phaseStart = System.nanoTime();
-      if (progress != null) progress.onPhaseStart("clear_index");
-      indexWriter.clearExistingIndex();
-      if (progress != null)
-        progress.onPhaseEnd("clear_index", (System.nanoTime() - phaseStart) / 1_000_000);
-    } catch (RuntimeException e) {
-      log.error("清理旧 index 失败", e);
-      return buildErrorSummary(startMs, "Clear existing index failed: " + exceptionMessage(e));
-    }
-
     // 2. 开始 scan_log
     long scanLogId;
     try {
@@ -163,168 +160,183 @@ public final class FullScanEngine {
       return buildErrorSummary(startMs, "scan_log start failed: " + exceptionMessage(e));
     }
 
-    // 3. 处理各源
-    List<ScanIssue> issues = new ArrayList<>();
-    Map<com.feipi.session.browser.source.spi.SourceId, Integer> perSourceCount =
-        new LinkedHashMap<>();
-    Map<String, Integer> perSourceCountByValue = new LinkedHashMap<>();
-    int[] counters = new int[3]; // 计数器数组：候选总数、成功数、错误与跳过数
-    int skippedCount = 0;
-
-    boolean scanFailed = false;
-
-    for (ScanConfig.SourceEntry entry : config.sourceEntries()) {
-      String agentValue = entry.adapter().sourceId().getValue();
-
-      // agent 过滤
-      if (!config.isAgentAllowed(agentValue)) {
-        log.info("跳过被过滤的源: {}", agentValue);
-        continue;
-      }
-
-      // 根目录安全检查
-      SourceRoot root = entry.adapter().checkRoot(entry.rootPath());
-      if (!root.isSafe()) {
-        issues.add(
-            new ScanIssue(
-                "",
-                agentValue,
-                ScanIssue.ScanPhase.ROOT_CHECK,
-                "Unsafe root: " + entry.rootPath()));
-        continue;
-      }
-
-      // 空根目录检查
-      if (!Files.isDirectory(entry.rootPath())) {
-        log.info("源根目录不存在或不是目录: {}", agentValue);
-        continue;
-      }
-
-      // 发现候选项
-      BoundedStream<Candidate> candidates;
+    boolean scanLogFinalized = false;
+    try {
+      // 1b. 重建所选来源；无过滤时才重建完整索引，保留未扫描来源。
       try {
-        String discoverPhase = "discover:" + agentValue;
         long phaseStart = System.nanoTime();
-        if (progress != null) progress.onPhaseStart(discoverPhase);
-        candidates = entry.adapter().discover(entry.rootPath());
+        if (progress != null) progress.onPhaseStart("clear_index");
+        indexWriter.clearExistingIndex(config.agentFilter());
         if (progress != null)
-          progress.onPhaseEnd(discoverPhase, (System.nanoTime() - phaseStart) / 1_000_000);
-      } catch (Exception e) {
-        issues.add(new ScanIssue("", agentValue, ScanIssue.ScanPhase.DISCOVERY, e.getMessage()));
-        continue;
+          progress.onPhaseEnd("clear_index", (System.nanoTime() - phaseStart) / 1_000_000);
+      } catch (RuntimeException e) {
+        log.error("清理旧 index 失败", e);
+        return buildErrorSummary(startMs, "Clear existing index failed: " + exceptionMessage(e));
       }
 
-      int sourceCount = candidates.size();
-      counters[0] += sourceCount;
+      // 3. 处理各源
+      List<ScanIssue> issues = new ArrayList<>();
+      Map<com.feipi.session.browser.source.spi.SourceId, Integer> perSourceCount =
+          new LinkedHashMap<>();
+      Map<String, Integer> perSourceCountByValue = new LinkedHashMap<>();
+      int[] counters = new int[3]; // 计数器数组：候选总数、成功数、错误与跳过数
+      int skippedCount = 0;
 
-      if (progress != null) {
-        progress.onSourceStart(agentValue, sourceCount);
-      }
+      boolean scanFailed = false;
 
-      // 逐候选处理
-      int processedInBatch = 0;
-      int progressCount = 0;
-      int sourceSuccessCount = 0;
-      for (Candidate candidate : candidates.orderedItems()) {
-        CandidateResult result;
+      for (ScanConfig.SourceEntry entry : config.sourceEntries()) {
+        String agentValue = entry.adapter().sourceId().getValue();
 
-        // 零值指纹 → transcript/rollout 缺失 → 创建最小 index entry
-        if (isTranscriptMissing(candidate)) {
-          result = processTranscriptMissingCandidate(candidate, entry.adapter(), indexWriter);
-        } else {
-          result =
-              processCandidate(
-                  candidate,
-                  entry.adapter(),
-                  config,
-                  indexWriter,
-                  normalizationEngine,
-                  artifactWriter);
+        // agent 过滤
+        if (!config.isAgentAllowed(agentValue)) {
+          log.info("跳过被过滤的源: {}", agentValue);
+          continue;
         }
 
-        switch (result.outcome) {
-          case SUCCESS -> {
-            counters[1]++;
-            sourceSuccessCount++;
-            perSourceCount.merge(entry.adapter().sourceId(), 1, Integer::sum);
-            perSourceCountByValue.merge(agentValue, 1, Integer::sum);
-          }
-          case SKIPPED -> skippedCount++;
-          case ERROR -> {
-            counters[2]++;
-            issues.add(
-                new ScanIssue(candidate.sessionKey(), agentValue, result.phase, result.message));
-          }
-          default -> {}
+        // 根目录安全检查
+        SourceRoot root = entry.adapter().checkRoot(entry.rootPath());
+        if (!root.isSafe()) {
+          issues.add(
+              new ScanIssue(
+                  "",
+                  agentValue,
+                  ScanIssue.ScanPhase.ROOT_CHECK,
+                  "Unsafe root: " + entry.rootPath()));
+          continue;
         }
-        processedInBatch++;
-        progressCount++;
+
+        // 空根目录检查
+        if (!Files.isDirectory(entry.rootPath())) {
+          log.info("源根目录不存在或不是目录: {}", agentValue);
+          continue;
+        }
+
+        // 发现候选项
+        BoundedStream<Candidate> candidates;
+        try {
+          String discoverPhase = "discover:" + agentValue;
+          long phaseStart = System.nanoTime();
+          if (progress != null) progress.onPhaseStart(discoverPhase);
+          candidates = entry.adapter().discover(entry.rootPath());
+          if (progress != null)
+            progress.onPhaseEnd(discoverPhase, (System.nanoTime() - phaseStart) / 1_000_000);
+        } catch (Exception e) {
+          issues.add(new ScanIssue("", agentValue, ScanIssue.ScanPhase.DISCOVERY, e.getMessage()));
+          continue;
+        }
+
+        int sourceCount = candidates.size();
+        counters[0] += sourceCount;
 
         if (progress != null) {
-          progress.onCandidateProcessed(agentValue, progressCount, sourceCount);
+          progress.onSourceStart(agentValue, sourceCount);
         }
 
-        // 定期 flush
-        if (processedInBatch >= FLUSH_INTERVAL && indexWriter.pendingWriteCount() > 0) {
-          try {
-            long phaseStart = System.nanoTime();
-            if (progress != null) progress.onPhaseStart("flush");
-            indexWriter.flushPendingWrites();
-            if (progress != null)
-              progress.onPhaseEnd("flush", (System.nanoTime() - phaseStart) / 1_000_000);
-          } catch (RuntimeException e) {
-            log.error("index writer flush 失败", e);
-            issues.add(
-                new ScanIssue(
-                    "", agentValue, ScanIssue.ScanPhase.INDEX_WRITE, exceptionMessage(e)));
-            scanFailed = true;
+        // 逐候选处理
+        int processedInBatch = 0;
+        int progressCount = 0;
+        int sourceSuccessCount = 0;
+        for (Candidate candidate : candidates.orderedItems()) {
+          CandidateResult result;
+
+          // 零值指纹 → transcript/rollout 缺失 → 创建最小 index entry
+          if (isTranscriptMissing(candidate)) {
+            result = processTranscriptMissingCandidate(candidate, entry.adapter(), indexWriter);
+          } else {
+            result =
+                processCandidate(
+                    candidate,
+                    entry.adapter(),
+                    config,
+                    indexWriter,
+                    normalizationEngine,
+                    artifactWriter);
           }
-          processedInBatch = 0;
+
+          switch (result.outcome) {
+            case SUCCESS -> {
+              counters[1]++;
+              sourceSuccessCount++;
+              perSourceCount.merge(entry.adapter().sourceId(), 1, Integer::sum);
+              perSourceCountByValue.merge(agentValue, 1, Integer::sum);
+            }
+            case SKIPPED -> skippedCount++;
+            case ERROR -> {
+              counters[2]++;
+              issues.add(
+                  new ScanIssue(candidate.sessionKey(), agentValue, result.phase, result.message));
+            }
+            default -> {}
+          }
+          processedInBatch++;
+          progressCount++;
+
+          if (progress != null) {
+            progress.onCandidateProcessed(agentValue, progressCount, sourceCount);
+          }
+
+          // 定期 flush
+          if (processedInBatch >= FLUSH_INTERVAL && indexWriter.pendingWriteCount() > 0) {
+            if (!ScanFlush.flush(indexWriter, progress, "flush", agentValue, issues)) {
+              scanFailed = true;
+            }
+            processedInBatch = 0;
+          }
+        }
+
+        if (progress != null) {
+          progress.onSourceEnd(agentValue, sourceSuccessCount);
         }
       }
 
-      if (progress != null) {
-        progress.onSourceEnd(agentValue, sourceSuccessCount);
+      // 4. 最终 flush
+      if (!scanFailed && indexWriter.pendingWriteCount() > 0) {
+        if (!ScanFlush.flush(indexWriter, progress, "flush_final", "", issues)) {
+          scanFailed = true;
+        }
       }
-    }
 
-    // 4. 最终 flush
-    if (!scanFailed && indexWriter.pendingWriteCount() > 0) {
+      scanFailed = scanFailed || !issues.isEmpty() || counters[2] > 0;
+
+      // 5. 完成 scan_log
+      long endMs = System.currentTimeMillis();
+      double endEpoch = endMs / 1000.0;
       try {
-        long phaseStart = System.nanoTime();
-        if (progress != null) progress.onPhaseStart("flush_final");
-        indexWriter.flushPendingWrites();
-        if (progress != null)
-          progress.onPhaseEnd("flush_final", (System.nanoTime() - phaseStart) / 1_000_000);
+        if (scanFailed) {
+          indexWriter.failScan(
+              scanLogId,
+              endEpoch,
+              perSourceCountByValue,
+              Math.max(counters[2], issues.size()),
+              ScanDiagnostics.failures(issues));
+        } else {
+          if (config.agentFilter().isEmpty()) {
+            indexWriter.saveScanLogicVersion(
+                IncrementalScanEngine.CURRENT_SCAN_LOGIC_VERSION, Instant.ofEpochMilli(endMs));
+          }
+          indexWriter.completeScan(scanLogId, endEpoch, perSourceCountByValue);
+        }
+        scanLogFinalized = true;
       } catch (RuntimeException e) {
-        log.error("index writer 最终 flush 失败", e);
-        scanFailed = true;
+        issues.add(new ScanIssue("", "", ScanIssue.ScanPhase.INDEX_WRITE, exceptionMessage(e)));
+        log.error("scan_log 完成记录失败", e);
+      }
+
+      long duration = endMs - startMs;
+      return new ScanSummary(
+          counters[0],
+          counters[1],
+          skippedCount,
+          Math.max(counters[2], issues.size()),
+          duration,
+          scanLogId,
+          perSourceCount,
+          issues);
+    } finally {
+      if (!scanLogFinalized) {
+        indexWriter.failScan(scanLogId, System.currentTimeMillis() / 1000.0, Map.of());
       }
     }
-
-    // 5. 完成 scan_log
-    long endMs = System.currentTimeMillis();
-    double endEpoch = endMs / 1000.0;
-    try {
-      if (scanFailed) {
-        indexWriter.failScan(scanLogId, endEpoch, perSourceCountByValue);
-      } else {
-        indexWriter.completeScan(scanLogId, endEpoch, perSourceCountByValue);
-      }
-    } catch (RuntimeException e) {
-      log.error("scan_log 完成记录失败", e);
-    }
-
-    long duration = endMs - startMs;
-    return new ScanSummary(
-        counters[0],
-        counters[1],
-        skippedCount,
-        counters[2],
-        duration,
-        scanLogId,
-        perSourceCount,
-        issues);
   }
 
   /**
@@ -350,7 +362,13 @@ public final class FullScanEngine {
 
     try {
       // 1. 解析
-      SourceResult parseResult = adapter.parse(candidate, null);
+      SourceResult parseResult;
+      try {
+        parseResult = adapter.parse(candidate, null);
+      } catch (RuntimeException exception) {
+        return new CandidateResult(
+            CandidateOutcome.ERROR, ScanIssue.ScanPhase.PARSE, exceptionMessage(exception));
+      }
 
       if (parseResult instanceof SourceResult.Skipped skipped) {
         return new CandidateResult(
@@ -369,66 +387,95 @@ public final class FullScanEngine {
             CandidateOutcome.ERROR, ScanIssue.ScanPhase.PARSE, "Unknown parse result type");
       }
 
+      CandidateResult processed = null;
+      try (success) {
+        processed =
+            processParsedCandidate(
+                candidate, adapter, config, indexWriter, normEngine, artWriter, success);
+      } catch (Exception cleanup) {
+        String message = "SOURCE_CLOSE:" + exceptionMessage(cleanup);
+        if (processed != null && processed.outcome() == CandidateOutcome.ERROR) {
+          return new CandidateResult(
+              processed.outcome(), processed.phase(), processed.message() + "; " + message);
+        }
+        return new CandidateResult(CandidateOutcome.ERROR, ScanIssue.ScanPhase.PARSE, message);
+      }
+      return processed;
+    } catch (Exception e) {
+      return new CandidateResult(
+          CandidateOutcome.ERROR, ScanIssue.ScanPhase.NORMALIZE, exceptionMessage(e));
+    }
+  }
+
+  /** 在源 owner 仍有效时完成全部重放；源错误早退及任意阶段失败都由调用层关闭 owner。 */
+  private static CandidateResult processParsedCandidate(
+      Candidate candidate,
+      SourceAdapter adapter,
+      ScanConfig config,
+      IndexWriterPort indexWriter,
+      NormalizationEngine normEngine,
+      NormalizedArtifactWriter artWriter,
+      SourceResult.Success success) {
+    try {
+      String sourceErrors = ScanDiagnostics.sourceErrors(success.diagnostics());
+      if (!sourceErrors.isEmpty()) {
+        return new CandidateResult(
+            CandidateOutcome.ERROR, ScanIssue.ScanPhase.PARSE, "SOURCE_ERRORS:" + sourceErrors);
+      }
+
       // 2. 归一化
       Path filePath = SourceNormalizationInputs.transcriptPath(candidate);
       List<SourceDiagnostic> diagnostics = success.diagnostics();
-      NormalizedSessionArtifact artifact =
-          normEngine.normalize(
-              SourceNormalizationInputs.normalizedAgent(adapter),
-              success.records(),
-              diagnostics,
-              SourceNormalizationInputs.transcriptFiles(candidate));
+      NormalizedSessionContent content =
+          success.hasManagedRecords()
+              ? normEngine.normalizeContent(
+                  SourceNormalizationInputs.normalizedAgent(adapter),
+                  success.recordSequence(),
+                  diagnostics,
+                  SourceNormalizationInputs.transcriptFiles(candidate))
+              : normEngine.normalizeContent(
+                  SourceNormalizationInputs.normalizedAgent(adapter),
+                  success.records(),
+                  diagnostics,
+                  SourceNormalizationInputs.transcriptFiles(candidate));
 
       // 2b. 注入 candidate 元数据到 session map（归一化引擎是纯函数，不含源特定标识）
       String safeSessionKey = candidate.sessionKey().replace('/', ':');
       String sessionId = extractSessionId(safeSessionKey, filePath);
-      Map<String, Object> enrichedSession = new LinkedHashMap<>(artifact.session());
+      Map<String, Object> enrichedSession = new LinkedHashMap<>(content.header().session());
       enrichedSession.put("session_key", safeSessionKey);
       enrichedSession.put("session_id", sessionId);
-      // project_key 不得为空（DB CHECK 约束），回退使用 sessionId
-      String effectiveProjectKey = candidate.projectKey();
-      if (effectiveProjectKey.isEmpty()) {
-        effectiveProjectKey = sessionId;
-      }
-      enrichedSession.put("project_key", effectiveProjectKey);
-      applyCandidateMetadata(enrichedSession, candidate, adapter, artifact);
-      // endedAt 为必填字段；归一化引擎未提取时回退到文件修改时间（ISO-8601 格式）
-      if (!enrichedSession.containsKey("ended_at")
-          || enrichedSession.get("ended_at") == null
-          || enrichedSession.get("ended_at").toString().isEmpty()) {
-        enrichedSession.put(
-            "ended_at",
-            Instant.ofEpochMilli(candidate.fingerprint().lastModifiedMs())
-                .atOffset(ZoneOffset.UTC)
-                .toString());
-      }
-      // started_at 也需要 ISO-8601 fallback
-      if (!enrichedSession.containsKey("started_at")
-          || enrichedSession.get("started_at") == null
-          || enrichedSession.get("started_at").toString().isEmpty()) {
-        enrichedSession.put(
-            "started_at",
-            Instant.ofEpochMilli(candidate.fingerprint().lastModifiedMs())
-                .atOffset(ZoneOffset.UTC)
-                .toString());
-      }
-      artifact =
-          new NormalizedSessionArtifact(
-              artifact.schemaVersion(),
-              artifact.agent(),
-              artifact.sourceFiles(),
-              Map.copyOf(enrichedSession),
-              artifact.calls(),
-              artifact.toolExecutions(),
-              artifact.diagnostics(),
-              artifact.sourceUnitCatalog(),
-              artifact.sourceUnitSequences());
+      enrichedSession.put("project_key", candidate.projectKey());
+      CandidateContentMetadata.apply(enrichedSession, candidate, adapter, content);
+      enrichedSession.put(
+          "candidate_metadata_fingerprint", CandidateMetadataFingerprint.from(candidate));
+      putStringIfAbsent(enrichedSession, "started_at", candidate.metadata().get("started_at"));
+      putStringIfAbsent(enrichedSession, "ended_at", candidate.metadata().get("ended_at"));
+      var header = content.header();
+      content =
+          content.withHeader(
+              new NormalizedContentHeader(
+                  header.schemaVersion(),
+                  header.agent(),
+                  new NormalizedSessionMetadata(enrichedSession),
+                  header.totals()));
+      // 只有已有小列表且满足原容量的结果才显式转换；managed 即使调用少也保持流式表示。
+      NormalizedSessionArtifact artifact =
+          !success.hasManagedRecords()
+                  && content.header().totals().values().stream()
+                      .allMatch(total -> total <= NormalizedConstants.MAX_COLLECTION_SIZE)
+              ? content.toArtifact()
+              : null;
 
       // 3. 写入制品
       Map<String, String> fingerprints = SourceFingerprintMaps.forCandidate(filePath, candidate);
       WriteResult writeResult;
       try {
-        writeResult = artWriter.write(config.artifactOutputDir(), artifact, fingerprints);
+        Path output = Files.createDirectories(config.artifactOutputDir());
+        writeResult =
+            artifact == null
+                ? artWriter.writeContent(output, content, fingerprints)
+                : artWriter.write(output, artifact, fingerprints);
       } catch (IOException e) {
         return new CandidateResult(
             CandidateOutcome.ERROR, ScanIssue.ScanPhase.ARTIFACT_WRITE, e.getMessage());
@@ -438,14 +485,25 @@ public final class FullScanEngine {
       double fileMtime = candidate.fingerprint().lastModifiedMs() / 1000.0;
       String filePathStr = filePath.toAbsolutePath().toString();
       try {
-        indexWriter.writeNormalizedArtifact(
-            artifact,
-            writeResult.dataPath(),
-            filePathStr,
-            fileMtime,
-            writeResult.contentSize(),
-            Instant.ofEpochMilli(System.currentTimeMillis()));
-      } catch (RuntimeException e) {
+        Instant indexedAt = Instant.ofEpochMilli(System.currentTimeMillis());
+        if (artifact == null) {
+          indexWriter.writeNormalizedContent(
+              content,
+              writeResult.dataPath(),
+              filePathStr,
+              fileMtime,
+              writeResult.contentSize(),
+              indexedAt);
+        } else {
+          indexWriter.writeNormalizedArtifact(
+              artifact,
+              writeResult.dataPath(),
+              filePathStr,
+              fileMtime,
+              writeResult.contentSize(),
+              indexedAt);
+        }
+      } catch (RuntimeException | IOException e) {
         return new CandidateResult(
             CandidateOutcome.ERROR, ScanIssue.ScanPhase.INDEX_WRITE, exceptionMessage(e));
       }
@@ -466,106 +524,6 @@ public final class FullScanEngine {
     return e.getClass().getName();
   }
 
-  /** 构建源文件指纹映射。 */
-  private static void applyCandidateMetadata(
-      Map<String, Object> session,
-      Candidate candidate,
-      SourceAdapter adapter,
-      NormalizedSessionArtifact artifact) {
-    Map<String, String> meta = candidate.metadata();
-    session.putAll(TokenProvenance.fromMetadata(meta).toMetadata());
-
-    putStringIfAbsent(session, "title", meta.get("title"));
-    putStringIfAbsent(session, "model", meta.get("model"));
-    putStringIfAbsent(session, "git_branch", meta.get("git_branch"));
-    putStringIfAbsent(
-        session, "source", meta.getOrDefault("source", adapter.sourceId().getValue()));
-
-    String cwd = meta.getOrDefault("cwd", "");
-    if (!cwd.isBlank()) {
-      session.put("cwd", cwd);
-      if (isMeaningfulProject(cwd)) {
-        session.put("project_key", cwd);
-      }
-    }
-    String projectKey = stringValue(session.get("project_key"));
-    if (!projectKey.isBlank()) {
-      session.put("project_name", projectName(projectKey));
-    }
-
-    boolean hasMaterializedSubagentRecords = hasMaterializedSubagentRecords(artifact);
-    TokenComponents base = tokenComponentsFromSessionOrCalls(session, artifact.calls());
-    TokenComponents direct =
-        new TokenComponents(
-            longMeta(meta, "freshInputTokens"),
-            longMeta(meta, "cacheReadTokens"),
-            longMeta(meta, "cacheWriteTokens"),
-            longMeta(meta, "outputTokens"));
-    TokenComponents subagent =
-        new TokenComponents(
-            longMeta(meta, "subagentFreshInputTokens"),
-            longMeta(meta, "subagentCacheReadTokens"),
-            longMeta(meta, "subagentCacheWriteTokens"),
-            longMeta(meta, "subagentOutputTokens"));
-    if (direct.total() > 0) {
-      putTokenComponents(session, direct);
-    } else if (subagent.total() > 0 && !hasMaterializedSubagentRecords) {
-      putTokenComponents(session, base.plus(subagent));
-    }
-
-    long directTotal = longMeta(meta, "totalTokens");
-    if (directTotal > 0) {
-      session.put("totalTokens", directTotal);
-    }
-    long subagentTotal = longMeta(meta, "subagentTotalTokens");
-    if (subagentTotal > 0
-        && direct.total() == 0
-        && subagent.total() == 0
-        && !hasMaterializedSubagentRecords) {
-      long baseTotal = numberValue(session.get("totalTokens"));
-      session.put("totalTokens", baseTotal + subagentTotal);
-    }
-
-    long subagentTools = longMeta(meta, "subagentToolCallCount");
-    if (subagentTools > 0 && !hasMaterializedSubagentRecords) {
-      long baseTools =
-          session.get("toolCallCount") instanceof Number num
-              ? num.longValue()
-              : artifact.toolExecutions().size();
-      session.put("toolCallCount", baseTools + subagentTools);
-    }
-
-    long subagentFailed = longMeta(meta, "subagentFailedToolCount");
-    if (subagentFailed > 0 && !hasMaterializedSubagentRecords) {
-      long baseFailed = numberValue(session.get("failedToolCount"));
-      session.put("failedToolCount", baseFailed + subagentFailed);
-    }
-
-    long subagentInstances = longMeta(meta, "subagentInstanceCount");
-    if (subagentInstances > 0) {
-      session.put("subagentInstanceCount", subagentInstances);
-    }
-  }
-
-  private static boolean hasMaterializedSubagentRecords(NormalizedSessionArtifact artifact) {
-    boolean hasSubagentCall =
-        artifact.calls().stream().anyMatch(call -> call.scope() == CallScope.SUBAGENT);
-    if (hasSubagentCall) {
-      return true;
-    }
-    boolean hasSubagentTool =
-        artifact.toolExecutions().stream()
-            .anyMatch(tool -> tool.scope() == CallScope.SUBAGENT || tool.subagentId().isPresent());
-    if (hasSubagentTool) {
-      return true;
-    }
-    return artifact.sourceFiles().stream()
-        .anyMatch(
-            sourceFile ->
-                sourceFile.subagentId().isPresent()
-                    || sourceFile.path().toString().replace('\\', '/').contains("/subagents/"));
-  }
-
   private static void putStringIfAbsent(Map<String, Object> session, String key, String value) {
     if (value == null || value.isBlank()) {
       return;
@@ -574,67 +532,6 @@ public final class FullScanEngine {
     if (existing == null || existing.toString().isBlank()) {
       session.put(key, value);
     }
-  }
-
-  private static void putTokenComponents(Map<String, Object> session, TokenComponents components) {
-    session.put("freshInputTokens", components.freshInputTokens());
-    session.put("cacheReadTokens", components.cacheReadTokens());
-    session.put("cacheWriteTokens", components.cacheWriteTokens());
-    session.put("outputTokens", components.outputTokens());
-    session.put("totalTokens", components.total());
-  }
-
-  private static TokenComponents tokenComponents(List<NormalizedCall> calls) {
-    long fresh = 0;
-    long cacheRead = 0;
-    long cacheWrite = 0;
-    long output = 0;
-    for (NormalizedCall call : calls) {
-      fresh += call.usage().fresh();
-      cacheRead += call.usage().cacheRead();
-      cacheWrite += call.usage().cacheWrite();
-      output += call.usage().output();
-    }
-    return new TokenComponents(fresh, cacheRead, cacheWrite, output);
-  }
-
-  private static TokenComponents tokenComponentsFromSessionOrCalls(
-      Map<String, Object> session, List<NormalizedCall> calls) {
-    if (hasTokenOverride(session)) {
-      return new TokenComponents(
-          numberValue(session.get("freshInputTokens")),
-          numberValue(session.get("cacheReadTokens")),
-          numberValue(session.get("cacheWriteTokens")),
-          numberValue(session.get("outputTokens")));
-    }
-    return tokenComponents(calls);
-  }
-
-  private static boolean hasTokenOverride(Map<String, Object> session) {
-    return session.get("freshInputTokens") instanceof Number
-        || session.get("cacheReadTokens") instanceof Number
-        || session.get("cacheWriteTokens") instanceof Number
-        || session.get("outputTokens") instanceof Number;
-  }
-
-  private static long longMeta(Map<String, String> meta, String key) {
-    String value = meta.get(key);
-    if (value == null || value.isBlank()) {
-      return 0;
-    }
-    try {
-      return Math.max(0, Long.parseLong(value));
-    } catch (NumberFormatException e) {
-      return 0;
-    }
-  }
-
-  private static long numberValue(Object value) {
-    return value instanceof Number num ? num.longValue() : 0;
-  }
-
-  private static String stringValue(Object value) {
-    return value == null ? "" : value.toString();
   }
 
   static String meaningfulProject(String preferred, String fallback) {
@@ -646,50 +543,6 @@ public final class FullScanEngine {
 
   static boolean isMeaningfulProject(String value) {
     return value != null && !value.isBlank() && !".".equals(value) && !value.startsWith("./");
-  }
-
-  private static String projectName(String projectKey) {
-    if (projectKey == null || projectKey.isBlank()) {
-      return "";
-    }
-    int lastSlash = projectKey.lastIndexOf('/');
-    if (lastSlash >= 0 && lastSlash < projectKey.length() - 1) {
-      return projectKey.substring(lastSlash + 1);
-    }
-    return projectKey;
-  }
-
-  /**
-   * 表示 token 组件汇总数据，用于保存输入、cache 与输出 token 数量。
-   *
-   * @param freshInputTokens 当前统计口径下的 fresh input token 数量。
-   * @param cacheReadTokens 当前统计口径下的 cache read token 数量。
-   * @param cacheWriteTokens 当前统计口径下的 cache write token 数量。
-   * @param outputTokens 当前统计口径下的 output token 数量。
-   */
-  private record TokenComponents(
-      /* 当前统计口径下的 fresh input token 数量。 */
-      long freshInputTokens,
-
-      /* 当前统计口径下的 cache read token 数量。 */
-      long cacheReadTokens,
-
-      /* 当前统计口径下的 cache write token 数量。 */
-      long cacheWriteTokens,
-
-      /* 当前统计口径下的 output token 数量。 */
-      long outputTokens) {
-    private long total() {
-      return freshInputTokens + cacheReadTokens + cacheWriteTokens + outputTokens;
-    }
-
-    private TokenComponents plus(TokenComponents other) {
-      return new TokenComponents(
-          freshInputTokens + other.freshInputTokens,
-          cacheReadTokens + other.cacheReadTokens,
-          cacheWriteTokens + other.cacheWriteTokens,
-          outputTokens + other.outputTokens);
-    }
   }
 
   /**
@@ -724,33 +577,13 @@ public final class FullScanEngine {
 
       String title = meta.getOrDefault("title", "");
       String projectKey = meaningfulProject(meta.getOrDefault("cwd", ""), candidate.projectKey());
-      // project_key 不得为空（DB CHECK 约束），回退使用 sessionId
-      if (projectKey.isEmpty()) {
-        projectKey = sessionId;
-      }
       String projectName = projectKey;
       int lastSlash = projectKey.lastIndexOf('/');
       if (lastSlash >= 0 && lastSlash < projectKey.length() - 1) {
         projectName = projectKey.substring(lastSlash + 1);
       }
 
-      // 使用 history timestamp 作为 ended_at
-      String endedAt = "";
-      String tsStr = meta.get("timestamp");
-      if (tsStr != null && !tsStr.isEmpty() && !tsStr.equals("0")) {
-        try {
-          double tsMs = Double.parseDouble(tsStr);
-          if (tsMs > 0) {
-            endedAt = Instant.ofEpochMilli((long) tsMs).toString();
-          }
-        } catch (NumberFormatException ignored) {
-          // 忽略无效 timestamp
-        }
-      }
-      // 回退：使用当前时间
-      if (endedAt.isEmpty()) {
-        endedAt = Instant.now().toString();
-      }
+      String endedAt = metadataEndedAt(meta);
 
       // 构建最小 session 写入请求：所有计数器填 0，不写 artifact
       indexWriter.writeMissingTranscriptSession(
@@ -762,7 +595,9 @@ public final class FullScanEngine {
               projectKey,
               projectName,
               meta.getOrDefault("cwd", ""),
+              meta.getOrDefault("started_at", ""),
               endedAt,
+              meta.getOrDefault("git_branch", ""),
               meta.getOrDefault("model", ""),
               meta.getOrDefault("source", agentValue),
               Instant.ofEpochMilli(System.currentTimeMillis())));
@@ -771,6 +606,21 @@ public final class FullScanEngine {
       return new CandidateResult(
           CandidateOutcome.ERROR, ScanIssue.ScanPhase.INDEX_WRITE, exceptionMessage(e));
     }
+  }
+
+  /** 显式结束时间优先；仅 history timestamp 可作为已知末次活动时间。 */
+  static String metadataEndedAt(Map<String, String> metadata) {
+    String endedAt = metadata.getOrDefault("ended_at", "");
+    if (!endedAt.isEmpty()) return endedAt;
+    try {
+      double timestamp = Double.parseDouble(metadata.getOrDefault("timestamp", "0"));
+      if (Double.isFinite(timestamp) && timestamp > 0) {
+        return Instant.ofEpochMilli((long) timestamp).toString();
+      }
+    } catch (NumberFormatException ignored) {
+      // 无依据的时间保持未知。
+    }
+    return "";
   }
 
   /**
@@ -797,7 +647,7 @@ public final class FullScanEngine {
         0,
         0,
         0,
-        0,
+        1,
         endMs - startMs,
         0,
         Map.of(),

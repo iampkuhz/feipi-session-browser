@@ -10,6 +10,7 @@ import com.feipi.session.browser.domain.normalized.NormalizedCallResponse;
 import com.feipi.session.browser.domain.normalized.NormalizedCallUsage;
 import com.feipi.session.browser.domain.normalized.NormalizedConstants;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
+import com.feipi.session.browser.domain.normalized.NormalizedSessionContent;
 import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
 import com.feipi.session.browser.source.spi.BoundedStream;
 import com.feipi.session.browser.source.spi.Candidate;
@@ -20,7 +21,6 @@ import com.feipi.session.browser.source.spi.SourceId;
 import com.feipi.session.browser.source.spi.SourceResult;
 import com.feipi.session.browser.source.spi.SourceRoot;
 import com.feipi.session.browser.testsupport.sqlite.SqliteTestHelper;
-import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
@@ -57,6 +57,170 @@ class FullScanEngineTest {
   @AfterEach
   void tearDown() {
     SqliteTestHelper.closeQuietly(conn);
+  }
+
+  @Test
+  void transcriptMetadataChangesReindexWithoutFileChangesAndThenRemainUnchanged() throws Exception {
+    Path root = Files.createDirectories(tempDir.resolve("unchanged-transcript"));
+    Path source = Files.writeString(root.resolve("session.jsonl"), "synthetic");
+    SourceFingerprint fingerprint =
+        new SourceFingerprint(
+            source.toString(),
+            SourceId.CODEX,
+            Files.size(source),
+            1000,
+            Optional.empty(),
+            Optional.empty());
+    Map<String, String> metadata = new java.util.LinkedHashMap<>();
+    var writer = SqliteTestHelper.createIndexWriter(conn);
+    var engine = new IncrementalScanEngine();
+    for (String field :
+        List.of(
+            "initial", "title", "model", "git_branch", "source", "cwd", "started_at", "ended_at")) {
+      if (!field.equals("initial"))
+        metadata.put(field, field.endsWith("_at") ? "2026-01-01T00:00:00Z" : "new-" + field);
+      Candidate candidate = new Candidate(fingerprint, "codex:unchanged", "project", metadata);
+      ScanConfig config =
+          ScanConfig.defaults(
+              List.of(
+                  new ScanConfig.SourceEntry(
+                      new SuccessfulAdapter(SourceId.CODEX, candidate), root)),
+              tempDir.resolve("unchanged-artifacts"));
+      var changed = engine.scan(writer, config);
+      assertThat(changed.errorCount()).isZero();
+      assertThat(changed.successCount()).as(field).isEqualTo(1);
+      var unchanged = engine.scan(writer, config);
+      assertThat(unchanged.successCount()).as(field).isZero();
+      assertThat(unchanged.unchangedCount()).isEqualTo(1);
+    }
+  }
+
+  @Test
+  void transcriptWithoutProjectOrEventTimesDoesNotInventMetadata() throws Exception {
+    Path root = Files.createDirectories(tempDir.resolve("unknown-source"));
+    Path source = Files.writeString(root.resolve("session.jsonl"), "synthetic");
+    Candidate candidate =
+        new Candidate(
+            new SourceFingerprint(
+                source.toString(),
+                SourceId.CODEX,
+                Files.size(source),
+                123456789L,
+                Optional.empty(),
+                Optional.empty()),
+            "codex:unknown",
+            "",
+            Map.of());
+    var config =
+        ScanConfig.defaults(
+            List.of(
+                new ScanConfig.SourceEntry(new SuccessfulAdapter(SourceId.CODEX, candidate), root)),
+            tempDir.resolve("unknown-artifacts"));
+    assertThat(
+            new FullScanEngine()
+                .scan(SqliteTestHelper.createIndexWriter(conn), config)
+                .errorCount())
+        .isZero();
+    try (var statement = conn.createStatement();
+        var row = statement.executeQuery("SELECT * FROM sessions")) {
+      assertThat(row.next()).isTrue();
+      assertThat(row.getString("project_key")).isEmpty();
+      assertThat(row.getString("started_at")).isEmpty();
+      assertThat(row.getString("ended_at")).isEmpty();
+    }
+  }
+
+  @Test
+  void failedFullScanRetainsPublishedArtifactsAndAllowsRetry() throws Exception {
+    verifyFailedPublication(false);
+  }
+
+  @Test
+  void failedIncrementalRebuildRetainsPublishedArtifactsAndAllowsRetry() throws Exception {
+    verifyFailedPublication(true);
+  }
+
+  private void verifyFailedPublication(boolean incremental) throws Exception {
+    Path root = Files.createDirectories(tempDir.resolve("atomic-source"));
+    Path source = Files.writeString(root.resolve("session.jsonl"), "synthetic");
+    SourceFingerprint fingerprint =
+        new SourceFingerprint(
+            source.toString(),
+            SourceId.CODEX,
+            Files.size(source),
+            1000,
+            Optional.empty(),
+            Optional.empty());
+    Candidate original =
+        new Candidate(fingerprint, "codex:atomic", "project", Map.of("title", "old"));
+    var writer = SqliteTestHelper.createIndexWriter(conn);
+    ScanConfig initial =
+        ScanConfig.defaults(
+            List.of(
+                new ScanConfig.SourceEntry(new SuccessfulAdapter(SourceId.CODEX, original), root)),
+            tempDir.resolve("atomic-artifacts"));
+    assertThat(new FullScanEngine().scan(writer, initial).isFullySuccessful()).isTrue();
+    assertThat(writer.loadScanLogicVersion())
+        .isEqualTo(IncrementalScanEngine.CURRENT_SCAN_LOGIC_VERSION);
+    Path published;
+    try (Statement statement = conn.createStatement();
+        ResultSet result = statement.executeQuery("SELECT path FROM session_artifacts")) {
+      assertThat(result.next()).isTrue();
+      published = Path.of(result.getString(1));
+    }
+    byte[] previous = Files.readAllBytes(published);
+    String previousMetadata =
+        writer
+            .loadStoredSessionFingerprints()
+            .get(original.sessionKey())
+            .candidateMetadataFingerprint();
+    writer.saveScanLogicVersion(8, java.time.Instant.EPOCH);
+    conn.commit();
+    Candidate changed =
+        new Candidate(fingerprint, original.sessionKey(), "project", Map.of("title", "new"));
+    ScanConfig failing =
+        ScanConfig.defaults(
+            List.of(
+                new ScanConfig.SourceEntry(new SuccessfulAdapter(SourceId.CODEX, changed), root),
+                new ScanConfig.SourceEntry(new FatalAdapter(List.of(original)), root)),
+            initial.artifactOutputDir());
+    for (int retry = 0; retry < 2; retry++) {
+      int errors =
+          incremental
+              ? new IncrementalScanEngine().scan(writer, failing).errorCount()
+              : new FullScanEngine().scan(writer, failing).errorCount();
+      assertThat(errors).isPositive();
+      assertThat(writer.loadScanLogicVersion()).isEqualTo(8);
+      assertThat(Files.readAllBytes(published)).isEqualTo(previous);
+      assertThat(
+              writer
+                  .loadStoredSessionFingerprints()
+                  .get(original.sessionKey())
+                  .candidateMetadataFingerprint())
+          .isEqualTo(previousMetadata);
+      try (Statement statement = conn.createStatement();
+          ResultSet result =
+              statement.executeQuery(
+                  "SELECT title, path FROM sessions JOIN session_artifacts USING(session_key)")) {
+        assertThat(result.next()).isTrue();
+        assertThat(result.getString("title")).isEqualTo("old");
+        assertThat(result.getString("path")).isEqualTo(published.toString());
+      }
+      verifyScanLogStatus("failure");
+    }
+    if (incremental) {
+      var rebuilt = new IncrementalScanEngine().scan(writer, initial);
+      assertThat(rebuilt.rebuildTriggered()).isTrue();
+      assertThat(rebuilt.successCount()).isEqualTo(1);
+      assertThat(writer.loadScanLogicVersion())
+          .isEqualTo(IncrementalScanEngine.CURRENT_SCAN_LOGIC_VERSION);
+    } else {
+      assertThat(new FullScanEngine().scan(writer, initial).isFullySuccessful()).isTrue();
+    }
+    var unchanged = new IncrementalScanEngine().scan(writer, initial);
+    assertThat(unchanged.rebuildTriggered()).isFalse();
+    assertThat(unchanged.errorCount()).isZero();
+    verifyScanLogStatus("success");
   }
 
   @Test
@@ -114,7 +278,7 @@ class FullScanEngineTest {
     assertThat(summary.totalCandidates()).isZero();
     assertThat(summary.issues()).hasSize(1);
     assertThat(summary.issues().get(0).phase()).isEqualTo(ScanIssue.ScanPhase.ROOT_CHECK);
-    verifyScanLogStatus("success");
+    verifyScanLogStatus("failure");
   }
 
   @Test
@@ -168,7 +332,7 @@ class FullScanEngineTest {
     assertThat(summary.successCount()).isZero();
     assertThat(summary.issues()).hasSize(1);
     assertThat(summary.issues().get(0).phase()).isEqualTo(ScanIssue.ScanPhase.PARSE);
-    verifyScanLogStatus("success");
+    verifyScanLogStatus("failure");
   }
 
   @Test
@@ -713,15 +877,8 @@ class FullScanEngineTest {
       SourceAdapter adapter,
       NormalizedSessionArtifact artifact)
       throws Exception {
-    Method method =
-        FullScanEngine.class.getDeclaredMethod(
-            "applyCandidateMetadata",
-            Map.class,
-            Candidate.class,
-            SourceAdapter.class,
-            NormalizedSessionArtifact.class);
-    method.setAccessible(true);
-    method.invoke(null, session, candidate, adapter, artifact);
+    CandidateContentMetadata.apply(
+        session, candidate, adapter, NormalizedSessionContent.fromArtifact(artifact));
   }
 
   private static NormalizedSessionArtifact artifactWith(

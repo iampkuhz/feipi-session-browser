@@ -10,6 +10,7 @@ import com.feipi.session.browser.source.common.ToolFailureClassifier;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
 
@@ -82,7 +83,8 @@ public final class JsonSourceRecordMapper {
         extractResponseMessageId(event, normalizedEventType),
         extractResponseStopReason(event, normalizedEventType),
         extractTiming(event),
-        isMetaContext(event));
+        isMetaContext(event),
+        messageRole(event, normalizedEventType));
   }
 
   private static SourceRecord createBlockRecord(
@@ -125,7 +127,18 @@ public final class JsonSourceRecordMapper {
         Optional.empty(),
         Optional.empty(),
         extractTiming(event),
-        isMetaContext(event));
+        isMetaContext(event),
+        toolResult ? Optional.empty() : messageRole(event, eventType));
+  }
+
+  private static Optional<String> messageRole(JsonNode event, String type) {
+    String rawType = event.path("type").asText("");
+    String role = event.path("role").asText(event.path("message").path("role").asText(""));
+    if (("user".equals(type) || "assistant".equals(type))
+        && (type.equals(rawType) || type.equals(role))) {
+      return Optional.of(type);
+    }
+    return Optional.empty();
   }
 
   private static boolean isMetaContext(JsonNode event) {
@@ -338,15 +351,44 @@ public final class JsonSourceRecordMapper {
     long inputTokens = readLong(usage, "input_tokens", "inputTokens");
     long cacheRead =
         readLong(usage, "cache_read_input_tokens", "cacheReadInputTokens", "cached_input_tokens");
-    long freshInput =
-        usage.has("cached_input_tokens") && !usage.has("cache_read_input_tokens")
-            ? Math.max(0L, inputTokens - cacheRead)
-            : inputTokens;
+    boolean inclusiveInput =
+        usage.has("cached_input_tokens") && !usage.has("cache_read_input_tokens");
+    long freshInput = inclusiveInput ? Math.max(0L, inputTokens - cacheRead) : inputTokens;
     return new SourceRecordUsage(
         freshInput,
         cacheRead,
         readLong(usage, "cache_creation_input_tokens", "cacheCreationInputTokens"),
-        readLong(usage, "output_tokens", "outputTokens"));
+        readLong(usage, "output_tokens", "outputTokens"),
+        Map.of(
+            "freshInputTokenPrecision",
+                inclusiveInput
+                        && "unavailable"
+                            .equals(
+                                usagePrecision(
+                                    usage,
+                                    "cache_read_input_tokens",
+                                    "cacheReadInputTokens",
+                                    "cached_input_tokens"))
+                    ? "unavailable"
+                    : usagePrecision(usage, "input_tokens", "inputTokens"),
+            "cacheReadTokenPrecision",
+                usagePrecision(
+                    usage,
+                    "cache_read_input_tokens",
+                    "cacheReadInputTokens",
+                    "cached_input_tokens"),
+            "cacheWriteTokenPrecision",
+                usagePrecision(usage, "cache_creation_input_tokens", "cacheCreationInputTokens"),
+            "outputTokenPrecision", usagePrecision(usage, "output_tokens", "outputTokens")));
+  }
+
+  private static String usagePrecision(JsonNode usage, String... fields) {
+    for (String field : fields) {
+      if (usage.path(field).isNumber()) {
+        return "provider_reported";
+      }
+    }
+    return "unavailable";
   }
 
   private static JsonNode usageNode(JsonNode event) {

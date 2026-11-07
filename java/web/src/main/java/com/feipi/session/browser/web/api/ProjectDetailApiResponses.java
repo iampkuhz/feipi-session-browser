@@ -43,6 +43,7 @@ public final class ProjectDetailApiResponses {
    * @param firstSeen 该字段在 API 响应中的业务值。
    * @param lastSeen 该字段在 API 响应中的业务值。
    * @param state 页面或 API 状态描述。
+   * @param contentSampleCount 显式内容测量的会话数，包含已观测零，不代表完整源覆盖。
    */
   public record ProjectDetailSummaryResponse(
       String schemaVersion,
@@ -59,7 +60,61 @@ public final class ProjectDetailApiResponses {
       long assistantMessages,
       String firstSeen,
       String lastSeen,
-      PageStateDto state) {
+      PageStateDto state,
+      long contentSampleCount) {
+    /**
+     * 兼容未提供内容覆盖的调用者，不从计数或 token 推断已测量。
+     *
+     * @param schemaVersion 响应 schema 版本号。
+     * @param filters 规范化后的过滤条件。
+     * @param projectName 项目显示名称。
+     * @param totalSessions session 汇总数量。
+     * @param claudeSessions 该字段在 API 响应中的业务值。
+     * @param codexSessions 该字段在 API 响应中的业务值。
+     * @param qoderSessions 该字段在 API 响应中的业务值。
+     * @param tokens token 组成统计。
+     * @param toolCalls 当前统计口径下的调用数量。
+     * @param failedTools 当前统计口径下的工具数量。
+     * @param userMessages 当前统计口径下的消息数量。
+     * @param assistantMessages 当前统计口径下的消息数量。
+     * @param firstSeen 该字段在 API 响应中的业务值。
+     * @param lastSeen 该字段在 API 响应中的业务值。
+     * @param state 页面或 API 状态描述。
+     */
+    public ProjectDetailSummaryResponse(
+        String schemaVersion,
+        ProjectDetailFilterEcho filters,
+        String projectName,
+        long totalSessions,
+        long claudeSessions,
+        long codexSessions,
+        long qoderSessions,
+        TokenSegments tokens,
+        long toolCalls,
+        long failedTools,
+        long userMessages,
+        long assistantMessages,
+        String firstSeen,
+        String lastSeen,
+        PageStateDto state) {
+      this(
+          schemaVersion,
+          filters,
+          projectName,
+          totalSessions,
+          claudeSessions,
+          codexSessions,
+          qoderSessions,
+          tokens,
+          toolCalls,
+          failedTools,
+          userMessages,
+          assistantMessages,
+          firstSeen,
+          lastSeen,
+          state,
+          0);
+    }
 
     /** 校验字段和业务不变量。 */
     public ProjectDetailSummaryResponse {
@@ -70,7 +125,9 @@ public final class ProjectDetailApiResponses {
       firstSeen = ApiResponses.empty(firstSeen);
       lastSeen = ApiResponses.empty(lastSeen);
       Objects.requireNonNull(state, "state must not be null");
-      if (totalSessions < 0
+      if (contentSampleCount < 0
+          || contentSampleCount > totalSessions
+          || totalSessions < 0
           || claudeSessions < 0
           || codexSessions < 0
           || qoderSessions < 0
@@ -169,6 +226,7 @@ public final class ProjectDetailApiResponses {
    * @param tokenShare token 占比。
    * @param sessionShareRatio session 占比原始比例。
    * @param tokenShareRatio token 占比原始比例。
+   * @param contentSampleCount 显式内容测量的会话数，包含已观测零，不代表完整源覆盖。
    */
   public record ProjectAgentMixRow(
       String agent,
@@ -179,14 +237,53 @@ public final class ProjectDetailApiResponses {
       double sessionShare,
       double tokenShare,
       double sessionShareRatio,
-      double tokenShareRatio) {
+      double tokenShareRatio,
+      long contentSampleCount) {
+    /**
+     * 兼容未提供内容覆盖的调用者，不从计数或 token 推断已测量。
+     *
+     * @param agent agent 类型标识。
+     * @param label 用户可读标签。
+     * @param sessions 该字段在 API 响应中的业务值。
+     * @param tokens token 组成统计。
+     * @param failedTools 当前统计口径下的工具数量。
+     * @param sessionShare session 占比。
+     * @param tokenShare token 占比。
+     * @param sessionShareRatio session 占比原始比例。
+     * @param tokenShareRatio token 占比原始比例。
+     */
+    public ProjectAgentMixRow(
+        String agent,
+        String label,
+        long sessions,
+        TokenSegments tokens,
+        long failedTools,
+        double sessionShare,
+        double tokenShare,
+        double sessionShareRatio,
+        double tokenShareRatio) {
+      this(
+          agent,
+          label,
+          sessions,
+          tokens,
+          failedTools,
+          sessionShare,
+          tokenShare,
+          sessionShareRatio,
+          tokenShareRatio,
+          0);
+    }
 
     /** 校验字段和业务不变量。 */
     public ProjectAgentMixRow {
       agent = ApiResponses.required(agent, "agent");
       label = ApiResponses.empty(label);
       Objects.requireNonNull(tokens, "tokens must not be null");
-      if (sessions < 0 || failedTools < 0) {
+      if (contentSampleCount < 0
+          || contentSampleCount > sessions
+          || sessions < 0
+          || failedTools < 0) {
         throw new IllegalArgumentException("agent mix counts must be non-negative");
       }
       if (sessionShareRatio < 0.0

@@ -1,0 +1,4 @@
+-- V002: SessionMetadataMigration safely rebuilds sessions using its existing DDL.
+-- Only project_key/ended_at non-empty checks are relaxed. Existing columns,
+-- indexes, triggers, child artifact rows and all other constraints are preserved.
+-- The Java step and schema_migrations insertion run in one transaction.

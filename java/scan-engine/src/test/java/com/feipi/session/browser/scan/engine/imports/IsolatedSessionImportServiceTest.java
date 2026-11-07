@@ -7,6 +7,7 @@ import com.feipi.session.browser.domain.normalized.NormalizedAgent;
 import com.feipi.session.browser.domain.normalized.TokenProvenance;
 import com.feipi.session.browser.domain.source.SourceRecord;
 import com.feipi.session.browser.domain.source.SourceRecordRelation;
+import com.feipi.session.browser.domain.source.SourceRecordSequence;
 import com.feipi.session.browser.domain.source.SourceRecordUsage;
 import com.feipi.session.browser.index.api.imports.ImportLimits;
 import com.feipi.session.browser.index.api.imports.SessionImportException;
@@ -32,12 +33,99 @@ import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
 /** 独立目录、严格输入、资源额度与生命周期的合成测试。 */
 class IsolatedSessionImportServiceTest {
   private static final String TRANSCRIPT =
       "{\"type\":\"assistant\",\"sessionId\":\"shared\",\"message\":{\"content\":\"synthetic\"}}";
+
+  @Test
+  void managedImportRetainsLogicalPathsAndClosesItsRecordOwner() throws Exception {
+    var closes = new AtomicInteger();
+    try (var service = new IsolatedSessionImportService(source -> managedAdapter(closes, false))) {
+      var result =
+          service.create(input(TRANSCRIPT), "synthetic.jsonl", NormalizedAgent.CLAUDE_CODE);
+      assertThat(result.artifact().calls()).hasSize(1);
+      assertThat(result.artifact().calls().getFirst().sourceUnits().toString())
+          .contains("synthetic");
+      assertThat(result.artifact().sourceFiles().getFirst().path().toString())
+          .isEqualTo("imports/" + result.metadata().importId() + "/upload.jsonl");
+      assertThat(closes).hasValue(1);
+    }
+  }
+
+  @Test
+  void managedImportSourceErrorStillClosesItsRecordOwner() throws Exception {
+    var closes = new AtomicInteger();
+    try (var service = new IsolatedSessionImportService(source -> managedAdapter(closes, true))) {
+      assertCode(
+          () -> service.create(input(TRANSCRIPT), "synthetic.jsonl", NormalizedAgent.CLAUDE_CODE),
+          "parse_failed");
+      assertThat(closes).hasValue(1);
+    }
+  }
+
+  @Test
+  void managedImportKeepsOriginalWorstCaseSizeRejectionAndClosesOwner() throws Exception {
+    var closes = new AtomicInteger();
+    try (var service =
+        new IsolatedSessionImportService(
+            source -> managedAdapter(closes, false), new ImportLimits(1000, 10, 1000, 2, 1))) {
+      assertCode(
+          () -> service.create(input(TRANSCRIPT), "synthetic.jsonl", NormalizedAgent.CLAUDE_CODE),
+          "analysis_too_large");
+      assertThat(closes).hasValue(1);
+    }
+  }
+
+  /** 复用原小 fixture，仅改变载体为有所有权的序列，不读取邻居或伪造解析数据。 */
+  private static RecordingAdapter managedAdapter(AtomicInteger closes, boolean sourceError) {
+    return new RecordingAdapter() {
+      @Override
+      public SourceResult parse(Candidate candidate, CancellationSignal cancellation) {
+        var original = (SourceResult.Success) super.parse(candidate, cancellation);
+        var sequence = original.recordSequence();
+        var owned =
+            new SourceRecordSequence() {
+              public long recordCount() {
+                return sequence.recordCount();
+              }
+
+              public RecordCursor openCursor(long ordinal) throws IOException {
+                return sequence.openCursor(ordinal);
+              }
+
+              public void close() throws IOException {
+                closes.incrementAndGet();
+                original.close();
+              }
+            };
+        var diagnostics =
+            sourceError
+                ? List.of(
+                    new SourceDiagnostic(
+                        ParseSeverity.ERROR,
+                        ParseIssueType.BAD_JSON,
+                        "synthetic-error",
+                        1,
+                        Optional.empty(),
+                        "SYNTHETIC_ERROR",
+                        "synthetic",
+                        OptionalInt.empty(),
+                        OptionalInt.empty(),
+                        OptionalInt.empty()))
+                : original.diagnostics();
+        return SourceResult.Success.managed(
+            diagnostics,
+            original.candidateCount(),
+            owned,
+            original.fingerprint(),
+            original.locator());
+      }
+    };
+  }
 
   @Test
   void legacyAdapterDefaultMetadataDoesNotReadOrInventEvidence() throws Exception {

@@ -29,6 +29,7 @@ import jakarta.validation.constraints.PositiveOrZero;
  * @param totalUserMessages 用户消息总数
  * @param totalAssistantMessages 助手消息总数
  * @param tokenProvenance 相同查询范围的四段计量来源
+ * @param contentSampleCount 显式内容测量的会话数，包含已观测零，不代表完整源覆盖。
  */
 public record ProjectStatsRow(
     /* 项目键值。 */ String projectKey,
@@ -48,8 +49,71 @@ public record ProjectStatsRow(
     /* 失败工具调用总数。 */ @PositiveOrZero long totalFailedTools,
     /* 用户消息总数。 */ @PositiveOrZero long totalUserMessages,
     /* 助手消息总数。 */ @PositiveOrZero long totalAssistantMessages,
-    /* 相同查询范围的四段计量来源。 */ TokenProvenance tokenProvenance)
+    /* 相同查询范围的四段计量来源。 */ TokenProvenance tokenProvenance,
+    @PositiveOrZero long contentSampleCount)
     implements ProjectStats {
+  /**
+   * 兼容未提供内容覆盖的调用者，不从计数或 token 推断已测量。
+   *
+   * @param projectKey 项目键
+   * @param projectName 项目显示名称
+   * @param totalSessions 会话总数
+   * @param claudeSessions claude_code agent 会话数
+   * @param codexSessions codex agent 会话数
+   * @param qoderSessions qoder agent 会话数
+   * @param firstSeen 首次活动时间（ISO8601），空字符串表示未知
+   * @param lastSeen 最近活动时间（ISO8601），空字符串表示未知
+   * @param totalFreshInputTokens 非缓存输入 token 总量
+   * @param totalOutputTokens 输出 token 总量
+   * @param totalCacheReadTokens 缓存读取 token 总量
+   * @param totalCacheWriteTokens 缓存写入 token 总量
+   * @param totalTokens token 总量
+   * @param totalToolCalls 工具调用总数
+   * @param totalFailedTools 失败工具调用总数
+   * @param totalUserMessages 用户消息总数
+   * @param totalAssistantMessages 助手消息总数
+   * @param tokenProvenance 相同查询范围的四段计量来源
+   */
+  public ProjectStatsRow(
+      String projectKey,
+      String projectName,
+      long totalSessions,
+      long claudeSessions,
+      long codexSessions,
+      long qoderSessions,
+      String firstSeen,
+      String lastSeen,
+      long totalFreshInputTokens,
+      long totalOutputTokens,
+      long totalCacheReadTokens,
+      long totalCacheWriteTokens,
+      long totalTokens,
+      long totalToolCalls,
+      long totalFailedTools,
+      long totalUserMessages,
+      long totalAssistantMessages,
+      TokenProvenance tokenProvenance) {
+    this(
+        projectKey,
+        projectName,
+        totalSessions,
+        claudeSessions,
+        codexSessions,
+        qoderSessions,
+        firstSeen,
+        lastSeen,
+        totalFreshInputTokens,
+        totalOutputTokens,
+        totalCacheReadTokens,
+        totalCacheWriteTokens,
+        totalTokens,
+        totalToolCalls,
+        totalFailedTools,
+        totalUserMessages,
+        totalAssistantMessages,
+        tokenProvenance,
+        0);
+  }
 
   /**
    * 紧凑构造器，校验 record component 约束并应用默认值。
@@ -80,7 +144,8 @@ public record ProjectStatsRow(
         totalFailedTools,
         totalUserMessages,
         totalAssistantMessages,
-        tokenProvenance);
+        tokenProvenance,
+        contentSampleCount);
     projectKey = projectKey == null ? "" : projectKey;
     projectName = projectName == null ? "" : projectName;
     firstSeen = firstSeen == null ? "" : firstSeen;

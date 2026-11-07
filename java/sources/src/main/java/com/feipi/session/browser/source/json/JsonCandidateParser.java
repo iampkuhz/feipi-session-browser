@@ -203,6 +203,7 @@ public final class JsonCandidateParser {
         record.responseMessageId(),
         record.responseStopReason(),
         record.timing(),
-        record.metaContext());
+        record.metaContext(),
+        record.messageRole());
   }
 }

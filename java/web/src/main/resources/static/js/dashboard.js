@@ -154,6 +154,7 @@
         var rawData = [];
         var promptRawData = [];
         var cacheRawData = [];
+        var apiLoaded = false;
 
         var AGENTS = [
             { key: 'claude_code', scope: 'claude-code', label: 'Claude Code', countKey: 'claude_count', promptKey: 'claude_prompts', tokenKey: 'claude_tokens', dot: 'claude' },
@@ -236,27 +237,49 @@
             return 'average';
         }
 
-        function getDaysForGrain(grain) {
-            if (grain === 'week') return 20 * 7;
-            if (grain === 'month') return 12 * 30;
-            return 30;
+        /** 日历窗口以当前 UTC 桶为终点，而不是最后一个有数据日。 */
+        function calendarWindow() {
+            var today = new Date().toISOString().substring(0, 10);
+            var start = new Date(today + 'T00:00:00Z');
+            var grain = getGrain();
+            if (grain === 'week') {
+                start.setUTCDate(start.getUTCDate() - ((start.getUTCDay() + 6) % 7) - 19 * 7);
+            } else if (grain === 'month') {
+                start.setUTCDate(1);
+                start.setUTCMonth(start.getUTCMonth() - 11);
+            } else {
+                start.setUTCDate(start.getUTCDate() - 29);
+            }
+            return { start: start.toISOString().substring(0, 10), end: today };
         }
 
         function applyScope(data, fields) {
+            if (!apiLoaded && !data.length) return [];
             var grain = getGrain();
+            var window = calendarWindow();
+            var now = Date.now();
             var dated = data.map(function(point) {
+                if (point.date && point.date.length > 10) {
+                    var instant = point.date;
+                    if (!/(?:Z|[+-]\d{2}:\d{2})$/i.test(instant)) instant += 'Z';
+                    if (Date.parse(instant) > now) return null;
+                }
                 var date = utcDateKey(point.date);
-                return date ? Object.assign({}, point, { date: date }) : null;
+                return date && date >= window.start && date <= window.end
+                    ? Object.assign({}, point, { date: date }) : null;
             }).filter(function(point) { return point !== null; });
-            var sliced = dated.slice(-getDaysForGrain(grain));
-            if (!sliced.length) return [];
-            if (grain === 'week') {
-                return aggregateByKey(sliced, fields, weekKey, function(k) { return k; });
+            // 空日期只表示该日没有开始会话；不伪造 token/cache 测量来源。
+            var present = {};
+            dated.forEach(function(point) { present[point.date] = true; });
+            var cursor = new Date(window.start + 'T00:00:00Z');
+            while (cursor.toISOString().substring(0, 10) <= window.end) {
+                var key = cursor.toISOString().substring(0, 10);
+                if (!present[key]) dated.push({ date: key });
+                cursor.setUTCDate(cursor.getUTCDate() + 1);
             }
-            if (grain === 'month') {
-                return aggregateByKey(sliced, fields, monthKey, function(k) { return k + '-01'; });
-            }
-            return aggregateByKey(sliced, fields, utcDateKey);
+            if (grain === 'week') return aggregateByKey(dated, fields, weekKey);
+            if (grain === 'month') return aggregateByKey(dated, fields, monthKey, function(k) { return k + '-01'; });
+            return aggregateByKey(dated, fields, utcDateKey);
         }
 
         function getTrendFields() {
@@ -269,10 +292,20 @@
         }
 
         function getPromptFields() {
-            return [
-                'claude_prompts', 'codex_prompts', 'qoder_prompts',
-                'total_prompts', 'assistant_turns', 'tool_calls'
-            ];
+            var fields = ['claude_prompts', 'codex_prompts', 'qoder_prompts',
+                'total_prompts', 'assistant_turns', 'tool_calls'];
+            ['', 'claude_code_', 'codex_', 'qoder_'].forEach(function(prefix) {
+                fields.push(prefix + 'measured_user_messages', prefix + 'user_message_sample_count');
+            });
+            return fields;
+        }
+
+        function measuredPromptAverage(point, prefix) {
+            prefix = prefix || '';
+            var samples = point[prefix + 'user_message_sample_count'];
+            var messages = point[prefix + 'measured_user_messages'];
+            return samples > 0 && typeof messages === 'number' && Number.isFinite(messages)
+                ? messages / samples : null;
         }
 
         function getCacheFields() {
@@ -456,6 +489,7 @@
             data.forEach(function(d, i) {
                 var val = valueFn(d, i);
                 if (val == null || !isFinite(val)) {
+                    open = false;
                     return;
                 }
                 var cmd = open ? 'L ' : 'M ';
@@ -473,10 +507,10 @@
                 var value = valueFn(d, i);
                 if (value != null && isFinite(value)) validIndexes.push(i);
             });
-            if (validIndexes.length !== 1) return '';
-            data.forEach(function(d, i) {
-                if (i !== validIndexes[0]) return;
-                var val = valueFn(d, i);
+            validIndexes.forEach(function(i, position) {
+                // A measured bucket needs a marker only when neither adjacent bucket is measured.
+                if (validIndexes[position - 1] === i - 1 || validIndexes[position + 1] === i + 1) return;
+                var val = valueFn(data[i], i);
                 if (val == null || !isFinite(val)) return;
                 var x = resolveX(i, data.length);
                 var y = yFn(val);
@@ -538,7 +572,8 @@
             var totalSessions = activeScope === 'all'
                 ? (trendPoint ? (trendPoint.total_count || 0) : 0)
                 : (trendPoint ? (trendPoint[primaryAgent.countKey] || trendPoint.total_count || 0) : 0);
-            var totalAverage = totalSessions > 0 ? (totalPrompts / totalSessions).toFixed(1) : 'N/A';
+            var average = measuredPromptAverage(d);
+            var totalAverage = average === null ? 'N/A' : average.toFixed(1);
 
             rows.push(tooltipSection('User Prompts (bars)'));
             scopedAgents.forEach(function(agent) {
@@ -549,18 +584,21 @@
             rows.push(tooltipRow('total', 'Total User Prompts', formatNumber(totalPrompts), '', 'tooltip-row--total'));
 
             rows.push(tooltipSection('Avg Prompts / Session (line)'));
-            rows.push(tooltipLineRow('prompt-average', 'Overall', totalAverage, '/ session'));
+            rows.push(tooltipLineRow('prompt-average', 'Overall', totalAverage,
+                '/ measured session · samples ' + formatNumber(d.user_message_sample_count) + ' / ' + formatNumber(totalSessions) + ' cohort'));
             if (activeScope === 'all') {
                 scopedAgents.forEach(function(agent) {
-                    var prompts = d[agent.promptKey] || 0;
                     var sessions = trendPoint ? (trendPoint[agent.countKey] || 0) : 0;
-                    var perSession = sessions > 0 ? (prompts / sessions).toFixed(1) : 'N/A';
-                    rows.push(tooltipLineRow(agent.dot, agent.label, perSession, '/ session'));
+                    var agentAverage = measuredPromptAverage(d, agent.key + '_');
+                    var perSession = agentAverage === null ? 'N/A' : agentAverage.toFixed(1);
+                    rows.push(tooltipLineRow(agent.dot, agent.label, perSession,
+                        '/ measured session · samples ' + formatNumber(d[agent.key + '_user_message_sample_count'])
+                        + ' / ' + formatNumber(sessions) + ' cohort'));
                 });
             }
 
             rows.push(tooltipSection('Auxiliary'));
-            rows.push(tooltipRow('total', 'Assistant Turns', formatNumber(d.assistant_turns || 0), ''));
+            rows.push(tooltipRow('total', 'Assistant Messages', formatNumber(d.assistant_turns || 0), ''));
             rows.push(tooltipRow('total', 'Tool Calls', formatNumber(d.tool_calls || 0), ''));
             return tooltipShell(label, rows);
         }
@@ -639,7 +677,7 @@
 
             var legend = TOKEN_LAYERS.map(function(layer) {
                 var value = data.reduce(function(sum, d) { return sum + (d[layer.key] || 0); }, 0);
-                var p = data.reduce(function(previous, d) { return TokenProvenance.merge(previous, d.provenance); }, null);
+                var p = data.reduce(function(previous, d) { return d.provenance ? TokenProvenance.merge(previous, d.provenance) : previous; }, null);
                 var key = { fresh: 'fresh', read: 'cacheRead', write: 'cacheWrite', out: 'output' }[layer.cls];
                 var tokens = { provenance: p };
                 tokens[key] = value;
@@ -663,8 +701,7 @@
             trendData.forEach(function(d) { trendByDate[d.date] = d; });
             var maxVal = Math.max.apply(null, data.map(function(d) { return d.total_prompts || 0; })) || 1;
             var avgValues = data.map(function(d) {
-                var sessions = trendByDate[d.date] ? (trendByDate[d.date].total_count || 0) : 0;
-                return sessions > 0 ? (d.total_prompts || 0) / sessions : null;
+                return measuredPromptAverage(d);
             });
             var avgCandidates = avgValues.filter(function(v) { return v != null && isFinite(v); });
             var maxAvg = avgCandidates.length ? Math.max.apply(null, avgCandidates) : 1;
@@ -815,38 +852,149 @@
             return params;
         }
 
-        function apiGet(path, params) {
-            var qs = params ? params.toString() : '';
-            return fetch(path + (qs ? '?' + qs : ''), { headers: { 'Accept': 'application/json' } })
-                .then(function(response) {
-                    if (!response.ok) throw new Error('HTTP ' + response.status);
-                    return response.json();
-                });
-        }
-
+        var dashboardSnapshot = window.IndexSnapshot.create();
+        var dashboardParts = [];
         function loadDashboardApiData() {
             if (!window.fetch) return Promise.resolve(null);
             var params = currentApiParams();
             var activeScope = getActiveScope();
-            return Promise.all([
-                apiGet('/api/dashboard/summary', params),
-                apiGet('/api/dashboard/trends/sessions', params),
-                apiGet('/api/dashboard/trends/tokens', params),
-                apiGet('/api/dashboard/trends/prompts', params),
-                apiGet('/api/dashboard/trends/cache-health', params),
-                apiGet('/api/dashboard/agents/contribution', params),
-                apiGet('/api/dashboard/agents/efficiency', params),
-                apiGet('/api/dashboard/agents/' + encodeURIComponent(activeScope === 'all' ? 'claude-code' : activeScope) + '/deep-dive', params)
-            ]).then(function(parts) {
-                updateDashboardSummary(parts[0]);
-                rawData = mergeSessionTokenTrends(parts[1], parts[2]);
-                promptRawData = promptTrendRows(parts[3]);
-                cacheRawData = cacheHealthRows(parts[4]);
-                updateAgentContribution(parts[5]);
-                updateAgentEfficiency(parts[6], parts[7]);
-                updateChartStats(parts[1], parts[2], parts[3], parts[4]);
-                renderAll();
+            var paths = ['summary', 'trends/sessions', 'trends/tokens', 'trends/prompts', 'trends/cache-health', 'agents/contribution', 'agents/efficiency',
+                'agents/' + encodeURIComponent(activeScope === 'all' ? 'claude-code' : activeScope) + '/deep-dive', 'event-activity'];
+            params.set('days', getGrain() === 'month' ? '366' : getGrain() === 'week' ? '140' : '30');
+            return dashboardSnapshot.load(paths.map(function (path, index) {
+                return { key: 'dashboard/' + path, url: '/api/dashboard/' + path + '?' + params.toString(), unavailableStatus: index === 8 ? 501 : undefined, error: index === 8 ? eventActivityError : undefined, apply: function (part) {
+                    dashboardParts[index] = part;
+                    if (index === 8) renderEventActivity(part);
+                    if (index === 0) updateDashboardSummary(part);
+                    if (index === 1 || index === 2) rawData = mergeSessionTokenTrends(dashboardParts[1], dashboardParts[2]);
+                    if (index === 3) promptRawData = promptTrendRows(part);
+                    if (index === 4) cacheRawData = cacheHealthRows(part);
+                    if (index === 5) updateAgentContribution(part);
+                    if (index === 6 || index === 7) updateAgentEfficiency(dashboardParts[6], dashboardParts[7]);
+                    apiLoaded = true;
+                    renderAll();
+                } };
+            }));
+        }
+
+        // 只聚合 API 给出的实际日桶，不创建没有观察证据的日期。
+        var eventTokenKeys = ['fresh', 'cacheRead', 'cacheWrite', 'output'];
+        var eventSampleKeys = ['reportedSamples', 'estimatedSamples', 'unavailableSamples', 'unknownSamples', 'mixedSamples'];
+
+        function eventText(hook, value) {
+            var node = document.querySelector('[data-event-activity-' + hook + ']');
+            if (node) node.textContent = value;
+        }
+
+        function eventActivityError(error, retry) {
+            var unavailable = error && error.message === 'HTTP 501';
+            var status = error && /^HTTP [0-9]{3}$/.test(error.message) ? error.message : 'Request failed';
+            eventText('state', unavailable
+                ? 'Unknown — this query port does not support event activity (HTTP 501).'
+                : 'Unable to load event activity: ' + status + '.');
+            var state = document.querySelector('[data-event-activity-state]');
+            if (state) {
+                state.setAttribute('role', unavailable ? 'status' : 'alert');
+                if (typeof retry === 'function') {
+                    var button = document.createElement('button');
+                    button.type = 'button';
+                    button.className = 'btn';
+                    button.textContent = 'Retry event activity';
+                    button.addEventListener('click', function () {
+                        button.disabled = true;
+                        Promise.resolve(retry()).finally(function () { button.disabled = false; });
+                    });
+                    state.appendChild(document.createTextNode(' '));
+                    state.appendChild(button);
+                }
+            }
+            var rows = document.querySelector('[data-event-activity-days]');
+            if (rows) rows.replaceChildren();
+            eventText('coverage', 'Unknown — no event coverage response.');
+            eventText('undated', 'Undated usage: N/A — no response; never assigned to a date.');
+            eventText('future', 'Future-timestamp coverage: N/A — no response.');
+        }
+
+        function eventComponentText(component) {
+            return component && component.reportedSamples > 0 && component.reportedTokens != null
+                ? formatNumber(component.reportedTokens) : 'N/A';
+        }
+
+        function eventComponentEvidence(component) {
+            component = component || {};
+            return 'Modern Codex usage report day only; provider reported=' + (component.reportedSamples || 0)
+                + ', estimated=' + (component.estimatedSamples || 0)
+                + ', unavailable=' + (component.unavailableSamples || 0)
+                + ', unknown=' + (component.unknownSamples || 0)
+                + ', mixed=' + (component.mixedSamples || 0)
+                + '. Amount sums provider-reported evidence only; not a complete bill.';
+        }
+
+        function renderEventActivity(part) {
+            if (!part) return;
+            var coverage = part.coverageCounts || {};
+            eventText('state', part.coverage === 'partial' ? 'Partial — observed lower bound, not complete human questions or daily consumption.' : 'Unknown — no summarized event evidence.');
+            eventText('coverage', 'Coverage — all selected sources, not limited to the ' + part.windowDays + '-day window: '
+                + Object.keys(coverage).sort().map(function (key) { return key + '=' + coverage[key]; }).join('; '));
+            eventText('future', 'Future-excluded day buckets=' + (coverage.futureExcludedDayBuckets == null ? 'N/A' : coverage.futureExcludedDayBuckets)
+                + '; observed user messages=' + (coverage.futureExcludedObservedUserMessages == null ? 'N/A' : coverage.futureExcludedObservedUserMessages)
+                + '. Entire mixed day buckets are conservatively excluded until their latest event has occurred; lower bound only.');
+            var undated = part.undatedTokens || {};
+            eventText('undated', 'Undated usage — never assigned to a date: ' + eventTokenKeys.map(function (key) {
+                return key + ': ' + eventComponentText(undated[key]) + ' (' + eventComponentEvidence(undated[key]) + ')';
+            }).join('; '));
+            var buckets = {};
+            var window = calendarWindow();
+            (part.days || []).forEach(function (day) {
+                if (typeof day.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(day.date)
+                    || day.date < window.start || day.date > window.end) return;
+                var key = getGrain() === 'week' ? weekKey(day.date) : getGrain() === 'month' ? monthKey(day.date) : day.date;
+                if (!buckets[key]) {
+                    buckets[key] = { observedUserMessages: 0, tokens: {} };
+                    eventTokenKeys.forEach(function (tokenKey) {
+                        var component = { reportedTokens: null };
+                        eventSampleKeys.forEach(function (sampleKey) { component[sampleKey] = 0; });
+                        buckets[key].tokens[tokenKey] = component;
+                    });
+                }
+                var bucket = buckets[key];
+                bucket.observedUserMessages += day.observedUserMessages;
+                eventTokenKeys.forEach(function (tokenKey) {
+                    var source = day.tokens[tokenKey];
+                    var target = bucket.tokens[tokenKey];
+                    eventSampleKeys.forEach(function (sampleKey) { target[sampleKey] += source[sampleKey]; });
+                    if (source.reportedSamples > 0 && source.reportedTokens != null) {
+                        target.reportedTokens = (target.reportedTokens == null ? 0 : target.reportedTokens) + source.reportedTokens;
+                    }
+                });
             });
+            var rows = document.querySelector('[data-event-activity-days]');
+            if (!rows) return;
+            rows.replaceChildren();
+            Object.keys(buckets).sort().forEach(function (key) {
+                var row = document.createElement('tr');
+                var bucket = buckets[key];
+                [key, formatNumber(bucket.observedUserMessages)].forEach(function (value) {
+                    var cell = document.createElement('td');
+                    cell.textContent = value;
+                    row.appendChild(cell);
+                });
+                eventTokenKeys.forEach(function (tokenKey) {
+                    var cell = document.createElement('td');
+                    cell.textContent = eventComponentText(bucket.tokens[tokenKey]);
+                    cell.title = eventComponentEvidence(bucket.tokens[tokenKey]);
+                    row.appendChild(cell);
+                });
+                rows.appendChild(row);
+            });
+            if (!rows.children.length) {
+                var row = document.createElement('tr');
+                var cell = document.createElement('td');
+                cell.colSpan = 6;
+                cell.textContent = 'Unknown — no observed day buckets in this window; not measured zero.';
+                row.appendChild(cell);
+                rows.appendChild(row);
+            }
         }
 
         function updateDashboardSummary(summary) {
@@ -854,10 +1002,36 @@
             setKpiValue('Sessions', formatNumber(summary.sessionCount));
             setKpiValue('Projects', formatNumber(summary.projectCount));
             setKpiValue('Total Tokens', TokenProvenance.total(summary.tokens, formatTokens), summary.tokens);
-            setKpiValue('User Prompts', formatNumber(summary.userMessages));
+            setKpiValue('Prompt Activity', formatNumber(summary.userMessages));
             setKpiValue('Failed Tools', formatNumber(summary.failedTools));
             setKpiValue('Cache Read Ratio', TokenProvenance.ratio(summary.tokens, summary.cacheReadRatio), summary.tokens);
             applyCacheReadStatistics(summary.cacheReadStatistics);
+            applyMessageStatistics(summary);
+        }
+
+        function applyMessageStatistics(summary) {
+            [
+                { label: 'Prompts / Session', role: 'user', samples: 'userMessageSampleCount', average: 'avgUserMessagesPerSession' },
+                { label: 'Avg Assistant Messages', role: 'assistant', samples: 'assistantMessageSampleCount', average: 'avgAssistantMessagesPerSession' }
+            ].forEach(function(metric) {
+                var row = Array.from(document.querySelectorAll('.metric-card__secondary-row')).find(function(item) {
+                    var label = item.querySelector('.metric-card__secondary-label');
+                    return label && label.textContent.trim() === metric.label;
+                });
+                if (!row) return;
+                var samples = summary[metric.samples];
+                var average = summary[metric.average];
+                var validSamples = typeof samples === 'number' && Number.isFinite(samples) && samples >= 0;
+                var value = row.querySelector('.metric-card__secondary-value');
+                if (value) value.textContent = validSamples && samples > 0
+                    && typeof average === 'number' && Number.isFinite(average) && average >= 0 ? average.toFixed(1) : 'N/A';
+                var description = metric.role + ' 消息测量样本 ' + (validSamples ? formatNumber(samples) : 'N/A')
+                    + ' / ' + formatNumber(summary.sessionCount) + '；当前 scope：'
+                    + (summary.filters && summary.filters.agent || getActiveScope())
+                    + '。仅这些已测消息数会话参与均值，保留实测 0；内容或 usage 可用不代表消息已测，不代表完整真人历史。';
+                row.setAttribute('data-tooltip-def', description);
+                row.setAttribute('aria-label', metric.label + '：' + description);
+            });
         }
 
         function applyCacheReadStatistics(statistics) {
@@ -942,7 +1116,7 @@
 
         function promptTrendRows(resp) {
             return (resp && resp.points || []).map(function(point) {
-                return {
+                var row = {
                     date: point.date,
                     claude_prompts: point.claudePrompts || 0,
                     codex_prompts: point.codexPrompts || 0,
@@ -951,6 +1125,17 @@
                     assistant_turns: point.assistantTurns || 0,
                     tool_calls: point.toolCalls || 0
                 };
+                [['', ''], ['claude_code_', 'claude'], ['codex_', 'codex'], ['qoder_', 'qoder']].forEach(function(pair) {
+                    var apiPrefix = pair[1];
+                    var messages = point[apiPrefix ? apiPrefix + 'MeasuredUserMessages' : 'measuredUserMessages'];
+                    var samples = point[apiPrefix ? apiPrefix + 'UserMessageSampleCount' : 'userMessageSampleCount'];
+                    var known = typeof messages === 'number' && Number.isFinite(messages) && messages >= 0
+                        && typeof samples === 'number' && Number.isInteger(samples) && samples >= 0;
+                    // 缺少任一权重字段的旧 mock 不是实测零，也不从 raw prompt/session 数猜测覆盖。
+                    row[pair[0] + 'measured_user_messages'] = known ? messages : 0;
+                    row[pair[0] + 'user_message_sample_count'] = known ? samples : 0;
+                });
+                return row;
             });
         }
 
@@ -975,14 +1160,15 @@
                 && TokenProvenance.measuredInput({ provenance: target[prefix + '_provenance'] });
         }
 
-        function updateChartStats(sessions, tokens, prompts, cache) {
+        function updateChartStats() {
+            if (!apiLoaded) return;
             var cohort = applyScope(rawData, getTrendFields());
             var promptCohort = applyScope(promptRawData, getPromptFields());
             var latestSession = cohort.length ? cohort[cohort.length - 1] : null;
             var latestPrompt = promptCohort.length ? promptCohort[promptCohort.length - 1] : null;
             var rangeTokens = cohort.reduce(function(total, point) {
                 total.total += totalTokens(point);
-                total.provenance = TokenProvenance.merge(total.provenance, point.provenance);
+                if (point.provenance) total.provenance = TokenProvenance.merge(total.provenance, point.provenance);
                 return total;
             }, { total: 0, provenance: null });
             setStatText('latest-sessions', 'Latest: ' + (latestSession
@@ -998,20 +1184,85 @@
             setStatText('range-total-tokens', 'Range total: ' + TokenProvenance.total(rangeTokens, formatTokens));
             var tokenChart = document.getElementById('token-trend-chart');
             TokenProvenance.attach(tokenChart && tokenChart.parentElement, rangeTokens);
+            var cacheCohort = normalizeCacheMetricFlags(applyScope(cacheRawData, getCacheFields()));
+            var prefix = scopeToAgentKey(getActiveScope());
+            var latestCache = cacheCohort[cacheCohort.length - 1];
+            var latestRatio = latestCache ? cacheRatio(latestCache, prefix) : null;
+            var ratios = cacheCohort.map(function(point) { return cacheRatio(point, prefix); })
+                .filter(function(value) { return value !== null; });
             var cacheChart = document.getElementById('cache-health-chart');
-            TokenProvenance.attach(cacheChart && cacheChart.parentElement, { provenance: cache && cache.latestRatio && cache.latestRatio.provenance });
+            TokenProvenance.attach(cacheChart && cacheChart.parentElement,
+                { provenance: latestCache && latestCache[prefix + '_provenance'] });
             setStatText('range-total-prompts', 'Range total: ' + formatNumber(promptCohort.reduce(function(sum, point) { return sum + (point.total_prompts || 0); }, 0)));
-            setStatText('latest-ratio', 'Latest ratio: ' + ratioText(cache && cache.latestRatio));
-            setStatText('lowest-ratio', 'Lowest ratio: ' + ratioText(cache && cache.lowestRatio));
+            setStatText('latest-ratio', 'Latest ratio: ' + (latestRatio === null ? 'N/A' : formatPct(latestRatio)));
+            setStatText('lowest-ratio', 'Lowest ratio: ' + (ratios.length ? formatPct(Math.min.apply(null, ratios)) : 'N/A'));
+            var window = calendarWindow();
+            document.querySelectorAll('[data-stat]').forEach(function(el) {
+                el.setAttribute('aria-description', 'UTC session-start cohort ' + window.start + ' — ' + window.end
+                    + '; ' + getGrain() + ' buckets; 当前桶未完成。Lowest ratio 仅比较窗口内可计算桶。');
+            });
+            updateCohortBadges(cohort, promptCohort, cacheCohort, prefix);
         }
 
-        function lastPoint(response) {
-            var points = response && response.points;
-            return Array.isArray(points) && points.length ? points[points.length - 1] : null;
-        }
-
-        function ratioText(ratio) {
-            return TokenProvenance.ratio(null, ratio);
+        function updateCohortBadges(cohort, prompts, caches, prefix) {
+            var latest = cohort[cohort.length - 1];
+            var previous = cohort[cohort.length - 2];
+            var latestPrompt = prompts[prompts.length - 1];
+            var previousPrompt = prompts[prompts.length - 2];
+            var latestCache = caches[caches.length - 1];
+            var previousCache = caches[caches.length - 2];
+            if (!latest || !previous) return;
+            var description = 'UTC ' + getGrain() + ' session-start cohort：当前桶 ' + latest.date
+                + ' 对比紧邻前桶 ' + previous.date + '；当前桶未完成。会话整段累计，不是事件实际发生日。';
+            function setBadge(label, value, tone) {
+                var target = Array.from(document.querySelectorAll('.metric-card--kpi')).find(function(card) {
+                    var name = card.querySelector('.metric-card__label');
+                    return name && name.textContent.trim() === label;
+                });
+                var badge = target && target.querySelector('.metric-card__badge');
+                if (!target) return;
+                if (!badge) {
+                    var primary = target.querySelector('.metric-card__value');
+                    if (!primary) return;
+                    badge = document.createElement('span');
+                    badge.className = 'metric-card__badge metric-card__tooltip-target';
+                    badge.tabIndex = 0;
+                    primary.parentElement.appendChild(badge);
+                }
+                badge.textContent = value;
+                ['positive', 'negative', 'neutral'].forEach(function(name) {
+                    badge.classList.toggle('metric-card__badge--' + name, name === tone);
+                });
+                var detail = description;
+                if (label === 'Total Tokens') detail += ' 仅比较四段完整 provider 测量桶；估算/部分/未知不推断涨跌。';
+                if (label === 'Cache Read Ratio') detail += ' 输入三段均实测且分母大于零才可比较；缺测不跳桶回溯。';
+                if (label === 'Prompt Activity' || label === 'Failed Tools') detail += ' 仅已观测事件计数，不代表完整源覆盖。';
+                badge.setAttribute('data-kpi-badge-tooltip', label);
+                badge.setAttribute('data-tooltip-def', detail);
+                badge.setAttribute('aria-label', label + ' badge：' + detail);
+            }
+            function delta(label, current, prior, inverted) {
+                var value = Number(current || 0) - Number(prior || 0);
+                setBadge(label, (value > 0 ? '+' : '') + formatNumber(value),
+                    value === 0 ? 'neutral' : ((value > 0) !== inverted ? 'positive' : 'negative'));
+            }
+            delta('Sessions', latest.total_count, previous.total_count, false);
+            delta('Prompt Activity', latestPrompt.total_prompts, previousPrompt.total_prompts, false);
+            delta('Failed Tools', latest.failed_tools, previous.failed_tools, true);
+            var tokenKnown = [latest, previous].every(function(point) {
+                return ['freshInput', 'cacheRead', 'cacheWrite', 'output'].every(function(key) {
+                    return TokenProvenance.state({ provenance: point.provenance }, key) === 'provider_reported';
+                });
+            });
+            var previousTokens = totalTokens(previous);
+            var percent = tokenKnown && previousTokens > 0
+                ? (totalTokens(latest) - previousTokens) / previousTokens * 100 : null;
+            setBadge('Total Tokens', percent === null ? 'N/A' : (percent > 0 ? '+' : '') + percent.toFixed(1) + '%', 'neutral');
+            var currentRatio = cacheRatio(latestCache, prefix);
+            var priorRatio = cacheRatio(previousCache, prefix);
+            var pp = currentRatio !== null && priorRatio !== null ? currentRatio - priorRatio : null;
+            setBadge('Cache Read Ratio', pp === null ? 'N/A' : (pp >= 0 ? '+' : '') + pp.toFixed(1) + 'pp',
+                pp === null || pp === 0 ? 'neutral' : (pp > 0 ? 'positive' : 'negative'));
         }
 
         function setStatText(name, text) {
@@ -1101,8 +1352,31 @@
 
         function attachEfficiencyProvenance(body, rows, column) {
             Array.from(body.rows).forEach(function(tr, index) {
-                if (rows[index]) TokenProvenance.attach(tr.cells[column], { provenance: rows[index].provenance });
+                if (rows[index]) {
+                    TokenProvenance.attach(tr.cells[column], { provenance: rows[index].provenance });
+                    var samples = efficiencySamples(rows[index]);
+                    if (samples) {
+                        var note = document.createElement('small');
+                        note.className = 'muted';
+                        note.textContent = samples;
+                        tr.cells[column].appendChild(note);
+                    }
+                }
             });
+        }
+
+        function efficiencyTokenMean(row) {
+            if (typeof row.tokenSampleCount !== 'number') {
+                return TokenProvenance.total({ total: row.avgTokensPerSession, provenance: row.provenance }, formatTokens);
+            }
+            return row.tokenSampleCount > 0 ? formatTokens(row.avgTokensPerSession) : 'N/A';
+        }
+
+        function efficiencySamples(row) {
+            if (typeof row.contentSampleCount !== 'number') return '';
+            return 'Samples: wall ' + row.durationSampleCount + '/' + row.sessionCount
+                + ', complete provider tokens ' + row.tokenSampleCount + '/' + row.sessionCount
+                + ', content ' + row.contentSampleCount + '/' + row.sessionCount;
         }
 
         function modelMixRowHtml(row) {
@@ -1110,7 +1384,7 @@
             return '<tr class="clickable-row" data-action="go-sessions-agent-model" data-agent="' + escapeHtml(scope) + '" data-model="' + escapeHtml(row.model) + '">' +
                 '<td class="mono">' + escapeHtml(row.model) + '</td>' +
                 '<td class="numeric">' + formatNumber(row.sessionCount) + '</td>' +
-                '<td class="numeric">' + escapeHtml(TokenProvenance.total({ total: row.avgTokensPerSession, provenance: row.provenance }, formatTokens)) + '</td>' +
+                '<td class="numeric">' + escapeHtml(efficiencyTokenMean(row)) + '</td>' +
                 '<td class="numeric">' + escapeHtml(TokenProvenance.ratio(null, { value: row.cacheReuseRatio, provenance: row.provenance })) + '</td></tr>';
         }
 
@@ -1120,24 +1394,25 @@
                 '<td data-sort-value="' + escapeHtml(row.agent) + '"><span class="agent-badge agent-badge--' + escapeHtml(row.agent) + '">' + escapeHtml(row.agent) + '</span></td>' +
                 '<td class="mono" data-sort-value="' + escapeHtml(row.model) + '">' + escapeHtml(row.model) + '</td>' +
                 '<td class="numeric" data-sort-value="' + escapeHtml(row.sessionCount) + '">' + formatNumber(row.sessionCount) + '</td>' +
-                '<td class="numeric" data-sort-value="' + escapeHtml(row.avgTokensPerSession) + '">' + escapeHtml(TokenProvenance.total({ total: row.avgTokensPerSession, provenance: row.provenance }, formatTokens)) + '</td>' +
+                '<td class="numeric" data-sort-value="' + escapeHtml(row.avgTokensPerSession) + '">' + escapeHtml(efficiencyTokenMean(row)) + '</td>' +
                 '<td class="numeric" data-sort-value="' + escapeHtml(row.cacheReuseRatio || 0) + '">' + escapeHtml(TokenProvenance.ratio(null, { value: row.cacheReuseRatio, provenance: row.provenance })) + '</td>' +
-                '<td class="numeric" data-sort-value="' + escapeHtml(row.failedPerSession || 0) + '">' + (row.failedPerSession == null ? '0.0' : row.failedPerSession.toFixed(1)) + '</td></tr>';
+                '<td class="numeric" data-sort-value="' + escapeHtml(row.failedPerSession == null ? '' : row.failedPerSession) + '">' + (row.failedPerSession == null ? 'N/A' : row.failedPerSession.toFixed(1)) + '</td></tr>';
         }
 
         function efficiencyDetailRowHtml(row) {
             var scope = row.agent === 'claude_code' ? 'claude-code' : row.agent;
             return '<tr class="clickable-row" data-action="go-sessions-agent-model" data-agent="' + escapeHtml(scope) + '" data-model="' + escapeHtml(row.model) + '">' +
                 '<td class="mono">' + escapeHtml(row.model) + '</td><td class="numeric">' + formatNumber(row.sessionCount) + '</td>' +
-                '<td class="numeric">' + escapeHtml(TokenProvenance.total({ total: row.avgTokensPerSession, provenance: row.provenance }, formatTokens)) + '</td>' +
-                '<td class="numeric">' + formatDuration(row.avgDurationSeconds) + '</td>' +
+                '<td class="numeric">' + escapeHtml(efficiencyTokenMean(row)) + '</td>' +
+                '<td class="numeric">' + (row.durationSampleCount === 0 ? 'N/A' : formatDuration(row.avgDurationSeconds)) + '</td>' +
                 '<td class="numeric">' + escapeHtml(TokenProvenance.ratio(null, { value: row.cacheReuseRatio, provenance: row.provenance })) + '</td>' +
-                '<td class="numeric">' + (row.avgToolsPerSession == null ? '0.0' : row.avgToolsPerSession.toFixed(1)) + '</td>' +
-                '<td class="numeric">' + (row.failedPerSession == null ? '0.0' : row.failedPerSession.toFixed(1)) + '</td>' +
+                '<td class="numeric">' + (row.contentSampleCount === 0 || row.avgToolsPerSession == null ? 'N/A' : row.avgToolsPerSession.toFixed(1)) + '</td>' +
+                '<td class="numeric">' + (row.failedPerSession == null ? 'N/A' : row.failedPerSession.toFixed(1)) + '</td>' +
                 '<td>' + escapeHtml(TokenProvenance.note({ provenance: row.provenance }) || 'Provider reported') + '</td></tr>';
         }
 
         function renderAll() {
+            updateChartStats();
             renderSessionChart();
             renderTokenChart();
             renderPromptChart();
@@ -1152,5 +1427,6 @@
         window.renderDashboardCharts = function() {
             renderAll();
         };
+        window.addEventListener('index-snapshot-restored', renderAll);
     });
 })();

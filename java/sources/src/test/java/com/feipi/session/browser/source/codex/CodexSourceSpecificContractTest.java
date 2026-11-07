@@ -27,6 +27,187 @@ class CodexSourceSpecificContractTest {
   private final CodexSourceAdapter adapter = new CodexSourceAdapter();
 
   @Test
+  void completeAdjacentRepresentationMirrorsHaveOneSourceInputAndCall() throws IOException {
+    String event =
+        """
+        {"type":"event_msg","timestamp":"2026-11-05T10:00:01Z","payload":{"type":"user_message","message":"p"}}
+        {"type":"event_msg","timestamp":"2026-11-05T10:00:02Z","payload":{"type":"agent_message","message":"a"}}
+        """;
+    String response =
+        """
+        {"type":"response_item","timestamp":"2026-11-05T10:00:01Z","payload":{"type":"message","role":"user","content":"p"}}
+        {"type":"response_item","timestamp":"2026-11-05T10:00:02Z","payload":{"type":"message","role":"assistant","content":"a"}}
+        """;
+    for (String content : List.of(event + response, response + event)) {
+      SourceResult.Success success = parseContentFixture(content);
+      assertBodyRecords(success, "p", "a");
+      assertUsageFrames(success, 1, 0, 0, 0);
+      assertThat(success.candidateCount()).isEqualTo(4);
+      assertThat(success.records().stream().filter(record -> "user".equals(record.eventType())))
+          .hasSize(1);
+    }
+    String withoutTimes =
+        (event + response)
+            .replace("\"timestamp\":\"2026-11-05T10:00:01Z\",", "")
+            .replace("\"timestamp\":\"2026-11-05T10:00:02Z\",", "");
+    SourceResult.Success unknownIdentity = parseContentFixture(withoutTimes);
+    assertBodyRecords(unknownIdentity, "p", "a", "p", "a");
+    assertUsageFrames(unknownIdentity, 2, 0, 0, 0);
+    SourceResult.Success explicitIdentity =
+        parseContentFixture(
+            withoutTimes.replace("\"payload\":{", "\"payload\":{\"turn_id\":\"same-turn\","));
+    assertBodyRecords(explicitIdentity, "p", "a");
+    assertUsageFrames(explicitIdentity, 1, 0, 0, 0);
+    SourceResult.Success separate =
+        parseContentFixture(
+            event.replace("\"payload\":{", "\"payload\":{\"turn_id\":\"first\",")
+                + response.replace("\"payload\":{", "\"payload\":{\"turn_id\":\"second\","));
+    assertBodyRecords(separate, "p", "a", "p", "a");
+    assertUsageFrames(separate, 2, 0, 0, 0);
+    SourceResult.Success taskBoundary =
+        parseContentFixture(
+            event
+                + "{\"type\":\"event_msg\",\"payload\":{\"type\":\"task_started\",\"turn_id\":\"second\"}}\n"
+                + response);
+    assertBodyRecords(taskBoundary, "p", "a", "p", "a");
+    assertUsageFrames(taskBoundary, 2, 0, 0, 0);
+  }
+
+  @Test
+  void trailingEmptyResponseDoesNotSuppressEarlierEventBody() throws IOException {
+    SourceResult.Success success =
+        parseContentFixture(
+            """
+        {"type":"event_msg","payload":{"type":"user_message","message":"p"}}
+        {"type":"event_msg","payload":{"type":"agent_message","message":"valid answer"}}
+        {"type":"response_item","payload":{"type":"message","role":"assistant","content":[]}}
+        """);
+    assertBodyRecords(success, "p", "valid answer");
+    assertUsageFrames(success, 1, 0, 0, 0);
+  }
+
+  @Test
+  void measuredResponseDoesNotConsumeNextUnmeteredInput() throws IOException {
+    SourceResult.Success success =
+        parseContentFixture(
+            """
+        {"type":"response_item","payload":{"type":"message","role":"user","content":"p1"}}
+        {"type":"response_item","payload":{"type":"message","role":"assistant","content":"a1"}}
+        {"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":10,"output_tokens":2}}}}
+        {"type":"response_item","payload":{"type":"message","role":"user","content":"p2"}}
+        {"type":"event_msg","payload":{"type":"agent_message","message":"a2"}}
+        """);
+    assertBodyRecords(success, "p1", "a1", "p2", "a2");
+    assertUsageFrames(success, 2, 10, 0, 2);
+  }
+
+  @Test
+  void responseUserStartsLocalFallbackSegment() throws IOException {
+    SourceResult.Success success =
+        parseContentFixture(
+            """
+        {"type":"response_item","payload":{"type":"message","role":"user","content":"p1"}}
+        {"type":"response_item","payload":{"type":"message","role":"assistant","content":"a1"}}
+        {"type":"response_item","payload":{"type":"message","role":"user","content":"p2"}}
+        {"type":"event_msg","payload":{"type":"agent_message","message":"a2"}}
+        """);
+    assertBodyRecords(success, "p1", "a1", "p2", "a2");
+    assertThat(success.records().stream().filter(record -> "assistant".equals(record.eventType())))
+        .hasSize(2);
+  }
+
+  @Test
+  void reverseUserRepresentationsShareOneInputSegment() throws IOException {
+    SourceResult.Success success =
+        parseContentFixture(
+            """
+        {"type":"response_item","payload":{"type":"message","role":"user","content":"p1"}}
+        {"type":"event_msg","payload":{"type":"user_message","message":"p1"}}
+        {"type":"response_item","payload":{"type":"message","role":"assistant","content":"a1"}}
+        """);
+    assertBodyRecords(success, "p1", "a1");
+    assertThat(success.records().stream().filter(record -> "user".equals(record.eventType())))
+        .hasSize(1);
+  }
+
+  @Test
+  void emptyResponseAndCommentaryDoNotHideDifferentFinalBody() throws IOException {
+    for (String response : List.of("[]", "\"commentary\"")) {
+      SourceResult.Success success =
+          parseContentFixture(
+              """
+          {"type":"event_msg","payload":{"type":"user_message","message":"p"}}
+          {"type":"response_item","payload":{"type":"message","role":"assistant","content":%s}}
+          {"type":"event_msg","payload":{"type":"agent_message","message":"final answer"}}
+          """
+                  .formatted(response));
+      assertThat(
+              success.records().stream()
+                  .filter(record -> !"event_msg".equals(record.eventType()))
+                  .map(SourceRecord::content))
+          .contains("p", "final answer");
+      assertThat(
+              success.records().stream().filter(record -> "assistant".equals(record.eventType())))
+          .hasSize(1);
+    }
+  }
+
+  @Test
+  void identicalBodiesAcrossResponseInputBoundariesRemainSeparate() throws IOException {
+    SourceResult.Success success =
+        parseContentFixture(
+            """
+        {"type":"response_item","payload":{"type":"message","role":"user","content":"same prompt"}}
+        {"type":"response_item","payload":{"type":"message","role":"assistant","content":"same answer"}}
+        {"type":"response_item","payload":{"type":"message","role":"user","content":"same prompt"}}
+        {"type":"event_msg","payload":{"type":"agent_message","message":"same answer"}}
+        """);
+    assertBodyRecords(success, "same prompt", "same answer", "same prompt", "same answer");
+  }
+
+  private static void assertBodyRecords(SourceResult.Success success, String... expected) {
+    assertThat(
+            success.records().stream()
+                .filter(record -> !"event_msg".equals(record.eventType()))
+                .map(SourceRecord::content)
+                .filter(text -> !text.isBlank()))
+        .containsExactly(expected);
+  }
+
+  @Test
+  void mixedRepresentationsPreserveLocallyMissingMessages() throws IOException {
+    SourceResult.Success success =
+        parseContentFixture(
+            """
+        {"type":"event_msg","payload":{"type":"user_message","message":"first prompt"}}
+        {"type":"response_item","payload":{"type":"message","role":"user","content":"first prompt"}}
+        {"type":"event_msg","payload":{"type":"agent_message","message":"first answer"}}
+        {"type":"response_item","payload":{"type":"message","role":"assistant","content":"first answer"}}
+        {"type":"event_msg","payload":{"type":"user_message","message":"second prompt"}}
+        {"type":"event_msg","payload":{"type":"agent_message","message":"second answer"}}
+        """);
+    assertThat(
+            success.records().stream()
+                .filter(record -> !"event_msg".equals(record.eventType()))
+                .map(record -> record.content())
+                .filter(text -> !text.isBlank()))
+        .containsExactly("first prompt", "first answer", "second prompt", "second answer");
+  }
+
+  @Test
+  void responseOnlyMessagesDoNotUseSubtypeAsTurnIdentity() throws IOException {
+    SourceResult.Success success =
+        parseContentFixture(
+            """
+        {"type":"response_item","payload":{"type":"message","role":"user","content":"first"}}
+        {"type":"response_item","payload":{"type":"message","role":"assistant","content":"answer one"}}
+        {"type":"response_item","payload":{"type":"message","role":"user","content":"second"}}
+        {"type":"response_item","payload":{"type":"message","role":"assistant","content":"answer two"}}
+        """);
+    assertThat(success.records()).allSatisfy(record -> assertThat(record.turnId()).isEmpty());
+  }
+
+  @Test
   @DisplayName("legacy counter 漏过一个已测现代响应后仍可逐响应镜像，不污染完整现代证据")
   void legacyCounterOffsetDoesNotMakeConservedModernUsageUnknown() throws IOException {
     assertConservedModernMirror(divergentLegacyCounterFixture(false));
@@ -308,8 +489,7 @@ class CodexSourceSpecificContractTest {
 
     assertUsageFrames(parseContentFixture(content), 2, 70, 180, 50);
     Candidate candidate = discoverContentFixture(content);
-    assertPrecision(
-        candidate, "provider_reported", "provider_reported", "mixed", "provider_reported");
+    assertPrecision(candidate, "mixed", "provider_reported", "mixed", "provider_reported");
     assertThat(candidate.metadata())
         .containsEntry("tokenContainsUnavailable", "true")
         .containsEntry("tokenContainsUnknown", "false");
@@ -493,8 +673,7 @@ class CodexSourceSpecificContractTest {
             {"type":"token_usage_record","payload":{"response_id":"partial","usage":{"input_tokens":0,"output_tokens":0}}}
             """);
 
-    assertPrecision(
-        candidate, "provider_reported", "unavailable", "unavailable", "provider_reported");
+    assertPrecision(candidate, "unavailable", "unavailable", "unavailable", "provider_reported");
     assertThat(candidate.metadata())
         .containsEntry("tokenContainsUnavailable", "true")
         .containsEntry("tokenContainsUnknown", "false");
@@ -510,7 +689,7 @@ class CodexSourceSpecificContractTest {
                 {"type":"token_usage_record","payload":{"response_id":"partial","usage":{"input_tokens":10,"output_tokens":5}}}
                 """);
 
-    assertPrecision(candidate, "provider_reported", "mixed", "mixed", "provider_reported");
+    assertPrecision(candidate, "mixed", "mixed", "mixed", "provider_reported");
     assertThat(candidate.metadata()).containsEntry("tokenContainsUnavailable", "true");
   }
 
@@ -1030,19 +1209,17 @@ class CodexSourceSpecificContractTest {
     Candidate candidate = adapter.discover(tempDir).orderedItems().get(0);
     SourceResult.Success success = (SourceResult.Success) adapter.parse(candidate, null);
 
-    assertThat(success.records()).hasSize(6);
-    // 验证消息事件的轮次子类型
-    assertThat(success.records().get(0).turnId()).hasValue("user_message");
-    assertThat(success.records().get(0).eventType()).isEqualTo("event_msg");
-    assertThat(success.records().get(1).turnId()).hasValue("agent_message");
-    assertThat(success.records().get(1).eventType()).isEqualTo("event_msg");
-    // 验证响应项的轮次子类型
-    assertThat(success.records().get(2).turnId()).hasValue("function_call");
-    assertThat(success.records().get(2).eventType()).isEqualTo("tool_use");
-    assertThat(success.records().get(3).turnId()).hasValue("custom_tool_call");
-    assertThat(success.records().get(3).eventType()).isEqualTo("tool_use");
-    assertThat(success.records().get(4).turnId()).hasValue("message");
-    assertThat(success.records().get(5).turnId()).hasValue("reasoning");
+    List<SourceRecord> original =
+        success.records().stream()
+            .filter(record -> "event_msg".equals(record.eventType()) || record.eventIndex() >= 2)
+            .toList();
+    assertThat(original).hasSize(6);
+    assertThat(original.get(0).turnId()).hasValue("user_message");
+    assertThat(original.get(1).turnId()).hasValue("agent_message");
+    assertThat(original.get(2).turnId()).hasValue("function_call");
+    assertThat(original.get(3).turnId()).hasValue("custom_tool_call");
+    assertThat(original.get(4).turnId()).isEmpty();
+    assertThat(original.get(5).turnId()).isEmpty();
   }
 
   @Test

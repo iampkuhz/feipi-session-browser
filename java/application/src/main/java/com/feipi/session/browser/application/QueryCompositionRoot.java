@@ -22,6 +22,7 @@ public final class QueryCompositionRoot {
   private final DiagnosticsUseCase diagnostics;
   private final QueryCache cache;
   private final int schemaVersion;
+  private final SessionQueryPort sessionRepository;
 
   /**
    * 创建 composition root。
@@ -42,6 +43,9 @@ public final class QueryCompositionRoot {
       QueryCache cache) {
     this.schemaVersion = schemaVersion;
     this.cache = cache;
+    this.sessionRepository =
+        Objects.requireNonNull(sessionRepository, "sessionRepository 不得为 null");
+    if (cache != null) cache.setGenerationSupplier(sessionRepository::publishedGeneration);
 
     this.sessionList =
         new SessionListUseCase(
@@ -84,6 +88,16 @@ public final class QueryCompositionRoot {
         artifactReader,
         schemaVersion,
         null);
+  }
+
+  /** 最新扫描运行状态直读端口，不进入查询缓存。 */
+  public java.util.Optional<com.feipi.session.browser.index.api.query.ScanStatus> latestScan() {
+    return sessionRepository.latestScan();
+  }
+
+  /** 返回当前已发布索引代号，不从查询缓存读取。 */
+  public String publishedGeneration() {
+    return sessionRepository.publishedGeneration();
   }
 
   /** 获取会话列表 use case。 */

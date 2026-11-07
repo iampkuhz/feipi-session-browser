@@ -69,6 +69,22 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
           + " AND cache_read_token_precision = 'provider_reported'"
           + " AND cache_write_token_precision = 'provider_reported'";
 
+  private static final String MEASURED_CONTENT =
+      "sessions.content_measured = 1 AND EXISTS"
+          + " (SELECT 1 FROM session_artifacts a WHERE a.session_key = sessions.session_key"
+          + " AND a.artifact_type IN ('normalized', 'normalized_session_json'))";
+
+  private static final String MEASURED_DURATION =
+      MEASURED_CONTENT
+          + " AND julianday(started_at) IS NOT NULL AND julianday(ended_at) >="
+          + " julianday(started_at)";
+
+  private static final String MEASURED_TOKENS =
+      "fresh_input_token_precision = 'provider_reported'"
+          + " AND cache_read_token_precision = 'provider_reported'"
+          + " AND cache_write_token_precision = 'provider_reported'"
+          + " AND output_token_precision = 'provider_reported'";
+
   /** 项目统计聚合 SELECT 子句，projectStats 和 listProjects 共享。 */
   private static final String CANONICAL_PROJECT_KEY_EXPR =
       """
@@ -85,10 +101,11 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
           %s as project_key,
           COALESCE(NULLIF(MAX(project_name), ''), %s) as project_name,
           COUNT(*) as total_sessions,
+          COUNT(CASE WHEN content_measured = 1 THEN 1 END) as content_sample_count,
           SUM(CASE WHEN agent='claude_code' THEN 1 ELSE 0 END) as claude_sessions,
           SUM(CASE WHEN agent='codex' THEN 1 ELSE 0 END) as codex_sessions,
           SUM(CASE WHEN agent='qoder' THEN 1 ELSE 0 END) as qoder_sessions,
-          MIN(started_at) as first_seen,
+          MIN(NULLIF(started_at, '')) as first_seen,
           MAX(ended_at) as last_seen,
           COALESCE(SUM(fresh_input_tokens), 0) as total_fresh_input_tokens,
           COALESCE(SUM(output_tokens), 0) as total_output_tokens,
@@ -116,7 +133,7 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
           COALESCE(SUM(tool_call_count), 0) as total_tools,
           COALESCE(SUM(failed_tool_count), 0) as failed_tools,
           COUNT(*) as session_count
-      FROM sessions GROUP BY project_key\
+      FROM sessions WHERE project_key != '' GROUP BY project_key\
       """;
 
   private final IndexConnection indexConnection;
@@ -151,6 +168,18 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
   private static PageResult<ProjectStats> projectPage(PageResult<ProjectStatsRow> page) {
     return new PageResult<>(
         new ArrayList<ProjectStats>(page.items()), page.totalCount(), page.nextCursor());
+  }
+
+  /** 返回源事件 UTC 日观察子集，不读取制品或补造缺失日期。 */
+  @Override
+  public com.feipi.session.browser.index.api.query.EventActivity eventActivity(TrendFilter filter) {
+    return execute(
+        "eventActivity",
+        () -> {
+          try (ReadTransaction transaction = indexConnection.readTransaction()) {
+            return EventActivityQuery.read(transaction.connection(), filter);
+          }
+        });
   }
 
   // ── 项目查询 ──
@@ -231,6 +260,7 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
             + CANONICAL_PROJECT_KEY_EXPR
             + ") AS project_count,"
             + " COUNT(*) AS session_count,"
+            + " COUNT(CASE WHEN content_measured = 1 THEN 1 END) AS content_sample_count,"
             + " COALESCE(SUM(fresh_input_tokens), 0) AS fresh_input_tokens,"
             + " COALESCE(SUM(cache_read_tokens), 0) AS cache_read_tokens,"
             + " COALESCE(SUM(cache_write_tokens), 0) AS cache_write_tokens,"
@@ -261,7 +291,8 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
             fresh + cacheRead + cacheWrite + output,
             rs.getLong("tool_call_count"),
             rs.getLong("failed_tool_count"),
-            TokenProvenanceSqlMapper.read(rs));
+            TokenProvenanceSqlMapper.read(rs),
+            rs.getLong("content_sample_count"));
       }
     }
   }
@@ -339,7 +370,7 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
             SUM(CASE WHEN agent='claude_code' THEN 1 ELSE 0 END) as claude_sessions,
             SUM(CASE WHEN agent='codex' THEN 1 ELSE 0 END) as codex_sessions,
             SUM(CASE WHEN agent='qoder' THEN 1 ELSE 0 END) as qoder_sessions,
-            COUNT(DISTINCT project_key) as project_count,
+            COUNT(DISTINCT NULLIF(project_key, '')) as project_count,
             COALESCE(SUM(total_tokens), 0) as total_tokens,
             COALESCE(SUM(fresh_input_tokens), 0) as total_fresh_input_tokens,
             COALESCE(SUM(cache_read_tokens), 0) as total_cache_read_tokens,
@@ -407,7 +438,7 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
             COALESCE(SUM(tool_call_count), 0) as total_tool_calls,
             COALESCE(SUM(failed_tool_count), 0) as total_failed_tools,
             COALESCE(SUM(user_message_count), 0) as total_user_messages,
-            COUNT(DISTINCT project_key) as project_count
+            COUNT(DISTINCT NULLIF(project_key, '')) as project_count
             , %s
         FROM sessions
         GROUP BY agent
@@ -501,6 +532,7 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
           AND DATE(SUBSTR(started_at, 1, 10), '+0 days') = SUBSTR(started_at, 1, 10)
           AND DATE(started_at) IS NOT NULL
           AND DATE(started_at) >= DATE('now', ?)
+          AND julianday(started_at) <= julianday('now')
         %s
         GROUP BY DATE(started_at)
         ORDER BY day\
@@ -543,12 +575,21 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
                 as qoder_prompts,
             COALESCE(SUM(user_message_count), 0) as total_prompts,
             COALESCE(SUM(assistant_message_count), 0) as assistant_turns,
-            COALESCE(SUM(tool_call_count), 0) as tool_calls
+            COALESCE(SUM(tool_call_count), 0) as tool_calls,
+            COALESCE(SUM(CASE WHEN user_message_measured = 1 THEN user_message_count ELSE 0 END), 0) AS measured_user_messages,
+            COALESCE(SUM(CASE WHEN user_message_measured = 1 THEN 1 ELSE 0 END), 0) AS user_message_sample_count,
+            COALESCE(SUM(CASE WHEN user_message_measured = 1 AND agent='claude_code' THEN user_message_count ELSE 0 END), 0) AS claude_measured_user_messages,
+            COALESCE(SUM(CASE WHEN user_message_measured = 1 AND agent='claude_code' THEN 1 ELSE 0 END), 0) AS claude_user_message_sample_count,
+            COALESCE(SUM(CASE WHEN user_message_measured = 1 AND agent='codex' THEN user_message_count ELSE 0 END), 0) AS codex_measured_user_messages,
+            COALESCE(SUM(CASE WHEN user_message_measured = 1 AND agent='codex' THEN 1 ELSE 0 END), 0) AS codex_user_message_sample_count,
+            COALESCE(SUM(CASE WHEN user_message_measured = 1 AND agent='qoder' THEN user_message_count ELSE 0 END), 0) AS qoder_measured_user_messages,
+            COALESCE(SUM(CASE WHEN user_message_measured = 1 AND agent='qoder' THEN 1 ELSE 0 END), 0) AS qoder_user_message_sample_count
         FROM sessions
         WHERE started_at GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*'
           AND DATE(SUBSTR(started_at, 1, 10), '+0 days') = SUBSTR(started_at, 1, 10)
           AND DATE(started_at) IS NOT NULL
           AND DATE(started_at) >= DATE('now', ?)
+          AND julianday(started_at) <= julianday('now')
         %s
         GROUP BY DATE(started_at)
         ORDER BY day\
@@ -882,38 +923,39 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
             agent,
             model,
             COUNT(*) as session_count,
-            AVG(duration_seconds) as avg_duration,
-            COALESCE(SUM(total_tokens), 0) as total_tokens_all,
-            COALESCE(SUM(fresh_input_tokens + cache_read_tokens + cache_write_tokens), 0)
+            AVG(CASE WHEN %s THEN duration_seconds END) as avg_duration,
+            COUNT(CASE WHEN %s THEN 1 END) as duration_samples,
+            COUNT(CASE WHEN %s THEN 1 END) as token_samples,
+            COUNT(CASE WHEN %s THEN 1 END) as content_samples,
+            COALESCE(SUM(CASE WHEN  %s THEN total_tokens END), 0) as total_tokens_all,
+            COALESCE(SUM(CASE WHEN %s THEN fresh_input_tokens + cache_read_tokens + cache_write_tokens END), 0)
                 as total_input_side,
-            COALESCE(SUM(tool_call_count), 0) as total_tools,
-            COALESCE(SUM(assistant_message_count), 0) as total_rounds,
-            COALESCE(SUM(cache_read_tokens), 0) as total_cache_read,
-            COALESCE(SUM(failed_tool_count), 0) as total_failed
+            COALESCE(SUM(CASE WHEN %s THEN tool_call_count END), 0) as total_tools,
+            COALESCE(SUM(CASE WHEN %s THEN cache_read_tokens END), 0) as total_cache_read,
+            COALESCE(SUM(CASE WHEN %s THEN failed_tool_count END), 0) as total_failed
             , %s
         FROM sessions
         WHERE model IS NOT NULL AND model != ''
         GROUP BY agent, model
-        HAVING COALESCE(SUM(total_tokens), 0) > 0
         ORDER BY session_count DESC\
         """
-            .formatted(TokenProvenanceSqlMapper.aggregateColumns());
+            .formatted(
+                MEASURED_DURATION,
+                MEASURED_DURATION,
+                MEASURED_TOKENS,
+                MEASURED_CONTENT,
+                MEASURED_TOKENS,
+                MEASURED_CACHE_INPUT,
+                MEASURED_CONTENT,
+                MEASURED_CACHE_INPUT,
+                MEASURED_CONTENT,
+                TokenProvenanceSqlMapper.aggregateColumns());
 
-    // 单独查询正时长数据用于 P95 计算
+    // 相同有效时长集合用于 P95，包含实测零。
     String durationSql =
-        """
-        SELECT agent, model, duration_seconds
-        FROM sessions WHERE duration_seconds > 0
-          AND model IS NOT NULL AND model != ''
-          AND (agent, model) IN (
-            SELECT agent, model
-            FROM sessions
-            WHERE model IS NOT NULL AND model != ''
-            GROUP BY agent, model
-            HAVING COALESCE(SUM(total_tokens), 0) > 0
-          )
-        ORDER BY agent, model, duration_seconds\
-        """;
+        "SELECT agent, model, duration_seconds FROM sessions WHERE "
+            + MEASURED_DURATION
+            + " AND model IS NOT NULL AND model != '' ORDER BY agent, model, duration_seconds";
 
     try (ReadTransaction rt = indexConnection.readTransaction()) {
       // 收集 per-group 时长数据
@@ -939,7 +981,8 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
           long totalTokensAll = rs.getLong("total_tokens_all");
           long totalInputSide = rs.getLong("total_input_side");
           long totalTools = rs.getLong("total_tools");
-          long totalRounds = rs.getLong("total_rounds");
+          long tokenSamples = rs.getLong("token_samples");
+          long contentSamples = rs.getLong("content_samples");
           long totalCacheRead = rs.getLong("total_cache_read");
           long totalFailed = rs.getLong("total_failed");
 
@@ -952,14 +995,17 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
                   sessionCount,
                   Math.round(avgDuration * 10.0) / 10.0,
                   Math.round(p95 * 10.0) / 10.0,
-                  sessionCount > 0 ? totalTokensAll / sessionCount : 0,
-                  sessionCount > 0
-                      ? Math.round((double) totalTools / sessionCount * 10.0) / 10.0
+                  tokenSamples > 0 ? totalTokensAll / tokenSamples : 0,
+                  contentSamples > 0
+                      ? Math.round((double) totalTools / contentSamples * 10.0) / 10.0
                       : 0.0,
-                  AggregateMetricsRow.safeDivRound(totalTools, totalRounds, 2),
+                  null,
                   AggregateMetricsRow.safeDivRound(totalCacheRead, totalInputSide, 4),
-                  AggregateMetricsRow.safeDivRound(totalFailed, sessionCount, 4),
-                  TokenProvenanceSqlMapper.read(rs)));
+                  AggregateMetricsRow.safeDivRound(totalFailed, contentSamples, 4),
+                  TokenProvenanceSqlMapper.read(rs),
+                  rs.getLong("duration_samples"),
+                  tokenSamples,
+                  contentSamples));
         }
       }
       return result;
@@ -993,10 +1039,13 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
       long active24h;
       try (PreparedStatement ps =
           conn.prepareStatement(
-              "SELECT COUNT(DISTINCT project_key) FROM sessions "
+              "SELECT COUNT(DISTINCT NULLIF("
+                  + CANONICAL_PROJECT_KEY_EXPR
+                  + ", '')) FROM sessions "
                   + agentWhere
                   + (agentWhere.isEmpty() ? " WHERE " : " AND ")
-                  + "ended_at >= date('now', '-1 days')")) {
+                  + "julianday(ended_at) >= julianday('now', '-24 hours')"
+                  + " AND julianday(ended_at) <= julianday('now')")) {
         bindAgentParam(ps, agentFilter, 1);
         try (ResultSet rs = ps.executeQuery()) {
           rs.next();
@@ -1008,10 +1057,13 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
       long active7d;
       try (PreparedStatement ps =
           conn.prepareStatement(
-              "SELECT COUNT(DISTINCT project_key) FROM sessions "
+              "SELECT COUNT(DISTINCT NULLIF("
+                  + CANONICAL_PROJECT_KEY_EXPR
+                  + ", '')) FROM sessions "
                   + agentWhere
                   + (agentWhere.isEmpty() ? " WHERE " : " AND ")
-                  + "ended_at >= date('now', '-7 days')")) {
+                  + "julianday(ended_at) >= julianday('now', 'start of day', '-6 days')"
+                  + " AND julianday(ended_at) <= julianday('now')")) {
         bindAgentParam(ps, agentFilter, 1);
         try (ResultSet rs = ps.executeQuery()) {
           rs.next();
@@ -1023,10 +1075,15 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
       long new7d;
       try (PreparedStatement ps =
           conn.prepareStatement(
-              "SELECT COUNT(DISTINCT project_key) FROM sessions "
+              "SELECT COUNT(*) FROM (SELECT "
+                  + CANONICAL_PROJECT_KEY_EXPR
+                  + " FROM sessions "
                   + agentWhere
                   + (agentWhere.isEmpty() ? " WHERE " : " AND ")
-                  + "started_at >= date('now', '-7 days')")) {
+                  + "project_key != '' GROUP BY "
+                  + CANONICAL_PROJECT_KEY_EXPR
+                  + " HAVING MIN(julianday(started_at)) >= julianday('now', 'start of day', '-6"
+                  + " days') AND MIN(julianday(started_at)) <= julianday('now'))")) {
         bindAgentParam(ps, agentFilter, 1);
         try (ResultSet rs = ps.executeQuery()) {
           rs.next();
@@ -1038,10 +1095,13 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
       long prev7d;
       try (PreparedStatement ps =
           conn.prepareStatement(
-              "SELECT COUNT(DISTINCT project_key) FROM sessions "
+              "SELECT COUNT(DISTINCT NULLIF("
+                  + CANONICAL_PROJECT_KEY_EXPR
+                  + ", '')) FROM sessions "
                   + agentWhere
                   + (agentWhere.isEmpty() ? " WHERE " : " AND ")
-                  + "ended_at >= date('now', '-14 days') AND ended_at < date('now', '-7 days')")) {
+                  + "julianday(ended_at) >= julianday('now', 'start of day', '-13 days')"
+                  + " AND julianday(ended_at) < julianday('now', 'start of day', '-6 days')")) {
         bindAgentParam(ps, agentFilter, 1);
         try (ResultSet rs = ps.executeQuery()) {
           rs.next();
@@ -1056,7 +1116,8 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
               "SELECT COUNT(*) FROM sessions "
                   + agentWhere
                   + (agentWhere.isEmpty() ? " WHERE " : " AND ")
-                  + "DATE(started_at) = DATE('now')")) {
+                  + "DATE(started_at) = DATE('now') AND julianday(started_at) <="
+                  + " julianday('now')")) {
         bindAgentParam(ps, agentFilter, 1);
         try (ResultSet rs = ps.executeQuery()) {
           rs.next();
@@ -1071,7 +1132,8 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
               "SELECT COUNT(*) FROM sessions "
                   + agentWhere
                   + (agentWhere.isEmpty() ? " WHERE " : " AND ")
-                  + "ended_at >= date('now', '-7 days')")) {
+                  + "julianday(started_at) >= julianday('now', 'start of day', '-6 days')"
+                  + " AND julianday(started_at) <= julianday('now')")) {
         bindAgentParam(ps, agentFilter, 1);
         try (ResultSet rs = ps.executeQuery()) {
           rs.next();
@@ -1086,7 +1148,8 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
               "SELECT duration_seconds FROM sessions "
                   + agentWhere
                   + (agentWhere.isEmpty() ? " WHERE " : " AND ")
-                  + "duration_seconds > 0 ORDER BY duration_seconds")) {
+                  + MEASURED_DURATION
+                  + " ORDER BY duration_seconds")) {
         bindAgentParam(ps, agentFilter, 1);
         List<Double> durations = new ArrayList<>();
         try (ResultSet rs = ps.executeQuery()) {
@@ -1199,6 +1262,31 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
         }
       }
 
+      long userMessageSamples;
+      long assistantMessageSamples;
+      Double avgUserMessages;
+      Double avgAssistantMessages;
+      try (PreparedStatement ps =
+          conn.prepareStatement(
+              """
+              SELECT COUNT(CASE WHEN user_message_measured = 1 THEN 1 END) AS user_samples,
+                     COUNT(CASE WHEN assistant_message_measured = 1 THEN 1 END) AS assistant_samples,
+                     AVG(CASE WHEN user_message_measured = 1 THEN user_message_count END) AS user_average,
+                     AVG(CASE WHEN assistant_message_measured = 1 THEN assistant_message_count END) AS assistant_average
+              FROM sessions
+              """
+                  + agentWhere)) {
+        bindAgentParam(ps, agentFilter, 1);
+        try (ResultSet rs = ps.executeQuery()) {
+          rs.next();
+          userMessageSamples = rs.getLong("user_samples");
+          assistantMessageSamples = rs.getLong("assistant_samples");
+          avgUserMessages = userMessageSamples > 0 ? rs.getDouble("user_average") : null;
+          avgAssistantMessages =
+              assistantMessageSamples > 0 ? rs.getDouble("assistant_average") : null;
+        }
+      }
+
       return new KpiSupplementRow(
           active24h,
           active7d,
@@ -1211,7 +1299,31 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
           p50CacheRatio,
           lowReadSessions,
           affectedFailure,
-          repeatedFailure);
+          repeatedFailure,
+          countMeasured(conn, agentFilter, MEASURED_DURATION),
+          countMeasured(conn, agentFilter, MEASURED_TOKENS),
+          countMeasured(conn, agentFilter, MEASURED_CONTENT),
+          userMessageSamples,
+          assistantMessageSamples,
+          avgUserMessages,
+          avgAssistantMessages);
+    }
+  }
+
+  private static long countMeasured(java.sql.Connection conn, AgentFilter filter, String predicate)
+      throws SQLException {
+    String where = agentWhereClause(filter);
+    try (PreparedStatement ps =
+        conn.prepareStatement(
+            "SELECT COUNT(*) FROM sessions "
+                + where
+                + (where.isEmpty() ? " WHERE " : " AND ")
+                + predicate)) {
+      bindAgentParam(ps, filter, 1);
+      try (ResultSet rs = ps.executeQuery()) {
+        rs.next();
+        return rs.getLong(1);
+      }
     }
   }
 
@@ -1220,11 +1332,13 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
   /** 项目搜索 WHERE 子句构建。 */
   private static WhereClauses buildProjectSearchClauses(TitleFilter titleFilter) {
     if (titleFilter.isUnfiltered()) {
-      return new WhereClauses("", List.of());
+      return new WhereClauses("WHERE " + CANONICAL_PROJECT_KEY_EXPR + " != ''", List.of());
     }
     String pattern = "%" + titleFilter.keyword() + "%";
     String where =
-        "WHERE (LOWER(project_name) LIKE LOWER(?) "
+        "WHERE "
+            + CANONICAL_PROJECT_KEY_EXPR
+            + " != '' AND (LOWER(project_name) LIKE LOWER(?) "
             + "OR LOWER(project_key) LIKE LOWER(?) "
             + "OR LOWER(cwd) LIKE LOWER(?))";
     return new WhereClauses(where, List.of(pattern, pattern, pattern));
@@ -1269,9 +1383,9 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
   private static long countDistinctProjects(ReadTransaction rt, WhereClauses clauses)
       throws SQLException {
     String sql =
-        "SELECT COUNT(DISTINCT "
+        "SELECT COUNT(DISTINCT NULLIF("
             + CANONICAL_PROJECT_KEY_EXPR
-            + ") FROM sessions "
+            + ", '')) FROM sessions "
             + clauses.whereFragment();
     try (PreparedStatement ps = rt.connection().prepareStatement(sql)) {
       SqliteSqlUtils.bindParams(ps, clauses.params(), 1);
@@ -1304,7 +1418,8 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
         rs.getLong("total_failed_tools"),
         rs.getLong("total_user_messages"),
         rs.getLong("total_assistant_messages"),
-        TokenProvenanceSqlMapper.read(rs));
+        TokenProvenanceSqlMapper.read(rs),
+        rs.getLong("content_sample_count"));
   }
 
   /** 详情/列表使用 canonical key 做路由，展示名优先使用路径 basename。 */
@@ -1375,7 +1490,15 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
                 rs.getLong("qoder_prompts"),
                 rs.getLong("total_prompts"),
                 rs.getLong("assistant_turns"),
-                rs.getLong("tool_calls")));
+                rs.getLong("tool_calls"),
+                rs.getLong("measured_user_messages"),
+                rs.getLong("user_message_sample_count"),
+                rs.getLong("claude_measured_user_messages"),
+                rs.getLong("claude_user_message_sample_count"),
+                rs.getLong("codex_measured_user_messages"),
+                rs.getLong("codex_user_message_sample_count"),
+                rs.getLong("qoder_measured_user_messages"),
+                rs.getLong("qoder_user_message_sample_count")));
       }
     }
     return rows;

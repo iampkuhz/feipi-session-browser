@@ -53,6 +53,11 @@ class ExportHandlerTest {
   @DisplayName("Legacy /export/{format} 路由")
   class LegacyExportRoute {
 
+    @BeforeEach
+    void insertPublishedSession() throws Exception {
+      insertTestSession();
+    }
+
     @Test
     @DisplayName("HTML 导出返回正确 content type 和 disposition")
     void htmlExportContentType() {
@@ -64,12 +69,12 @@ class ExportHandlerTest {
       JavalinTest.test(
           webRoot.app(),
           (testApp, client) -> {
-            var response = client.get("/export/html?agent=claude-code&session_id=abc123");
+            var response = client.get("/export/html?agent=claude_code&session_id=test-session-1");
             assertThat(response.code()).isEqualTo(200);
             assertThat(firstHeader(response, "Content-Type")).contains("text/html");
             assertThat(firstHeader(response, "Content-Disposition"))
                 .contains("attachment")
-                .contains("session-abc123.html");
+                .contains("session-test-session-1.html");
           });
     }
 
@@ -84,7 +89,7 @@ class ExportHandlerTest {
       JavalinTest.test(
           webRoot.app(),
           (testApp, client) -> {
-            var response = client.get("/export/mhtml?agent=claude-code&session_id=abc123");
+            var response = client.get("/export/mhtml?agent=claude_code&session_id=test-session-1");
             assertThat(response.code()).isEqualTo(200);
             assertThat(firstHeader(response, "Content-Type")).contains("multipart/related");
             assertThat(firstHeader(response, "Content-Disposition"))
@@ -104,9 +109,9 @@ class ExportHandlerTest {
       JavalinTest.test(
           webRoot.app(),
           (testApp, client) -> {
-            var response = client.get("/export/mhtml?agent=claude-code&session_id=abc123");
+            var response = client.get("/export/mhtml?agent=claude_code&session_id=test-session-1");
             String body = response.body().string();
-            assertThat(body).contains("MIME-Version: 1.0");
+            assertThat(body).contains("MIME-Version: 1.0", "Test Session", "test-session-1");
             assertThat(body).contains("Content-Type: multipart/related");
             assertThat(body).contains("boundary=");
           });
@@ -189,7 +194,7 @@ class ExportHandlerTest {
       JavalinTest.test(
           webRoot.app(),
           (testApp, client) -> {
-            var response = client.get("/export/html?agent=claude-code&session_id=abc123");
+            var response = client.get("/export/html?agent=claude_code&session_id=test-session-1");
             assertThat(firstHeader(response, "Content-Security-Policy"))
                 .contains("default-src 'self'");
             assertThat(firstHeader(response, "X-Frame-Options")).isEqualTo("DENY");

@@ -4,7 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.feipi.session.browser.cli.batch.protocol.NormalizationResultRecord;
 import com.feipi.session.browser.cli.batch.protocol.NormalizedBatchProtocol;
 import com.feipi.session.browser.cli.batch.protocol.SourceRootRequestRecord;
+import com.feipi.session.browser.domain.normalized.NormalizedContentHeader;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
+import com.feipi.session.browser.domain.normalized.NormalizedSessionMetadata;
 import com.feipi.session.browser.normalization.NormalizationEngine;
 import com.feipi.session.browser.scan.artifact.NormalizedArtifactWriter;
 import com.feipi.session.browser.scan.artifact.WriteResult;
@@ -223,16 +225,39 @@ public final class NormalizedBatchRunner {
         return;
       }
 
-      List<SourceDiagnostic> diagnostics = success.diagnostics();
-      Path filePath = SourceNormalizationInputs.transcriptPath(candidate);
-      NormalizedSessionArtifact artifact =
-          engine.normalize(
-              SourceNormalizationInputs.normalizedAgent(adapter),
-              success.records(),
-              diagnostics,
-              SourceNormalizationInputs.transcriptFiles(candidate));
-      Map<String, String> fingerprints = SourceFingerprintMaps.forCandidate(filePath, candidate);
-      WriteResult writeResult = writer.write(outputDir, artifact, fingerprints);
+      WriteResult writeResult;
+      try (success) {
+        List<SourceDiagnostic> diagnostics = success.diagnostics();
+        Path filePath = SourceNormalizationInputs.transcriptPath(candidate);
+        Map<String, String> fingerprints = SourceFingerprintMaps.forCandidate(filePath, candidate);
+        if (success.hasManagedRecords()) {
+          var content =
+              engine.normalizeContent(
+                  SourceNormalizationInputs.normalizedAgent(adapter),
+                  success.recordSequence(),
+                  diagnostics,
+                  SourceNormalizationInputs.transcriptFiles(candidate));
+          var header = content.header();
+          var session = new LinkedHashMap<String, Object>(header.session());
+          session.put("session_key", sessionKey);
+          content =
+              content.withHeader(
+                  new NormalizedContentHeader(
+                      header.schemaVersion(),
+                      header.agent(),
+                      NormalizedSessionMetadata.fromMap(session),
+                      header.totals()));
+          writeResult = writer.writeContent(outputDir, content, fingerprints);
+        } else {
+          NormalizedSessionArtifact artifact =
+              engine.normalize(
+                  SourceNormalizationInputs.normalizedAgent(adapter),
+                  success.records(),
+                  diagnostics,
+                  SourceNormalizationInputs.transcriptFiles(candidate));
+          writeResult = writer.write(outputDir, artifact, fingerprints);
+        }
+      }
 
       emitResult(
           new NormalizationResultRecord(

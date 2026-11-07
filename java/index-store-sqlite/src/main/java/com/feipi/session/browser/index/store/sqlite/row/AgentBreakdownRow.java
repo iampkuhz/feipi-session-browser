@@ -4,6 +4,7 @@ import com.feipi.session.browser.domain.normalized.TokenProvenance;
 import com.feipi.session.browser.index.api.query.AgentBreakdown;
 import com.feipi.session.browser.validation.ValidationSupport;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
 
 /**
@@ -28,7 +29,7 @@ import jakarta.validation.constraints.PositiveOrZero;
 public record AgentBreakdownRow(
     /* 代理类型标识。 */ @NotBlank String agent,
     /* 会话总数。 */ @PositiveOrZero long sessionCount,
-    /* 最后活跃时间戳。 */ @NotBlank String lastActive,
+    /* 最后活跃时间戳；缺少可靠源时间时为空。 */ @NotNull String lastActive,
     /* 令牌总数量。 */ @PositiveOrZero long totalTokens,
     /* 非缓存输入 令牌总数量。 */ @PositiveOrZero long freshInputTokens,
     /* 缓存读取 令牌总数量。 */ @PositiveOrZero long cacheReadTokens,

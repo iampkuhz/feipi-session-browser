@@ -37,7 +37,7 @@ public final class QueryParams {
           Map.entry("process-time", "active_task_seconds"),
           Map.entry("tokens", "total_tokens"),
           Map.entry("total-tokens", "total_tokens"),
-          Map.entry("rounds", "assistant_message_count"),
+          Map.entry("rounds", "round_count"),
           Map.entry("tools", "tool_call_count"),
           Map.entry("subagents", "subagent_instance_count"),
           Map.entry("failure", "failed_tool_count"));

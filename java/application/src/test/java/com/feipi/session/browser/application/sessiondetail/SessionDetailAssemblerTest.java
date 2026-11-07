@@ -291,6 +291,38 @@ class SessionDetailAssemblerTest {
   class Assemble {
 
     @Test
+    void persistedRoundCountMatchesDetailForMultipleCallsInOneTurn() {
+      var artifact =
+          new NormalizedSessionArtifact(
+              NormalizedConstants.SCHEMA_VERSION,
+              NormalizedAgent.CLAUDE_CODE,
+              List.of(),
+              Map.of(
+                  "session_key",
+                  "claude_code:rounds",
+                  "session_id",
+                  "rounds",
+                  "assistantMessageCount",
+                  7),
+              List.of(
+                  makeCallWithTurn("c1", 1, "turn", List.of(), List.of()),
+                  makeCallWithTurn("c2", 2, "turn", List.of(), List.of())),
+              List.of(),
+              List.of(),
+              Map.of(),
+              Map.of());
+      var row =
+          com.feipi.session.browser.index.store.sqlite.mapper.ArtifactRowMapper.toSessionRow(
+              artifact, 0, "fixture");
+      var detail =
+          SessionDetailAssembler.assemble(
+              row, artifact, PayloadVisibility.STANDARD, "fixture.json", 3);
+      assertThat(row.roundCount()).isEqualTo((long) detail.rounds().size()).isEqualTo(1L);
+      assertThat(row.llmCallCount()).isEqualTo(2L);
+      assertThat(row.assistantMessageCount()).isEqualTo(7L);
+    }
+
+    @Test
     @DisplayName("无制品的装配生成空轮次和 payload")
     void assembleWithoutArtifact() {
       NormalizedSessionArtifact artifact = makeEmptyArtifact();
@@ -302,6 +334,164 @@ class SessionDetailAssemblerTest {
       assertThat(detail.artifactPath()).isEqualTo("/art/test.json");
       assertThat(detail.hasArtifact()).isTrue();
     }
+  }
+
+  @Test
+  void contentLargerThanLegacyLimitKeepsExactCountsWithoutMaterializingLists() throws Exception {
+    var calls =
+        java.util.stream.IntStream.rangeClosed(1, 10_001)
+            .mapToObj(i -> makeCallWithTurn("large-" + i, i, "one-turn", List.of(), List.of()))
+            .toList();
+    var empty =
+        com.feipi.session.browser.domain.normalized.NormalizedSessionContent.fromArtifact(
+            makeEmptyArtifact());
+    var content =
+        com.feipi.session.browser.domain.normalized.NormalizedSessionContent.fromLists(
+            new com.feipi.session.browser.domain.normalized.NormalizedContentHeader(
+                empty.header().schemaVersion(),
+                empty.header().agent(),
+                empty.header().session(),
+                Map.of(
+                    "calls",
+                    10_001L,
+                    "toolExecutions",
+                    0L,
+                    "diagnostics",
+                    0L,
+                    "sourceFiles",
+                    0L,
+                    "sourceUnitCatalog",
+                    0L,
+                    "sourceUnitSequenceEntries",
+                    0L)),
+            List.of(),
+            calls,
+            List.of(),
+            List.of(),
+            Map.of(),
+            Map.of());
+    var detail =
+        SessionDetailAssembler.assemble(
+            TEST_ROW, content, PayloadVisibility.STANDARD, "large.json", 3);
+    assertThat(detail.hasArtifact()).isTrue();
+    assertThat(detail.roundCount()).isEqualTo(1);
+    assertThat(detail.payloadSourceCount()).isEqualTo(20_002);
+    assertThat(detail.rounds()).isEmpty();
+    assertThat(detail.payloadSources()).isEmpty();
+    var reader = new SessionContentReader(content, TEST_ROW.userMessageCount());
+    var tail = reader.calls(1, 10_000L, 500);
+    assertThat(tail.total()).isEqualTo(10_001);
+    assertThat(tail.items()).extracting(NormalizedCall::callId).containsExactly("large-10001");
+    assertThat(tail.nextCursor()).isNull();
+    var first = reader.calls(1, 0, 500);
+    assertThat(first.items()).hasSize(500);
+    assertThat(first.nextCursor()).isEqualTo(500L);
+    assertThat(reader.findCall("large-10001")).isPresent();
+    var payloadTail = reader.payloadSources(PayloadVisibility.STANDARD, 20_000L, 500);
+    assertThat(payloadTail.total()).isEqualTo(20_002);
+    assertThat(payloadTail.items()).hasSize(2);
+    assertThat(payloadTail.nextCursor()).isNull();
+  }
+
+  @Test
+  void legacyReaderDefaultOpenRemainsReplayable() throws Exception {
+    NormalizedArtifactReader reader = ignored -> makeEmptyArtifact();
+    var content = reader.open(java.nio.file.Path.of("synthetic.json"));
+    assertThat(content.toArtifact()).isEqualTo(makeEmptyArtifact());
+    assertThat(content.toArtifact()).isEqualTo(makeEmptyArtifact());
+  }
+
+  @Test
+  void smallTotalsStreamContentMustNotBeFlattenedByAssembler() throws Exception {
+    var content = streamOnlySmallContent();
+    var detail =
+        SessionDetailAssembler.assemble(
+            TEST_ROW, content, PayloadVisibility.STANDARD, "stream-only.json", 3);
+    assertThat(detail.roundCount()).isEqualTo(1);
+    assertThat(detail.payloadSourceCount()).isEqualTo(2);
+    assertThat(detail.rounds()).isEmpty();
+  }
+
+  @Test
+  void smallTotalsStreamContentMustNotBeFlattenedByUseCase() throws Exception {
+    var content = streamOnlySmallContent();
+    var artifactRow =
+        new com.feipi.session.browser.index.store.sqlite.row.SessionArtifactRow(
+            TEST_ROW.sessionKey(),
+            "normalized",
+            "stream-only.json",
+            NormalizedConstants.SCHEMA_VERSION,
+            "synthetic.jsonl",
+            0,
+            1,
+            0,
+            0);
+    var port =
+        new com.feipi.session.browser.index.api.query.SessionDetailPort() {
+          public Optional<com.feipi.session.browser.index.api.query.SessionRecord> findSession(
+              String key) {
+            return Optional.of(TEST_ROW);
+          }
+
+          public List<com.feipi.session.browser.index.api.query.SessionArtifactRecord>
+              findArtifacts(String key) {
+            return List.of(artifactRow);
+          }
+
+          public Optional<com.feipi.session.browser.index.api.query.SessionArtifactRecord>
+              findNormalizedArtifact(String key) {
+            return Optional.of(artifactRow);
+          }
+        };
+    var reader =
+        new NormalizedArtifactReader() {
+          public NormalizedSessionArtifact load(java.nio.file.Path path) {
+            throw new AssertionError("stream-only content must be opened, not loaded");
+          }
+
+          public com.feipi.session.browser.domain.normalized.NormalizedSessionContent open(
+              java.nio.file.Path path) {
+            return content;
+          }
+        };
+    var context =
+        new com.feipi.session.browser.application.SessionDetailUseCase(port, reader, 3)
+            .getDetailContext(TEST_ROW.sessionKey(), PayloadVisibility.STANDARD)
+            .orElseThrow();
+    assertThat(context.artifact()).isNull();
+    assertThat(context.content()).isSameAs(content);
+    assertThat(context.detail().roundCount()).isEqualTo(1);
+    assertThat(context.detail().payloadSourceCount()).isEqualTo(2);
+  }
+
+  private static com.feipi.session.browser.domain.normalized.NormalizedSessionContent
+      streamOnlySmallContent() {
+    var artifact =
+        new NormalizedSessionArtifact(
+            NormalizedConstants.SCHEMA_VERSION,
+            NormalizedAgent.CLAUDE_CODE,
+            List.of(),
+            Map.of(),
+            List.of(makeCall("stream-1", 1, CallScope.MAIN, Optional.empty())),
+            List.of(),
+            List.of(),
+            Map.of(),
+            Map.of());
+    var delegate =
+        com.feipi.session.browser.domain.normalized.NormalizedSessionContent.fromArtifact(artifact);
+    return new com.feipi.session.browser.domain.normalized.NormalizedSessionContent() {
+      public com.feipi.session.browser.domain.normalized.NormalizedContentHeader header() {
+        return delegate.header();
+      }
+
+      public ContentCursor openCursor() throws java.io.IOException {
+        return delegate.openCursor();
+      }
+
+      public NormalizedSessionArtifact toArtifact() {
+        throw new AssertionError("small totals are not proof of an existing legacy artifact");
+      }
+    };
   }
 
   private static NormalizedCall makeCall(

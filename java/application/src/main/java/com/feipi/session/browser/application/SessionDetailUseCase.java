@@ -5,6 +5,7 @@ import com.feipi.session.browser.application.sessiondetail.NormalizedArtifactRea
 import com.feipi.session.browser.application.sessiondetail.SessionDetail;
 import com.feipi.session.browser.application.sessiondetail.SessionDetailAssembler;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
+import com.feipi.session.browser.domain.normalized.NormalizedSessionContent;
 import com.feipi.session.browser.index.api.query.SessionDetailPort;
 import com.feipi.session.browser.index.api.query.SessionRecord;
 import com.feipi.session.browser.query.api.PayloadVisibility;
@@ -91,11 +92,12 @@ public final class SessionDetailUseCase {
     }
 
     Path artifactPath = Path.of(artifactRow.get().path());
-    NormalizedSessionArtifact artifact = artifactReader.load(artifactPath);
+    NormalizedSessionContent content = artifactReader.open(artifactPath);
+    NormalizedSessionArtifact artifact = content.legacyArtifact().orElse(null);
     SessionDetail detail =
         SessionDetailAssembler.assemble(
-            row, artifact, visibility, artifactRow.get().path(), schemaVersion);
-    return Optional.of(new DetailContext(detail, artifact));
+            row, content, visibility, artifactRow.get().path(), schemaVersion);
+    return Optional.of(new DetailContext(detail, artifact, content));
   }
 
   /**
@@ -135,29 +137,42 @@ public final class SessionDetailUseCase {
 
     DetailContext context = contextOpt.get();
     SessionAnomalySummary anomalies = AnomalyDetector.detect(context.detail().sessionRow());
-    return Optional.of(new AnnotatedDetailContext(context.detail(), anomalies, context.artifact()));
+    return Optional.of(
+        new AnnotatedDetailContext(
+            context.detail(), anomalies, context.artifact(), context.content()));
   }
 
   /**
    * 已装配的详情及其归一化制品上下文。
    *
    * @param detail 会话详情
-   * @param artifact 已加载归一化制品；无制品时为 null
+   * @param artifact 小制品兼容视图；大制品或无制品时为 null
+   * @param content 完整可重放内容；仅无制品时为 null
    */
   public record DetailContext(
       /* 会话详情。 */
       @NotNull SessionDetail detail,
 
-      /* 已加载归一化制品；无制品时为 null。 */
-      NormalizedSessionArtifact artifact) {
+      /* 小制品兼容视图；大制品使用 content，不能把 null 视为无内容。 */
+      NormalizedSessionArtifact artifact,
+      NormalizedSessionContent content) {
 
     /**
      * 紧凑构造器，验证详情不变量。
      *
      * @throws NullPointerException 当 detail 为 null 时
      */
+    public DetailContext(SessionDetail detail, NormalizedSessionArtifact artifact) {
+      this(
+          detail,
+          artifact,
+          artifact == null ? null : NormalizedSessionContent.fromArtifact(artifact));
+    }
+
+    /** 校验详情上下文的必填字段和构造约束。 */
     public DetailContext {
-      ValidationSupport.validateCanonicalConstructor(DetailContext.class, detail, artifact);
+      ValidationSupport.validateCanonicalConstructor(
+          DetailContext.class, detail, artifact, content);
     }
   }
 
@@ -189,7 +204,8 @@ public final class SessionDetailUseCase {
    *
    * @param detail 会话详情
    * @param anomalies 异常摘要
-   * @param artifact 已加载归一化制品；无制品时为 null
+   * @param artifact 小制品兼容视图；大制品或无制品时为 null
+   * @param content 完整可重放内容；仅无制品时为 null
    */
   public record AnnotatedDetailContext(
       /* 会话详情。 */
@@ -198,17 +214,28 @@ public final class SessionDetailUseCase {
       /* 异常摘要。 */
       @NotNull SessionAnomalySummary anomalies,
 
-      /* 已加载归一化制品；无制品时为 null。 */
-      NormalizedSessionArtifact artifact) {
+      /* 小制品兼容视图；大制品使用 content，不能把 null 视为无内容。 */
+      NormalizedSessionArtifact artifact,
+      NormalizedSessionContent content) {
 
     /**
      * 紧凑构造器，验证不变量。
      *
      * @throws NullPointerException 当必填字段为 null 时
      */
+    public AnnotatedDetailContext(
+        SessionDetail detail, SessionAnomalySummary anomalies, NormalizedSessionArtifact artifact) {
+      this(
+          detail,
+          anomalies,
+          artifact,
+          artifact == null ? null : NormalizedSessionContent.fromArtifact(artifact));
+    }
+
+    /** 校验带异常摘要的详情上下文字段。 */
     public AnnotatedDetailContext {
       ValidationSupport.validateCanonicalConstructor(
-          AnnotatedDetailContext.class, detail, anomalies, artifact);
+          AnnotatedDetailContext.class, detail, anomalies, artifact, content);
     }
   }
 }

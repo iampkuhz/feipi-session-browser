@@ -304,7 +304,22 @@ class ClaudeSourceAdapterTest {
       assertThat(success.records().subList(1, 4))
           .allSatisfy(
               record ->
-                  assertThat(record.usage()).isEqualTo(new SourceRecordUsage(11, 0, 2407, 73)));
+                  assertThat(record.usage())
+                      .isEqualTo(
+                          new SourceRecordUsage(
+                              11,
+                              0,
+                              2407,
+                              73,
+                              java.util.Map.of(
+                                  "freshInputTokenPrecision",
+                                  "provider_reported",
+                                  "cacheReadTokenPrecision",
+                                  "provider_reported",
+                                  "cacheWriteTokenPrecision",
+                                  "provider_reported",
+                                  "outputTokenPrecision",
+                                  "provider_reported"))));
       assertThat(success.records().get(1).eventIndex()).isEqualTo(1);
       assertThat(success.records().get(1).locator()).endsWith("#event[1]");
       assertThat(success.records().get(1).content()).contains("first fragment");
@@ -323,7 +338,24 @@ class ClaudeSourceAdapterTest {
               """);
 
       assertThat(success.records())
-          .allSatisfy(record -> assertThat(record.usage()).isEqualTo(SourceRecordUsage.empty()));
+          .allSatisfy(
+              record ->
+                  assertThat(record.usage())
+                      .isEqualTo(
+                          new SourceRecordUsage(
+                              0,
+                              0,
+                              0,
+                              0,
+                              java.util.Map.of(
+                                  "freshInputTokenPrecision",
+                                  "provider_reported",
+                                  "cacheReadTokenPrecision",
+                                  "provider_reported",
+                                  "cacheWriteTokenPrecision",
+                                  "provider_reported",
+                                  "outputTokenPrecision",
+                                  "provider_reported"))));
     }
 
     @Test
@@ -343,7 +375,23 @@ class ClaudeSourceAdapterTest {
           .allSatisfy(record -> assertThat(record.usage().inputTokens()).isEqualTo(701));
       assertThat(success.records().subList(2, 5))
           .allSatisfy(
-              record -> assertThat(record.usage()).isEqualTo(new SourceRecordUsage(7, 0, 0, 0)));
+              record ->
+                  assertThat(record.usage())
+                      .isEqualTo(
+                          new SourceRecordUsage(
+                              7,
+                              0,
+                              0,
+                              0,
+                              java.util.Map.of(
+                                  "freshInputTokenPrecision",
+                                  "provider_reported",
+                                  "cacheReadTokenPrecision",
+                                  "provider_reported",
+                                  "cacheWriteTokenPrecision",
+                                  "provider_reported",
+                                  "outputTokenPrecision",
+                                  "provider_reported"))));
     }
 
     private SourceResult.Success parseSynthetic(String content) throws IOException {

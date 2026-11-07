@@ -21,7 +21,6 @@ import jakarta.validation.constraints.PositiveOrZero;
  *   <li>{@code sessionKey} 不得为空字符串，对应表 {@code PRIMARY KEY} 约束。
  *   <li>{@code agent} 不得为空字符串，对应表 {@code CHECK(agent <> '')} 约束。
  *   <li>{@code sessionId} 不得为空字符串，对应表 {@code CHECK(session_id <> '')} 约束。
- *   <li>{@code endedAt} 不得为空字符串，对应表 {@code CHECK(ended_at <> '')} 约束。
  *   <li>token、计数和时长字段均非负。
  * </ul>
  *
@@ -33,7 +32,7 @@ import jakarta.validation.constraints.PositiveOrZero;
  * @param projectName 项目显示名称
  * @param cwd 会话工作目录
  * @param startedAt 首事件 ISO8601 时间戳，缺失时为空字符串
- * @param endedAt 末事件 ISO8601 时间戳，不得为空
+ * @param endedAt 末事件 ISO8601 时间戳，未知为空
  * @param durationSeconds 首末事件之间的墙钟时长（秒），非负
  * @param modelExecutionSeconds 累计模型推理时长（秒），非负
  * @param toolExecutionSeconds 累计工具执行时长（秒），非负
@@ -55,6 +54,11 @@ import jakarta.validation.constraints.PositiveOrZero;
  * @param filePath 源文件路径，缺失时为空字符串
  * @param tokenProvenance 相同查询范围的四段计量来源
  * @param timing 显式计时口径，缺失时unknown
+ * @param roundCount 实测逻辑轮数，缺内容或旧索引为未知
+ * @param llmCallCount 实测归一化模型调用数，缺内容或旧索引为未知
+ * @param contentMeasured 是否存在内容指标观测依据，不代表原文完整
+ * @param userMessageMeasured 用户消息数是否有明确角色观测依据
+ * @param assistantMessageMeasured 助手消息数是否有明确角色观测依据
  */
 public record SessionRow(
     /* 会话主键，格式 agent:session_id。 */ @NotBlank String sessionKey,
@@ -65,7 +69,7 @@ public record SessionRow(
     /* 项目显示名称。 */ String projectName,
     /* 会话工作目录。 */ String cwd,
     /* 首事件 ISO8601 时间戳，缺失时为空字符串。 */ String startedAt,
-    /* 末事件 ISO8601 时间戳，不得为空。 */ @NotBlank String endedAt,
+    /* 末事件 ISO8601 时间戳，未知为空。 */ String endedAt,
     /* 首末事件之间的墙钟时长（秒），非负。 */ @Finite @PositiveOrZero double durationSeconds,
     /* 累计模型推理时长（秒），非负。 */ @Finite @PositiveOrZero double modelExecutionSeconds,
     /* 累计工具执行时长（秒），非负。 */ @Finite @PositiveOrZero double toolExecutionSeconds,
@@ -86,8 +90,154 @@ public record SessionRow(
     /* 源文件修改时间（epoch 秒），非负。 */ @PositiveOrZero double fileMtime,
     /* 源文件路径，缺失时为空字符串。 */ String filePath,
     /* 相同查询范围的四段计量来源。 */ TokenProvenance tokenProvenance,
-    /* 显式计时口径。 */ SessionTiming timing)
+    /* 显式计时口径。 */ SessionTiming timing,
+    @PositiveOrZero Long roundCount,
+    @PositiveOrZero Long llmCallCount,
+    boolean contentMeasured,
+    boolean userMessageMeasured,
+    boolean assistantMessageMeasured)
     implements SessionRecord {
+
+  /** 兼容旧内容指标调用点；消息测量覆盖默认未知，不从计数推断。 */
+  public SessionRow(
+      String sessionKey,
+      String agent,
+      String sessionId,
+      String title,
+      String projectKey,
+      String projectName,
+      String cwd,
+      String startedAt,
+      String endedAt,
+      double durationSeconds,
+      double modelExecutionSeconds,
+      double toolExecutionSeconds,
+      String model,
+      String gitBranch,
+      String source,
+      long userMessageCount,
+      long assistantMessageCount,
+      long toolCallCount,
+      long outputTokens,
+      long freshInputTokens,
+      long cacheReadTokens,
+      long cacheWriteTokens,
+      long totalTokens,
+      long failedToolCount,
+      long subagentInstanceCount,
+      double indexedAt,
+      double fileMtime,
+      String filePath,
+      TokenProvenance tokenProvenance,
+      SessionTiming timing,
+      Long roundCount,
+      Long llmCallCount,
+      boolean contentMeasured) {
+    this(
+        sessionKey,
+        agent,
+        sessionId,
+        title,
+        projectKey,
+        projectName,
+        cwd,
+        startedAt,
+        endedAt,
+        durationSeconds,
+        modelExecutionSeconds,
+        toolExecutionSeconds,
+        model,
+        gitBranch,
+        source,
+        userMessageCount,
+        assistantMessageCount,
+        toolCallCount,
+        outputTokens,
+        freshInputTokens,
+        cacheReadTokens,
+        cacheWriteTokens,
+        totalTokens,
+        failedToolCount,
+        subagentInstanceCount,
+        indexedAt,
+        fileMtime,
+        filePath,
+        tokenProvenance,
+        timing,
+        roundCount,
+        llmCallCount,
+        contentMeasured,
+        false,
+        false);
+  }
+
+  /** 兼容旧索引写入点，内容指标保持未知。 */
+  public SessionRow(
+      String sessionKey,
+      String agent,
+      String sessionId,
+      String title,
+      String projectKey,
+      String projectName,
+      String cwd,
+      String startedAt,
+      String endedAt,
+      double durationSeconds,
+      double modelExecutionSeconds,
+      double toolExecutionSeconds,
+      String model,
+      String gitBranch,
+      String source,
+      long userMessageCount,
+      long assistantMessageCount,
+      long toolCallCount,
+      long outputTokens,
+      long freshInputTokens,
+      long cacheReadTokens,
+      long cacheWriteTokens,
+      long totalTokens,
+      long failedToolCount,
+      long subagentInstanceCount,
+      double indexedAt,
+      double fileMtime,
+      String filePath,
+      TokenProvenance tokenProvenance,
+      SessionTiming timing) {
+    this(
+        sessionKey,
+        agent,
+        sessionId,
+        title,
+        projectKey,
+        projectName,
+        cwd,
+        startedAt,
+        endedAt,
+        durationSeconds,
+        modelExecutionSeconds,
+        toolExecutionSeconds,
+        model,
+        gitBranch,
+        source,
+        userMessageCount,
+        assistantMessageCount,
+        toolCallCount,
+        outputTokens,
+        freshInputTokens,
+        cacheReadTokens,
+        cacheWriteTokens,
+        totalTokens,
+        failedToolCount,
+        subagentInstanceCount,
+        indexedAt,
+        fileMtime,
+        filePath,
+        tokenProvenance,
+        timing,
+        null,
+        null,
+        false);
+  }
 
   /**
    * 紧凑构造器，校验 record component 约束并应用默认值。
@@ -131,7 +281,12 @@ public record SessionRow(
         fileMtime,
         filePath,
         tokenProvenance,
-        timing);
+        timing,
+        roundCount,
+        llmCallCount,
+        contentMeasured,
+        userMessageMeasured,
+        assistantMessageMeasured);
 
     // 字符串 null → 空字符串
     title = defaultEmpty(title);
@@ -139,6 +294,7 @@ public record SessionRow(
     projectName = defaultEmpty(projectName);
     cwd = defaultEmpty(cwd);
     startedAt = defaultEmpty(startedAt);
+    endedAt = defaultEmpty(endedAt);
     model = defaultEmpty(model);
     gitBranch = defaultEmpty(gitBranch);
     source = defaultEmpty(source);

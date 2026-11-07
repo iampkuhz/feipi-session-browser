@@ -81,6 +81,147 @@ class ArtifactRowMapperTest {
         Optional.empty());
   }
 
+  @Test
+  void contentMappingPreservesLegacyCountsAndMeasuredZero() throws Exception {
+    var artifact =
+        buildArtifact(
+            Map.of(
+                "session_key",
+                "claude:test",
+                "session_id",
+                "test",
+                "totalTokens",
+                0L,
+                "userMessageCount",
+                0L,
+                "contentMeasured",
+                true),
+            List.of(
+                createCall(1, CallScope.MAIN, new NormalizedCallUsage(2, 3, 4, 5, 14), List.of())),
+            List.of());
+    var expected = ArtifactRowMapper.toSessionRow(artifact, 12, "source");
+    var actual =
+        ArtifactRowMapper.toContentSessionRow(
+            com.feipi.session.browser.domain.normalized.NormalizedSessionContent.fromArtifact(
+                artifact),
+            12,
+            "source");
+    assertThat(actual).usingRecursiveComparison().ignoringFields("indexedAt").isEqualTo(expected);
+    assertThat(actual.totalTokens()).isZero();
+  }
+
+  @Test
+  void logicalRoundsAreIndependentOfCallsAndAssistantMessages() {
+    NormalizedCall first =
+        createCall(1, CallScope.MAIN, new NormalizedCallUsage(0, 0, 0, 0, 0), List.of());
+    NormalizedCall second =
+        createCall(2, CallScope.MAIN, new NormalizedCallUsage(0, 0, 0, 0, 0), List.of());
+    List<NormalizedCall> calls = List.of(withTurn(first, "turn-a"), withTurn(second, "turn-a"));
+    SessionRow row =
+        ArtifactRowMapper.toSessionRow(
+            buildArtifact(
+                Map.of(
+                    "session_key",
+                    "codex:rounds",
+                    "session_id",
+                    "rounds",
+                    "assistantMessageCount",
+                    7),
+                calls,
+                List.of()),
+            0,
+            "fixture");
+    assertThat(row.roundCount()).isEqualTo(1L);
+    assertThat(row.llmCallCount()).isEqualTo(2L);
+    assertThat(row.assistantMessageCount()).isEqualTo(7L);
+    assertThat(row.contentMeasured()).isTrue();
+  }
+
+  @Test
+  void metadataOnlyIsUnknownButExplicitlyObservedEmptyContentIsZero() {
+    Map<String, Object> metadata =
+        new HashMap<>(Map.of("session_key", "codex:empty", "session_id", "empty"));
+    SessionRow unknown =
+        ArtifactRowMapper.toSessionRow(buildArtifact(metadata, List.of(), List.of()), 0, "fixture");
+    assertThat(unknown.roundCount()).isNull();
+    assertThat(unknown.llmCallCount()).isNull();
+    assertThat(unknown.contentMeasured()).isFalse();
+    metadata.put("contentMeasured", true);
+    SessionRow empty =
+        ArtifactRowMapper.toSessionRow(buildArtifact(metadata, List.of(), List.of()), 0, "fixture");
+    assertThat(empty.roundCount()).isZero();
+    assertThat(empty.llmCallCount()).isZero();
+    assertThat(empty.contentMeasured()).isTrue();
+  }
+
+  @Test
+  void contentMetricsSurviveSqlitePublication() throws Exception {
+    try (var connection = java.sql.DriverManager.getConnection("jdbc:sqlite::memory:")) {
+      var writer =
+          new com.feipi.session.browser.index.store.sqlite.repository.SqliteIndexWriter(connection);
+      writer.ensureSchema();
+      long scan = writer.startScan(0, "full");
+      var artifact =
+          buildArtifact(
+              Map.of(
+                  "session_key",
+                  "codex:persisted",
+                  "session_id",
+                  "persisted",
+                  "assistantMessageCount",
+                  7),
+              List.of(
+                  withTurn(
+                      createCall(
+                          1, CallScope.MAIN, new NormalizedCallUsage(0, 0, 0, 0, 0), List.of()),
+                      "one"),
+                  withTurn(
+                      createCall(
+                          2, CallScope.MAIN, new NormalizedCallUsage(0, 0, 0, 0, 0), List.of()),
+                      "one")),
+              List.of());
+      writer.writeNormalizedArtifact(
+          artifact,
+          java.nio.file.Path.of("fixture.json"),
+          "fixture",
+          0,
+          0,
+          java.time.Instant.EPOCH);
+      writer.completeScan(scan, 1, Map.of());
+      try (var statement = connection.createStatement();
+          var result =
+              statement.executeQuery(
+                  "SELECT " + SqliteSessionResultSetMapper.ALL_COLUMNS + " FROM sessions")) {
+        assertThat(result.next()).isTrue();
+        SessionRow row = SqliteSessionResultSetMapper.mapRow(result);
+        assertThat(row.roundCount()).isEqualTo(1L);
+        assertThat(row.llmCallCount()).isEqualTo(2L);
+        assertThat(row.assistantMessageCount()).isEqualTo(7L);
+        assertThat(row.contentMeasured()).isTrue();
+      }
+    }
+  }
+
+  private static NormalizedCall withTurn(NormalizedCall call, String turn) {
+    return new NormalizedCall(
+        call.callId(),
+        call.callIndex(),
+        call.callKey(),
+        call.scope(),
+        call.parentCallId(),
+        call.parentToolCallId(),
+        Optional.of(turn),
+        call.model(),
+        call.timestamp(),
+        call.usage(),
+        call.request(),
+        call.response(),
+        call.sourceUnitRefRanges(),
+        call.sourceUnits(),
+        call.attributionCandidates(),
+        call.usageSource());
+  }
+
   @Nested
   @DisplayName("session map 字段映射")
   class SessionMapMapping {

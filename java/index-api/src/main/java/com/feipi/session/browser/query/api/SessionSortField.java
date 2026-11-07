@@ -24,6 +24,9 @@ public enum SessionSortField {
   /** 按 token 总量排序，对应 {@code total_tokens} 列。 */
   TOTAL_TOKENS("total_tokens"),
 
+  /** 按逻辑轮数排序，未知值由 repository 放末尾。 */
+  ROUND_COUNT("round_count"),
+
   /** 按助手消息数排序，对应 {@code assistant_message_count} 列。 */
   ASSISTANT_MESSAGE_COUNT("assistant_message_count"),
 

@@ -4,12 +4,14 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.feipi.session.browser.domain.source.SourceRecord;
+import com.feipi.session.browser.domain.source.SourceRecordUsage;
 import com.feipi.session.browser.source.common.JsonCandidateMetadataReader;
 import com.feipi.session.browser.source.common.JsonNodeReaders;
 import com.feipi.session.browser.source.common.JsonlReader;
 import com.feipi.session.browser.source.common.JsonlReaderResult;
 import com.feipi.session.browser.source.common.SourceTitleTexts;
 import com.feipi.session.browser.source.json.JsonCandidateParser;
+import com.feipi.session.browser.source.json.JsonSourceRecordMapper;
 import com.feipi.session.browser.source.qoder.QoderDiscovery.QoderDiscoveredSession;
 import com.feipi.session.browser.source.qoder.QoderDiscovery.QoderDiscoveryResult;
 import com.feipi.session.browser.source.qoder.QoderDiscovery.SourceKind;
@@ -404,9 +406,6 @@ public final class QoderSourceAdapter implements SourceAdapter {
 
   private static Map<String, String> tokenMetadata(List<JsonNode> events, SourceKind sourceKind) {
     Map<String, String> metadata = new HashMap<>();
-    String[] fields = {
-      "input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens", "output_tokens"
-    };
     String[] keys = {
       "freshInputTokenPrecision",
       "cacheReadTokenPrecision",
@@ -426,14 +425,12 @@ public final class QoderSourceAdapter implements SourceAdapter {
       metadata.put("tokenContainsUnavailable", "true");
       return Map.copyOf(metadata);
     }
-    for (int i = 0; i < fields.length; i++) {
+    List<List<SourceRecordUsage>> responses = precisionResponses(events);
+    for (int i = 0; i < keys.length; i++) {
       String precision = "";
-      for (JsonNode event : events) {
-        if (!"assistant".equals(text(event, "type")) && !"assistant".equals(text(event, "role"))) {
-          continue;
-        }
-        String next = reported(eventUsage(event), fields[i]) ? "provider_reported" : "unavailable";
-        if (next.equals("unavailable")) {
+      for (List<SourceRecordUsage> response : responses) {
+        String next = responsePrecision(response, i, keys[i]);
+        if (next.equals("unavailable") || next.equals("mixed")) {
           metadata.put("tokenContainsUnavailable", "true");
         }
         precision = precision.isEmpty() || precision.equals(next) ? next : "mixed";
@@ -441,6 +438,72 @@ public final class QoderSourceAdapter implements SourceAdapter {
       metadata.put(keys[i], precision.isEmpty() ? "unknown" : precision);
     }
     return Map.copyOf(metadata);
+  }
+
+  /** 仅为精度构建响应视图；不更改源记录、数值或内容。边界与 Qoder 响应分片保持一致。 */
+  private static List<List<SourceRecordUsage>> precisionResponses(List<JsonNode> events) {
+    List<List<SourceRecordUsage>> responses = new ArrayList<>();
+    List<SourceRecordUsage> current = new ArrayList<>();
+    SourceRecord previous = null;
+    for (int index = 0; index < events.size(); index++) {
+      JsonNode event = events.get(index);
+      String eventType = extractEventType(event);
+      if (!"assistant".equals(eventType)) {
+        current = new ArrayList<>();
+        previous = null;
+        continue;
+      }
+      SourceRecord record =
+          JsonSourceRecordMapper.toSourceRecords("qoder-precision", index, event, eventType)
+              .getFirst();
+      boolean continues =
+          previous != null
+              && record.responseMessageId().filter(id -> !id.isBlank()).isPresent()
+              && record.responseMessageId().equals(previous.responseMessageId())
+              && record.metaContext() == previous.metaContext()
+              && record.relation().equals(previous.relation());
+      if (!continues) {
+        current = new ArrayList<>();
+        responses.add(current);
+      }
+      current.add(record.usage());
+      previous = record;
+      if (record.responseMessageId().isEmpty()
+          || record
+              .responseStopReason()
+              .filter(reason -> Set.of("end_turn", "tool_use", "max_tokens").contains(reason))
+              .isPresent()) {
+        current = new ArrayList<>();
+        previous = null;
+      }
+    }
+    return responses;
+  }
+
+  /** 分量最大值的来源裁定；空零片不掩盖显式零，已知缺失与已报告零的并列仍保留 mixed。 */
+  private static String responsePrecision(
+      List<SourceRecordUsage> response, int component, String key) {
+    long maximum =
+        response.stream().mapToLong(usage -> usageComponent(usage, component)).max().orElse(0);
+    Set<String> evidence = new HashSet<>();
+    for (SourceRecordUsage usage : response) {
+      if (usageComponent(usage, component) == maximum) {
+        String state = usage.provenance().getOrDefault(key, "unknown");
+        if (maximum != 0 || !"unknown".equals(state)) evidence.add(state);
+      }
+    }
+    return evidence.isEmpty()
+        ? "unavailable"
+        : evidence.size() == 1 ? evidence.iterator().next() : "mixed";
+  }
+
+  private static long usageComponent(SourceRecordUsage usage, int component) {
+    return switch (component) {
+      case 0 -> usage.inputTokens();
+      case 1 -> usage.cacheReadInputTokens();
+      case 2 -> usage.cacheCreationInputTokens();
+      default -> usage.outputTokens();
+    };
   }
 
   private static JsonNode eventUsage(JsonNode event) {

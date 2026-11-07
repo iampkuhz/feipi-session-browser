@@ -102,12 +102,14 @@ public final class ExportHandler {
     }
 
     try {
-      if ("html".equals(format)) {
+      if (queryRoot != null) {
+        exportPublished(ctx, agent, sessionId, format);
+      } else if ("html".equals(format)) {
         exportHtml(ctx, agent, sessionId);
       } else {
         exportMhtml(ctx, agent, sessionId);
       }
-    } catch (ExportSizeExceededException e) {
+    } catch (ContentExportSnapshot.LimitExceededException | ExportSizeExceededException e) {
       LOG.warn("导出内容超限: agent={}, session={}", agent, sessionId);
       ctx.status(HttpStatus.CONTENT_TOO_LARGE);
       ctx.json(Map.of("error", "export_too_large", "message", "导出内容超过大小限制"));
@@ -137,8 +139,10 @@ public final class ExportHandler {
     SessionDetailRequest request = SessionDetailRequest.from(ctx, agent, sessionId);
 
     try {
-      Optional<SessionDetailUseCase.AnnotatedDetail> resultOpt =
-          request.load(queryRoot.sessionDetail());
+      Optional<SessionDetailUseCase.AnnotatedDetailContext> resultOpt =
+          queryRoot
+              .sessionDetail()
+              .getDetailContextWithAnomalies(request.sessionKey(), request.visibility());
 
       if (resultOpt.isEmpty()) {
         ctx.status(HttpStatus.NOT_FOUND);
@@ -146,7 +150,25 @@ public final class ExportHandler {
         return;
       }
 
-      SessionDetailUseCase.AnnotatedDetail annotated = resultOpt.get();
+      SessionDetailUseCase.AnnotatedDetailContext annotated = resultOpt.get();
+      if (annotated.content() != null && annotated.artifact() == null) {
+        try (var snapshot =
+            ContentExportSnapshot.html(
+                annotated.content(),
+                annotated.detail().sessionRow().userMessageCount(),
+                request.visibility(),
+                MAX_EXPORT_BYTES,
+                request.sessionKey())) {
+          ctx.contentType(HTML_CONTENT_TYPE);
+          ctx.header(
+              Header.CONTENT_DISPOSITION,
+              "attachment; filename=\"session-"
+                  + sanitizeFileName(request.decodedSessionId())
+                  + ".html\"");
+          snapshot.copyTo(ctx.outputStream());
+        }
+        return;
+      }
       SessionDetail detail = annotated.detail();
       SessionAnomalySummary anomalies = annotated.anomalies();
 
@@ -173,6 +195,9 @@ public final class ExportHandler {
       LOG.error("导出查询失败: {}", request.sessionKey(), e);
       ctx.status(HttpStatus.INTERNAL_SERVER_ERROR);
       ctx.json(Map.of("error", "export_query_failed", "message", "导出查询失败"));
+    } catch (ContentExportSnapshot.LimitExceededException e) {
+      ctx.status(HttpStatus.CONTENT_TOO_LARGE);
+      ctx.json(Map.of("error", "export_too_large", "message", "导出内容超过大小限制"));
     } catch (IOException e) {
       LOG.error("导出制品读取失败: {}", request.sessionKey(), e);
       ctx.status(HttpStatus.INTERNAL_SERVER_ERROR);
@@ -222,6 +247,72 @@ public final class ExportHandler {
     context.put("session_metrics", SessionDetailViewModels.baseMetrics(detail.sessionRow()));
 
     return context;
+  }
+
+  /** 旧格式导出地址同样读取真实发布内容，不返回占位内容冒充成功。 */
+  private void exportPublished(Context ctx, String agent, String sessionId, String format)
+      throws IOException {
+    if ("html".equals(format)) {
+      exportSessionHtml(ctx, agent, sessionId);
+      return;
+    }
+    var request = SessionDetailRequest.from(ctx, agent, sessionId);
+    var found =
+        queryRoot
+            .sessionDetail()
+            .getDetailContextWithAnomalies(request.sessionKey(), request.visibility());
+    if (found.isEmpty()) {
+      ctx.status(HttpStatus.NOT_FOUND);
+      ctx.json(Map.of("error", "session_not_found"));
+      return;
+    }
+    var annotated = found.get();
+    String boundary = "----=_Part_FeiPi_Export_" + java.util.UUID.randomUUID();
+    try (var html =
+            annotated.artifact() == null && annotated.content() != null
+                ? ContentExportSnapshot.html(
+                    annotated.content(),
+                    annotated.detail().sessionRow().userMessageCount(),
+                    request.visibility(),
+                    MAX_EXPORT_BYTES,
+                    request.sessionKey())
+                : ContentExportSnapshot.create(
+                    MAX_EXPORT_BYTES,
+                    output ->
+                        output.write(
+                            templates
+                                .render(
+                                    "export-session.html",
+                                    buildExportContext(
+                                        annotated.detail(),
+                                        annotated.anomalies(),
+                                        request.decodedAgent(),
+                                        request.decodedSessionId(),
+                                        request.visibility()))
+                                .getBytes(StandardCharsets.UTF_8)));
+        var mime =
+            ContentExportSnapshot.create(
+                MAX_EXPORT_BYTES,
+                output -> {
+                  output.write(
+                      ("MIME-Version: 1.0\r\nContent-Type: multipart/related; boundary=\""
+                              + boundary
+                              + "\"\r\n\r\n--"
+                              + boundary
+                              + "\r\nContent-Type: text/html; charset=utf-8\r\n"
+                              + "Content-Transfer-Encoding: 8bit\r\n\r\n")
+                          .getBytes(StandardCharsets.UTF_8));
+                  html.copyTo(output);
+                  output.write(("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
+                })) {
+      ctx.contentType(MHTML_CONTENT_TYPE + "; boundary=\"" + boundary + "\"");
+      ctx.header(
+          Header.CONTENT_DISPOSITION,
+          "attachment; filename=\"session-"
+              + sanitizeFileName(request.decodedSessionId())
+              + ".mhtml\"");
+      mime.copyTo(ctx.outputStream());
+    }
   }
 
   /** 生成独立 HTML 导出（占位模式，无完整数据）。 */

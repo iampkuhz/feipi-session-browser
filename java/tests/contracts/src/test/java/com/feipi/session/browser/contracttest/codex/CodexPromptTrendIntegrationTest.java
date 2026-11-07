@@ -73,6 +73,77 @@ class CodexPromptTrendIntegrationTest {
   }
 
   @Test
+  void localFallbackKeepsResponseInputsAndFinalContent() throws Exception {
+    createCodexRollout(
+        "local-response",
+        "2026",
+        "09",
+        "06",
+        """
+        {"type":"response_item","payload":{"type":"message","role":"user","content":"p1"}}
+        {"type":"event_msg","payload":{"type":"user_message","message":"p1"}}
+        {"type":"response_item","payload":{"type":"message","role":"assistant","content":"a1"}}
+        {"type":"response_item","payload":{"type":"message","role":"user","content":"p2"}}
+        {"type":"event_msg","payload":{"type":"agent_message","message":"a2"}}
+        {"type":"response_item","payload":{"type":"message","role":"user","content":"p3"}}
+        {"type":"response_item","payload":{"type":"message","role":"assistant","content":"commentary"}}
+        {"type":"event_msg","payload":{"type":"agent_message","message":"final answer"}}
+        """);
+    Candidate candidate = adapter.discover(tempDir).orderedItems().getFirst();
+    SourceResult.Success parsed = (SourceResult.Success) adapter.parse(candidate, null);
+    NormalizedSessionArtifact artifact =
+        normalizationEngine.normalize(
+            NormalizedAgent.CODEX, parsed.records(), parsed.diagnostics(), List.of());
+    assertThat(artifact.calls()).hasSize(3);
+    assertThat(
+            com.feipi.session.browser.application.sessiondetail.SessionDetailAssembler.buildRounds(
+                artifact.calls(), artifact.toolExecutions()))
+        .hasSize(3);
+    assertThat(
+            artifact.calls().get(0).sourceUnits().stream()
+                .filter(unit -> "user".equals(unit.get("role"))))
+        .hasSize(1);
+    assertThat(artifact.calls().get(0).sourceUnits().toString())
+        .contains("p1", "a1")
+        .doesNotContain("p2");
+    assertThat(artifact.calls().get(1).sourceUnits().toString())
+        .contains("p2", "a2")
+        .doesNotContain("p1", "p3");
+    assertThat(artifact.calls().get(2).sourceUnits().toString())
+        .contains("p3", "commentary", "final answer");
+  }
+
+  @Test
+  void responseOnlyDistinctInputsRemainTwoDetailRounds() throws Exception {
+    createCodexRollout(
+        "response-only",
+        "2026",
+        "09",
+        "06",
+        """
+        {"type":"response_item","payload":{"type":"message","role":"user","content":"first prompt"}}
+        {"type":"response_item","payload":{"type":"message","role":"assistant","content":"first answer"}}
+        {"type":"response_item","payload":{"type":"message","role":"user","content":"second prompt"}}
+        {"type":"response_item","payload":{"type":"message","role":"assistant","content":"second answer"}}
+        """);
+    Candidate candidate = adapter.discover(tempDir).orderedItems().getFirst();
+    SourceResult.Success parsed = (SourceResult.Success) adapter.parse(candidate, null);
+    NormalizedSessionArtifact artifact =
+        normalizationEngine.normalize(
+            NormalizedAgent.CODEX, parsed.records(), parsed.diagnostics(), List.of());
+    assertThat(artifact.calls()).hasSize(2);
+    assertThat(
+            com.feipi.session.browser.application.sessiondetail.SessionDetailAssembler.buildRounds(
+                artifact.calls(), artifact.toolExecutions()))
+        .hasSize(2);
+    assertThat(artifact.calls().get(0).sourceUnits().toString())
+        .contains("first prompt", "first answer")
+        .doesNotContain("second prompt", "second answer");
+    assertThat(artifact.calls().get(1).sourceUnits().toString())
+        .contains("second prompt", "second answer");
+  }
+
+  @Test
   @DisplayName("两日 Codex 消息准确计数")
   void twoDayCodexMessagesCountedAccurately() throws Exception {
     String sessionId1 = "thread-day1";
@@ -149,6 +220,7 @@ class CodexPromptTrendIntegrationTest {
         {"type":"event_msg","timestamp":"2026-09-06T10:00:00Z","payload":{"type":"user_message","message":"hello"}}
         {"type":"response_item","timestamp":"2026-09-06T10:00:00Z","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"}]}}
         {"type":"event_msg","timestamp":"2026-09-06T10:01:00Z","payload":{"type":"agent_message","content":"hi"}}
+        {"type":"response_item","timestamp":"2026-09-06T10:01:00Z","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"hi"}]}}
         """,
         1L);
   }
@@ -216,8 +288,9 @@ class CodexPromptTrendIntegrationTest {
         "thread-mixed",
         """
         {"type":"event_msg","timestamp":"2026-09-06T10:00:00Z","payload":{"type":"user_message","message":"hello"}}
-        {"type":"response_item","timestamp":"2026-09-06T10:00:01Z","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"}]}}
+        {"type":"response_item","timestamp":"2026-09-06T10:00:00Z","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"}]}}
         {"type":"response_item","timestamp":"2026-09-06T10:01:00Z","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"hi"}]}}
+        {"type":"event_msg","timestamp":"2026-09-06T10:01:00Z","payload":{"type":"agent_message","content":"hi"}}
         {"type":"response_item","timestamp":"2026-09-06T10:02:00Z","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"}]}}
         """,
         2L);
@@ -252,7 +325,7 @@ class CodexPromptTrendIntegrationTest {
   }
 
   @Test
-  @DisplayName("缺 timestamp 的重复轮次计数保留，但不参与日期趋势")
+  @DisplayName("缺 timestamp 的消息观察不按相同正文合并，也不参与日期趋势")
   void missingTimestampsDoNotLoseRepeatedTurns() throws Exception {
     String sessionId = "thread-no-timestamp";
     createCodexRollout(
@@ -269,7 +342,8 @@ class CodexPromptTrendIntegrationTest {
         """);
     processAndWriteCodexSession(adapter.discover(tempDir), sessionId, "2026-09-06T10:03:00Z");
 
-    // 路径日期和测试注入的 ended_at 不是实际开始时间；两轮相同 prompt 仍精确计为 2。
+    // 无 timestamp/turn 身份，不能按同文猜测双表示。保留四条用户观察，不称四次真人提问。
+    // 路径日期和测试注入的 ended_at 也不是实际开始时间。
     try (var statement =
         connection.prepareStatement(
             "SELECT started_at, user_message_count FROM sessions WHERE session_id = ?")) {
@@ -277,7 +351,7 @@ class CodexPromptTrendIntegrationTest {
       try (var row = statement.executeQuery()) {
         assertThat(row.next()).isTrue();
         assertThat(row.getString("started_at")).isEmpty();
-        assertThat(row.getLong("user_message_count")).isEqualTo(2L);
+        assertThat(row.getLong("user_message_count")).isEqualTo(4L);
         assertThat(row.next()).isFalse();
       }
     }
@@ -310,6 +384,7 @@ class CodexPromptTrendIntegrationTest {
         {"type":"event_msg","timestamp":"2026-09-06T10:00:00Z","payload":{"type":"user_message","message":"first"}}
         {"type":"response_item","timestamp":"2026-09-06T10:00:00Z","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"first"}]}}
         {"type":"response_item","timestamp":"2026-09-06T10:01:00Z","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"hi"}]}}
+        {"type":"event_msg","timestamp":"2026-09-06T10:01:00Z","payload":{"type":"agent_message","content":"hi"}}
         {"type":"response_item","timestamp":"2026-09-06T10:02:00Z","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"second"}]}}
         """);
     Path source = tempDir.resolve("sessions/2026/09/06/rollout-100-" + sessionId + ".jsonl");

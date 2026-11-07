@@ -13,6 +13,11 @@ import java.util.Objects;
  * @param title 会话标题，可为空字符串
  * @param projectKey 项目唯一键，可为空字符串
  * @param cwd 工作目录，可为空字符串
+ * @param startedAt 可靠来源的开始时间，未知为空
+ * @param gitBranch 来源分支，未知为空
+ * @param model 来源模型，未知为空
+ * @param source 来源类型，未知为空
+ * @param candidateMetadataFingerprint 候选输入元数据摘要，旧索引可为空
  */
 public record StoredSessionFingerprint(
     String sessionKey,
@@ -22,7 +27,12 @@ public record StoredSessionFingerprint(
     String endedAt,
     String title,
     String projectKey,
-    String cwd) {
+    String cwd,
+    String startedAt,
+    String gitBranch,
+    String model,
+    String source,
+    String candidateMetadataFingerprint) {
 
   /**
    * 完整构造器，包含元数据字段。
@@ -44,6 +54,56 @@ public record StoredSessionFingerprint(
     title = title == null ? "" : title;
     projectKey = projectKey == null ? "" : projectKey;
     cwd = cwd == null ? "" : cwd;
+    startedAt = startedAt == null ? "" : startedAt;
+    gitBranch = gitBranch == null ? "" : gitBranch;
+    model = model == null ? "" : model;
+    source = source == null ? "" : source;
+    candidateMetadataFingerprint =
+        candidateMetadataFingerprint == null ? "" : candidateMetadataFingerprint;
+  }
+
+  /** 兼容尚未保存候选输入摘要的索引调用方。 */
+  public StoredSessionFingerprint(
+      String sessionKey,
+      String filePath,
+      double fileMtime,
+      String agent,
+      String endedAt,
+      String title,
+      String projectKey,
+      String cwd,
+      String startedAt,
+      String gitBranch,
+      String model,
+      String source) {
+    this(
+        sessionKey,
+        filePath,
+        fileMtime,
+        agent,
+        endedAt,
+        title,
+        projectKey,
+        cwd,
+        startedAt,
+        gitBranch,
+        model,
+        source,
+        "");
+  }
+
+  /** 兼容未提供独立源元数据的调用方。 */
+  public StoredSessionFingerprint(
+      String sessionKey,
+      String filePath,
+      double fileMtime,
+      String agent,
+      String endedAt,
+      String title,
+      String projectKey,
+      String cwd) {
+    this(
+        sessionKey, filePath, fileMtime, agent, endedAt, title, projectKey, cwd, "", "", "", agent);
   }
 
   /**

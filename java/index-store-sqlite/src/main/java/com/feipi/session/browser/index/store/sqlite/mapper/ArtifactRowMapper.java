@@ -1,17 +1,13 @@
 package com.feipi.session.browser.index.store.sqlite.mapper;
 
-import com.feipi.session.browser.domain.enums.CallScope;
-import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
-import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
 import com.feipi.session.browser.domain.normalized.SessionTiming;
 import com.feipi.session.browser.domain.normalized.TokenProvenance;
+import com.feipi.session.browser.index.api.query.RoundAssembler;
 import com.feipi.session.browser.index.store.sqlite.row.SessionArtifactRow;
 import com.feipi.session.browser.index.store.sqlite.row.SessionRow;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * 归一化制品到 index row 的唯一映射器。
@@ -57,193 +53,115 @@ public final class ArtifactRowMapper {
   public static SessionRow toSessionRow(
       NormalizedSessionArtifact artifact, double fileMtime, String filePath) {
     Objects.requireNonNull(artifact, "artifact 不得为 null");
+    var aggregate = new ContentSessionAggregate();
+    artifact.calls().forEach(aggregate::add);
+    artifact.toolExecutions().forEach(aggregate::add);
+    aggregate.sequenceObserved =
+        artifact.sourceUnitSequences().values().stream().anyMatch(v -> !v.isEmpty());
+    long users = count(artifact.session(), "userMessageCount", aggregate.mainCalls);
+    return toRow(
+        artifact.session(),
+        artifact.agent().getValue(),
+        aggregate,
+        RoundAssembler.buildRounds(artifact, users).size(),
+        fileMtime,
+        filePath);
+  }
 
-    Map<String, Object> session = artifact.session();
+  /** 通过有界遍历映射完整逻辑会话，不构造伪造的旧格式制品。 */
+  public static SessionRow toContentSessionRow(
+      com.feipi.session.browser.domain.normalized.NormalizedSessionContent content,
+      double fileMtime,
+      String filePath)
+      throws java.io.IOException {
+    Objects.requireNonNull(content, "content");
+    var aggregate = new ContentSessionAggregate();
+    try (var cursor = content.openCursor()) {
+      while (cursor.hasNext()) {
+        var unit = cursor.next();
+        unit.calls().forEach(aggregate::add);
+        unit.toolExecutions().forEach(aggregate::add);
+        aggregate.sequenceObserved |=
+            unit.sourceUnitSequences().stream().anyMatch(v -> !v.keys().isEmpty());
+      }
+    }
+    Map<String, Object> session = content.header().session();
+    long users = count(session, "userMessageCount", aggregate.mainCalls);
+    int rounds =
+        com.feipi.session.browser.index.api.query.ContentRoundIndex.build(content, users)
+            .roundCount();
+    return toRow(
+        session, content.header().agent().getValue(), aggregate, rounds, fileMtime, filePath);
+  }
 
-    // 从 session map 提取标量字段
-    String sessionKey = asString(session, "session_key");
-    String sessionId = asString(session, "session_id");
-    String title = asString(session, "title");
-    String projectKey = asString(session, "project_key");
-    String projectName = asString(session, "project_name");
-    String cwd = asString(session, "cwd");
-    String startedAt = asString(session, "started_at");
-    String endedAt = asString(session, "ended_at");
+  private static SessionRow toRow(
+      Map<String, Object> session,
+      String agent,
+      ContentSessionAggregate aggregate,
+      long rounds,
+      double fileMtime,
+      String filePath) {
+    long users = count(session, "userMessageCount", aggregate.mainCalls);
+    boolean measured =
+        Boolean.TRUE.equals(session.get("contentMeasured"))
+            || users > 0
+            || aggregate.calls > 0
+            || aggregate.tools > 0
+            || aggregate.sequenceObserved;
     String model = asString(session, "model");
-    String gitBranch = asString(session, "git_branch");
-    String source = asString(session, "source");
-    double durationSeconds = optionalDouble(session, "duration_seconds");
-
-    // agent 使用 enum 的协议值
-    String agent = artifact.agent().getValue();
-
-    // 如果 session map 未提供 model，从第一个 call 取
-    if (model.isEmpty() && !artifact.calls().isEmpty()) {
-      model = artifact.calls().get(0).model();
-    }
-
-    // 如果 session map 未提供 ended_at，从最后一个 call 的 timestamp 取
-    if (endedAt.isEmpty() && !artifact.calls().isEmpty()) {
-      NormalizedCall lastCall = artifact.calls().get(artifact.calls().size() - 1);
-      endedAt = lastCall.timestamp().orElse("");
-    }
-
-    // 聚合 calls 统计量；优先从 session map 读取归一化引擎统计值
-    long outputTokens = 0;
-    long freshInputTokens = 0;
-    long cacheReadTokens = 0;
-    long cacheWriteTokens = 0;
-    long totalTokens = 0;
-    long assistantMessageCount = 0;
-    long toolCallCount = 0;
-    long userMessageCount = 0;
-
-    // 优先从 session map 读取归一化引擎统计的 assistantMessageCount
-    Object sessionAssistantCount = session.get("assistantMessageCount");
-    if (sessionAssistantCount instanceof Number num) {
-      assistantMessageCount = num.longValue();
-    } else {
-      assistantMessageCount = artifact.calls().size();
-    }
-
-    // 优先从 session map 读取归一化引擎统计的 toolCallCount
-    Object sessionToolCallCount = session.get("toolCallCount");
-    if (sessionToolCallCount instanceof Number num) {
-      toolCallCount = num.longValue();
-    }
-
-    // 优先从 session map 读取归一化引擎统计的 userMessageCount
-    Object sessionUserMsgCount = session.get("userMessageCount");
-    if (sessionUserMsgCount instanceof Number num) {
-      userMessageCount = num.longValue();
-    }
-
-    // 优先从 session map 读取 token 字段
-    Object sessionTotalTokens = session.get("totalTokens");
-    if (sessionTotalTokens instanceof Number num) {
-      totalTokens = num.longValue();
-    }
-    Object sessionOutputTokens = session.get("outputTokens");
-    if (sessionOutputTokens instanceof Number num) {
-      outputTokens = num.longValue();
-    }
-    Object sessionFreshInputTokens = session.get("freshInputTokens");
-    if (sessionFreshInputTokens instanceof Number num) {
-      freshInputTokens = num.longValue();
-    }
-    Object sessionCacheReadTokens = session.get("cacheReadTokens");
-    if (sessionCacheReadTokens instanceof Number num) {
-      cacheReadTokens = num.longValue();
-    }
-    Object sessionCacheWriteTokens = session.get("cacheWriteTokens");
-    if (sessionCacheWriteTokens instanceof Number num) {
-      cacheWriteTokens = num.longValue();
-    }
-
-    Set<String> subagentIds = new HashSet<>();
-
-    for (NormalizedCall call : artifact.calls()) {
-      if (sessionOutputTokens == null) {
-        outputTokens += call.usage().output();
-      }
-      if (sessionFreshInputTokens == null) {
-        freshInputTokens += call.usage().fresh();
-      }
-      if (sessionCacheReadTokens == null) {
-        cacheReadTokens += call.usage().cacheRead();
-      }
-      if (sessionCacheWriteTokens == null) {
-        cacheWriteTokens += call.usage().cacheWrite();
-      }
-      // 仅当 session map 未提供 totalTokens 时从 calls 聚合
-      if (sessionTotalTokens == null) {
-        totalTokens += call.usage().total();
-      }
-      // 仅当 session map 未提供 toolCallCount 时从 calls 聚合
-      if (sessionToolCallCount == null) {
-        toolCallCount += call.response().toolCallIds().size();
-      }
-
-      // 仅在 session map 未提供 userMessageCount 时回退到 scope 计数
-      if (sessionUserMsgCount == null && call.scope() == CallScope.MAIN) {
-        userMessageCount++;
-      }
-      // 统计子 agent 实例
-      if (call.scope() == CallScope.SUBAGENT) {
-        call.parentCallId().ifPresent(subagentIds::add);
-      }
-    }
-
-    // 聚合 toolExecutions 统计量；优先从 session map 读取 failedToolCount
-    long toolDurationMs = 0;
-    long failedToolCount = 0;
-    Object sessionFailedTools = session.get("failedToolCount");
-    if (sessionFailedTools instanceof Number num) {
-      failedToolCount = num.longValue();
-    }
-
-    for (NormalizedToolExecution exec : artifact.toolExecutions()) {
-      toolDurationMs += exec.durationMs();
-      // 仅在 session map 未提供 failedToolCount 时回退到 status 检测
-      if (sessionFailedTools == null && exec.status().isPresent()) {
-        failedToolCount++;
-      }
-    }
-
-    // toolExecutionSeconds 从毫秒转换为秒；session map 有值时优先使用
-    double toolExecSeconds = toolDurationMs / 1000.0;
-    Object sessionToolExec = session.get("toolExecutionSeconds");
-    if (toolExecSeconds == 0 && sessionToolExec instanceof Number num) {
-      toolExecSeconds = num.doubleValue();
-    }
-
-    // modelExecutionSeconds 从 session map 读取（归一化引擎计算）
-    double modelExecSeconds = 0;
-    Object sessionModelExec = session.get("modelExecutionSeconds");
-    if (sessionModelExec instanceof Number num) {
-      modelExecSeconds = num.doubleValue();
-    }
-
-    long subagentInstanceCount = subagentIds.size();
-    Object sessionSubagentInstances = session.get("subagentInstanceCount");
-    if (sessionSubagentInstances instanceof Number num) {
-      subagentInstanceCount = num.longValue();
-    }
-
-    // indexed_at 使用当前时间
-    double indexedAt = System.currentTimeMillis() / 1000.0;
-
+    String endedAt = asString(session, "ended_at");
+    double toolSeconds = aggregate.toolDurationMs / 1000.0;
+    if (toolSeconds == 0 && session.get("toolExecutionSeconds") instanceof Number value)
+      toolSeconds = value.doubleValue();
     return new SessionRow(
-        sessionKey,
+        asString(session, "session_key"),
         agent,
-        sessionId,
-        title,
-        projectKey,
-        projectName,
-        cwd,
-        startedAt,
-        endedAt,
-        durationSeconds,
-        modelExecSeconds,
-        toolExecSeconds,
-        model,
-        gitBranch,
-        source,
-        userMessageCount,
-        assistantMessageCount,
-        toolCallCount,
-        outputTokens,
-        freshInputTokens,
-        cacheReadTokens,
-        cacheWriteTokens,
-        totalTokens,
-        failedToolCount,
-        subagentInstanceCount,
-        indexedAt,
+        asString(session, "session_id"),
+        asString(session, "title"),
+        asString(session, "project_key"),
+        asString(session, "project_name"),
+        asString(session, "cwd"),
+        asString(session, "started_at"),
+        endedAt.isEmpty() ? aggregate.lastTimestamp : endedAt,
+        optionalDouble(session, "duration_seconds"),
+        number(session, "modelExecutionSeconds"),
+        toolSeconds,
+        model.isEmpty() ? aggregate.firstModel : model,
+        asString(session, "git_branch"),
+        asString(session, "source"),
+        users,
+        session.get("assistantMessageCount") instanceof Number assistants
+            ? assistants.longValue()
+            : aggregate.calls,
+        count(session, "toolCallCount", aggregate.toolCalls),
+        count(session, "outputTokens", aggregate.output),
+        count(session, "freshInputTokens", aggregate.fresh),
+        count(session, "cacheReadTokens", aggregate.cacheRead),
+        count(session, "cacheWriteTokens", aggregate.cacheWrite),
+        count(session, "totalTokens", aggregate.total),
+        count(session, "failedToolCount", aggregate.failedTools),
+        session.get("subagentInstanceCount") instanceof Number n
+            ? n.longValue()
+            : aggregate.subagentIds.size(),
+        System.currentTimeMillis() / 1000.0,
         fileMtime,
         filePath,
         TokenProvenance.fromMetadata(session),
-        SessionTiming.fromMetadata(session));
+        SessionTiming.fromMetadata(session),
+        measured ? rounds : null,
+        measured ? aggregate.calls : null,
+        measured,
+        Boolean.TRUE.equals(session.get("userMessageCountMeasured")),
+        Boolean.TRUE.equals(session.get("assistantMessageCountMeasured")));
+  }
+
+  private static long count(Map<String, Object> session, String key, long fallback) {
+    Object value = session.get(key);
+    return value == null ? fallback : value instanceof Number number ? number.longValue() : 0;
+  }
+
+  private static double number(Map<String, Object> session, String key) {
+    return session.get(key) instanceof Number number ? number.doubleValue() : 0;
   }
 
   /**

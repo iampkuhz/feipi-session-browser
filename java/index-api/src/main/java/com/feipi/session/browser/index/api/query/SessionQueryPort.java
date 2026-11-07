@@ -8,6 +8,16 @@ import java.util.Optional;
 /** session 列表与查找查询读取端口。 */
 public interface SessionQueryPort {
 
+  /** 读取当前已发布索引代号；旧实现无发布代号时为 legacy。 */
+  default String publishedGeneration() {
+    return "legacy";
+  }
+
+  /** 直读最新扫描运行状态，不使用已发布数据缓存。 */
+  default Optional<ScanStatus> latestScan() {
+    return Optional.empty();
+  }
+
   /** 按 route 或 canonical session key 查找单个 session。 */
   Optional<SessionRecord> getSession(String sessionKey);
 

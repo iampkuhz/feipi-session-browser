@@ -51,6 +51,57 @@ class ExportResourceApiTest {
   }
 
   @Test
+  void replayBundleAndManifestIncludeAllMembersAndRejectOversizeBeforeResponse() {
+    var original = SessionDetailParityAnalyzerTest.healthDetail(false, 0);
+    var detail =
+        new com.feipi.session.browser.application.sessiondetail.SessionDetail(
+            original.sessionRow(),
+            java.util.List.of(),
+            java.util.List.of(),
+            original.visibility(),
+            "synthetic-content",
+            com.feipi.session.browser.domain.normalized.NormalizedConstants.SCHEMA_VERSION,
+            "synthetic-content-v1",
+            1,
+            20468);
+    var annotated =
+        new com.feipi.session.browser.application.SessionDetailUseCase.AnnotatedDetailContext(
+            detail,
+            com.feipi.session.browser.query.api.SessionAnomalySummary.empty(
+                detail.sessionRow().sessionKey()),
+            null,
+            com.feipi.session.browser.web.export.ContentExportSnapshotTest.content());
+    var handler =
+        new ExportApiHandler(
+            ctx -> new ExportApiHandler.LoadedExport("codex", "health", "standard", annotated));
+    JavalinTest.test(
+        io.javalin.Javalin.create(
+            config -> {
+              config.routes.get("/bundle", handler::handleDataBundle);
+              config.routes.get("/manifest", handler::handleManifest);
+            }),
+        (app, client) -> {
+          var response = client.get("/bundle");
+          assertThat(response.code()).isEqualTo(200);
+          var json = MAPPER.readTree(response.body().string());
+          assertThat(json.path("calls").size()).isEqualTo(10234);
+          assertThat(json.path("payloads").size()).isEqualTo(20468);
+          assertThat(json.at("/calls/10233/callId").asText()).isEqualTo("synthetic-10234");
+          assertThat(json.at("/calls/10233/response").asText())
+              .contains("synthetic response 10234")
+              .doesNotContain("synthetic-secret", "/Users/alice");
+          assertThat(json.at("/rounds/0/callCount").asInt()).isEqualTo(10234);
+          assertThat(client.get("/bundle?max_bytes=1024").code()).isEqualTo(413);
+          var manifest = MAPPER.readTree(client.get("/manifest").body().string());
+          assertThat(manifest.at("/state/kind").asText()).isEqualTo("ready");
+          assertThat(manifest.path("estimatedSizeBytes").asLong()).isGreaterThan(1024);
+          var limited = MAPPER.readTree(client.get("/manifest?max_bytes=1024").body().string());
+          assertThat(limited.at("/state/kind").asText()).isEqualTo("too_large");
+          assertThat(limited.path("formats").size()).isZero();
+        });
+  }
+
+  @Test
   @DisplayName("manifest 返回支持格式、URL 和离线能力")
   void manifestReturnsExportFormats() {
     WebCompositionRoot webRoot = createWebRoot();

@@ -55,6 +55,7 @@ final class SessionDetailParityAnalyzer {
   private static final Pattern ASCII = Pattern.compile("[\\x20-\\x7e]");
   private static final Pattern CODE_PUNCT =
       Pattern.compile("[{}()\\[\\]\\\"'\\\\;:,.<>+=~`/@#$%^&*|]");
+  private static final String PRECISION_REPORTED = "provider_reported";
   private static final String FIELD_CONTENT = "content";
   private static final String FIELD_FAILED_TOOLS = "failedTools";
   private static final String FIELD_FAILED_TOOLS_RATE = "failedToolsRate";
@@ -78,6 +79,197 @@ final class SessionDetailParityAnalyzer {
   /** 构建 Session Detail parity 结果。 */
   static Result analyze(SessionDetail detail, NormalizedSessionArtifact artifact) {
     return analyze(detail, artifact, true);
+  }
+
+  /**
+   * 旧格式单制品无法容纳完整会话时，基于可重放冻结内容计算真实指标与覆盖状态。
+   *
+   * @param detail 当前会话详情与可见性策略
+   * @param artifact 可选的旧格式归一化制品
+   * @param content 可选的冻结会话内容，支持独立重放
+   * @param allowSourceFiles 是否允许旧格式路径从本机来源补充分析
+   * @return 根据实际观测计算的覆盖状态与指标
+   */
+  static Result analyze(
+      SessionDetail detail,
+      NormalizedSessionArtifact artifact,
+      com.feipi.session.browser.domain.normalized.NormalizedSessionContent content,
+      boolean allowSourceFiles) {
+    if (artifact != null || content == null) return analyze(detail, artifact, allowSourceFiles);
+    Result base = analyze(detail, null, false);
+    Map<String, Object> metrics = new LinkedHashMap<>(base.metrics);
+    Map<String, Object> diagnostics = new LinkedHashMap<>(base.diagnostics);
+    long main = 0;
+    long child = 0;
+    long failed = 0;
+    Set<String> children = new HashSet<>();
+    Map<String, CompactAgent> agents = new LinkedHashMap<>();
+    agents.put("", new CompactAgent(""));
+    try (var cursor = content.openCursor()) {
+      while (cursor.hasNext()) {
+        var unit = cursor.next();
+        for (var call : unit.calls()) {
+          if (call.scope() == CallScope.MAIN) main++;
+          else child++;
+          call.subagentId().ifPresent(children::add);
+          String owner =
+              call.scope() == CallScope.MAIN
+                  ? ""
+                  : call.subagentId().orElse(call.parentCallId().orElse("unknown"));
+          var group = agents.computeIfAbsent(owner, CompactAgent::new);
+          group.calls++;
+          group.usage.add(call);
+        }
+        for (var tool : unit.toolExecutions()) {
+          boolean failure = hasFailedStatus(tool);
+          if (failure) failed++;
+          String owner = tool.scope() == CallScope.MAIN ? "" : tool.subagentId().orElse("unknown");
+          var group = agents.computeIfAbsent(owner, CompactAgent::new);
+          if (tool.scope() == CallScope.SUBAGENT) tool.subagentId().ifPresent(children::add);
+          group.tools++;
+          if (failure) group.failures++;
+        }
+      }
+    } catch (IOException exception) {
+      throw (io.javalin.http.InternalServerErrorResponse)
+          new io.javalin.http.InternalServerErrorResponse("normalized content read failed")
+              .initCause(exception);
+    }
+    long tools = content.header().totals().get("toolExecutions");
+    Map<Integer, RoundParity> roundParity = new LinkedHashMap<>();
+    boolean measuredCache = content.header().totals().get("calls") > 0;
+    boolean measuredFresh = content.header().totals().get("calls") > 0;
+    try {
+      var rows = SessionContentProjection.rounds(detail, content);
+      double medianFresh = median(rows.stream().map(row -> row.tokens().fresh()).sorted().toList());
+      for (var row : rows) {
+        var parity = new RoundParity(row.roundIndex());
+        parity.signals.addAll(row.signals());
+        var tokens = row.tokens();
+        var precision = tokens.provenance();
+        boolean cacheMeasured =
+            PRECISION_REPORTED.equals(precision.freshInput())
+                && PRECISION_REPORTED.equals(precision.cacheRead())
+                && PRECISION_REPORTED.equals(precision.cacheWrite());
+        boolean freshMeasured = PRECISION_REPORTED.equals(precision.freshInput());
+        measuredCache &= cacheMeasured;
+        measuredFresh &= freshMeasured;
+        long input = tokens.fresh() + tokens.cacheRead() + tokens.cacheWrite();
+        parity.lowCache = cacheMeasured && input > 0 && tokens.cacheRead() * 100.0 / input < 20.0;
+        parity.freshSpike = freshMeasured && medianFresh > 0 && tokens.fresh() > medianFresh * 2.0;
+        roundParity.put(row.roundIndex(), parity);
+      }
+    } catch (IOException exception) {
+      throw (io.javalin.http.InternalServerErrorResponse)
+          new io.javalin.http.InternalServerErrorResponse("normalized content read failed")
+              .initCause(exception);
+    }
+    long issueRounds =
+        roundParity.values().stream().filter(value -> value.signals.contains("Failed")).count();
+    for (var map : List.of(metrics, diagnostics)) {
+      addCoverage(map, true);
+      map.put("mainCalls", main);
+      map.put("subagentCalls", child);
+      map.put("workloadCalls", main + child);
+      map.put("toolCalls", tools);
+      map.put("failedTools", failed);
+      map.put("subagentRuns", (long) children.size());
+      map.put("issueRounds", issueRounds);
+      map.put("failedToolsRate", ratioLabel(failed, tools));
+      map.put("agentsAvailable", true);
+      map.put("lowCacheRoundsAvailable", measuredCache);
+      if (measuredCache)
+        map.put(
+            "lowCacheRounds",
+            roundParity.values().stream().filter(value -> value.lowCache).count());
+      else map.remove("lowCacheRounds");
+      map.put("freshSpikeRoundsAvailable", measuredFresh);
+      if (measuredFresh)
+        map.put(
+            "freshSpikeRounds",
+            roundParity.values().stream().filter(value -> value.freshSpike).count());
+      else map.remove("freshSpikeRounds");
+      map.put("runHealth", failed > 0 ? "Issue signals detected" : "No issue signals detected");
+      // 尚未独立分析引用对应的正文覆盖情况，不能将未测量状态报告为零缺失。
+      map.put("payloadGapsAvailable", false);
+      map.remove("payloadGaps");
+      map.put("attributionGapsAvailable", false);
+    }
+    for (String section : List.of("contextSegments", "toolImpact", "issues", "issueStrip")) {
+      diagnostics.put(section + "Available", false);
+      diagnostics.remove(section);
+    }
+    long observedTokens =
+        agents.values().stream().mapToLong(value -> value.usage.segments().total()).sum();
+    boolean allReported =
+        agents.values().stream()
+            .allMatch(
+                value -> {
+                  var precision = value.usage.segments().provenance();
+                  return List.of(
+                          precision.freshInput(),
+                          precision.cacheRead(),
+                          precision.cacheWrite(),
+                          precision.output())
+                      .stream()
+                      .allMatch(PRECISION_REPORTED::equals);
+                });
+    var agentRows = new ArrayList<Map<String, Object>>();
+    for (var group : agents.values()) {
+      var segments = group.usage.segments();
+      var precision = segments.provenance();
+      boolean reported =
+          List.of(
+                  precision.freshInput(),
+                  precision.cacheRead(),
+                  precision.cacheWrite(),
+                  precision.output())
+              .stream()
+              .allMatch(PRECISION_REPORTED::equals);
+      agentRows.add(
+          agentRow(
+              new AgentRowInput(
+                  group.id.isEmpty() ? SCOPE_MAIN : SCOPE_SUBAGENT,
+                  group.id.isEmpty() ? agentLabel(detail.sessionRow().agent()) : SCOPE_SUBAGENT,
+                  group.id,
+                  compactId(group.id),
+                  "",
+                  group.id.isEmpty() ? detail.sessionRow().sessionId() : group.id,
+                  group.calls,
+                  segments.total(),
+                  ratioLabel(segments.total(), observedTokens),
+                  segments,
+                  "artifact_call_usage",
+                  observedTokens,
+                  observedTokens == 0
+                      ? "unavailable"
+                      : allReported
+                              && reported
+                              && observedTokens == detail.sessionRow().totalTokens()
+                          ? "available"
+                          : "partial",
+                  "observed_agent_usage",
+                  group.tools,
+                  group.failures,
+                  ratioLabel(group.failures, group.tools))));
+    }
+    diagnostics.put("agents", List.copyOf(agentRows));
+    diagnostics.remove("issueCount");
+    diagnostics.put("roundSignals", roundSignalMap(roundParity));
+    return new Result(base.meta, metrics, diagnostics, roundParity);
+  }
+
+  /** 仅保存一个已观测代理实例的用量、调用数与工具状态标量。 */
+  private static final class CompactAgent {
+    final String id;
+    final SessionContentUsage usage = new SessionContentUsage();
+    long calls;
+    long tools;
+    long failures;
+
+    CompactAgent(String id) {
+      this.id = id;
+    }
   }
 
   /** 导入分析仅信任已归一化的上传内容，不探测本机原路径或相邻会话。 */
@@ -150,11 +342,16 @@ final class SessionDetailParityAnalyzer {
             rounds.values().stream()
                 .filter(round -> round.hasIssues() || !round.issueSeeds.isEmpty())
                 .count();
-    long attributionGaps = 0;
+    boolean contentMeasured =
+        row.contentMeasured()
+            || !parent.roundSummaries.isEmpty()
+            || !parent.tools.isEmpty()
+            || (artifact != null
+                && (!artifact.calls().isEmpty() || !artifact.toolExecutions().isEmpty()));
 
     RunIssueSummary issueSummary =
         new RunIssueSummary(
-            totalTools, failedTools, payloadGaps, attributionGaps, issueRounds, issues);
+            totalTools, failedTools, payloadGaps, contentMeasured, issueRounds, issues);
     Map<String, Object> diagnostics =
         diagnosticsMap(
             new DiagnosticsInput(
@@ -240,7 +437,7 @@ final class SessionDetailParityAnalyzer {
         });
   }
 
-  private static boolean hasFailedStatus(NormalizedToolExecution execution) {
+  static boolean hasFailedStatus(NormalizedToolExecution execution) {
     return execution.status().filter(status -> !status.isBlank()).isPresent()
         || execution.exitCode().filter(code -> code != 0).isPresent();
   }
@@ -802,9 +999,9 @@ final class SessionDetailParityAnalyzer {
 
   private static boolean measuredCacheInput(SessionRecord row) {
     var precision = row.tokenProvenance();
-    return "provider_reported".equals(precision.freshInput())
-        && "provider_reported".equals(precision.cacheRead())
-        && "provider_reported".equals(precision.cacheWrite());
+    return PRECISION_REPORTED.equals(precision.freshInput())
+        && PRECISION_REPORTED.equals(precision.cacheRead())
+        && PRECISION_REPORTED.equals(precision.cacheWrite());
   }
 
   private static Map<String, Object> metricsMap(MetricsInput input) {
@@ -814,7 +1011,6 @@ final class SessionDetailParityAnalyzer {
     long failedTools = issueSummary.failedTools;
     long inputSide = input.inputSide;
     long payloadGaps = issueSummary.payloadGaps;
-    long attributionGaps = issueSummary.attributionGaps;
     long totalTokens =
         row.freshInputTokens()
             + row.cacheReadTokens()
@@ -822,6 +1018,9 @@ final class SessionDetailParityAnalyzer {
             + row.outputTokens();
     SessionTiming timing = row.timing();
     Map<String, Object> map = new LinkedHashMap<>();
+    addCoverage(map, issueSummary.contentMeasured);
+    map.put("userMessagesAvailable", row.userMessageMeasured());
+    map.put("assistantMessagesAvailable", row.assistantMessageMeasured());
     map.put("mainCalls", input.mainCalls);
     map.put("subagentCalls", input.subagentCalls);
     map.put("workloadCalls", input.workload);
@@ -836,13 +1035,15 @@ final class SessionDetailParityAnalyzer {
     }
     map.put("freshSpikeRounds", input.freshSpikeRounds);
     map.put("payloadGaps", payloadGaps);
-    map.put("attributionGaps", attributionGaps);
+    map.put("attributionGapsAvailable", false);
     map.put("issueRounds", issueSummary.issueRounds);
     map.put(
         "runHealth",
-        hasRunIssues(failedTools, payloadGaps, attributionGaps)
-            ? "Completed with issue signals"
-            : "Completed");
+        !issueSummary.contentMeasured
+            ? "Unknown"
+            : hasRunIssues(failedTools, payloadGaps)
+                ? "Issue signals detected"
+                : "No issue signals detected");
     Double active =
         ApiSessionTimings.available(timing.activeTaskSeconds(), timing.activeTaskPrecision());
     map.put("activeTimeAvailable", active != null);
@@ -884,24 +1085,45 @@ final class SessionDetailParityAnalyzer {
     return map;
   }
 
+  /** 标记原始数值的观测覆盖；引用齐全不等于完整原文已记录。 */
+  private static void addCoverage(Map<String, Object> map, boolean measured) {
+    map.put("contentMeasured", measured);
+    map.put("workloadCallsAvailable", measured);
+    map.put("toolCallsAvailable", measured);
+    map.put("failedToolsAvailable", measured);
+    map.put("subagentRunsAvailable", measured);
+    map.put("payloadCountAvailable", measured);
+    map.put("payloadGapsAvailable", measured);
+    map.put("payloadCoverageBasis", "indexed_payload_references_not_original_completeness");
+    map.put(
+        "coverageExplanation",
+        measured
+            ? "Signals cover observed indexed content only; they do not establish task completion"
+                + " or original-log completeness."
+            : "Session content coverage is unknown; raw zero counts do not establish absence of"
+                + " issues.");
+  }
+
   private static Map<String, Object> diagnosticsMap(DiagnosticsInput input) {
     RunIssueSummary issueSummary = input.issueSummary;
     long totalTools = issueSummary.totalTools;
     long failedTools = issueSummary.failedTools;
     long payloadGaps = issueSummary.payloadGaps;
-    long attributionGaps = issueSummary.attributionGaps;
     List<IssueSeed> issues = issueSummary.issues;
     Map<String, Object> map = new LinkedHashMap<>();
     map.put(
         "runHealth",
-        hasRunIssues(failedTools, payloadGaps, attributionGaps)
-            ? "Completed with issue signals"
-            : "Completed");
+        !issueSummary.contentMeasured
+            ? "Unknown"
+            : hasRunIssues(failedTools, payloadGaps)
+                ? "Issue signals detected"
+                : "No issue signals detected");
     map.put("issueRounds", issueSummary.issueRounds);
     map.put(FIELD_FAILED_TOOLS, failedTools);
     map.put(FIELD_FAILED_TOOLS_RATE, ratioLabel(failedTools, totalTools));
     map.put("payloadGaps", payloadGaps);
-    map.put("attributionGaps", attributionGaps);
+    map.put("attributionGapsAvailable", false);
+    addCoverage(map, issueSummary.contentMeasured);
     map.put("issueStrip", issueStrip(issues));
     map.put(
         "agents",
@@ -963,7 +1185,7 @@ final class SessionDetailParityAnalyzer {
                 workloadPrecision.cacheWrite(),
                 workloadPrecision.output())
             .stream()
-            .allMatch("provider_reported"::equals);
+            .allMatch(PRECISION_REPORTED::equals);
     String shareStatus =
         shareDenominator <= 0
             ? "unavailable"
@@ -1093,7 +1315,7 @@ final class SessionDetailParityAnalyzer {
                     precision.cacheWrite(),
                     precision.output())
                 .stream()
-                .allMatch("provider_reported"::equals)
+                .allMatch(PRECISION_REPORTED::equals)
             || precision.estimatedSessionCount() > 0
             || precision.unavailableSessionCount() > 0
             || precision.unknownSessionCount() > 0;
@@ -1113,7 +1335,7 @@ final class SessionDetailParityAnalyzer {
           "share", !usage || !known ? "unavailable" : ratioLabel(segment.tokens, denominator));
       rowMap.put("shareValue", !usage || !known ? 0.0 : ratioValue(segment.tokens, denominator));
       rowMap.put(
-          "status", "provider_reported".equals(segment.status) ? STATUS_AVAILABLE : segment.status);
+          "status", PRECISION_REPORTED.equals(segment.status) ? STATUS_AVAILABLE : segment.status);
       rowMap.put("precision", segment.status);
       rowMap.put("includedInUsage", usage);
       rowMap.put("shareBasis", usage ? "session_workload_usage" : "not_usage");
@@ -1239,8 +1461,8 @@ final class SessionDetailParityAnalyzer {
     return total;
   }
 
-  private static boolean hasRunIssues(long failedTools, long payloadGaps, long attributionGaps) {
-    return failedTools > 0 || payloadGaps > 0 || attributionGaps > 0;
+  private static boolean hasRunIssues(long failedTools, long payloadGaps) {
+    return failedTools > 0 || payloadGaps > 0;
   }
 
   private static String extractAgentId(String output) {
@@ -1781,7 +2003,7 @@ final class SessionDetailParityAnalyzer {
     final long totalTools;
     final long failedTools;
     final long payloadGaps;
-    final long attributionGaps;
+    final boolean contentMeasured;
     final int issueRounds;
     final List<IssueSeed> issues;
 
@@ -1789,13 +2011,13 @@ final class SessionDetailParityAnalyzer {
         long totalTools,
         long failedTools,
         long payloadGaps,
-        long attributionGaps,
+        boolean contentMeasured,
         int issueRounds,
         List<IssueSeed> issues) {
       this.totalTools = totalTools;
       this.failedTools = failedTools;
       this.payloadGaps = payloadGaps;
-      this.attributionGaps = attributionGaps;
+      this.contentMeasured = contentMeasured;
       this.issueRounds = issueRounds;
       this.issues = List.copyOf(issues);
     }

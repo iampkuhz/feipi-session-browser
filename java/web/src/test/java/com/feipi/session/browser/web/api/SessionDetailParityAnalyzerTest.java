@@ -22,6 +22,76 @@ class SessionDetailParityAnalyzerTest {
   @TempDir Path tempDir;
 
   @Test
+  void unimplementedAttributionMeasurementIsUnavailableNotAnObservedZero() {
+    var result = SessionDetailParityAnalyzer.analyze(healthDetail(true, 0), null, false);
+    assertThat(result.metrics)
+        .doesNotContainKey("attributionGaps")
+        .containsEntry("attributionGapsAvailable", false);
+    assertThat(result.diagnostics)
+        .doesNotContainKey("attributionGaps")
+        .containsEntry("attributionGapsAvailable", false);
+  }
+
+  @Test
+  void metadataOnlyHasUnknownHealthAndUnmeasuredAttributionRatherThanCompletedZeros() {
+    var result = SessionDetailParityAnalyzer.analyze(healthDetail(false, 0), null, false);
+    for (var values : List.of(result.metrics, result.diagnostics)) {
+      assertThat(values)
+          .containsEntry("runHealth", "Unknown")
+          .containsEntry("contentMeasured", false)
+          .containsEntry("payloadGapsAvailable", false)
+          .containsEntry("attributionGapsAvailable", false)
+          .doesNotContainKey("attributionGaps");
+      assertThat(values.toString()).doesNotContain("Completed");
+    }
+    assertThat(result.metrics).containsEntry("workloadCallsAvailable", false);
+  }
+
+  @Test
+  void observedContentWithoutIssuesDoesNotClaimTaskCompletion() {
+    var result = SessionDetailParityAnalyzer.analyze(healthDetail(true, 0), null, false);
+    assertThat(result.metrics).containsEntry("runHealth", "No issue signals detected");
+    assertThat(result.diagnostics)
+        .containsEntry("runHealth", "No issue signals detected")
+        .containsEntry("attributionGapsAvailable", false)
+        .doesNotContainKey("attributionGaps");
+  }
+
+  @Test
+  void observedFailureIsAnIssueSignalNotATaskTerminalStatus() {
+    var result = SessionDetailParityAnalyzer.analyze(healthDetail(true, 1), null, false);
+    assertThat(result.metrics).containsEntry("runHealth", "Issue signals detected");
+    assertThat(result.diagnostics).containsEntry("runHealth", "Issue signals detected");
+  }
+
+  static SessionDetail healthDetail(boolean measured, long failedTools) {
+    var artifact =
+        new com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact(
+            com.feipi.session.browser.domain.normalized.NormalizedConstants.SCHEMA_VERSION,
+            com.feipi.session.browser.domain.normalized.NormalizedAgent.CODEX,
+            List.of(),
+            Map.of(
+                "session_key",
+                "codex:health",
+                "session_id",
+                "health",
+                "contentMeasured",
+                measured,
+                "failedToolCount",
+                failedTools),
+            List.of(),
+            List.of(),
+            List.of(),
+            Map.of(),
+            Map.of());
+    var row =
+        com.feipi.session.browser.index.store.sqlite.mapper.ArtifactRowMapper.toSessionRow(
+            artifact, 0, "fixture-missing");
+    return new SessionDetail(
+        row, List.of(), List.of(), PayloadVisibility.STANDARD, "", "", "fixture");
+  }
+
+  @Test
   @DisplayName("Codex raw rollout 补齐 trace，工具总量保留索引行口径")
   void codexRawRolloutCompletesParityMetrics() throws Exception {
     Path parent = tempDir.resolve("rollout-2026-07-06T10-00-00-parent.jsonl");
@@ -414,15 +484,14 @@ class SessionDetailParityAnalyzerTest {
   }
 
   private static String qoderPureToolOnlyRollout() {
-    return ""
-        + "{\"timestamp\":\"2026-07-06T02:00:00Z\",\"type\":\"session_meta\",\"payload\":{\"id\":\"qoder-pure-tool-only\"}}\n"
+    return "{\"timestamp\":\"2026-07-06T02:00:00Z\",\"type\":\"session_meta\",\"payload\":{\"id\":\"qoder-pure-tool-only\"}}\n"
         + "{\"timestamp\":\"2026-07-06T02:00:01Z\",\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Read\",\"input\":{}}],\"stop_reason\":\"tool_use\"}}\n";
   }
 
   private static String qoderToolOnlyRollout() {
-    return ""
-        + "{\"timestamp\":\"2026-07-06T02:00:00Z\",\"type\":\"session_meta\",\"payload\":{\"id\":\"qoder-tool-only\"}}\n"
-        + "{\"timestamp\":\"2026-07-06T02:00:01Z\",\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"fix it\"}}\n"
+    return "{\"timestamp\":\"2026-07-06T02:00:00Z\",\"type\":\"session_meta\",\"payload\":{\"id\":\"qoder-tool-only\"}}\n"
+        + "{\"timestamp\":\"2026-07-06T02:00:01Z\",\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"fix"
+        + " it\"}}\n"
         + "{\"timestamp\":\"2026-07-06T02:00:02Z\",\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Read\",\"input\":{}}],\"stop_reason\":\"tool_use\"}}\n"
         + "{\"timestamp\":\"2026-07-06T02:00:03Z\",\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"t1\",\"content\":\"data\"}]}}\n"
         + "{\"timestamp\":\"2026-07-06T02:00:04Z\",\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t2\",\"name\":\"Write\",\"input\":{}},{\"type\":\"tool_use\",\"id\":\"t3\",\"name\":\"Edit\",\"input\":{}}],\"stop_reason\":\"tool_use\"}}\n"
@@ -431,11 +500,12 @@ class SessionDetailParityAnalyzerTest {
   }
 
   private static String qoderRollout() {
-    return ""
-        + "{\"timestamp\":\"2026-07-06T02:00:00Z\",\"type\":\"session_meta\",\"payload\":{\"id\":\"qoder-session\"}}\n"
-        + "{\"timestamp\":\"2026-07-06T02:00:01Z\",\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"请帮我修复这个 bug\"}}\n"
+    return "{\"timestamp\":\"2026-07-06T02:00:00Z\",\"type\":\"session_meta\",\"payload\":{\"id\":\"qoder-session\"}}\n"
+        + "{\"timestamp\":\"2026-07-06T02:00:01Z\",\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"请帮我修复这个"
+        + " bug\"}}\n"
         + "{\"timestamp\":\"2026-07-06T02:00:02Z\",\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"我来看看代码\"},{\"type\":\"tool_use\",\"id\":\"tool-1\",\"name\":\"read_file\",\"input\":{\"path\":\"main.java\"}}],\"stop_reason\":\"tool_use\"}}\n"
-        + "{\"timestamp\":\"2026-07-06T02:00:03Z\",\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"tool-1\",\"content\":\"file content here\"}]}}\n"
+        + "{\"timestamp\":\"2026-07-06T02:00:03Z\",\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"tool-1\",\"content\":\"file"
+        + " content here\"}]}}\n"
         + "{\"timestamp\":\"2026-07-06T02:00:04Z\",\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"已找到问题并修复\"}],\"stop_reason\":\"end_turn\"}}\n";
   }
 
@@ -460,15 +530,22 @@ class SessionDetailParityAnalyzerTest {
     ObjectMapper mapper = new ObjectMapper();
     String spawnOutput =
         mapper.writeValueAsString(Map.of("agent_id", "child-00000001", "path", child.toString()));
-    return ""
-        + "{\"timestamp\":\"2026-07-06T02:00:00Z\",\"type\":\"session_meta\",\"payload\":{\"id\":\"parent-session\"}}\n"
-        + "{\"timestamp\":\"2026-07-06T02:00:00Z\",\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"type\":\"input_text\",\"text\":\"/goal 修复失败工具展示\"}]}}\n"
+    return "{\"timestamp\":\"2026-07-06T02:00:00Z\",\"type\":\"session_meta\",\"payload\":{\"id\":\"parent-session\"}}\n"
+        + "{\"timestamp\":\"2026-07-06T02:00:00Z\",\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"type\":\"input_text\",\"text\":\"/goal"
+        + " 修复失败工具展示\"}]}}\n"
         + "{\"timestamp\":\"2026-07-06T02:00:01Z\",\"type\":\"response_item\",\"payload\":{\"type\":\"function_call\",\"call_id\":\"tool-failed\",\"name\":\"exec_command\"}}\n"
-        + "{\"timestamp\":\"2026-07-06T02:00:02Z\",\"type\":\"response_item\",\"payload\":{\"type\":\"function_call_output\",\"call_id\":\"tool-failed\",\"output\":\"Process exited with code 1\\nOutput:\\nboom\"}}\n"
+        + "{\"timestamp\":\"2026-07-06T02:00:02Z\",\"type\":\"response_item\",\"payload\":{\"type\":\"function_call_output\",\"call_id\":\"tool-failed\",\"output\":\"Process"
+        + " exited with code 1\\n"
+        + "Output:\\n"
+        + "boom\"}}\n"
         + "{\"timestamp\":\"2026-07-06T02:00:03Z\",\"type\":\"event_msg\",\"payload\":{\"type\":\"token_count\",\"info\":{\"total_token_usage\":{\"input_tokens\":50,\"cached_input_tokens\":0,\"output_tokens\":10,\"total_tokens\":60}}}}\n"
-        + "{\"timestamp\":\"2026-07-06T02:00:03Z\",\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"type\":\"input_text\",\"text\":\"继续检查 subagent 成功状态\"}]}}\n"
+        + "{\"timestamp\":\"2026-07-06T02:00:03Z\",\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"type\":\"input_text\",\"text\":\"继续检查"
+        + " subagent 成功状态\"}]}}\n"
         + "{\"timestamp\":\"2026-07-06T02:00:04Z\",\"type\":\"response_item\",\"payload\":{\"type\":\"custom_tool_call\",\"call_id\":\"tool-custom\",\"name\":\"apply_patch\"}}\n"
-        + "{\"timestamp\":\"2026-07-06T02:00:05Z\",\"type\":\"response_item\",\"payload\":{\"type\":\"custom_tool_call_output\",\"call_id\":\"tool-custom\",\"output\":\"Exit code: 0\\nOutput:\\nok\"}}\n"
+        + "{\"timestamp\":\"2026-07-06T02:00:05Z\",\"type\":\"response_item\",\"payload\":{\"type\":\"custom_tool_call_output\",\"call_id\":\"tool-custom\",\"output\":\"Exit"
+        + " code: 0\\n"
+        + "Output:\\n"
+        + "ok\"}}\n"
         + "{\"timestamp\":\"2026-07-06T02:00:06Z\",\"type\":\"response_item\",\"payload\":{\"type\":\"function_call\",\"call_id\":\"spawn-child\",\"name\":\"spawn_agent\"}}\n"
         + "{\"timestamp\":\"2026-07-06T02:00:07Z\",\"type\":\"response_item\",\"payload\":{\"type\":\"function_call_output\",\"call_id\":\"spawn-child\",\"output\":"
         + mapper.writeValueAsString(spawnOutput)
@@ -477,28 +554,35 @@ class SessionDetailParityAnalyzerTest {
   }
 
   private static String childRollout() {
-    return ""
-        + "{\"timestamp\":\"2026-07-06T02:01:00Z\",\"type\":\"session_meta\",\"payload\":{\"id\":\"child-00000001\",\"parent_thread_id\":\"parent-session\",\"agent_role\":\"repo-mapper\",\"source\":{\"subagent\":{\"thread_spawn\":{\"parent_thread_id\":\"parent-session\"}}}}}\n"
+    return "{\"timestamp\":\"2026-07-06T02:01:00Z\",\"type\":\"session_meta\",\"payload\":{\"id\":\"child-00000001\",\"parent_thread_id\":\"parent-session\",\"agent_role\":\"repo-mapper\",\"source\":{\"subagent\":{\"thread_spawn\":{\"parent_thread_id\":\"parent-session\"}}}}}\n"
         + "{\"timestamp\":\"2026-07-06T02:01:01Z\",\"type\":\"response_item\",\"payload\":{\"type\":\"function_call\",\"call_id\":\"child-tool\",\"name\":\"exec_command\"}}\n"
-        + "{\"timestamp\":\"2026-07-06T02:01:02Z\",\"type\":\"response_item\",\"payload\":{\"type\":\"function_call_output\",\"call_id\":\"child-tool\",\"output\":\"Exit code: 0\\nOutput:\\nchild ok\"}}\n"
+        + "{\"timestamp\":\"2026-07-06T02:01:02Z\",\"type\":\"response_item\",\"payload\":{\"type\":\"function_call_output\",\"call_id\":\"child-tool\",\"output\":\"Exit"
+        + " code: 0\\n"
+        + "Output:\\n"
+        + "child ok\"}}\n"
         + "{\"timestamp\":\"2026-07-06T02:01:03Z\",\"type\":\"event_msg\",\"payload\":{\"type\":\"token_count\",\"info\":{\"total_token_usage\":{\"input_tokens\":40,\"cached_input_tokens\":10,\"output_tokens\":5,\"total_tokens\":45}}}}\n";
   }
 
   private static String claudeRollout() {
-    return ""
-        + "{\"timestamp\":\"2026-07-06T02:00:00Z\",\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"First manual prompt\"}}\n"
-        + "{\"timestamp\":\"2026-07-06T02:00:01Z\",\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Assistant reply\"}],\"usage\":{\"input_tokens\":10,\"output_tokens\":5}}}\n"
-        + "{\"timestamp\":\"2026-07-06T02:00:02Z\",\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Assistant-only continuation\"}],\"usage\":{\"input_tokens\":20,\"output_tokens\":5}}}\n"
-        + "{\"timestamp\":\"2026-07-06T02:00:03Z\",\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"Second manual prompt\"}}\n"
-        + "{\"timestamp\":\"2026-07-06T02:00:04Z\",\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Second assistant reply\"}],\"usage\":{\"input_tokens\":30,\"output_tokens\":5}}}\n";
+    return "{\"timestamp\":\"2026-07-06T02:00:00Z\",\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"First"
+        + " manual prompt\"}}\n"
+        + "{\"timestamp\":\"2026-07-06T02:00:01Z\",\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Assistant"
+        + " reply\"}],\"usage\":{\"input_tokens\":10,\"output_tokens\":5}}}\n"
+        + "{\"timestamp\":\"2026-07-06T02:00:02Z\",\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Assistant-only"
+        + " continuation\"}],\"usage\":{\"input_tokens\":20,\"output_tokens\":5}}}\n"
+        + "{\"timestamp\":\"2026-07-06T02:00:03Z\",\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"Second"
+        + " manual prompt\"}}\n"
+        + "{\"timestamp\":\"2026-07-06T02:00:04Z\",\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Second"
+        + " assistant reply\"}],\"usage\":{\"input_tokens\":30,\"output_tokens\":5}}}\n";
   }
 
   private static String codexInternalRollout() {
-    return ""
-        + "{\"timestamp\":\"2026-07-06T02:00:00Z\",\"type\":\"session_meta\",\"payload\":{\"id\":\"codex-internal\"}}\n"
-        + "{\"timestamp\":\"2026-07-06T02:00:01Z\",\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"type\":\"input_text\",\"text\":\"<subagent_notification>\\n{\\\"status\\\":{\\\"completed\\\":\\\"PASS\\\"}}\"}]}}\n"
+    return "{\"timestamp\":\"2026-07-06T02:00:00Z\",\"type\":\"session_meta\",\"payload\":{\"id\":\"codex-internal\"}}\n"
+        + "{\"timestamp\":\"2026-07-06T02:00:01Z\",\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"type\":\"input_text\",\"text\":\"<subagent_notification>\\n"
+        + "{\\\"status\\\":{\\\"completed\\\":\\\"PASS\\\"}}\"}]}}\n"
         + "{\"timestamp\":\"2026-07-06T02:00:02Z\",\"type\":\"event_msg\",\"payload\":{\"type\":\"token_count\",\"info\":{\"total_token_usage\":{\"input_tokens\":10,\"cached_input_tokens\":0,\"output_tokens\":5,\"total_tokens\":15}}}}\n"
-        + "{\"timestamp\":\"2026-07-06T02:00:03Z\",\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"type\":\"input_text\",\"text\":\"<codex_internal_context source=\\\"goal\\\">hidden</codex_internal_context>\"}]}}\n"
+        + "{\"timestamp\":\"2026-07-06T02:00:03Z\",\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"type\":\"input_text\",\"text\":\"<codex_internal_context"
+        + " source=\\\"goal\\\">hidden</codex_internal_context>\"}]}}\n"
         + "{\"timestamp\":\"2026-07-06T02:00:04Z\",\"type\":\"event_msg\",\"payload\":{\"type\":\"token_count\",\"info\":{\"total_token_usage\":{\"input_tokens\":30,\"cached_input_tokens\":0,\"output_tokens\":11,\"total_tokens\":41}}}}\n"
         + "{\"timestamp\":\"2026-07-06T02:00:05Z\",\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"type\":\"input_text\",\"text\":\"真正的用户输入\"}]}}\n"
         + "{\"timestamp\":\"2026-07-06T02:00:06Z\",\"type\":\"event_msg\",\"payload\":{\"type\":\"token_count\",\"info\":{\"total_token_usage\":{\"input_tokens\":60,\"cached_input_tokens\":0,\"output_tokens\":18,\"total_tokens\":78}}}}\n";

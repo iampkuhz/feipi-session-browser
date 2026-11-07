@@ -25,6 +25,7 @@ import com.feipi.session.browser.web.api.SessionApiService.SessionApiContext;
 import com.feipi.session.browser.web.api.SessionApiService.SessionDataException;
 import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -100,10 +101,13 @@ public final class SessionApiHandler {
 
           SessionApiContext sessionCtx = ctxOpt.get();
           PayloadLookup lookup = sessionCtx.payloadLookup();
-          Optional<PayloadLookup.PayloadEntry> entryOpt = lookup.lookup(payloadId);
+          Optional<PayloadLookup.PayloadEntry> entryOpt =
+              sessionCtx.artifact() == null && sessionCtx.content() != null
+                  ? sessionCtx.contentReader().payload(payloadId, sessionCtx.detail().visibility())
+                  : lookup.lookup(payloadId);
 
           if (entryOpt.isEmpty()) {
-            List<String> availableIds = lookup.allPayloadIds();
+            List<String> availableIds = lookup == null ? List.of() : lookup.allPayloadIds();
             List<String> sample = availableIds.subList(0, Math.min(availableIds.size(), 10));
             ctx.status(HttpStatus.NOT_FOUND);
             ctx.json(
@@ -137,6 +141,16 @@ public final class SessionApiHandler {
    * @param roundIndex 轮次序号（1-based，已由路由层校验）
    */
   public void handleRound(Context ctx, String agent, String sessionId, int roundIndex) {
+    if (ctx.queryParam("cursor") != null || ctx.queryParam("limit") != null) {
+      handleContentRound(ctx, agent, sessionId, roundIndex, true);
+      return;
+    }
+    Optional<SessionApiContext> contentContext = loadContextOrSend(ctx, agent, sessionId);
+    if (contentContext.isEmpty()) return;
+    if (contentContext.get().artifact() == null && contentContext.get().content() != null) {
+      handleContentRound(ctx, agent, sessionId, roundIndex, true);
+      return;
+    }
     executeWithRound(
         ctx,
         agent,
@@ -146,6 +160,125 @@ public final class SessionApiHandler {
         (sessionCtx, round, roundCalls) -> {
           RoundSummary summary = buildRoundSummary(round, roundCalls, sessionCtx);
           ctx.json(new RoundResponse(roundIndex, summary, ApiResponses.SCHEMA_VERSION));
+        });
+  }
+
+  private void handleContentRound(
+      Context ctx, String agent, String sessionId, int roundIndex, boolean paged) {
+    executeWithExceptionHandling(
+        ctx,
+        agent,
+        sessionId,
+        "round",
+        () -> {
+          var context = loadContextOrSend(ctx, agent, sessionId);
+          if (context.isEmpty()) return;
+          var session = context.get();
+          if (session.content() == null) {
+            ApiSessionDetails.sendError(
+                ctx, HttpStatus.NOT_FOUND, ERROR_NOT_FOUND, "round content unavailable");
+            return;
+          }
+          int limit;
+          try {
+            limit =
+                ctx.queryParam("limit") == null ? 100 : Integer.parseInt(ctx.queryParam("limit"));
+            if (limit < 1 || limit > 500) throw new NumberFormatException();
+          } catch (NumberFormatException exception) {
+            throw (io.javalin.http.BadRequestResponse)
+                new io.javalin.http.BadRequestResponse("limit must be within 1..500")
+                    .initCause(exception);
+          }
+          String scope =
+              session.detail().cacheKey()
+                  + "|"
+                  + ctx.res().getHeader("X-Session-Index-Generation")
+                  + "|"
+                  + agent
+                  + ":"
+                  + sessionId
+                  + "|"
+                  + session.detail().visibility().getValue()
+                  + "|round:"
+                  + roundIndex;
+          long offset;
+          try {
+            offset =
+                ctx.queryParam("cursor") == null
+                    ? 0
+                    : SessionContentCursor.decode(ctx.queryParam("cursor"), scope);
+          } catch (IllegalArgumentException exception) {
+            throw (io.javalin.http.BadRequestResponse)
+                new io.javalin.http.BadRequestResponse("invalid round cursor").initCause(exception);
+          }
+          var reader = session.contentReader();
+          if (roundIndex < 1 || roundIndex > reader.roundIndex().roundCount()) {
+            ApiSessionDetails.sendError(
+                ctx, HttpStatus.NOT_FOUND, ERROR_NOT_FOUND, "round out of range");
+            return;
+          }
+          var window = reader.calls(roundIndex, offset, limit, SessionApiHandler::callSummary);
+          if (offset > window.total())
+            throw new io.javalin.http.BadRequestResponse("cursor exceeds round total");
+          var calls = window.items();
+          var memberIds = new java.util.HashSet<>(calls.stream().map(CallSummary::callId).toList());
+          var tools = new ArrayList<ToolExecutionSummary>();
+          String toolScope = scope + "|tools|" + offset;
+          long toolOffset;
+          try {
+            toolOffset =
+                ctx.queryParam("tool_cursor") == null
+                    ? 0
+                    : SessionContentCursor.decode(ctx.queryParam("tool_cursor"), toolScope);
+          } catch (IllegalArgumentException exception) {
+            throw (io.javalin.http.BadRequestResponse)
+                new io.javalin.http.BadRequestResponse("invalid tool cursor").initCause(exception);
+          }
+          long toolTotal = 0;
+          try (var units = session.content().openCursor()) {
+            while (units.hasNext()) {
+              for (var tool : units.next().toolExecutions()) {
+                if (!memberIds.contains(tool.declaredByCallId())) continue;
+                if (toolTotal >= toolOffset && tools.size() < limit)
+                  tools.add(toolSummary(tool, null));
+                toolTotal++;
+              }
+            }
+          }
+          var assistantTexts = new LinkedHashMap<String, String>();
+          var summary =
+              new RoundSummary(
+                  calls.stream().map(CallSummary::callId).toList(),
+                  tools.stream().map(ToolExecutionSummary::toolCallId).toList(),
+                  tools,
+                  calls,
+                  calls.stream().mapToLong(call -> call.usage().total()).sum(),
+                  false,
+                  "",
+                  assistantTexts);
+          var response = new LinkedHashMap<String, Object>();
+          response.put("roundId", roundIndex);
+          response.put("schemaVersion", ApiResponses.SCHEMA_VERSION);
+          response.put("round", summary);
+          response.put("total", window.total());
+          response.put("membersPaged", paged);
+          response.put("toolTotal", toolTotal);
+          if (toolOffset > toolTotal)
+            throw new io.javalin.http.BadRequestResponse("tool cursor exceeds total");
+          response.put("toolsComplete", toolOffset == 0 && toolTotal == tools.size());
+          response.put(
+              "nextToolCursor",
+              toolOffset + tools.size() < toolTotal
+                  ? SessionContentCursor.encode(toolScope, toolOffset + tools.size())
+                  : null);
+          response.put("assistantTextsArePreviews", true);
+          response.put("assistantTextPreviewsAvailable", false);
+          response.put(
+              "nextCursor",
+              window.nextCursor() == null
+                  ? null
+                  : SessionContentCursor.encode(scope, window.nextCursor()));
+          ctx.json(response);
         });
   }
 
@@ -168,6 +301,34 @@ public final class SessionApiHandler {
       return;
     }
 
+    if (handleCallIdentity(ctx, agent, sessionId, roundIndex, null, callIndex, kind)) return;
+
+    var contentContext = loadContextOrSend(ctx, agent, sessionId);
+    if (contentContext.isEmpty()) return;
+    if (contentContext.get().artifact() == null && contentContext.get().content() != null) {
+      executeWithExceptionHandling(
+          ctx,
+          agent,
+          sessionId,
+          "attribution",
+          () -> {
+            var reader = contentContext.get().contentReader();
+            if (roundIndex < 1 || roundIndex > reader.roundIndex().roundCount() || callIndex < 1) {
+              ApiSessionDetails.sendError(
+                  ctx, HttpStatus.NOT_FOUND, ERROR_NOT_FOUND, "call out of range");
+              return;
+            }
+            var window = reader.calls(roundIndex, callIndex - 1L, 1);
+            if (window.items().isEmpty()) {
+              ApiSessionDetails.sendError(
+                  ctx, HttpStatus.NOT_FOUND, ERROR_NOT_FOUND, "call out of range");
+              return;
+            }
+            sendAttributionResponse(
+                ctx, agent, sessionId, roundIndex, callIndex, kind, window.items().getFirst());
+          });
+      return;
+    }
     executeWithRound(
         ctx,
         agent,
@@ -195,6 +356,58 @@ public final class SessionApiHandler {
         });
   }
 
+  private boolean handleCallIdentity(
+      Context ctx,
+      String agent,
+      String sessionId,
+      Integer requestedRound,
+      String subagentId,
+      int callIndex,
+      String kind) {
+    String callId = ctx.queryParam("call_id");
+    if (callId == null) return false;
+    if (callId.isBlank()) {
+      ApiSessionDetails.sendError(
+          ctx, HttpStatus.BAD_REQUEST, ERROR_BAD_REQUEST, "call_id must not be blank");
+      return true;
+    }
+    executeWithExceptionHandling(
+        ctx,
+        agent,
+        sessionId,
+        "attribution",
+        () -> {
+          var context = loadContextOrSend(ctx, agent, sessionId);
+          if (context.isEmpty()) return;
+          var session = context.get();
+          Optional<NormalizedCall> call;
+          int actualRound;
+          if (session.content() != null) {
+            var reader = session.contentReader();
+            call = reader.findCall(callId);
+            actualRound = reader.roundIndex().roundIndexForCall(callId).orElse(0);
+          } else {
+            call = session.findCall(callId);
+            actualRound = call.map(value -> findRoundIndexForCall(session, value)).orElse(0);
+          }
+          boolean roundMatches = requestedRound == null || requestedRound == actualRound;
+          boolean childMatches =
+              subagentId == null
+                  || call.filter(
+                          value ->
+                              value.scope() == CallScope.SUBAGENT
+                                  && matchesSubagent(value, subagentId))
+                      .isPresent();
+          if (call.isEmpty() || !roundMatches || !childMatches || actualRound < 1) {
+            ApiSessionDetails.sendError(
+                ctx, HttpStatus.NOT_FOUND, ERROR_NOT_FOUND, "call not found in requested scope");
+            return;
+          }
+          sendAttributionResponse(ctx, agent, sessionId, actualRound, callIndex, kind, call.get());
+        });
+    return true;
+  }
+
   /**
    * 处理 subagent attribution API。
    *
@@ -214,6 +427,8 @@ public final class SessionApiHandler {
       return;
     }
 
+    if (handleCallIdentity(ctx, agent, sessionId, null, subagentId, callIndex, kind)) return;
+
     executeWithExceptionHandling(
         ctx,
         agent,
@@ -226,6 +441,32 @@ public final class SessionApiHandler {
           }
 
           SessionApiContext sessionCtx = ctxOpt.get();
+
+          if (sessionCtx.artifact() == null && sessionCtx.content() != null) {
+            int matched = 0;
+            try (var units = sessionCtx.content().openCursor()) {
+              while (units.hasNext()) {
+                for (var call : units.next().calls()) {
+                  if (call.scope() != CallScope.SUBAGENT || !matchesSubagent(call, subagentId))
+                    continue;
+                  matched++;
+                  if (matched == callIndex) {
+                    int round =
+                        sessionCtx
+                            .contentReader()
+                            .roundIndex()
+                            .roundIndexForCall(call.callId())
+                            .orElseThrow();
+                    sendAttributionResponse(ctx, agent, sessionId, round, callIndex, kind, call);
+                    return;
+                  }
+                }
+              }
+            }
+            ApiSessionDetails.sendError(
+                ctx, HttpStatus.NOT_FOUND, ERROR_NOT_FOUND, "subagent call out of range");
+            return;
+          }
 
           // 查找 subagent 调用
           List<NormalizedCall> subagentCalls =
@@ -300,6 +541,24 @@ public final class SessionApiHandler {
         });
   }
 
+  /** 从单个调用提取既有摘要字段，不保留来源单元或正文引用。 */
+  private static CallSummary callSummary(NormalizedCall call) {
+    NormalizedCallUsage usage = call.usage();
+    return new CallSummary(
+        call.callId(),
+        call.callKey(),
+        call.model(),
+        new CallUsage(
+            usage.fresh(), usage.cacheRead(), usage.cacheWrite(), usage.output(), usage.total()),
+        call.scope().name().toLowerCase(),
+        call.request().toolResultIds(),
+        call.response().toolCallIds(),
+        call.timestamp().orElse(""),
+        call.subagentId().orElse(""),
+        call.parentToolCallId().orElse(""),
+        call.parentToolName().orElse(""));
+  }
+
   /** 构建轮次摘要。 */
   private static RoundSummary buildRoundSummary(
       CallRound round, List<NormalizedCall> roundCalls, SessionApiContext sessionCtx) {
@@ -307,26 +566,8 @@ public final class SessionApiHandler {
     long totalTokens = 0;
 
     for (NormalizedCall call : roundCalls) {
-      NormalizedCallUsage usage = call.usage();
-      totalTokens += usage.total();
-      callSummaries.add(
-          new CallSummary(
-              call.callId(),
-              call.callKey(),
-              call.model(),
-              new CallUsage(
-                  usage.fresh(),
-                  usage.cacheRead(),
-                  usage.cacheWrite(),
-                  usage.output(),
-                  usage.total()),
-              call.scope().name().toLowerCase(),
-              call.request().toolResultIds(),
-              call.response().toolCallIds(),
-              call.timestamp().orElse(""),
-              call.subagentId().orElse(""),
-              call.parentToolCallId().orElse(""),
-              call.parentToolName().orElse("")));
+      totalTokens += call.usage().total();
+      callSummaries.add(callSummary(call));
     }
 
     // 查找该轮次关联的工具执行
@@ -516,6 +757,12 @@ public final class SessionApiHandler {
       Context ctx, String agent, String sessionId, String endpointName, ApiEndpointAction action) {
     try {
       action.execute();
+    } catch (IOException e) {
+      ApiSessionDetails.sendError(
+          ctx,
+          HttpStatus.INTERNAL_SERVER_ERROR,
+          "artifact_error",
+          "normalized content read failed");
     } catch (SessionDataException e) {
       LOG.error("{} API 制品加载失败: {}:{}", endpointName, agent, sessionId, e);
       ApiSessionDetails.sendError(
@@ -562,7 +809,7 @@ public final class SessionApiHandler {
      *
      * @throws SessionDataException 制品加载失败
      */
-    void execute() throws SessionDataException;
+    void execute() throws SessionDataException, IOException;
   }
 
   /** 执行已定位 round 的 API 端点逻辑。 */

@@ -123,6 +123,158 @@ class ToolPayloadSemanticsTest {
         .doesNotContain("catalog output");
   }
 
+  @Test
+  void contentPayloadsResolveCallsSequencesCatalogAndToolsAcrossUnits() throws Exception {
+    var call =
+        new NormalizedCall(
+            "cross",
+            1,
+            "C1",
+            CallScope.MAIN,
+            Optional.empty(),
+            Optional.empty(),
+            Optional.of("turn"),
+            "synthetic-model",
+            Optional.empty(),
+            NormalizedCallUsage.empty(),
+            NormalizedCallRequest.empty(),
+            new NormalizedCallResponse(List.of("tool-cross")),
+            List.of(
+                new SourceUnitRefRange(
+                    Optional.of("messages"), 0, 1, List.of(), Optional.of("user"))),
+            List.of(),
+            Map.of(),
+            Map.of());
+    String secret = "{\"api_key\":\"synthetic-secret\",\"command\":\"echo last\"}";
+    var artifact =
+        new NormalizedSessionArtifact(
+            NormalizedConstants.SCHEMA_VERSION,
+            NormalizedAgent.QODER,
+            List.of(),
+            Map.of(),
+            List.of(call),
+            List.of(),
+            List.of(),
+            Map.of(
+                "user",
+                catalog(
+                    "user",
+                    "user_message",
+                    SourceUnitDirection.REQUEST,
+                    Map.of("role", "user", "text", "cross-unit request")),
+                "input",
+                catalog(
+                    "input",
+                    "tool_use",
+                    SourceUnitDirection.RESPONSE,
+                    input("tool-cross", "Bash", secret)),
+                "result",
+                catalog(
+                    "result",
+                    "tool_result",
+                    SourceUnitDirection.REQUEST,
+                    Map.of(
+                        "type",
+                        "tool_result",
+                        "tool_call_id",
+                        "tool-cross",
+                        "content",
+                        "cross-unit result"))),
+            Map.of("messages", List.of("user")));
+    var header =
+        com.feipi.session.browser.domain.normalized.NormalizedSessionContent.fromArtifact(artifact)
+            .header();
+    var units =
+        List.of(
+            new com.feipi.session.browser.domain.normalized.NormalizedContentUnit(
+                0, List.of(), List.of(call), List.of(), List.of(), Map.of(), List.of()),
+            new com.feipi.session.browser.domain.normalized.NormalizedContentUnit(
+                1,
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                Map.of(),
+                List.of(
+                    new com.feipi.session.browser.domain.normalized.NormalizedSequenceChunk(
+                        "messages", 0, List.of("user")))),
+            new com.feipi.session.browser.domain.normalized.NormalizedContentUnit(
+                2,
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                artifact.sourceUnitCatalog(),
+                List.of()));
+    var content =
+        new com.feipi.session.browser.domain.normalized.NormalizedSessionContent() {
+          public com.feipi.session.browser.domain.normalized.NormalizedContentHeader header() {
+            return header;
+          }
+
+          public ContentCursor openCursor() {
+            var iterator = units.iterator();
+            return new ContentCursor() {
+              public boolean hasNext() {
+                return iterator.hasNext();
+              }
+
+              public com.feipi.session.browser.domain.normalized.NormalizedContentUnit next() {
+                return iterator.next();
+              }
+
+              public void close() {}
+            };
+          }
+        };
+    var reader = new SessionContentReader(content, 1);
+    assertThat(reader.payload("main:req:cross", PayloadVisibility.FULL).orElseThrow().content())
+        .isEqualTo("cross-unit request");
+    assertThat(
+            reader.payload("main:resp:cross", PayloadVisibility.STANDARD).orElseThrow().content())
+        .contains("echo last", "[REDACTED]")
+        .doesNotContain("synthetic-secret", "cross-unit result");
+    assertThat(
+            reader.payload("tool:input:tool-cross", PayloadVisibility.FULL).orElseThrow().content())
+        .isEqualTo(secret);
+    assertThat(
+            reader
+                .payload("tool:result:tool-cross", PayloadVisibility.FULL)
+                .orElseThrow()
+                .content())
+        .isEqualTo("cross-unit result");
+    assertThat(reader.payload("main:resp:missing", PayloadVisibility.FULL)).isEmpty();
+  }
+
+  @Test
+  void alreadyVisitedCallPayloadDoesNotSearchForCallIdentityAgain() throws Exception {
+    var call =
+        call(
+            "visited",
+            1,
+            List.of(),
+            List.of(Map.of("role", "assistant", "text", "inline export tail")));
+    var empty =
+        com.feipi.session.browser.domain.normalized.NormalizedSessionContent.fromArtifact(
+            artifact(List.of()));
+    var indexed = new java.util.concurrent.atomic.AtomicBoolean(false);
+    var guarded =
+        new com.feipi.session.browser.domain.normalized.NormalizedSessionContent() {
+          public com.feipi.session.browser.domain.normalized.NormalizedContentHeader header() {
+            return empty.header();
+          }
+
+          public ContentCursor openCursor() throws java.io.IOException {
+            if (indexed.get()) throw new AssertionError("inline payload must not reopen content");
+            return empty.openCursor();
+          }
+        };
+    var reader = new SessionContentReader(guarded, 0);
+    indexed.set(true);
+    assertThat(reader.payload(call, false, PayloadVisibility.FULL).content())
+        .isEqualTo("inline export tail");
+  }
+
   private static SourceUnitCatalogEntry catalog(
       String key, String type, SourceUnitDirection direction, Map<String, Object> payload) {
     return new SourceUnitCatalogEntry(

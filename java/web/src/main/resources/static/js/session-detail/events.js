@@ -171,7 +171,11 @@
     if (actionEl) {
       var action = actionEl.getAttribute('data-action');
 
-      if (action === 'toggle-round') {
+      if (action === 'load-content-page') {
+        event.preventDefault();
+        if (actionEl.loadContentPage) actionEl.loadContentPage();
+        return;
+      } else if (action === 'toggle-round') {
         event.preventDefault();
         event.stopPropagation();
         toggleRound(actionEl);
@@ -185,7 +189,9 @@
       } else if (action.indexOf('status-') === 0) {
         event.preventDefault();
         event.stopPropagation();
-        setFilter(page, action.replace('status-', '').toLowerCase());
+        var status = action.replace('status-', '').toLowerCase();
+        setFilter(page, status);
+        reloadPagedRoundsFilter(status);
       } else if (action === 'toggle-all') {
         event.preventDefault();
         event.stopPropagation();

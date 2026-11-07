@@ -85,7 +85,7 @@ class DashboardResourceApiTest {
   }
 
   @Test
-  @DisplayName("已上报输入的 Dashboard SSR 保留实测 cache ratio badge")
+  @DisplayName("已上报输入的 Dashboard SSR 等待当前粒度数据，不冒显 daily ratio badge")
   void reportedInputKeepsCacheRatioBadge() {
     JavalinTest.test(
         createWebRoot().app(),
@@ -93,7 +93,7 @@ class DashboardResourceApiTest {
           var response = client.get("/dashboard");
           assertThat(response.code()).isEqualTo(200);
           assertThat(response.body().string())
-              .contains("data-kpi-badge-tooltip=\"Cache Read Ratio\"");
+              .containsPattern("(?s)data-kpi-badge-tooltip=\"Cache Read Ratio\"[^>]*>N/A</span>");
         });
   }
 
@@ -113,7 +113,7 @@ class DashboardResourceApiTest {
           var response = client.get("/dashboard");
           assertThat(response.code()).isEqualTo(200);
           assertThat(response.body().string())
-              .doesNotContain("data-kpi-badge-tooltip=\"Cache Read Ratio\"");
+              .containsPattern("(?s)data-kpi-badge-tooltip=\"Cache Read Ratio\"[^>]*>N/A</span>");
         });
   }
 
@@ -144,7 +144,7 @@ class DashboardResourceApiTest {
                   .contains("按 UTC 开始日，按" + grainLabel + "统计 " + scopeLabel + " 新增会话")
                   .contains("该批 " + scopeLabel + " 会话的整段累计 tokens")
                   .contains("该批 " + scopeLabel + " 会话的整段累计 user prompts")
-                  .contains("平均 prompts 的分母为同一批开始会话")
+                  .contains("平均 prompts 的分母为同一批开始会话中的 user 消息实测样本")
                   .contains("不是逐次真实消费日");
             }
           }
@@ -194,6 +194,85 @@ class DashboardResourceApiTest {
           assertThat(body.get("sessionCount").asLong()).isEqualTo(2);
           assertThat(body.get("projectCount").asLong()).isEqualTo(1);
           assertTokens(body.get("tokens"), ApiContractFixture.CLAUDE_CODE);
+        });
+  }
+
+  @Test
+  @DisplayName("summary 和 SSR 使用独立消息样本均值，不用内容覆盖或 legacy 总量作分母分子")
+  void messageMeansAndCoverageRemainIndependentFromContentAndTotals() throws Exception {
+    try (var statement = indexConnection.writerConnection().createStatement()) {
+      statement.executeUpdate(
+          """
+          UPDATE sessions SET content_measured=1,
+            user_message_count=CASE session_key WHEN 'claude_code:s-alpha-001' THEN 0
+              WHEN 'claude_code:s-alpha-002' THEN 6 ELSE 1000 END,
+            assistant_message_count=CASE session_key WHEN 'claude_code:s-alpha-001' THEN 0
+              WHEN 'claude_code:s-alpha-002' THEN 8 ELSE 1000 END,
+            user_message_measured=CASE WHEN agent='claude_code' THEN 1 ELSE 0 END,
+            assistant_message_measured=CASE WHEN agent='claude_code' THEN 1 ELSE 0 END
+          """);
+    }
+    JavalinTest.test(
+        createWebRoot().app(),
+        (testApp, client) -> {
+          var response = client.get("/api/dashboard/summary");
+          assertThat(response.code()).isEqualTo(200);
+          JsonNode body = MAPPER.readTree(response.body().string());
+          assertThat(body.at("/userMessageSampleCount").asLong()).isEqualTo(2);
+          assertThat(body.at("/assistantMessageSampleCount").asLong()).isEqualTo(2);
+          assertThat(body.at("/avgUserMessagesPerSession").asDouble()).isEqualTo(3);
+          assertThat(body.at("/avgAssistantMessagesPerSession").asDouble()).isEqualTo(4);
+          var page = client.get("/dashboard");
+          assertThat(page.code()).isEqualTo(200);
+          assertThat(page.body().string())
+              .contains("user 消息测量样本 2 / 3", "assistant 消息测量样本 2 / 3")
+              .containsPattern(
+                  "(?s)Prompts / Session</span>\\s*<span"
+                      + " class=\"metric-card__secondary-value\">3\\.0</span>")
+              .containsPattern(
+                  "(?s)Avg Assistant Messages</span>\\s*<span"
+                      + " class=\"metric-card__secondary-value\">4\\.0</span>");
+          var absent = client.get("/api/dashboard/summary?agent=codex");
+          assertThat(absent.code()).isEqualTo(200);
+          JsonNode unmeasured = MAPPER.readTree(absent.body().string());
+          assertThat(unmeasured.at("/userMessageSampleCount").asLong()).isZero();
+          assertThat(unmeasured.at("/assistantMessageSampleCount").asLong()).isZero();
+          assertThat(unmeasured.at("/avgUserMessagesPerSession").isNull()).isTrue();
+          assertThat(unmeasured.at("/avgAssistantMessagesPerSession").isNull()).isTrue();
+        });
+  }
+
+  @Test
+  @DisplayName("prompt trend 分别传递实测消息和与样本数，不把 unknown 或原总量当均值依据")
+  void promptTrendPreservesMessageMeasurementWeightsPerCohortAndAgent() throws Exception {
+    try (var statement = indexConnection.writerConnection().createStatement()) {
+      statement.executeUpdate(
+          """
+          UPDATE sessions SET
+            user_message_count=CASE session_key WHEN 'claude_code:s-alpha-001' THEN 0
+              WHEN 'claude_code:s-alpha-002' THEN 6 ELSE 1000 END,
+            user_message_measured=CASE WHEN agent='claude_code' THEN 1 ELSE 0 END
+          """);
+    }
+    JavalinTest.test(
+        createWebRoot().app(),
+        (testApp, client) -> {
+          var response = client.get("/api/dashboard/trends/prompts?grain=week");
+          assertThat(response.code()).isEqualTo(200);
+          JsonNode body = MAPPER.readTree(response.body().string());
+          assertThat(body.at("/points/0/totalPrompts").asLong()).isEqualTo(1000);
+          assertThat(body.at("/points/0/measuredUserMessages").asLong()).isZero();
+          assertThat(body.at("/points/0/userMessageSampleCount").asLong()).isEqualTo(1);
+          assertThat(body.at("/points/0/claudeUserMessageSampleCount").asLong()).isEqualTo(1);
+          assertThat(body.at("/points/0/codexUserMessageSampleCount").asLong()).isZero();
+          assertThat(body.at("/points/1/measuredUserMessages").asLong()).isEqualTo(6);
+          assertThat(body.at("/points/1/userMessageSampleCount").asLong()).isEqualTo(1);
+          assertThat(body.at("/points/1/claudeMeasuredUserMessages").asLong()).isEqualTo(6);
+          var unknown = client.get("/api/dashboard/trends/prompts?agent=codex");
+          assertThat(unknown.code()).isEqualTo(200);
+          JsonNode scoped = MAPPER.readTree(unknown.body().string());
+          assertThat(scoped.at("/points/0/userMessageSampleCount").asLong()).isZero();
+          assertThat(scoped.at("/points/0/measuredUserMessages").asLong()).isZero();
         });
   }
 

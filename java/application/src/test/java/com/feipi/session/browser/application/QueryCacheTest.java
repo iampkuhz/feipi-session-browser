@@ -15,6 +15,33 @@ import org.junit.jupiter.api.Test;
 @DisplayName("QueryCache 测试")
 class QueryCacheTest {
 
+  @Test
+  void publishedGenerationSeparatesWarmEntriesWithoutInvalidation() {
+    var generation = new java.util.concurrent.atomic.AtomicReference<>("one");
+    var cache = new QueryCache(4);
+    cache.setGenerationSupplier(generation::get);
+    assertThat(cache.getOrLoad("q", 1, 3, () -> "old")).isEqualTo("old");
+    generation.set("two");
+    assertThat(cache.getOrLoad("q", 1, 3, () -> "new")).isEqualTo("new");
+  }
+
+  @Test
+  void commitDuringLoaderDoesNotCacheMixedGenerationResult() {
+    var generation = new java.util.concurrent.atomic.AtomicReference<>("one");
+    var cache = new QueryCache(4);
+    cache.setGenerationSupplier(generation::get);
+    cache.getOrLoad(
+        "q",
+        1,
+        3,
+        () -> {
+          generation.set("two");
+          return "mixed";
+        });
+    assertThat(cache.size()).isZero();
+    assertThat(cache.getOrLoad("q", 1, 3, () -> "fresh")).isEqualTo("fresh");
+  }
+
   @Nested
   @DisplayName("基本缓存语义")
   class BasicCacheSemantics {

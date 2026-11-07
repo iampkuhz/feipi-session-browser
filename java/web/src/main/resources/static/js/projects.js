@@ -24,6 +24,8 @@
     /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`=========================================================== * LIST PAGE behaviors (scoped to #projects-table) * ===========================================================` */
 
     /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Sort state ───────────────────────────────────────────` */
+    var projectsSnapshot = window.IndexSnapshot.create();
+    var projectDetailSnapshot = window.IndexSnapshot.create();
     var currentSort = { key: null, ascending: false };
     var projectDetailSortState = { key: null, ascending: false };
 
@@ -163,15 +165,6 @@
         return cleaned;
     }
 
-    function apiFetch(path, params) {
-        var qs = normalizeProjectParams(params || new URLSearchParams());
-        var url = path + (qs.toString() ? '?' + qs.toString() : '');
-        return fetch(url, { headers: { 'Accept': 'application/json' } }).then(function(response) {
-            if (!response.ok) throw new Error('HTTP ' + response.status);
-            return response.json();
-        });
-    }
-
     function getProjectListParams() {
         var params = new URLSearchParams(window.location.search);
         var searchEl = document.getElementById('project-search');
@@ -189,20 +182,17 @@
         params = params || getProjectListParams();
         var qs = normalizeProjectParams(params);
         var url = '/projects' + (qs.toString() ? '?' + qs.toString() : '');
-        Promise.all([
-            apiFetch('/api/projects/summary', qs),
-            apiFetch('/api/projects/rows', qs),
-            apiFetch('/api/projects/active-filters', qs)
-        ]).then(function(parts) {
-            renderProjectSummary(parts[0]);
-            renderProjectRows(parts[1]);
-            renderProjectsActiveFilters(parts[2]);
-            if (replaceState) window.history.replaceState({ api: true }, '', url);
-            else window.history.pushState({ api: true }, '', url);
-        }).catch(function(err) {
-            console.error('Projects API fallback:', err.message || err);
-            window.location.href = url;
-        });
+        projectsSnapshot.load([
+            { path: 'summary', apply: renderProjectSummary },
+            { path: 'rows', apply: function (part) {
+                renderProjectRows(part);
+                if (replaceState) window.history.replaceState({ api: true }, '', url);
+                else window.history.pushState({ api: true }, '', url);
+            } },
+            { path: 'active-filters', apply: renderProjectsActiveFilters }
+        ].map(function (resource) {
+            return { key: 'projects/' + resource.path, url: '/api/projects/' + resource.path + (qs.toString() ? '?' + qs.toString() : ''), apply: resource.apply };
+        }));
     }
 
     function renderProjectSummary(summary) {
@@ -214,7 +204,7 @@
         setMetricCardValue(cards[1], summary.sessionCount);
         setMetricCardValue(cards[2], TokenProvenance.total(summary.tokens, formatCompact));
         TokenProvenance.attach(cards[2], summary.tokens);
-        setMetricCardValue(cards[3], summary.failedTools);
+        setCoveredMetric(cards[3], summary.failedTools, summary.contentSampleCount, summary.sessionCount);
         var match = document.getElementById('projects-match-count');
         if (match) match.textContent = summary.projectCount + ' matching projects';
         updateFilterChip((summary.filters && summary.filters.q) || '');
@@ -246,6 +236,29 @@
         if (!card) return;
         var el = card.querySelector('.metric-card__value');
         if (el) el.textContent = String(value);
+    }
+
+    function observedContentCount(value, samples, total) {
+        var known = typeof samples === 'number' && Number.isInteger(samples) && samples > 0
+            && typeof total === 'number' && samples <= total
+            && typeof value === 'number' && Number.isFinite(value) && value >= 0;
+        if (!known) return 'N/A';
+        return formatNumber(value) + (samples < total ? ' · Observed (' + samples + '/' + total + ')' : '');
+    }
+
+    function contentCoverageDescription(samples, total) {
+        var measured = typeof samples === 'number' && Number.isInteger(samples) && samples >= 0 ? samples : 'N/A';
+        return 'Content-measured samples ' + measured + ' / ' + formatNumber(total)
+            + '。工具调用及失败结果仅为已观察累计；全缺测不是实测 0，部分覆盖不代表完整历史。';
+    }
+
+    function setCoveredMetric(card, value, samples, total) {
+        setMetricCardValue(card, observedContentCount(value, samples, total));
+        var target = card && card.querySelector('.metric-card__value');
+        if (target) {
+            target.setAttribute('data-tooltip', contentCoverageDescription(samples, total));
+            target.setAttribute('aria-description', contentCoverageDescription(samples, total));
+        }
     }
 
     function renderProjectRows(response) {
@@ -296,8 +309,8 @@
             '<td class="agents-cell"><span class="agents-cell__inner">', agentBadges(row), '</span></td>',
             '<td class="numeric mono"><strong>', formatNumber(row.totalSessions), '</strong></td>',
             projectTokenCell(tokens),
-            '<td class="numeric mono">', formatNumber(row.toolCalls), Number(row.failedTools || 0) > 0 ? '<span class="badge err tools-failed" data-tooltip="' + escapeHtml(row.failedTools) + ' failed tool results">' + escapeHtml(row.failedTools) + ' failed</span>' : '', '</td>',
-            '<td class="numeric mono">', formatNumber(row.failedTools), '</td>',
+            '<td class="numeric mono" data-tooltip="', escapeHtml(contentCoverageDescription(row.contentSampleCount, row.totalSessions)), '">', escapeHtml(observedContentCount(row.toolCalls, row.contentSampleCount, row.totalSessions)), row.contentSampleCount > 0 && Number(row.failedTools || 0) > 0 ? '<span class="badge err tools-failed" data-tooltip="' + escapeHtml(row.failedTools) + ' failed tool results">' + escapeHtml(row.failedTools) + ' failed</span>' : '', '</td>',
+            '<td class="numeric mono" data-tooltip="', escapeHtml(contentCoverageDescription(row.contentSampleCount, row.totalSessions)), '">', escapeHtml(observedContentCount(row.failedTools, row.contentSampleCount, row.totalSessions)), '</td>',
             '<td class="text-xs text-muted" title="', escapeHtml(row.firstSeen), '">', escapeHtml(formatDate(row.firstSeen)), '</td>',
             '<td class="text-xs text-muted">', escapeHtml(formatDate(row.lastSeen)), '</td>'
         ].join(''));
@@ -613,50 +626,32 @@
         return params;
     }
 
-    function hydrateProjectDetailFromApis(detailTable) {
+    function hydrateProjectDetailFromApis(detailTable, requestedParams, replaceState) {
         var projectKey = projectKeyFromLocation();
         if (!projectKey || !window.fetch) return;
         var encoded = encodeURIComponent(projectKey);
-        var params = projectDetailParams();
-        Promise.all([
-            apiFetch('/api/projects/' + encoded + '/summary', params),
-            apiFetch('/api/projects/' + encoded + '/token-trend', params),
-            apiFetch('/api/projects/' + encoded + '/agent-mix', params),
-            apiFetch('/api/projects/' + encoded + '/tool-hotspots', params),
-            apiFetch('/api/projects/' + encoded + '/sessions/summary', params),
-            apiFetch('/api/projects/' + encoded + '/sessions/rows', params)
-        ]).then(function(parts) {
-            renderProjectDetailSummary(parts[0]);
-            renderProjectTokenTrend(parts[1]);
-            renderProjectAgentMix(parts[2]);
-            renderToolHotspots(parts[3]);
-            renderProjectSessionSummary(parts[4]);
-            renderProjectSessions(parts[5], detailTable);
-            window.history.replaceState({ api: true }, '', window.location.pathname + (normalizeProjectParams(params).toString() ? '?' + normalizeProjectParams(params).toString() : ''));
-        }).catch(function(err) {
-            console.error('Project Detail API hydration failed:', err.message || err);
-        });
+        var params = normalizeProjectParams(requestedParams || projectDetailParams());
+        var suffix = params.toString() ? '?' + params.toString() : '';
+        projectDetailSnapshot.load([
+            { path: 'summary', apply: renderProjectDetailSummary },
+            { path: 'token-trend', apply: renderProjectTokenTrend },
+            { path: 'agent-mix', apply: renderProjectAgentMix },
+            { path: 'tool-hotspots', apply: renderToolHotspots },
+            { path: 'sessions/summary', apply: renderProjectSessionSummary },
+            { path: 'sessions/rows', apply: function (part) {
+                renderProjectSessions(part, detailTable);
+                var url = window.location.pathname + suffix;
+                if (replaceState === false) window.history.pushState({ api: true }, '', url);
+                else window.history.replaceState({ api: true }, '', url);
+            } }
+        ].map(function (resource) {
+            return { key: 'project/' + resource.path, url: '/api/projects/' + encoded + '/' + resource.path + suffix, apply: resource.apply };
+        }));
     }
 
     function fetchProjectSessions(params, replaceState) {
         var detailTable = document.getElementById('project-sessions-table');
-        var projectKey = projectKeyFromLocation();
-        if (!detailTable || !projectKey) return;
-        var encoded = encodeURIComponent(projectKey);
-        var qs = normalizeProjectParams(params || projectDetailParams());
-        Promise.all([
-            apiFetch('/api/projects/' + encoded + '/sessions/summary', qs),
-            apiFetch('/api/projects/' + encoded + '/sessions/rows', qs)
-        ]).then(function(parts) {
-            renderProjectSessionSummary(parts[0]);
-            renderProjectSessions(parts[1], detailTable);
-            var url = window.location.pathname + (qs.toString() ? '?' + qs.toString() : '');
-            if (replaceState) window.history.replaceState({ api: true }, '', url);
-            else window.history.pushState({ api: true }, '', url);
-        }).catch(function(err) {
-            console.error('Project sessions API fallback:', err.message || err);
-            window.location.search = qs.toString();
-        });
+        if (detailTable) hydrateProjectDetailFromApis(detailTable, params, Boolean(replaceState));
     }
 
     function renderProjectDetailSummary(summary) {
@@ -670,7 +665,7 @@
         TokenProvenance.attach(cards[2], summary.tokens);
         setMetricCardValue(cards[3], TokenProvenance.ratio(summary.tokens, summary.cacheReadRatio));
         TokenProvenance.attach(cards[3], summary.tokens);
-        setMetricCardValue(cards[4], formatNumber(summary.failedTools));
+        setCoveredMetric(cards[4], summary.failedTools, summary.contentSampleCount, summary.totalSessions);
     }
 
     function renderProjectSessionSummary(summary) {
@@ -688,6 +683,50 @@
 
     function renderProjectTokenTrend(response) {
         var points = response && response.points ? response.points : [];
+        var chart = document.querySelector('.project-token-area-chart');
+        if (chart) {
+            chart.replaceChildren();
+            var keys = ['fresh', 'cacheRead', 'cacheWrite', 'output'];
+            var classes = ['fresh', 'cache_read', 'cache_write', 'output'];
+            var max = Math.max.apply(null, [1].concat(points.map(function(point) {
+                var measurement = TokenProvenance.state(point.tokens);
+                if (measurement === 'unknown' || measurement === 'unavailable') return 0;
+                return keys.reduce(function(sum, key) { return sum + Number((point.tokens || {})[key] || 0); }, 0);
+            })));
+            keys.forEach(function(key, layer) {
+                var groups = [];
+                var group = [];
+                points.forEach(function(point, index) {
+                    var tokens = point.tokens || {};
+                    // A missing measurement is a gap, not a zero-valued observation.
+                    var measurement = TokenProvenance.state(tokens);
+                    if (measurement === 'unknown' || measurement === 'unavailable') {
+                        if (group.length) groups.push(group);
+                        group = [];
+                        return;
+                    }
+                    var lower = keys.slice(0, layer).reduce(function(sum, part) { return sum + Number(tokens[part] || 0); }, 0);
+                    var x = points.length === 1 ? 50 : index * 100 / (points.length - 1);
+                    group.push({ x: x, low: 100 - lower / max * 100, high: 100 - (lower + Number(tokens[key] || 0)) / max * 100 });
+                });
+                if (group.length) groups.push(group);
+                groups.forEach(function(segment) {
+                    var top = segment.map(function(point) { return point.x + ',' + point.high; });
+                    var bottom = segment.slice().reverse().map(function(point) { return point.x + ',' + point.low; });
+                    // Give isolated measured days a visible width without bridging unknown days.
+                    if (segment.length === 1) {
+                        var point = segment[0];
+                        var half = Math.min(1, 40 / Math.max(1, points.length));
+                        top = [(point.x - half) + ',' + point.high, (point.x + half) + ',' + point.high];
+                        bottom = [(point.x + half) + ',' + point.low, (point.x - half) + ',' + point.low];
+                    }
+                    var path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    path.setAttribute('class', 'project-area--' + classes[layer]);
+                    path.setAttribute('d', 'M' + top.join(' L') + ' L' + bottom.join(' L') + ' Z');
+                    chart.appendChild(path);
+                });
+            });
+        }
         var wrap = document.querySelector('.project-trend-points');
         if (!wrap) return;
         wrap.replaceChildren.apply(wrap, points.map(function(point) {
@@ -725,7 +764,8 @@
             setMarkup(link, '<span><span class="badge ' + agentBadgeMeta(row.agent).cls + ' badge--has-dot" role="status"><span class="badge-dot badge-dot--' + agentBadgeMeta(row.agent).dot + '" aria-hidden="true"></span>' + agentBadgeMeta(row.agent).shortLabel + '</span></span>'
                 + '<span>' + escapeHtml(formatNumber(row.sessions)) + ' sessions</span>'
                 + '<span>' + escapeHtml(TokenProvenance.total(row.tokens, formatCompact)) + ' tokens</span>'
-                + '<span>' + escapeHtml(formatNumber(row.failedTools)) + ' failed</span>');
+                + '<span data-tooltip="' + escapeHtml(contentCoverageDescription(row.contentSampleCount, row.sessions)) + '">'
+                + escapeHtml(observedContentCount(row.failedTools, row.contentSampleCount, row.sessions)) + ' failed</span>');
             return link;
         }));
     }
@@ -772,10 +812,10 @@
             '<td><span class="badge ', row.agent === 'claude_code' ? 'cc' : (row.agent === 'codex' ? 'cx' : 'qd'), '">', row.agent === 'claude_code' ? 'CC' : (row.agent === 'codex' ? 'CX' : 'QD'), '</span></td>',
             '<td class="mono" title="', escapeHtml(row.model || ''), '">', escapeHtml(row.model || 'Unknown model'), '</td>',
             projectTokenCell(tokens),
-            '<td class="num mono">', formatNumber(row.rounds), '</td><td class="num mono">', formatNumber(row.tools), '</td><td class="num mono">', formatNumber(row.subagents), '</td>',
+            '<td class="num mono" aria-description="', escapeHtml((row.llmCalls == null ? 'Unknown' : formatNumber(row.llmCalls)) + ' LLM calls · ' + (row.assistantMessages == null ? 'Unknown' : formatNumber(row.assistantMessages)) + ' assistant messages'), '">', (row.rounds == null ? "—" : formatNumber(row.rounds)), '</td><td class="num mono">', (row.tools == null ? "—" : formatNumber(row.tools)), '</td><td class="num mono">', (row.subagents == null ? "—" : formatNumber(row.subagents)), '</td>',
             '<td class="num mono" data-wall-duration>', escapeHtml(SessionTiming.value(row.timing, 'wallSeconds')), '</td>',
             '<td class="num mono" data-task-active>', escapeHtml(SessionTiming.value(row.timing, 'activeTaskSeconds')), '</td>',
-            '<td class="', Number(row.failedTools || 0) === 0 ? 'muted' : '', '">', Number(row.failedTools || 0) > 0 ? '<span class="badge err">' + escapeHtml(row.failedTools) + ' failed</span>' : 'No failures', '</td>',
+            '<td class="', Number(row.failedTools || 0) === 0 ? 'muted' : '', '">', row.failedTools == null ? 'Unknown' : Number(row.failedTools) > 0 ? '<span class="badge err">' + escapeHtml(row.failedTools) + ' failed</span>' : 'No failures', '</td>',
             '<td class="mono" title="', escapeHtml(row.createdAt || ''), '">', escapeHtml(formatDate(row.createdAt)), '</td><td class="muted">', escapeHtml(formatDate(row.updatedAt)), '</td>'
         ].join(''));
         TokenProvenance.attach(tr.querySelector('.token-cell'), tokens);

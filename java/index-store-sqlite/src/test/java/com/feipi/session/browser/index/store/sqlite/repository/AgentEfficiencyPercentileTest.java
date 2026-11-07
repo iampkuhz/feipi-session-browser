@@ -82,7 +82,10 @@ class AgentEfficiencyPercentileTest {
     assertThat(rows)
         .extracting(row -> row.agent() + "/" + row.model())
         .containsExactlyInAnyOrder(
-            "claude_code/shared-model", "claude_code/other-model", "codex/shared-model");
+            "claude_code/shared-model",
+            "claude_code/other-model",
+            "codex/shared-model",
+            "qoder/zero-token-model");
     assertThat(rows)
         .filteredOn(row -> row.agent().equals("claude_code") && row.model().equals("shared-model"))
         .singleElement()
@@ -101,6 +104,51 @@ class AgentEfficiencyPercentileTest {
         .filteredOn(row -> row.agent().equals("codex"))
         .singleElement()
         .satisfies(row -> assertThat(row.p95Duration()).isEqualTo(2000));
+  }
+
+  @Test
+  void measuredZeroRatiosRemainZeroAndMissingMeasurementsDoNotContribute() throws Exception {
+    insert("codex", "measured-zero", 1, 100);
+    insert("codex", "measured-zero", 1, 900);
+    insert("codex", "unknown-only", 1, 900);
+    try (var statement = connection.writerConnection().createStatement()) {
+      statement.executeUpdate(
+          """
+          UPDATE sessions SET fresh_input_token_precision = 'provider_reported',
+              cache_read_token_precision = 'provider_reported',
+              cache_write_token_precision = 'provider_reported',
+              output_token_precision = 'provider_reported'
+          WHERE session_id = 'synthetic-0'
+          """);
+      statement.executeUpdate(
+          """
+          UPDATE sessions SET content_measured = 0, failed_tool_count = 99,
+              cache_read_tokens = 900
+          WHERE session_id != 'synthetic-0'
+          """);
+    }
+    var rows = repository.agentEfficiency();
+    assertThat(rows)
+        .filteredOn(row -> row.model().equals("measured-zero"))
+        .singleElement()
+        .satisfies(
+            row -> {
+              assertThat(row.sessionCount()).isEqualTo(2);
+              assertThat(row.contentSampleCount()).isEqualTo(1);
+              assertThat(row.tokenSampleCount()).isEqualTo(1);
+              assertThat(row.failedPerSession()).isEqualTo(0.0);
+              assertThat(row.cacheReuseRatio()).isEqualTo(0.0);
+            });
+    assertThat(rows)
+        .filteredOn(row -> row.model().equals("unknown-only"))
+        .singleElement()
+        .satisfies(
+            row -> {
+              assertThat(row.contentSampleCount()).isZero();
+              assertThat(row.tokenSampleCount()).isZero();
+              assertThat(row.failedPerSession()).isNull();
+              assertThat(row.cacheReuseRatio()).isNull();
+            });
   }
 
   @Test
@@ -135,6 +183,24 @@ class AgentEfficiencyPercentileTest {
       statement.setLong(6, tokens);
       statement.setLong(7, tokens);
       statement.executeUpdate();
+      try (var observed =
+          connection
+              .writerConnection()
+              .prepareStatement(
+                  "UPDATE sessions SET content_measured = 1, started_at = '2026-01-01T00:00:00Z'"
+                      + " WHERE session_key = ?")) {
+        observed.setString(1, agent + ":" + id);
+        observed.executeUpdate();
+      }
+      try (var artifact =
+          connection
+              .writerConnection()
+              .prepareStatement(
+                  "INSERT INTO session_artifacts(session_key, artifact_type, path) VALUES (?,"
+                      + " 'normalized', 'synthetic')")) {
+        artifact.setString(1, agent + ":" + id);
+        artifact.executeUpdate();
+      }
     }
   }
 }

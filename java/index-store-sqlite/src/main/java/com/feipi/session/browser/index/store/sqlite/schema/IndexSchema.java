@@ -31,7 +31,7 @@ public final class IndexSchema {
   private static final Logger log = LoggerFactory.getLogger(IndexSchema.class);
 
   /** 当前 schema 版本，与已注册 migration 数量一致。 */
-  public static final SchemaVersion CURRENT_VERSION = new SchemaVersion(1);
+  public static final SchemaVersion CURRENT_VERSION = new SchemaVersion(6);
 
   /** sessions 表期望的全部列（列名 -> 类型定义），用于验证和修复旧数据库。 */
   private static final Map<String, String> SESSIONS_COLUMNS = buildSessionsColumns();
@@ -127,6 +127,39 @@ public final class IndexSchema {
       }
     }
 
+    Map<String, Set<String>> eventColumns =
+        Map.of(
+            "event_activity_coverage",
+                Set.of(
+                    "session_key",
+                    "observedUserMessages",
+                    "undatedUserMessages",
+                    "supportedUsageEvents",
+                    "undatedUsageEvents",
+                    "unsupportedUsageEvents"),
+            "event_activity_days",
+                Set.of(
+                    "session_key", "epoch_day", "latest_event_timestamp", "observed_user_messages"),
+            "event_activity_tokens",
+                Set.of(
+                    "session_key",
+                    "day_key",
+                    "component",
+                    "reportedTokens",
+                    "reportedSamples",
+                    "estimatedSamples",
+                    "unavailableSamples",
+                    "unknownSamples",
+                    "mixedSamples"));
+    for (var entry : eventColumns.entrySet()) {
+      if (existingTables.contains(entry.getKey())) {
+        Set<String> actual = getTableColumns(conn, entry.getKey());
+        Set<String> missing = new HashSet<>();
+        for (String column : entry.getValue())
+          if (!actual.contains(column.toLowerCase(java.util.Locale.ROOT))) missing.add(column);
+        if (!missing.isEmpty()) missingColumns.put(entry.getKey(), missing);
+      }
+    }
     return new SchemaValidationResult(existingTables, missingColumns);
   }
 
@@ -206,11 +239,11 @@ public final class IndexSchema {
     cols.put("agent", "TEXT NOT NULL CHECK(agent <> '')");
     cols.put("session_id", "TEXT NOT NULL CHECK(session_id <> '')");
     cols.put("title", TEXT_NOT_NULL_DEFAULT_EMPTY);
-    cols.put("project_key", "TEXT NOT NULL CHECK(project_key <> '')");
+    cols.put("project_key", TEXT_NOT_NULL_DEFAULT_EMPTY);
     cols.put("project_name", TEXT_NOT_NULL_DEFAULT_EMPTY);
     cols.put("cwd", TEXT_NOT_NULL_DEFAULT_EMPTY);
     cols.put("started_at", TEXT_NOT_NULL_DEFAULT_EMPTY);
-    cols.put("ended_at", "TEXT NOT NULL CHECK(ended_at <> '')");
+    cols.put("ended_at", TEXT_NOT_NULL_DEFAULT_EMPTY);
     cols.put("duration_seconds", "REAL NOT NULL DEFAULT 0");
     cols.put("model_execution_seconds", "REAL NOT NULL DEFAULT 0");
     cols.put("tool_execution_seconds", "REAL NOT NULL DEFAULT 0");
@@ -233,6 +266,11 @@ public final class IndexSchema {
     cols.put("token_contains_estimated", INTEGER_NOT_NULL_DEFAULT_ZERO);
     cols.put("token_contains_unavailable", INTEGER_NOT_NULL_DEFAULT_ZERO);
     cols.put("token_contains_unknown", "INTEGER NOT NULL DEFAULT 1");
+    cols.put("round_count", "INTEGER");
+    cols.put("llm_call_count", "INTEGER");
+    cols.put("user_message_measured", "INTEGER NOT NULL DEFAULT 0");
+    cols.put("assistant_message_measured", "INTEGER NOT NULL DEFAULT 0");
+    cols.put("content_measured", "INTEGER NOT NULL DEFAULT 0");
     cols.put("timing_json", "TEXT NOT NULL DEFAULT '{}'");
     cols.put("failed_tool_count", INTEGER_NOT_NULL_DEFAULT_ZERO);
     cols.put("subagent_instance_count", INTEGER_NOT_NULL_DEFAULT_ZERO);
@@ -258,7 +296,15 @@ public final class IndexSchema {
 
     /** 判断是否包含全部必需表。 */
     private boolean hasAllRequiredTables() {
-      Set<String> required = Set.of("sessions", "scan_log", "index_metadata", "session_artifacts");
+      Set<String> required =
+          Set.of(
+              "sessions",
+              "scan_log",
+              "index_metadata",
+              "session_artifacts",
+              "event_activity_coverage",
+              "event_activity_days",
+              "event_activity_tokens");
       return existingTables.containsAll(required);
     }
   }

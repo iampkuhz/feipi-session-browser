@@ -78,6 +78,10 @@ body.focus .inspector                  {
   display: flex;
   flex-direction: column;
 }
+/* 快照提交失败时隐藏主区域，不能让布局声明覆盖原生隐藏状态。 */
+.main[hidden] {
+  display: none;
+}
 /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`─── Top bar ───────────────────────────────────────────────────` */
 .topbar {
   height: var(--header-h);

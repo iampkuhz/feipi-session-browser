@@ -44,7 +44,10 @@ class CallBuilderTest {
               Optional.empty(),
               Optional.of("spawn_agent"));
       SourceRecord first =
-          TestSourceRecords.from(assistantEvent("token_count:first", "synthetic-model"), 0);
+          TestSourceRecords.from(
+              assistantEvent("token_count:first", "synthetic-model")
+                  .put("locator", "main.jsonl#event[0]"),
+              0);
       SourceRecord spawn =
           new SourceRecord(
               "main.jsonl#event[1]",
@@ -94,7 +97,10 @@ class CallBuilderTest {
               relation,
               "child response");
       SourceRecord next =
-          TestSourceRecords.from(assistantEvent("token_usage_record:next", "synthetic-model"), 3);
+          TestSourceRecords.from(
+              assistantEvent("token_usage_record:next", "synthetic-model")
+                  .put("locator", "main.jsonl#event[3]"),
+              3);
       List<SourceRecord> records = List.of(first, spawn, output, child, next);
       EventClassifier.ClassifiedEvents classified = EventClassifier.classify(records);
 

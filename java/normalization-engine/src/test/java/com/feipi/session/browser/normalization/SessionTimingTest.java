@@ -16,6 +16,22 @@ import org.junit.jupiter.api.Test;
 /** 执行计时必须来自显式证据，不能从跨夜 call 跨度减工具时间推导。 */
 class SessionTimingTest {
   @Test
+  void incrementalTimingFinishIsRepeatableAndDoesNotRetainSourceRecords() {
+    var accumulator = new SessionTimingCalculator.Accumulator();
+    var first = task("main", 0, "", "turn_duration", null, null, 250L);
+    accumulator.accept(first);
+    accumulator.accept(first);
+    var initial = accumulator.finish(2.0);
+    assertThat(initial.agentTurnSeconds()).isEqualTo(0.25);
+    assertThat(accumulator.finish(2.0)).isEqualTo(initial);
+
+    accumulator.accept(task("main", 1, "", "turn_duration", null, null, 500L));
+    var updated = accumulator.finish(2.0);
+    assertThat(updated.agentTurnSeconds()).isEqualTo(0.75);
+    assertThat(accumulator.finish(2.0)).isEqualTo(updated);
+  }
+
+  @Test
   void overnightGapIsWallTimeNotModelOrActiveTaskTime() {
     var first = SourceRecord.of("main#event[0]", 0, "assistant");
     var last = SourceRecord.of("main#event[1]", 1, "assistant");

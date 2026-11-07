@@ -1,6 +1,7 @@
 package com.feipi.session.browser.source.codex;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -24,6 +25,29 @@ import org.junit.jupiter.api.io.TempDir;
 class CodexDiscoveryTest {
 
   @TempDir Path tempDir;
+
+  @Test
+  void corruptThreadsDatabaseFailsDiscoveryRatherThanReturningPartialIndex() throws IOException {
+    Files.writeString(tempDir.resolve(CodexConstants.THREADS_DB), "not a sqlite database");
+    writeSessionIndex("{\"id\":\"index-only\"}");
+    assertThatThrownBy(() -> CodexDiscovery.discoverSessionsWithMetadata(tempDir))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Codex")
+        .hasMessageContaining(CodexConstants.DIAG_CODE_SQLITE_ERROR);
+  }
+
+  @Test
+  void knownSubagentCannotReenterThroughSessionIndex() throws Exception {
+    try (var connection =
+            java.sql.DriverManager.getConnection(
+                "jdbc:sqlite:" + tempDir.resolve(CodexConstants.THREADS_DB));
+        var statement = connection.createStatement()) {
+      statement.execute("CREATE TABLE threads (id TEXT, thread_source TEXT)");
+      statement.execute("INSERT INTO threads VALUES ('child', 'subagent')");
+    }
+    writeSessionIndex("{\"id\":\"child\"}");
+    assertThat(CodexDiscovery.discoverSessionsWithMetadata(tempDir)).isEmpty();
+  }
 
   /** 写入 session_index.jsonl 文件。 */
   private void writeSessionIndex(String... lines) throws IOException {

@@ -10,6 +10,12 @@ const INPUTS = {
 const RESPONSE = '可见 assistant 文本\nRead tool-a\n' + INPUTS['tool-a'] + '\nBash tool-b\n' + INPUTS['tool-b'];
 const REQUEST = '合成 user 输入\ntool_result previous-tool: synthetic previous result';
 
+// Keep the real fixture snapshot identity when replacing only synthetic content.
+async function fulfillIndexedJson(route, json) {
+  const response = await route.fetch();
+  await route.fulfill({ response, status: 200, json });
+}
+
 async function installTraceFixture(page) {
   const calls = [
     { callId: 'synthetic-call-7', callKey: 'C7', scope: 'main', model: 'fixture-model', usage: { total: 200 }, responseToolCallIds: ['tool-a'] },
@@ -20,8 +26,8 @@ async function installTraceFixture(page) {
     { toolCallId: 'tool-b', name: 'Bash', declaredByCallId: calls[1].callId, inputPreview: COMMAND, durationMs: 0, status: 'success' },
     { toolCallId: 'tool-missing', name: 'Read', declaredByCallId: calls[1].callId, status: 'unknown' },
   ];
-  await page.route(`**${API}/rounds`, (route) => route.fulfill({ json: { rounds: [{ roundIndex: 1, callCount: 2, toolCallCount: 3, tokens: { total: 200 }, status: 'ok', parity: { summary: 'Read × 2 · Bash × 1' } }] } }));
-  await page.route(`**${API}/round/1`, (route) => route.fulfill({ json: { round: { calls, tools, toolCallIds: tools.map((tool) => tool.toolCallId), callAssistantTexts: { 'synthetic-call-7': '可见 assistant 文本' } } } }));
+  await page.route(`**${API}/rounds`, (route) => fulfillIndexedJson(route, { rounds: [{ roundIndex: 1, callCount: 2, toolCallCount: 3, tokens: { total: 200 }, status: 'ok', parity: { summary: 'Read × 2 · Bash × 1' } }] }));
+  await page.route(`**${API}/round/1`, (route) => fulfillIndexedJson(route, { round: { calls, tools, toolCallIds: tools.map((tool) => tool.toolCallId), callAssistantTexts: { 'synthetic-call-7': '可见 assistant 文本' } } }));
   await page.route(`**${API}/payload/*`, (route) => {
     const id = decodeURIComponent(route.request().url().split('/payload/')[1]);
     let kind;
@@ -35,7 +41,7 @@ async function installTraceFixture(page) {
       kind = side === 'req' ? 'llm_request' : 'llm_response';
       content = side === 'req' ? REQUEST : RESPONSE;
     }
-    return route.fulfill({ json: { kind, content: content || '', status: content ? 'available' : 'missing', truncated: false } });
+    return fulfillIndexedJson(route, { kind, content: content || '', status: content ? 'available' : 'missing', truncated: false });
   });
   await page.goto(SESSION);
   await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');

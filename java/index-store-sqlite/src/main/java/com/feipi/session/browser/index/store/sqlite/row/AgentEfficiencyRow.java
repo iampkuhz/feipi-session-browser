@@ -27,6 +27,9 @@ import jakarta.validation.constraints.PositiveOrZero;
  * @param cacheReuseRatio 缓存复用比率，null 表示无数据
  * @param failedPerSession 每会话失败数，null 表示无数据
  * @param tokenProvenance 相同查询范围的四段计量来源
+ * @param durationSampleCount 具有有效墙钟时长的内容样本数
+ * @param tokenSampleCount 具有完整提供方令牌计量的样本数
+ * @param contentSampleCount 具有可读取规范化内容的样本数
  */
 public record AgentEfficiencyRow(
     /* 代理类型标识。 */ @NotBlank String agent,
@@ -39,8 +42,41 @@ public record AgentEfficiencyRow(
     /* 每轮工具调用数，null 表示无数据。 */ @Finite @PositiveOrZero Double toolsPerRound,
     /* 缓存复用比率，null 表示无数据。 */ @Ratio Double cacheReuseRatio,
     /* 每会话失败数，null 表示无数据。 */ @Finite @PositiveOrZero Double failedPerSession,
-    /* 相同查询范围的四段计量来源。 */ TokenProvenance tokenProvenance)
+    /* 相同查询范围的四段计量来源。 */ TokenProvenance tokenProvenance,
+    @PositiveOrZero long durationSampleCount,
+    @PositiveOrZero long tokenSampleCount,
+    @PositiveOrZero long contentSampleCount)
     implements AgentEfficiency {
+
+  /** 兼容未提供测量样本数的调用者；不推断覆盖。 */
+  public AgentEfficiencyRow(
+      String agent,
+      String model,
+      long sessionCount,
+      double avgDuration,
+      double p95Duration,
+      long avgTotalTokens,
+      double avgTools,
+      Double toolsPerRound,
+      Double cacheReuseRatio,
+      Double failedPerSession,
+      TokenProvenance tokenProvenance) {
+    this(
+        agent,
+        model,
+        sessionCount,
+        avgDuration,
+        p95Duration,
+        avgTotalTokens,
+        avgTools,
+        toolsPerRound,
+        cacheReuseRatio,
+        failedPerSession,
+        tokenProvenance,
+        0,
+        0,
+        0);
+  }
 
   /** 紧凑构造器，校验 record component 约束。 */
   public AgentEfficiencyRow {
@@ -60,7 +96,10 @@ public record AgentEfficiencyRow(
         toolsPerRound,
         cacheReuseRatio,
         failedPerSession,
-        tokenProvenance);
+        tokenProvenance,
+        durationSampleCount,
+        tokenSampleCount,
+        contentSampleCount);
   }
 
   /** 兼容未提供精度的旧调用点，不把旧数值推断为上报。 */

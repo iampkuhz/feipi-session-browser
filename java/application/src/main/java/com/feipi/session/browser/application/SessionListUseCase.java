@@ -6,11 +6,15 @@ import com.feipi.session.browser.index.api.query.SessionListAggregate;
 import com.feipi.session.browser.index.api.query.SessionListSummary;
 import com.feipi.session.browser.index.api.query.SessionQueryPort;
 import com.feipi.session.browser.index.api.query.SessionRecord;
+import com.feipi.session.browser.query.api.PageRequest;
 import com.feipi.session.browser.query.api.PageResult;
+import com.feipi.session.browser.query.api.ProjectFilter;
 import com.feipi.session.browser.query.api.SessionAnomalySummary;
 import com.feipi.session.browser.query.api.SessionListFilter;
+import com.feipi.session.browser.query.api.Sort;
 import com.feipi.session.browser.validation.ValidationSupport;
 import jakarta.validation.constraints.NotNull;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -63,6 +67,34 @@ public final class SessionListUseCase {
 
     List<SessionAnomalySummary> anomalies = AnomalyDetector.detectAll(page.items());
     return new AnnotatedPageResult(page, anomalies);
+  }
+
+  /**
+   * 逐页读取项目的全部会话，项目聚合不能只取列表第一页。
+   *
+   * <p>保留单次查询的分页上限，不将全部条目塞入分页缓存。HTTP 发布代守卫负责丢弃跨代读取的结果。
+   *
+   * @param projectKey 项目键
+   * @return 按开始时间和稳定会话键排序的完整项目会话
+   */
+  public List<SessionRecord> allForProject(String projectKey) {
+    SessionListFilter filter =
+        SessionListFilter.defaults()
+            .withProject(ProjectFilter.of(projectKey))
+            .withSort(Sort.ofSession("started_at", "asc"));
+    List<SessionRecord> sessions = new ArrayList<>();
+    int offset = 0;
+    while (true) {
+      PageResult<SessionRecord> page =
+          repository.listSessions(
+              filter.withPage(PageRequest.ofOffset(offset, PageRequest.MAX_LIMIT)));
+      sessions.addAll(page.items());
+      if (page.size() < PageRequest.MAX_LIMIT
+          || (page.totalCount() >= 0 && sessions.size() >= page.totalCount())) {
+        return List.copyOf(sessions);
+      }
+      offset = Math.addExact(offset, page.size());
+    }
   }
 
   /**

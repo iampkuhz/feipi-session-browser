@@ -22,6 +22,19 @@ import org.junit.jupiter.api.Test;
 @DisplayName("PebbleEnvironment 模板引擎测试")
 class PebbleEnvironmentTest {
 
+  @Test
+  void missingBuildVersionDoesNotInventProductVersion() {
+    String html = new PebbleEnvironment().render("base.html", Map.of());
+    assertThat(html).contains("Version unknown").doesNotContain("v0.9.0");
+  }
+
+  @Test
+  void renderedVersionComesFromTheBuildEntryPoint() {
+    String html =
+        new PebbleEnvironment("templates", "synthetic-build-42").render("base.html", Map.of());
+    assertThat(html).contains("vsynthetic-build-42").doesNotContain("v0.9.0");
+  }
+
   @Nested
   @DisplayName("引擎创建")
   class EngineCreation {

@@ -35,6 +35,7 @@ public final class PebbleEnvironment {
   private static final SafeMarkdownRenderer MARKDOWN_RENDERER = new SafeMarkdownRenderer();
 
   private final PebbleEngine engine;
+  private final String appVersion;
 
   /**
    * 使用默认 classpath 模板目录创建 Pebble 环境。
@@ -51,7 +52,19 @@ public final class PebbleEnvironment {
    * @param templateDirectory classpath 下的模板目录路径
    */
   public PebbleEnvironment(String templateDirectory) {
+    this(templateDirectory, null);
+  }
+
+  /**
+   * 使用启动入口提供的实际构建版本，不从当前工作目录推测。
+   *
+   * @param templateDirectory classpath 模板目录
+   * @param appVersion 实际构建版本，可缺失
+   */
+  public PebbleEnvironment(String templateDirectory, String appVersion) {
     Objects.requireNonNull(templateDirectory, "templateDirectory 不得为 null");
+    this.appVersion =
+        appVersion == null || appVersion.isBlank() ? "Version unknown" : "v" + appVersion;
     ClasspathLoader loader = new ClasspathLoader();
     loader.setPrefix(templateDirectory);
     this.engine =
@@ -85,7 +98,9 @@ public final class PebbleEnvironment {
     try {
       PebbleTemplate template = engine.getTemplate(templateName);
       StringWriter writer = new StringWriter();
-      template.evaluate(writer, context);
+      Map<String, Object> variables = new HashMap<>(context);
+      variables.put("app_version", appVersion);
+      template.evaluate(writer, variables);
       return writer.toString();
     } catch (TemplateRenderException e) {
       throw e;

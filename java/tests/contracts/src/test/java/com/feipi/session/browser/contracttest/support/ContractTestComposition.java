@@ -2,12 +2,17 @@ package com.feipi.session.browser.contracttest.support;
 
 import com.feipi.session.browser.application.QueryCache;
 import com.feipi.session.browser.application.QueryCompositionRoot;
+import com.feipi.session.browser.application.sessiondetail.NormalizedArtifactReader;
+import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
+import com.feipi.session.browser.domain.normalized.NormalizedSessionContent;
 import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
 import com.feipi.session.browser.index.store.sqlite.loader.NormalizedArtifactLoader;
 import com.feipi.session.browser.index.store.sqlite.repository.SqliteAggregateQueryRepository;
 import com.feipi.session.browser.index.store.sqlite.repository.SqliteSessionDetailRepository;
 import com.feipi.session.browser.index.store.sqlite.repository.SqliteSessionQueryRepository;
 import com.feipi.session.browser.index.store.sqlite.schema.SchemaVersion;
+import java.io.IOException;
+import java.nio.file.Path;
 
 /** contract 测试专用组合辅助器，用于集中维护构造器 wiring。 */
 public final class ContractTestComposition {
@@ -31,7 +36,17 @@ public final class ContractTestComposition {
         sessionRepository,
         aggregateRepository,
         detailRepository,
-        NormalizedArtifactLoader::load,
+        new NormalizedArtifactReader() {
+          @Override
+          public NormalizedSessionArtifact load(Path path) throws IOException {
+            return NormalizedArtifactLoader.load(path);
+          }
+
+          @Override
+          public NormalizedSessionContent open(Path path) throws IOException {
+            return NormalizedArtifactLoader.open(path);
+          }
+        },
         schemaVersion.version(),
         cache);
   }

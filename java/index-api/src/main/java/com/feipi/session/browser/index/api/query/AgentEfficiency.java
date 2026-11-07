@@ -38,4 +38,19 @@ public interface AgentEfficiency {
   default TokenProvenance tokenProvenance() {
     return TokenProvenance.unknown(sessionCount());
   }
+
+  /** 返回可验证起止时间的 wall 时长样本数，包含实测零。 */
+  default long durationSampleCount() {
+    return 0;
+  }
+
+  /** 返回四段 token 均由 provider 上报的完整样本数，包含实测零。 */
+  default long tokenSampleCount() {
+    return 0;
+  }
+
+  /** 返回存在 normalized artifact 的内容观测样本数，包含观测到的零。 */
+  default long contentSampleCount() {
+    return 0;
+  }
 }

@@ -50,6 +50,31 @@ public interface SessionRecord {
   /** 返回会话的运行时来源标识。 */
   String source();
 
+  /** 返回实测逻辑轮数，旧索引或缺内容为未知。 */
+  default Long roundCount() {
+    return null;
+  }
+
+  /** 返回实测 LLM 调用数，与助手消息数独立。 */
+  default Long llmCallCount() {
+    return null;
+  }
+
+  /** 内容指标是否可测；与 token 可用性无关。 */
+  default boolean contentMeasured() {
+    return false;
+  }
+
+  /** 用户消息数是否具备明确角色观测依据，不代表原文完整。 */
+  default boolean userMessageMeasured() {
+    return false;
+  }
+
+  /** 助手消息数是否具备明确角色观测依据，不代表原文完整。 */
+  default boolean assistantMessageMeasured() {
+    return false;
+  }
+
   /** 返回会话中的用户消息数。 */
   long userMessageCount();
 

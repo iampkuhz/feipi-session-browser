@@ -66,6 +66,11 @@ public record Migration(SchemaVersion version, String description, String sqlRes
         new Migration(
             new SchemaVersion(1),
             "初始 schema：sessions, scan_log, index_metadata, session_artifacts",
-            "sql/V001__initial_schema.sql"));
+            "sql/V001__initial_schema.sql"),
+        new Migration(new SchemaVersion(2), "保留未知项目与时间", "sql/V002__unknown_metadata.sql"),
+        new Migration(new SchemaVersion(3), "独立内容指标", "sql/V003__content_metrics.sql"),
+        new Migration(new SchemaVersion(4), "独立消息测量覆盖", "sql/V004__message_measurement.sql"),
+        new Migration(new SchemaVersion(5), "扫描失败安全详情", "sql/V005__scan_failure_details.sql"),
+        new Migration(new SchemaVersion(6), "事件日观察事实", "sql/V006__event_activity.sql"));
   }
 }

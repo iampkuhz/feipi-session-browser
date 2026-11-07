@@ -17,6 +17,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -91,8 +92,8 @@ public final class IncrementalScanEngine {
   /** 每 N 个候选项 flush 一次 index writer。 */
   private static final int FLUSH_INTERVAL = 100;
 
-  /** 当前 scan logic 版本；版本 8 重算旧索引中缺失的 Codex event_msg 正文，并保留 Qoder 修复。 */
-  public static final int CURRENT_SCAN_LOGIC_VERSION = 8;
+  /** 当前扫描逻辑版本；重建显式用户边界后的工具归属，并保留来源identity、事件日与计量语义。 */
+  public static final int CURRENT_SCAN_LOGIC_VERSION = 18;
 
   private final NormalizationEngine normalizationEngine;
   private final NormalizedArtifactWriter artifactWriter;
@@ -200,9 +201,17 @@ public final class IncrementalScanEngine {
     long startMs = clock.millis();
     double startEpoch = startMs / 1000.0;
 
+    // 每次扫描使用不可变制品代，失败不得覆盖上一已发布代。
+    config =
+        new ScanConfig(
+            config.sourceEntries(),
+            config.artifactOutputDir().resolve(UUID.randomUUID().toString()),
+            config.agentFilter(),
+            config.parseParallelism());
+
     // 确保 artifact 输出目录存在
     try {
-      Files.createDirectories(config.artifactOutputDir());
+      Files.createDirectories(config.artifactOutputDir().getParent());
     } catch (IOException e) {
       log.error("无法创建 artifact 输出目录: {}", config.artifactOutputDir(), e);
       return buildErrorSummary(startMs, e.getMessage());
@@ -262,11 +271,11 @@ public final class IncrementalScanEngine {
             storedFingerprints.size());
         rebuildTriggered = true;
 
-        // 真 full rebuild：DELETE 旧 sessions 和 artifacts，避免残留
+        // 仅重建所选来源，未扫描来源及全局旧版本保持不动。
         try {
           long phaseStart = System.nanoTime();
           if (progress != null) progress.onPhaseStart("clear_index");
-          indexWriter.clearExistingIndex();
+          indexWriter.clearExistingIndex(config.agentFilter());
           if (progress != null)
             progress.onPhaseEnd("clear_index", (System.nanoTime() - phaseStart) / 1_000_000);
           storedFingerprints = Map.of(); // 清空内存指纹缓存
@@ -447,17 +456,7 @@ public final class IncrementalScanEngine {
           }
 
           if (processedInBatch >= FLUSH_INTERVAL && indexWriter.pendingWriteCount() > 0) {
-            try {
-              long phaseStart = System.nanoTime();
-              if (progress != null) progress.onPhaseStart("flush");
-              indexWriter.flushPendingWrites();
-              if (progress != null)
-                progress.onPhaseEnd("flush", (System.nanoTime() - phaseStart) / 1_000_000);
-            } catch (RuntimeException e) {
-              log.error("index writer flush 失败", e);
-              issues.add(
-                  new ScanIssue(
-                      "", agentValue, ScanIssue.ScanPhase.INDEX_WRITE, exceptionMessage(e)));
+            if (!ScanFlush.flush(indexWriter, progress, "flush", agentValue, issues)) {
               scanFailed = true;
             }
             processedInBatch = 0;
@@ -471,15 +470,7 @@ public final class IncrementalScanEngine {
 
       // 6. 最终 flush
       if (!scanFailed && indexWriter.pendingWriteCount() > 0) {
-        try {
-          long phaseStart = System.nanoTime();
-          if (progress != null) progress.onPhaseStart("flush_final");
-          indexWriter.flushPendingWrites();
-          if (progress != null)
-            progress.onPhaseEnd("flush_final", (System.nanoTime() - phaseStart) / 1_000_000);
-        } catch (RuntimeException e) {
-          log.error("index writer 最终 flush 失败", e);
-          issues.add(new ScanIssue("", "", ScanIssue.ScanPhase.INDEX_WRITE, exceptionMessage(e)));
+        if (!ScanFlush.flush(indexWriter, progress, "flush_final", "", issues)) {
           scanFailed = true;
         }
       }
@@ -491,8 +482,16 @@ public final class IncrementalScanEngine {
       double endEpoch = endMs / 1000.0;
       try {
         if (scanFailed) {
-          indexWriter.failScan(scanLogIdFinal, endEpoch, perSourceCountByValue);
+          indexWriter.failScan(
+              scanLogIdFinal,
+              endEpoch,
+              perSourceCountByValue,
+              Math.max(errorCount, issues.size()),
+              ScanDiagnostics.failures(issues));
         } else {
+          if (config.agentFilter().isEmpty()) {
+            indexWriter.saveScanLogicVersion(CURRENT_SCAN_LOGIC_VERSION, clock.instant());
+          }
           indexWriter.completeScan(scanLogIdFinal, endEpoch, perSourceCountByValue);
         }
         scanLogFinalized = true;
@@ -500,17 +499,6 @@ public final class IncrementalScanEngine {
         issues.add(new ScanIssue("", "", ScanIssue.ScanPhase.INDEX_WRITE, exceptionMessage(e)));
         scanFailed = true;
         log.error("scan_log 完成记录失败", e);
-      }
-
-      // 8. 更新 scan logic version（仅在 scan_log 成功完成后）
-      if (!scanFailed && scanLogFinalized) {
-        try {
-          indexWriter.saveScanLogicVersion(CURRENT_SCAN_LOGIC_VERSION, clock.instant());
-        } catch (RuntimeException e) {
-          issues.add(new ScanIssue("", "", ScanIssue.ScanPhase.INDEX_WRITE, exceptionMessage(e)));
-          scanLogFinalized = false;
-          log.warn("保存 scan logic version 失败", e);
-        }
       }
 
       long duration = endMs - startMs;
@@ -527,7 +515,7 @@ public final class IncrementalScanEngine {
           totalCandidates,
           successCount,
           skippedByAgeCount,
-          errorCount,
+          Math.max(errorCount, issues.size()),
           duration,
           scanLogIdFinal,
           perSourceCount,
@@ -601,7 +589,7 @@ public final class IncrementalScanEngine {
             0,
             0,
             0,
-            0,
+            1,
             endMs - startMs,
             0,
             Map.of(),

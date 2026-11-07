@@ -180,7 +180,7 @@ public final class PayloadCallContentExtractor {
   }
 
   /** 从内联 sourceUnits 中提取匹配 role 和 type 的文本。 */
-  private static String resolveInline(
+  static String resolveInline(
       List<Map<String, Object>> sourceUnits,
       String targetRole,
       String targetType,
@@ -320,7 +320,7 @@ public final class PayloadCallContentExtractor {
   }
 
   /** 从 catalog 条目中提取文本。 */
-  private static String catalogEntryText(SourceUnitCatalogEntry entry) {
+  static String catalogEntryText(SourceUnitCatalogEntry entry) {
     Optional<String> text = entry.text();
     if (text.isPresent() && !text.get().isEmpty()) {
       return text.get();

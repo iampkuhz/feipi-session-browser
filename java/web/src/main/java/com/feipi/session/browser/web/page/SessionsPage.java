@@ -8,6 +8,7 @@ import com.feipi.session.browser.index.api.query.SessionRecord;
 import com.feipi.session.browser.query.api.PageResult;
 import com.feipi.session.browser.query.api.SessionAnomalySummary;
 import com.feipi.session.browser.query.api.SessionListFilter;
+import com.feipi.session.browser.web.IndexSnapshotGuard;
 import com.feipi.session.browser.web.model.PaginationModel;
 import com.feipi.session.browser.web.template.PebbleEnvironment;
 import io.javalin.http.Context;
@@ -78,6 +79,8 @@ public final class SessionsPage {
 
       // 组装模板上下文
       Map<String, Object> context = new HashMap<>();
+      context.put(
+          IndexSnapshotGuard.PAGE_GENERATION, ctx.attribute(IndexSnapshotGuard.PAGE_GENERATION));
       context.put("sessions", page.items());
       context.put("anomalies", anomalies);
       context.put("total_count", totalCount);

@@ -182,6 +182,22 @@ class ImportedSessionAnalysisIntegrationTest {
                     0,
                     1,
                     0));
+        for (var analysis : List.of(reported, missing)) {
+          assertThat(analysis.artifact().calls()).hasSize(1);
+          var call = analysis.artifact().calls().getFirst();
+          var fullPayload = PayloadLookup.fromArtifact(analysis.artifact(), PayloadVisibility.FULL);
+          assertThat(fullPayload.lookup("main:resp:" + call.callId()).orElseThrow().content())
+              .contains("import answer");
+          assertThat(fullPayload.lookup("main:req:" + call.callId()).orElseThrow().content())
+              .contains("import question");
+          assertThat(fullPayload.lookup("tool:input:tool-1").orElseThrow().content())
+              .contains("echo synthetic");
+          assertThat(fullPayload.lookup("tool:result:tool-1").orElseThrow().content())
+              .isEqualTo("synthetic output");
+          assertThat(analysis.artifact().toolExecutions())
+              .singleElement()
+              .satisfies(tool -> assertThat(tool.declaredByCallId()).isEqualTo(call.callId()));
+        }
       }
     }
   }
@@ -226,14 +242,7 @@ class ImportedSessionAnalysisIntegrationTest {
       assertThat(codexAnalysis.sessionRow().tokenProvenance())
           .isEqualTo(
               new TokenProvenance(
-                  "provider_reported",
-                  "provider_reported",
-                  "mixed",
-                  "provider_reported",
-                  "",
-                  0,
-                  1,
-                  0));
+                  "mixed", "provider_reported", "mixed", "provider_reported", "", 0, 1, 0));
     }
   }
 

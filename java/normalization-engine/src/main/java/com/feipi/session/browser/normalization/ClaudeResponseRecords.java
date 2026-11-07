@@ -94,7 +94,8 @@ final class ClaudeResponseRecords {
         first.responseMessageId(),
         stopReason,
         first.timing(),
-        first.metaContext());
+        first.metaContext(),
+        first.messageRole());
   }
 
   /**

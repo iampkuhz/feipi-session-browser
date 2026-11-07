@@ -35,4 +35,9 @@ public interface ProjectListSummary {
   default TokenProvenance tokenProvenance() {
     return TokenProvenance.unknown(sessionCount());
   }
+
+  /** 返回显式 content_measured 会话数，保留已观测的零，不代表完整源覆盖。 */
+  default long contentSampleCount() {
+    return 0;
+  }
 }

@@ -58,6 +58,32 @@ class SessionApiServiceConcurrencyTest {
     service = new SessionApiService(detailUseCase);
   }
 
+  @Test
+  void publishedGenerationRefreshesWarmContextWithoutCallbackInvalidation() {
+    var repository =
+        new com.feipi.session.browser.index.store.sqlite.repository.SqliteSessionQueryRepository(
+            indexConnection);
+    var scoped =
+        new SessionApiService(detailUseCase::getDetailContext, repository::publishedGeneration);
+    String key = "codex:generation";
+    long first = writer.startScan(0, "full");
+    writer.writeMissingTranscriptSession(
+        new MissingTranscriptSession(
+            key, "codex", "generation", "Old", "", "", "", "", "", "codex", Instant.EPOCH));
+    writer.completeScan(first, 1, java.util.Map.of());
+    assertThat(
+            scoped.getContext(key, PayloadVisibility.STANDARD).orElseThrow().sessionRow().title())
+        .isEqualTo("Old");
+    long second = writer.startScan(2, "incremental");
+    writer.writeMissingTranscriptSession(
+        new MissingTranscriptSession(
+            key, "codex", "generation", "New", "", "", "", "", "", "codex", Instant.EPOCH));
+    writer.completeScan(second, 3, java.util.Map.of());
+    assertThat(
+            scoped.getContext(key, PayloadVisibility.STANDARD).orElseThrow().sessionRow().title())
+        .isEqualTo("New");
+  }
+
   @AfterEach
   void tearDown() {
     if (indexConnection != null) {

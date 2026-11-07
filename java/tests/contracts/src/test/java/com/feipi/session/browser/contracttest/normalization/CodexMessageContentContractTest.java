@@ -170,7 +170,7 @@ class CodexMessageContentContractTest {
   }
 
   @Test
-  void responseItemRemainsAuthoritativeAndDoesNotDuplicateTextOrCalls() throws IOException {
+  void differentResponseInputDoesNotSuppressEarlierEventRound() throws IOException {
     var artifact =
         normalize(
             parse(
@@ -179,11 +179,20 @@ class CodexMessageContentContractTest {
         {"type":"response_item","payload":{"type":"message","role":"user","content":"Authoritative user"}}
         {"type":"response_item","payload":{"type":"message","role":"assistant","content":"Authoritative answer"}}
         """));
-    assertContent(artifact, "Authoritative user", "Authoritative answer");
+    assertThat(artifact.calls()).hasSize(2);
+    assertThat(SessionDetailAssembler.buildRounds(artifact.calls(), artifact.toolExecutions()))
+        .hasSize(2);
     assertThat(artifact.calls().getFirst().sourceUnits())
         .extracting(unit -> unit.get("text"))
+        .contains("Synthetic user", "Synthetic answer")
+        .doesNotContain("Authoritative user", "Authoritative answer");
+    assertThat(artifact.calls().getLast().sourceUnits())
+        .extracting(unit -> unit.get("text"))
+        .contains("Authoritative user", "Authoritative answer")
         .doesNotContain("Synthetic user", "Synthetic answer");
-    assertThat(artifact.session()).containsEntry("totalTokens", 0L);
+    assertThat(artifact.session())
+        .containsEntry("totalTokens", 0L)
+        .containsEntry("userMessageCount", 2L);
   }
 
   @Test

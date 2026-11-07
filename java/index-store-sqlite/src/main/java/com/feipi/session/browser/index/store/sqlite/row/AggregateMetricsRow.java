@@ -93,16 +93,13 @@ public record AggregateMetricsRow(
   /**
    * 安全除法并四舍五入。
    *
-   * <p>分母为零或结果为零时返回 {@code null}，与 Python {@code safe_div} + falsy 检查一致。
+   * <p>分母非正时返回 {@code null}；有效分母下的实测零保留为 {@code 0.0}。
    */
   public static Double safeDivRound(long numerator, long denominator, int scale) {
     if (denominator <= 0) {
       return null;
     }
     double result = (double) numerator / denominator;
-    if (result == 0.0) {
-      return null;
-    }
     return switch (scale) {
       case 1 -> Math.round(result * 10.0) / 10.0;
       case 2 -> Math.round(result * 100.0) / 100.0;

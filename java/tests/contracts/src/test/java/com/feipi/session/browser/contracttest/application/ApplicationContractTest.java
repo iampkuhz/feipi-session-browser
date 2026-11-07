@@ -121,12 +121,13 @@ class ApplicationContractTest {
       QueryCache cache = new QueryCache(10);
       QueryCompositionRoot root1 =
           ContractTestComposition.queryRoot(ic, new SchemaVersion(1), cache);
+      // 发布代读取器在装配时会清理旧缓存；先完成两个 root 的装配，再验证 schema 键隔离。
+      QueryCompositionRoot root2 =
+          ContractTestComposition.queryRoot(ic, new SchemaVersion(2), cache);
       root1.dashboard().stats(AgentFilter.NONE);
       assertThat(cache.size()).isEqualTo(1);
 
       // 使用不同 schema 版本的 root 查询相同数据
-      QueryCompositionRoot root2 =
-          ContractTestComposition.queryRoot(ic, new SchemaVersion(2), cache);
       root2.dashboard().stats(AgentFilter.NONE);
       // 两个不同 schema 版本各自缓存
       assertThat(cache.size()).isEqualTo(2);

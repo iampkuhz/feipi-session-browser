@@ -316,3 +316,48 @@ def test_scan_full_agent_filter_codex(isolated_env):
     assert 'Starting full scan' in stdout
     assert 'Codex:       1' in stdout
     assert 'Total:       1' in stdout
+
+
+@pytest.mark.parametrize('agent', ['codex', 'claude_code'])
+def test_filtered_full_preserves_unselected_published_rows(isolated_env, agent):
+    """真实 launcher 必须把过滤范围传到引擎，而非只过滤发现目录。"""
+    env = isolated_env['env']
+    baseline = subprocess.run(
+        ['bash', str(SCRIPT_PATH), 'scan', '--full'],
+        cwd=str(REPO_ROOT),
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert baseline.returncode == 0, baseline.stderr
+    db = isolated_env['index_dir'] / 'index.sqlite'
+
+    def retained_state():
+        with sqlite3.connect(db) as conn:
+            rows = conn.execute(
+                'SELECT * FROM sessions WHERE agent != ? ORDER BY session_key',
+                (agent,),
+            ).fetchall()
+            artifacts = conn.execute(
+                'SELECT a.* FROM session_artifacts a JOIN sessions s USING(session_key) '
+                'WHERE s.agent != ? ORDER BY a.session_key,a.artifact_type',
+                (agent,),
+            ).fetchall()
+            version = conn.execute(
+                "SELECT value FROM index_metadata WHERE key = 'scan_logic_version'",
+            ).fetchone()
+            return rows, artifacts, version
+
+    before = retained_state()
+    assert len(before[0]) == 1
+    filtered = subprocess.run(
+        ['bash', str(SCRIPT_PATH), 'scan', '--full', '--agent', agent],
+        cwd=str(REPO_ROOT),
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert filtered.returncode == 0, filtered.stderr
+    assert retained_state() == before

@@ -50,7 +50,8 @@ public final class ProjectsApiHandler {
                 summary.tokenProvenance()),
             summary.toolCallCount(),
             summary.failedToolCount(),
-            summaryState(summary.projectCount(), hasUserFilter(params))));
+            summaryState(summary.projectCount(), hasUserFilter(params)),
+            summary.contentSampleCount()));
   }
 
   /** 处理 /api/projects/rows 的 GET 请求。 */
@@ -112,7 +113,8 @@ public final class ProjectsApiHandler {
         row.totalAssistantMessages(),
         row.firstSeen(),
         row.lastSeen(),
-        "/projects/" + ApiQueryParams.url(row.projectKey()));
+        "/projects/" + ApiQueryParams.url(row.projectKey()),
+        row.contentSampleCount());
   }
 
   private static ProjectsFilterEcho echo(Map<String, String> params) {

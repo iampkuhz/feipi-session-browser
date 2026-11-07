@@ -11,6 +11,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.security.DigestInputStream;
+import java.security.DigestOutputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
@@ -117,6 +119,25 @@ public final class NormalizedArtifactWriter {
     return withLock(sessionKey, () -> doWrite(outputDir, artifact, sourceFingerprints, safeName));
   }
 
+  /** 流式写入可重放的有界会话内容，完成数据校验与落盘后最后提交元数据。 */
+  public WriteResult writeContent(
+      Path outputDir,
+      com.feipi.session.browser.domain.normalized.NormalizedSessionContent content,
+      Map<String, String> sourceFingerprints)
+      throws IOException {
+    Objects.requireNonNull(outputDir, "outputDir");
+    Objects.requireNonNull(content, "content");
+    Objects.requireNonNull(sourceFingerprints, "sourceFingerprints");
+    Object rawKey = content.header().session().get("session_key");
+    if (rawKey == null || rawKey.toString().isBlank()) {
+      throw new IllegalArgumentException("content requires a session_key");
+    }
+    String sessionKey = rawKey.toString();
+    String safeName = SafeArtifactName.collisionResistantStem(sessionKey);
+    return withLock(
+        sessionKey, () -> doWriteContent(outputDir, content, sourceFingerprints, safeName));
+  }
+
   /**
    * 读取并反序列化 meta 文件。
    *
@@ -152,10 +173,13 @@ public final class NormalizedArtifactWriter {
     }
 
     ArtifactMeta meta = readMeta(metaFile);
-    byte[] dataBytes = Files.readAllBytes(dataFile);
-    String actualHash = sha256Hex(dataBytes);
-
-    return meta.contentHash().equals(actualHash) && meta.contentSize() == dataBytes.length;
+    MessageDigest digest = newDigest();
+    long size;
+    try (var stream = new DigestInputStream(Files.newInputStream(dataFile), digest)) {
+      size = stream.transferTo(java.io.OutputStream.nullOutputStream());
+    }
+    String actualHash = HexFormat.of().formatHex(digest.digest());
+    return meta.contentHash().equals(actualHash) && meta.contentSize() == size;
   }
 
   /**
@@ -213,6 +237,60 @@ public final class NormalizedArtifactWriter {
         contentHash,
         dataBytes.length,
         "SUCCESS");
+  }
+
+  private WriteResult doWriteContent(
+      Path outputDir,
+      com.feipi.session.browser.domain.normalized.NormalizedSessionContent content,
+      Map<String, String> fingerprints,
+      String safeName)
+      throws IOException {
+    SafeArtifactName.validateOutputRoot(outputDir);
+    Path data = outputDir.resolve(safeName + ArtifactConstants.DATA_FILE_SUFFIX);
+    Path meta = outputDir.resolve(safeName + ArtifactConstants.META_FILE_SUFFIX);
+    SafeArtifactName.validateWithinRoot(outputDir, data);
+    SafeArtifactName.validateWithinRoot(outputDir, meta);
+    Path temporary =
+        Files.createTempFile(outputDir, ArtifactConstants.TEMP_FILE_PREFIX, ".content");
+    try {
+      MessageDigest digest = newDigest();
+      try (var stream = new DigestOutputStream(Files.newOutputStream(temporary), digest)) {
+        canonicalJsonWriter.writeContent(stream, content);
+      }
+      long size = Files.size(temporary);
+      String hash = HexFormat.of().formatHex(digest.digest());
+      byte[] metaBytes =
+          canonicalJsonWriter.serializeObject(
+              buildMeta(hash, size, sanitizeFingerprintKeys(fingerprints)));
+      try (var channel = FileChannel.open(temporary, StandardOpenOption.READ)) {
+        channel.force(true);
+      }
+      SafeArtifactName.validateWithinRoot(outputDir, data);
+      moveAtomic(temporary, data);
+      SafeArtifactName.validateWithinRoot(outputDir, data);
+      writeAtomic(meta, metaBytes);
+      SafeArtifactName.validateWithinRoot(outputDir, meta);
+      return new WriteResult(data.toAbsolutePath(), meta.toAbsolutePath(), hash, size, "SUCCESS");
+    } finally {
+      Files.deleteIfExists(temporary);
+    }
+  }
+
+  private static MessageDigest newDigest() {
+    try {
+      return MessageDigest.getInstance("SHA-256");
+    } catch (NoSuchAlgorithmException exception) {
+      throw new IllegalStateException(exception);
+    }
+  }
+
+  private static void moveAtomic(Path source, Path target) throws IOException {
+    try {
+      Files.move(
+          source, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+    } catch (AtomicMoveNotSupportedException exception) {
+      Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
+    }
   }
 
   /**

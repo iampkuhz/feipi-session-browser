@@ -393,11 +393,25 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
       return UsageTotals.empty();
     }
     JsonNode best = JsonNodeReaders.objectChild(selectUsageMessage(usages), "usage");
+    Map<String, String> provenance = new LinkedHashMap<>();
+    TOKEN_PRECISION_FIELDS.forEach(
+        (key, field) ->
+            provenance.put(
+                key,
+                usages.stream()
+                        .anyMatch(
+                            message ->
+                                JsonNodeReaders.objectChild(message, "usage")
+                                    .path(field)
+                                    .isNumber())
+                    ? "provider_reported"
+                    : "unavailable"));
     return new UsageTotals(
         selectedUsageValue(best, usages, "input_tokens"),
         selectedUsageValue(best, usages, "cache_read_input_tokens"),
         selectedUsageValue(best, usages, "cache_creation_input_tokens"),
-        selectedUsageValue(best, usages, "output_tokens"));
+        selectedUsageValue(best, usages, "output_tokens"),
+        Map.copyOf(provenance));
   }
 
   private static JsonNode selectUsageMessage(List<JsonNode> messages) {
@@ -549,7 +563,8 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
                           usage.inputTokens(),
                           usage.cacheReadTokens(),
                           usage.cacheWriteTokens(),
-                          usage.outputTokens()),
+                          usage.outputTokens(),
+                          usage.provenance()),
                   record.toolCalls(),
                   record.toolUseId(),
                   record.toolName(),
@@ -559,7 +574,8 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
                   record.responseMessageId(),
                   record.responseStopReason(),
                   record.timing(),
-                  record.metaContext());
+                  record.metaContext(),
+                  record.messageRole());
             })
         .toList();
   }
@@ -700,6 +716,7 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
    * @param cacheReadTokens cache read token 数量。
    * @param cacheWriteTokens cache write token 数量。
    * @param outputTokens output token 数量。
+   * @param provenance 各 token 分量的来源精度。
    */
   private record UsageTotals(
       /* 输入 token 数量 */
@@ -709,9 +726,10 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
       /* 缓存写入令牌数量 */
       @PositiveOrZero long cacheWriteTokens,
       /* 输出令牌数量 */
-      @PositiveOrZero long outputTokens) {
+      @PositiveOrZero long outputTokens,
+      @NotNull Map<String, String> provenance) {
     private static UsageTotals empty() {
-      return new UsageTotals(0, 0, 0, 0);
+      return new UsageTotals(0, 0, 0, 0, Map.of());
     }
   }
 
@@ -840,41 +858,57 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
             ClaudeSourceAdapter::collectEventDiagnostics,
             (diagnostics, eventCount) -> {},
             ClaudeSourceAdapter::resolveAssistantUsage);
-    if (!(primary instanceof SourceResult.Success success)) {
-      return primary;
-    }
-
+    if (!(primary instanceof SourceResult.Success)) return primary;
     List<Path> sidecars = subagentFiles(Path.of(candidate.fingerprint().locator()));
-    if (sidecars.isEmpty()) {
-      return primary;
-    }
-    List<SourceDiagnostic> diagnostics = new ArrayList<>(success.diagnostics());
-    List<SourceRecord> records = new ArrayList<>(success.records());
-    int candidateCount = success.candidateCount();
-    for (Path sidecar : sidecars) {
-      SourceResult sidecarResult =
-          JsonCandidateParser.parse(
-              new Candidate(
-                  fingerprint(sidecar),
-                  candidate.sessionKey(),
-                  candidate.projectKey(),
-                  candidate.metadata()),
-              cancellation,
-              jsonlReader,
-              ClaudeSourceAdapter::extractEventType,
-              ClaudeSourceAdapter::collectEventDiagnostics,
-              (ignored, eventCount) -> {},
-              ClaudeSourceAdapter::resolveAssistantUsage);
-      if (sidecarResult instanceof SourceResult.Success sidecarSuccess) {
-        diagnostics.addAll(sidecarSuccess.diagnostics());
-        records.addAll(sidecarSuccess.records());
-        candidateCount += sidecarSuccess.candidateCount();
-      } else if (sidecarResult instanceof SourceResult.Fatal fatal) {
-        return fatal;
+    // 没有消费 primary 时直接转移其所有权，不能在返回前关闭。
+    if (sidecars.isEmpty()) return primary;
+    return mergeSidecars(candidate, cancellation, (SourceResult.Success) primary, sidecars);
+  }
+
+  private SourceResult mergeSidecars(
+      Candidate candidate,
+      CancellationSignal cancellation,
+      SourceResult.Success success,
+      List<Path> sidecars) {
+    SourceResult.Fatal originalFailure = null;
+    try (success) {
+      List<SourceDiagnostic> diagnostics = new ArrayList<>(success.diagnostics());
+      List<SourceRecord> records = new ArrayList<>(success.records());
+      int candidateCount = success.candidateCount();
+      for (Path sidecar : sidecars) {
+        SourceResult sidecarResult =
+            JsonCandidateParser.parse(
+                new Candidate(
+                    fingerprint(sidecar),
+                    candidate.sessionKey(),
+                    candidate.projectKey(),
+                    candidate.metadata()),
+                cancellation,
+                jsonlReader,
+                ClaudeSourceAdapter::extractEventType,
+                ClaudeSourceAdapter::collectEventDiagnostics,
+                (ignored, eventCount) -> {},
+                ClaudeSourceAdapter::resolveAssistantUsage);
+        if (sidecarResult instanceof SourceResult.Success) {
+          try (var sidecarSuccess = (SourceResult.Success) sidecarResult) {
+            diagnostics.addAll(sidecarSuccess.diagnostics());
+            records.addAll(sidecarSuccess.records());
+            candidateCount += sidecarSuccess.candidateCount();
+          }
+        } else if (sidecarResult instanceof SourceResult.Fatal fatal) {
+          originalFailure = fatal;
+          return fatal;
+        }
       }
+      return new SourceResult.Success(
+          diagnostics, candidateCount, records, success.fingerprint(), success.locator());
+    } catch (IOException close) {
+      String detail = "Claude 合并资源关闭失败: " + close.getMessage();
+      return originalFailure == null
+          ? new SourceResult.Fatal(List.of(), detail)
+          : new SourceResult.Fatal(
+              originalFailure.diagnostics(), originalFailure.message() + "; " + detail);
     }
-    return new SourceResult.Success(
-        diagnostics, candidateCount, records, success.fingerprint(), success.locator());
   }
 
   private static List<Path> subagentFiles(Path transcriptPath) {

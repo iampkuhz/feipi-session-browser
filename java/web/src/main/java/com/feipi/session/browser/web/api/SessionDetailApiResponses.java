@@ -333,7 +333,8 @@ public final class SessionDetailApiResponses {
       failedToolCallIds = List.copyOf(failedToolCallIds);
       signals = List.copyOf(signals);
       parentCallId = ApiResponses.empty(parentCallId);
-      if (failedToolCount != failedToolCallIds.size()) {
+      if (!Boolean.TRUE.equals(parity.get("membersPaged"))
+          && failedToolCount != failedToolCallIds.size()) {
         throw new IllegalArgumentException("failedToolCount must equal failedToolCallIds size");
       }
       if (tokenShare != null && (tokenShare < 0.0 || tokenShare > 1.0)) {

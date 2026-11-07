@@ -6,11 +6,8 @@ import com.feipi.session.browser.domain.normalized.TokenProvenance;
 import com.feipi.session.browser.index.api.query.ProjectStats;
 import com.feipi.session.browser.index.api.query.SessionListSummary;
 import com.feipi.session.browser.index.api.query.SessionRecord;
-import com.feipi.session.browser.query.api.PageRequest;
 import com.feipi.session.browser.query.api.PageResult;
-import com.feipi.session.browser.query.api.ProjectFilter;
 import com.feipi.session.browser.query.api.SessionListFilter;
-import com.feipi.session.browser.query.api.Sort;
 import com.feipi.session.browser.web.api.PageApiDtos.ApiLink;
 import com.feipi.session.browser.web.api.PageApiDtos.PageStateDto;
 import com.feipi.session.browser.web.api.PageApiDtos.PaginationDto;
@@ -66,7 +63,8 @@ public final class ProjectDetailApiHandler {
             project.totalAssistantMessages(),
             project.firstSeen(),
             project.lastSeen(),
-            PageStateDto.ready()));
+            PageStateDto.ready(),
+            project.contentSampleCount()));
   }
 
   /** 处理 /api/projects/{projectKey}/token-trend 的 GET 请求。 */
@@ -76,7 +74,7 @@ public final class ProjectDetailApiHandler {
     if (project == null) {
       return;
     }
-    List<SessionRecord> sessions = allProjectSessions(projectKey, project);
+    List<SessionRecord> sessions = queryRoot.sessionList().allForProject(projectKey);
     List<ProjectTokenTrendPoint> points = tokenTrendPoints(sessions, grain(ctx));
     ctx.json(
         new ProjectTokenTrendResponse(
@@ -96,7 +94,7 @@ public final class ProjectDetailApiHandler {
     if (project == null) {
       return;
     }
-    List<SessionRecord> sessions = allProjectSessions(projectKey, project);
+    List<SessionRecord> sessions = queryRoot.sessionList().allForProject(projectKey);
     ctx.json(
         new ProjectAgentMixResponse(
             ApiResponses.SCHEMA_VERSION,
@@ -181,16 +179,6 @@ public final class ProjectDetailApiHandler {
     return project;
   }
 
-  private List<SessionRecord> allProjectSessions(String projectKey, ProjectStats project) {
-    int limit = (int) Math.max(1, Math.min(PageRequest.MAX_LIMIT, project.totalSessions()));
-    SessionListFilter filter =
-        SessionListFilter.defaults()
-            .withProject(ProjectFilter.of(projectKey))
-            .withSort(Sort.ofSession("started_at", "asc"))
-            .withPage(PageRequest.ofOffset(0, limit));
-    return queryRoot.sessionList().listWithAnomalies(filter).page().items();
-  }
-
   private static List<ProjectTokenTrendPoint> tokenTrendPoints(
       List<SessionRecord> sessions, String grain) {
     List<ProjectTokenTrendPoint> points = new ArrayList<>();
@@ -213,6 +201,7 @@ public final class ProjectDetailApiHandler {
     List<ProjectAgentMixRow> rows = new ArrayList<>();
     for (String agent : List.of("claude_code", "qoder", "codex")) {
       long sessionCount = 0;
+      long contentSamples = 0;
       long fresh = 0;
       long cacheRead = 0;
       long cacheWrite = 0;
@@ -224,6 +213,7 @@ public final class ProjectDetailApiHandler {
           continue;
         }
         sessionCount++;
+        if (session.contentMeasured()) contentSamples++;
         fresh += session.freshInputTokens();
         cacheRead += session.cacheReadTokens();
         cacheWrite += session.cacheWriteTokens();
@@ -242,7 +232,8 @@ public final class ProjectDetailApiHandler {
               WebDisplayValues.share(sessionCount, project.totalSessions()),
               WebDisplayValues.share(tokenTotal, project.totalTokens()),
               ratio(sessionCount, project.totalSessions()),
-              ratio(tokenTotal, project.totalTokens())));
+              ratio(tokenTotal, project.totalTokens()),
+              contentSamples));
     }
     return rows;
   }

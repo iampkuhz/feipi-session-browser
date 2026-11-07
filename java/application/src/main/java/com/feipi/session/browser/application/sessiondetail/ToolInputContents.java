@@ -55,7 +55,7 @@ public final class ToolInputContents {
     return inputs;
   }
 
-  private static void collect(Map<?, ?> unit, Map<String, Input> inputs) {
+  static void collect(Map<?, ?> unit, Map<String, Input> inputs) {
     String type = string(unit.get("type"));
     if (List.of("tool_use", "function_call", "custom_tool_call").contains(type)) {
       String id = string(unit.get("id"));

@@ -73,12 +73,15 @@ class ScannedSessionContentContractTest {
       try (var statement = index.writerConnection().createStatement();
           var rows =
               statement.executeQuery(
-                  "SELECT s.agent, s.title, a.path FROM sessions s "
+                  "SELECT s.agent, s.title, s.user_message_count, a.path FROM sessions s "
                       + "JOIN session_artifacts a ON a.session_key = s.session_key "
                       + "WHERE a.artifact_type = 'normalized'")) {
         assertThat(rows.next()).isTrue();
         assertThat(rows.getString("agent")).isEqualTo(agent);
         assertThat(rows.getString("title")).isEqualTo(PROMPT);
+        if (scenario.equals("codex_dual")) {
+          assertThat(rows.getLong("user_message_count")).isEqualTo(1);
+        }
         Path artifact = Path.of(rows.getString("path"));
         assertThat(artifact).isRegularFile();
         assertThat(artifact.toAbsolutePath()).startsWith(artifacts.toAbsolutePath());
@@ -119,6 +122,33 @@ class ScannedSessionContentContractTest {
               if (resource.equals("rounds")) {
                 assertThat(JSON.readTree(body).path("roundCount").asInt())
                     .isEqualTo(expectedRounds);
+              }
+              if (resource.equals("diagnostics")) {
+                var agents = JSON.readTree(body).path("parity").path("agents");
+                assertThat(agents.size()).isEqualTo(1);
+                var main = agents.get(0);
+                String freshPrecision =
+                    switch (scenario) {
+                      case "claude_code", "codex", "codex_event_usage" -> "provider_reported";
+                      case "codex_multiturn" -> "mixed";
+                      case "qoder" -> "estimated";
+                      default -> "unknown";
+                    };
+                assertThat(main.at("/tokenSegments/provenance/freshInput").asText())
+                    .as("逐调用来源经过磁盘重读及 HTTP，不借会话总标志：%s", scenario)
+                    .isEqualTo(freshPrecision);
+                if (scenario.equals("qoder")) {
+                  assertThat(main.path("tokenUsageBasis").asText()).isEqualTo("session_estimate");
+                } else {
+                  assertThat(main.at("/tokenSegments/total").asLong())
+                      .isEqualTo(
+                          List.of("claude_code", "codex", "codex_event_usage", "codex_multiturn")
+                                  .contains(scenario)
+                              ? 15
+                              : 0);
+                  assertThat(main.path("tokenUsageBasis").asText())
+                      .isEqualTo("artifact_call_usage");
+                }
               }
               if (resource.equals("payloads") && expectedRounds == 2) {
                 boolean secondRequestFound = false;

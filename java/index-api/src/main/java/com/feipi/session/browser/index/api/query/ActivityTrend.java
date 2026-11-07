@@ -26,4 +26,44 @@ public interface ActivityTrend {
 
   /** 返回该日开始会话的累计工具调用总数。 */
   long toolCalls();
+
+  /** 返回当前范围仅显式 user 消息测量样本的累计消息数；旧实现不推断测量覆盖。 */
+  default long measuredUserMessages() {
+    return 0;
+  }
+
+  /** 返回当前范围user 消息数已测量的会话数，包含实测零；旧实现不推断测量覆盖。 */
+  default long userMessageSampleCount() {
+    return 0;
+  }
+
+  /** 返回Claude Code仅显式 user 消息测量样本的累计消息数；旧实现不推断测量覆盖。 */
+  default long claudeMeasuredUserMessages() {
+    return 0;
+  }
+
+  /** 返回Claude Codeuser 消息数已测量的会话数，包含实测零；旧实现不推断测量覆盖。 */
+  default long claudeUserMessageSampleCount() {
+    return 0;
+  }
+
+  /** 返回Codex仅显式 user 消息测量样本的累计消息数；旧实现不推断测量覆盖。 */
+  default long codexMeasuredUserMessages() {
+    return 0;
+  }
+
+  /** 返回Codexuser 消息数已测量的会话数，包含实测零；旧实现不推断测量覆盖。 */
+  default long codexUserMessageSampleCount() {
+    return 0;
+  }
+
+  /** 返回Qoder仅显式 user 消息测量样本的累计消息数；旧实现不推断测量覆盖。 */
+  default long qoderMeasuredUserMessages() {
+    return 0;
+  }
+
+  /** 返回Qoderuser 消息数已测量的会话数，包含实测零；旧实现不推断测量覆盖。 */
+  default long qoderUserMessageSampleCount() {
+    return 0;
+  }
 }

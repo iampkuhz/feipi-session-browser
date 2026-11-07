@@ -113,6 +113,40 @@ class ProjectDetailResourceApiTest {
   }
 
   @Test
+  void largeProjectIncludesSessionsBeyondOneQueryPage() {
+    indexConnection
+        .writeQueue()
+        .submit(
+            connection -> {
+              try (var statement = connection.createStatement()) {
+                statement.executeUpdate(
+                    "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i<501)"
+                        + " INSERT INTO sessions(session_key,agent,session_id,project_key,project_name,"
+                        + "started_at,ended_at,fresh_input_tokens,total_tokens)"
+                        + " SELECT printf('codex:large-%04d',i),'codex',printf('large-%04d',i),"
+                        + "'/repo/large','large','2026-06-01T00:00:00Z','2026-06-01T00:01:00Z',1,1 FROM n");
+              }
+            })
+        .join();
+    WebCompositionRoot webRoot = createWebRoot();
+
+    JavalinTest.test(
+        webRoot.app(),
+        (testApp, client) -> {
+          String path = "/api/projects/%2Frepo%2Flarge/";
+          var trendResponse = client.get(path + "token-trend?grain=day");
+          JsonNode trend = MAPPER.readTree(trendResponse.body().string());
+          assertThat(sumNested(trend.get("points"), "tokens", "total")).isEqualTo(501);
+          assertThat(trend.at("/rangeTotals/total").asLong()).isEqualTo(501);
+          var mixResponse = client.get(path + "agent-mix");
+          JsonNode mix = MAPPER.readTree(mixResponse.body().string());
+          assertThat(sum(mix.get("rows"), "sessions")).isEqualTo(501);
+          assertThat(sumNested(mix.get("rows"), "tokens", "total")).isEqualTo(501);
+          assertThat(client.get("/projects/%2Frepo%2Flarge").code()).isEqualTo(200);
+        });
+  }
+
+  @Test
   @DisplayName("agent-mix 返回 share 且不越出项目 scope")
   void agentMixReturnsProjectScopedShares() {
     WebCompositionRoot webRoot = createWebRoot();

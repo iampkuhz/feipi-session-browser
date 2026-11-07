@@ -34,6 +34,7 @@ import java.util.Optional;
  * @param responseStopReason assistant 响应的 stop_reason（如 end_turn、tool_use），缺失时为空
  * @param timing 源显式计时事实，缺失时为空计时
  * @param metaContext provider 显式声明的 meta 上下文，不作为人类 prompt 计数
+ * @param messageRole 原始消息的显式 user/assistant 角色；usage、推理和派生表示默认无角色
  */
 @DomainModel
 public record SourceRecord(
@@ -89,7 +90,52 @@ public record SourceRecord(
     @NotNull SourceTiming timing,
 
     /* provider 显式声明的 meta 上下文，不改变原事件角色或内容。 */
-    boolean metaContext) {
+    boolean metaContext,
+
+    /* 仅原始消息的显式角色；不得从 usage 或调用边界推断。 */
+    @NotNull Optional<String> messageRole) {
+
+  /** 兼容未携带原始消息角色证据的旧构造器，不从事件类型猜角色。 */
+  public SourceRecord(
+      String locator,
+      int eventIndex,
+      String eventType,
+      Optional<String> callId,
+      Optional<String> model,
+      Optional<String> timestamp,
+      Optional<String> turnId,
+      SourceRecordUsage usage,
+      List<SourceToolCall> toolCalls,
+      Optional<String> toolUseId,
+      Optional<String> toolName,
+      Optional<String> toolError,
+      SourceRecordRelation relation,
+      String content,
+      Optional<String> responseMessageId,
+      Optional<String> responseStopReason,
+      SourceTiming timing,
+      boolean metaContext) {
+    this(
+        locator,
+        eventIndex,
+        eventType,
+        callId,
+        model,
+        timestamp,
+        turnId,
+        usage,
+        toolCalls,
+        toolUseId,
+        toolName,
+        toolError,
+        relation,
+        content,
+        responseMessageId,
+        responseStopReason,
+        timing,
+        metaContext,
+        Optional.empty());
+  }
 
   /**
    * 兼容旧调用点的构造器。
@@ -291,7 +337,8 @@ public record SourceRecord(
         responseMessageId,
         responseStopReason,
         replacementTiming,
-        metaContext);
+        metaContext,
+        messageRole);
   }
 
   /** 返回仅替换文本内容的不可变副本，保留全部元数据。 */
@@ -314,7 +361,32 @@ public record SourceRecord(
         responseMessageId,
         responseStopReason,
         timing,
-        metaContext);
+        metaContext,
+        messageRole);
+  }
+
+  /** 仅标注源明确提供的消息角色，不改变调用、内容或身份。 */
+  public SourceRecord withMessageRole(Optional<String> role) {
+    return new SourceRecord(
+        locator,
+        eventIndex,
+        eventType,
+        callId,
+        model,
+        timestamp,
+        turnId,
+        usage,
+        toolCalls,
+        toolUseId,
+        toolName,
+        toolError,
+        relation,
+        content,
+        responseMessageId,
+        responseStopReason,
+        timing,
+        metaContext,
+        role);
   }
 
   /** 日志摘要不包含文本或其他 provider 原始字段。 */
@@ -341,6 +413,10 @@ public record SourceRecord(
     responseMessageId = responseMessageId == null ? Optional.empty() : responseMessageId;
     responseStopReason = responseStopReason == null ? Optional.empty() : responseStopReason;
     timing = timing == null ? SourceTiming.empty() : timing;
+    messageRole = messageRole == null ? Optional.empty() : messageRole;
+    if (messageRole.isPresent() && !List.of("user", "assistant").contains(messageRole.get())) {
+      throw new IllegalArgumentException("messageRole must be user or assistant");
+    }
     try {
       ValidationSupport.validateCanonicalConstructor(
           SourceRecord.class,
@@ -361,7 +437,8 @@ public record SourceRecord(
           responseMessageId,
           responseStopReason,
           timing,
-          metaContext);
+          metaContext,
+          messageRole);
     } catch (ConstraintViolationException e) {
       translateValidation(e);
     }

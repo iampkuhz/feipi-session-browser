@@ -56,6 +56,54 @@ class SessionDetailResourceApiTest {
   }
 
   @Test
+  void personalCompatibilityRowDoesNotReadUnpublishedSourceOrAdjacentChildren() throws Exception {
+    Path raw = tempDir.resolve("synthetic-unpublished.jsonl");
+    String usage =
+        "{\"type\":\"event_msg\",\"payload\":{\"type\":\"token_count\",\"info\":{\"total_token_usage\":{\"input_tokens\":1,\"output_tokens\":1,\"total_tokens\":2}}}}\n";
+    java.nio.file.Files.writeString(raw, usage);
+    indexConnection
+        .writeQueue()
+        .submit(
+            connection -> {
+              try (var statement = connection.createStatement()) {
+                statement.executeUpdate(
+                    "DELETE FROM session_artifacts WHERE session_key='claude_code:s-alpha-001'");
+                statement.executeUpdate(
+                    "UPDATE sessions SET content_measured=0 WHERE session_key='claude_code:s-alpha-001'");
+                statement.executeUpdate(
+                    "INSERT OR REPLACE INTO index_metadata(key,value,updated_at) VALUES('published_generation','synthetic-frozen',0)");
+              }
+              try (var statement =
+                  connection.prepareStatement(
+                      "UPDATE sessions SET file_path=? WHERE session_key='claude_code:s-alpha-001'")) {
+                statement.setString(1, raw.toString());
+                statement.executeUpdate();
+              }
+            })
+        .join();
+    JavalinTest.test(
+        createWebRoot().app(),
+        (testApp, client) -> {
+          var firstResponse = client.get(ALPHA_URL + "/metrics");
+          JsonNode first = MAPPER.readTree(firstResponse.body().string());
+          assertThat(first.at("/parity/contentMeasured").asBoolean()).isFalse();
+          assertThat(first.at("/parity/workloadCallsAvailable").asBoolean()).isFalse();
+          assertThat(first.at("/parity/runHealth").asText()).isEqualTo("Unknown");
+          java.nio.file.Files.writeString(
+              raw, usage + usage.replace("\":1", "\":2").replace("\":2}", "\":4}"));
+          java.nio.file.Files.writeString(
+              tempDir.resolve("synthetic-child.jsonl"),
+              "{\"type\":\"session_meta\",\"payload\":{\"id\":\"synthetic-child\",\"parent_thread_id\":\"s-alpha-001\"}}\n"
+                  + usage);
+          var secondResponse = client.get(ALPHA_URL + "/metrics");
+          assertThat(secondResponse.headers().get("X-Session-Index-Generation"))
+              .isEqualTo(firstResponse.headers().get("X-Session-Index-Generation"))
+              .containsExactly("synthetic-frozen");
+          assertThat(MAPPER.readTree(secondResponse.body().string())).isEqualTo(first);
+        });
+  }
+
+  @Test
   @DisplayName("meta 返回 session/project/artifact 原始字段")
   void metaReturnsSessionFields() {
     WebCompositionRoot webRoot = createWebRoot();

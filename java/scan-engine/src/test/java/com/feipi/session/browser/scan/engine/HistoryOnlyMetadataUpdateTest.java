@@ -50,6 +50,82 @@ class HistoryOnlyMetadataUpdateTest {
   }
 
   @Test
+  void sourceMetadataChangesTriggerUpdateButUnknownMetadataDoesNotLoop() throws Exception {
+    Path root = Files.createDirectories(tempDir.resolve("metadata-changes"));
+    Map<String, String> metadata = new java.util.LinkedHashMap<>();
+    var engine = new IncrementalScanEngine();
+    for (String field :
+        List.of("initial", "started_at", "ended_at", "git_branch", "model", "source")) {
+      if (!field.equals("initial"))
+        metadata.put(field, field.endsWith("_at") ? "2026-01-01T00:00:00Z" : "new-" + field);
+      Candidate candidate =
+          new Candidate(
+              new SourceFingerprint(
+                  "synthetic-history", SourceId.CODEX, 0, 0, Optional.empty(), Optional.empty()),
+              "codex:metadata",
+              "",
+              metadata);
+      ScanConfig config =
+          ScanConfig.defaults(
+              List.of(new ScanConfig.SourceEntry(new HistoryOnlyAdapter(List.of(candidate)), root)),
+              tempDir.resolve("metadata-artifacts"));
+      var changed = engine.scan(writer, config);
+      assertThat(changed.errorCount()).isZero();
+      assertThat(changed.successCount()).isEqualTo(1);
+      var unchanged = engine.scan(writer, config);
+      assertThat(unchanged.successCount()).isZero();
+      assertThat(unchanged.unchangedCount()).isEqualTo(1);
+    }
+  }
+
+  @Test
+  void metadataOnlyRetainsIndependentSourceTimesAndBranch() throws Exception {
+    Map<String, String> metadata =
+        Map.of(
+            "started_at",
+            "2026-01-01T00:00:00Z",
+            "ended_at",
+            "2026-01-02T00:00:00Z",
+            "git_branch",
+            "feature/source",
+            "model",
+            "source-model");
+    verifyMissingMetadata(
+        metadata, "2026-01-01T00:00:00Z", "2026-01-02T00:00:00Z", "feature/source");
+  }
+
+  @Test
+  void absentMetadataStaysUnknownInsteadOfScanTimeAndSessionProject() throws Exception {
+    verifyMissingMetadata(Map.of(), "", "", "");
+  }
+
+  private void verifyMissingMetadata(
+      Map<String, String> metadata, String started, String ended, String branch) throws Exception {
+    Candidate candidate =
+        new Candidate(
+            new SourceFingerprint(
+                "synthetic-history", SourceId.CODEX, 0, 0, Optional.empty(), Optional.empty()),
+            "codex:missing",
+            "",
+            metadata);
+    var result =
+        FullScanEngine.processTranscriptMissingCandidate(
+            candidate, new HistoryOnlyAdapter(List.of(candidate)), writer);
+    assertThat(result.outcome()).isEqualTo(FullScanEngine.CandidateOutcome.SUCCESS);
+    writer.flushPendingWrites();
+    try (var statement = conn.createStatement();
+        var row =
+            statement.executeQuery("SELECT * FROM sessions WHERE session_key = 'codex:missing'")) {
+      assertThat(row.next()).isTrue();
+      assertThat(row.getString("started_at")).isEqualTo(started);
+      assertThat(row.getString("ended_at")).isEqualTo(ended);
+      assertThat(row.getString("git_branch")).isEqualTo(branch);
+      assertThat(row.getString("project_key")).isEmpty();
+      assertThat(row.getString("project_name")).isEmpty();
+    }
+  }
+
+  @Test
   void finalFlushFailureIsVisibleToBootstrap() throws Exception {
     Path root = tempDir.resolve("root");
     Files.createDirectories(root);

@@ -27,16 +27,7 @@
 
     setRoundOpen(row, true);
 
-    return fetch(url, { headers: { 'Accept': 'application/json' } })
-      .then(function (resp) {
-        if (!resp.ok) {
-          var status = resp.status;
-          return resp.json().then(function (d) { throw { status: status, data: d }; }).catch(function () {
-            throw { status: status, data: null };
-          });
-        }
-        return resp.json();
-      })
+    return readSessionContentPage(url)
       .then(function (data) {
         // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Remove loading row`
         if (loadingRow && loadingRow.parentNode) loadingRow.parentNode.removeChild(loadingRow);
@@ -49,7 +40,7 @@
         var tdDetail = document.createElement('td');
         tdDetail.setAttribute('colspan', '6');
         detailRow.appendChild(tdDetail);
-        setHtml(tdDetail, data.html || renderRoundDetailFromJson(data.round, roundId, row));
+        setHtml(tdDetail, data.html || renderRoundDetailFromJson(data.round, roundId, row, data));
         row.parentNode.insertBefore(detailRow, row.nextSibling);
         qsa(detailRow, '[data-sub-round-id]').forEach(function (subRound) {
           if (typeof syncSubRoundToggle === 'function') syncSubRoundToggle(subRound);
@@ -60,6 +51,7 @@
 
         // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Mark as loaded`
         row.setAttribute('data-detail-loaded', 'true');
+        setupRoundContentPages(tdDetail, data, roundId, row);
 
         // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Inject payload sources as <template> elements if present`
         if (data.payload_sources && data.payload_sources.length > 0) {
@@ -74,7 +66,7 @@
           } else if (err.status) {
             msg = 'Failed to load round detail (HTTP ' + err.status + ')';
           } else {
-            msg = 'Failed to load round detail';
+            msg = err.message || 'Failed to load round detail';
           }
           // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Replace loading row content with error state using DOM APIs`
           while (loadingRow.firstChild) loadingRow.removeChild(loadingRow.firstChild);
@@ -90,7 +82,11 @@
           btnRetry.className = 'sd-btn sd-btn--primary sd-btn--sm';
           btnRetry.setAttribute('data-action', 'retry-round');
           btnRetry.setAttribute('data-round', roundId);
-          btnRetry.textContent = 'Retry';
+          btnRetry.textContent = /refresh/i.test(msg) ? 'Refresh page' : 'Retry';
+          if (/refresh/i.test(msg)) {
+            btnRetry.setAttribute('data-action', 'load-content-page');
+            btnRetry.loadContentPage = function () { window.location.reload(); };
+          }
           divError.appendChild(btnRetry);
           tdError.appendChild(divError);
           loadingRow.appendChild(tdError);
@@ -98,6 +94,55 @@
         setRoundOpen(row, false);
         throw err;
       });
+  }
+
+  function setupRoundContentPages(target, first, roundId, row) {
+    var loaded = (first.round && first.round.calls || []).length;
+    var memberPager = null;
+    var base = getApiBase().replace(/\/$/, '') + '/round/' + encodeURIComponent(roundId);
+    function pageUrl(memberCursor, toolCursor) {
+      var params = new URLSearchParams();
+      if (memberCursor) params.set('cursor', memberCursor);
+      if (toolCursor) params.set('tool_cursor', toolCursor);
+      return base + (params.toString() ? '?' + params.toString() : '');
+    }
+    function toolsPager(data, memberCursor, pageTarget) {
+      var toolCount = (data.round && data.round.tools || []).length;
+      var pager = null;
+      function update(part) {
+        pager = contentPager(pageTarget, 'round-tools', toolCount, part.toolTotal ?? toolCount, part.nextToolCursor, function (cursor) {
+          return readSessionContentPage(pageUrl(memberCursor, cursor)).then(function (next) {
+            if (!pageTarget.isConnected) return;
+            var tools = next.round && next.round.tools || [];
+            var block = document.createElement('div');
+            var calls = data.round && data.round.calls || [];
+            setMarkup(block, tools.map(function (tool) {
+              var owner = calls.find(function (call) { return toolBelongsToCall(tool, call); });
+              return renderToolTimelineItems([tool], roundId, Boolean(owner && owner.scope === 'subagent'));
+            }).join(''));
+            pageTarget.insertBefore(block, pager);
+            toolCount += tools.length;
+            update(next);
+          });
+        }, pager);
+      }
+      if (data.nextToolCursor || data.toolsComplete === false) update(data);
+    }
+    function membersPager(data) {
+      memberPager = contentPager(target, 'round-members', loaded, data.total ?? loaded, data.nextCursor, function (cursor) {
+        return readSessionContentPage(pageUrl(cursor, '')).then(function (next) {
+          if (!target.isConnected) return;
+          var block = document.createElement('div');
+          setMarkup(block, renderRoundDetailFromJson(next.round, roundId, row, next));
+          target.insertBefore(block, memberPager);
+          loaded += (next.round && next.round.calls || []).length;
+          toolsPager(next, cursor, block);
+          membersPager(next);
+        });
+      }, memberPager);
+    }
+    toolsPager(first, '', target);
+    if (first.nextCursor || first.membersPaged) membersPager(first);
   }
 
   function injectPayloadSources(sources) {
@@ -135,12 +180,14 @@
     }
   }
 
-  function renderRoundDetailFromJson(round, roundId, row) {
+  function renderRoundDetailFromJson(round, roundId, row, page) {
     round = round || {};
     var calls = Array.isArray(round.calls) ? round.calls : [];
     var toolCallIds = Array.isArray(round.toolCallIds) ? round.toolCallIds : [];
     var tools = Array.isArray(round.tools) ? round.tools : [];
     var assistantTexts = round.callAssistantTexts || {};
+    var unavailable = page && page.assistantTextPreviewsAvailable === false;
+    if (unavailable) calls.forEach(function (call) { assistantTexts[call.callId] = '正文按需加载 · 请打开 Response'; });
     var mainCalls = calls.filter(function (call) { return !call || call.scope !== 'subagent'; });
     var subagentCalls = calls.filter(function (call) { return call && call.scope === 'subagent'; });
     var html = '<div class="sd-round-detail"><div class="sd-timeline">';
@@ -149,13 +196,16 @@
     } else {
       mainCalls.forEach(function (call, idx) {
         var callText = assistantTexts[call.callId] || '';
-        html += renderAssistantTimelineItem(roundId, call, idx + 1, callText, toolsForCall(call, tools).length);
+        html += renderAssistantTimelineItem(roundId, call, idx + 1, callText, toolsForCall(call, tools).length, Boolean(page && page.membersPaged));
         html += renderToolTimelineItems(toolsForCall(call, tools), roundId, false);
       });
       if (!mainCalls.length && toolCallIds.length) {
-        html += renderToolTimelineItems(tools, roundId, false);
+        var unownedTools = tools.filter(function (tool) {
+          return !calls.some(function (call) { return toolBelongsToCall(tool, call); });
+        });
+        html += renderToolTimelineItems(unownedTools, roundId, false);
       }
-      html += renderSubagentTimeline(subagentCalls, tools, roundId, assistantTexts);
+      html += renderSubagentTimeline(subagentCalls, tools, roundId, assistantTexts, Boolean(page && page.membersPaged));
     }
     html += '</div></div>';
     return html;
@@ -167,7 +217,7 @@
       + '" data-payload-title="' + escapeRoundHtml(title) + '">' + escapeRoundHtml(label) + '</button>';
   }
 
-  function renderAssistantTimelineItem(roundId, call, callIndex, callText, toolCount) {
+  function renderAssistantTimelineItem(roundId, call, callIndex, callText, toolCount, stableIdentity) {
     call = call || {};
     var usage = call.usage || {};
     var callLabel = call.callKey || ('C' + callIndex);
@@ -190,7 +240,16 @@
       + '<span class="sd-tool-actions">'
       + contentPayloadButton(payloadIdFor(call, 'req'), payloadKindFor(call, 'req'), payloadTitle + ' · Request', 'Request')
       + contentPayloadButton(payloadIdFor(call, 'resp'), payloadKindFor(call, 'resp'), payloadTitle + ' · Response', 'Response')
+      + (stableIdentity ? stableAttributionButtons(call, roundId) : '')
       + '</span></div></section></div>';
+  }
+
+  function stableAttributionButtons(call, roundId) {
+    return ['request', 'response'].map(function (side) {
+      return '<button type="button" class="sd-btn sd-btn--secondary sd-btn--sm sd-attr-btn" data-action="open-payload" data-payload-id="llm-R'
+        + escapeRoundHtml(roundId) + '-IX1-' + side + '-attribution" data-attribution-call-id="' + escapeRoundHtml(call.callId)
+        + '" data-payload-kind="llm.' + side + '_attribution">' + (side === 'request' ? '输入归因' : '输出归因') + '</button>';
+    }).join('');
   }
 
   function renderToolTimelineItems(tools, roundId, isSubagent) {
@@ -221,7 +280,7 @@
     }).join('');
   }
 
-  function renderSubagentTimeline(subagentCalls, tools, roundId, assistantTexts) {
+  function renderSubagentTimeline(subagentCalls, tools, roundId, assistantTexts, stableIdentity) {
     if (!subagentCalls.length) return '';
     var groups = groupSubagentCalls(subagentCalls);
     var html = '';
@@ -244,16 +303,17 @@
         + '<button type="button" class="sd-btn sd-btn--secondary sd-btn--sm sd-subagent__toggle" data-action="toggle-subagent-rounds" aria-expanded="false">Expand all</button>'
         + '</div><div class="sd-sub-rounds">';
       groupCalls.forEach(function (call, idx) {
-        html += renderSubRound(call, toolsForCall(call, tools), subagentId, idx + 1, assistantTexts || {});
+        html += renderSubRound(call, toolsForCall(call, tools), subagentId, idx + 1, assistantTexts || {}, stableIdentity);
       });
       html += '</div></section></div></div>';
     });
     return html;
   }
 
-  function renderSubRound(call, tools, subagentId, indexInSubagent, assistantTexts) {
+  function renderSubRound(call, tools, subagentId, indexInSubagent, assistantTexts, stableIdentity) {
     var usage = call.usage || {};
     var sr = subRoundLabel(call, indexInSubagent);
+    var identityAttr = stableIdentity ? ' data-attribution-call-id="' + escapeRoundHtml(call.callId) + '"' : '';
     var requestId = 'sub-' + subagentId + '-IX' + indexInSubagent + '-request-attribution';
     var responseId = 'sub-' + subagentId + '-IX' + indexInSubagent + '-response-attribution';
     var callText = (assistantTexts || {})[call.callId] || (tools.length ? tools.length + ' 个工具指令' : '响应文本未记录');
@@ -265,8 +325,8 @@
       + '<span class="sd-attribution-actions sd-attribution-actions--subround" aria-label="内容与 Token 归因">'
       + contentPayloadButton(payloadIdFor(call, 'req'), payloadKindFor(call, 'req'), 'Subagent · Request', 'Request')
       + contentPayloadButton(payloadIdFor(call, 'resp'), payloadKindFor(call, 'resp'), 'Subagent · Response', 'Response')
-      + '<button type="button" class="sd-btn sd-btn--secondary sd-btn--sm sd-attr-btn sd-attr-btn--warn" data-action="open-payload" data-payload-id="' + escapeRoundHtml(requestId) + '" data-payload-kind="llm.request_attribution" data-payload-title="Subagent · Request Attribution">输入归因</button> '
-      + '<button type="button" class="sd-btn sd-btn--secondary sd-btn--sm sd-attr-btn sd-attr-btn--warn" data-action="open-payload" data-payload-id="' + escapeRoundHtml(responseId) + '" data-payload-kind="llm.response_attribution" data-payload-title="Subagent · Response Attribution">输出归因</button>'
+      + '<button type="button" class="sd-btn sd-btn--secondary sd-btn--sm sd-attr-btn sd-attr-btn--warn" data-action="open-payload" data-payload-id="' + escapeRoundHtml(requestId) + '" data-payload-kind="llm.request_attribution" data-payload-title="Subagent · Request Attribution"' + identityAttr + '>输入归因</button> '
+      + '<button type="button" class="sd-btn sd-btn--secondary sd-btn--sm sd-attr-btn sd-attr-btn--warn" data-action="open-payload" data-payload-id="' + escapeRoundHtml(responseId) + '" data-payload-kind="llm.response_attribution" data-payload-title="Subagent · Response Attribution"' + identityAttr + '>输出归因</button>'
       + '</span>'
       + '<span class="sd-sub-time">' + escapeRoundHtml(localTime(call.timestamp) || '未记录') + '</span>'
       + tokenbarSub(usage)

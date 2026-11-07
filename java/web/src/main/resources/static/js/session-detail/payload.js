@@ -116,19 +116,32 @@
         setHtml(body, '<div class="sd-payload-loading"><p>Loading payload...</p></div>');
         var apiBase = getApiBase();
         var fetchUrl = apiBase.replace(/\/$/, '') + '/payload/' + encodeURIComponent(payloadId);
-        fetch(fetchUrl, { headers: { 'Accept': 'application/json' } })
-          .then(function (resp) {
-            if (!resp.ok) throw new Error('payload fetch failed');
-            return resp.json();
-          })
+        modal.setAttribute('data-loading-payload-id', payloadId);
+        readSessionContentPage(fetchUrl)
           .then(function (payload) {
+            if (modal.getAttribute('data-loading-payload-id') !== payloadId) return;
             if (subtitleEl && payload) {
               subtitleEl.textContent = payloadSubtitle(payloadId, payload);
             }
             if (body) body.replaceChildren(payloadNodeFromJson(payload));
           })
-          .catch(function () {
-            if (body) setHtml(body, diagnosticPayloadHtml(payloadId, title, kind));
+          .catch(function (err) {
+            if (modal.getAttribute('data-loading-payload-id') !== payloadId) return;
+            if (body) {
+              body.replaceChildren();
+              var message = document.createElement('p');
+              message.textContent = 'Unable to load payload: ' + err.message;
+              body.appendChild(message);
+              var retry = document.createElement('button');
+              retry.type = 'button';
+              retry.className = 'sd-btn sd-btn--secondary sd-btn--sm';
+              retry.textContent = /refresh/i.test(err.message) ? 'Refresh page' : 'Retry';
+              retry.addEventListener('click', function () {
+                if (/refresh/i.test(err.message)) window.location.reload();
+                else openPayloadContent(button, override);
+              });
+              body.appendChild(retry);
+            }
           });
       } else {
         setHtml(body, diagnosticPayloadHtml(payloadId, title, kind));
@@ -262,11 +275,7 @@
     var url = fullPayloadApiUrl(payloadId);
     if (!url) return;
     modal.setAttribute("data-loading-payload-id", payloadId);
-    fetch(url, { headers: { "Accept": "application/json" } })
-      .then(function (response) {
-        if (!response.ok) throw new Error("payload fetch failed");
-        return response.json();
-      })
+    readSessionContentPage(url)
       .then(function (payload) {
         if (modal.getAttribute("data-loading-payload-id") !== payloadId) return;
         var body = qs(modal, "[data-payload-body]") || qs(modal, ".sd-modal-body");
