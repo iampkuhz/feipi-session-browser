@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[3]
 
 def _source() -> str:
     build = (ROOT / "java/app-cli/build.gradle.kts").read_text()
-    start = build.index("fun sqliteNativePaths")
+    start = build.index("val sqliteNativePath =")
     end = build.index("\nval runtimeJars", start)
     return build[start:end]
 
@@ -17,7 +17,6 @@ def _source() -> str:
 def _fixture(
     tmp_path: Path,
     *,
-    paths: str = 'sqliteNativePaths("Linux", "x86_64")',
     signed: bool = False,
     natives: tuple[str, ...] = (
         "Linux/x86_64/lib.so",
@@ -39,22 +38,11 @@ def _fixture(
             archive.writestr(name, name.encode())
         if signed:
             archive.writestr("META-INF/TEST.SF", b"signature")
-    if paths == "emptyList()":
-        paths = "emptyList<String>()"
-    fragment = _source().replace(
-        'val nativeSqlitePaths = sqliteNativePaths(System.getProperty("os.name"), System.getProperty("os.arch"))',
-        f"val nativeSqlitePaths = {paths}",
-    )
     gradle = f'''import org.gradle.api.tasks.bundling.Zip
 import java.util.zip.ZipFile
 plugins {{ java }}
 dependencies {{ runtimeOnly(files("{jar.as_posix()}")) }}
-{fragment}
-check(sqliteNativePaths("Mac OS X", "aarch64") == listOf("Mac/aarch64"))
-check(sqliteNativePaths("Mac OS X", "x86_64") == listOf("Mac/x86_64"))
-check(sqliteNativePaths("Linux", "amd64") == listOf("Linux/x86_64", "Linux-Musl/x86_64"))
-check(sqliteNativePaths("Windows 11", "amd64") == listOf("Windows/x86_64"))
-check(sqliteNativePaths("Plan9", "mips").isEmpty())
+{_source()}
 '''
     (project / "build.gradle.kts").write_text(gradle)
     return project
@@ -88,27 +76,11 @@ def test_native_sqlite_packaging_task_behavior_and_reuse(tmp_path: Path) -> None
             for name in names
             if name.startswith("org/sqlite/native/") and not name.endswith("/")
         }
-        assert native and all(
-            name.startswith(("org/sqlite/native/Linux/", "org/sqlite/native/Linux-Musl/"))
-            for name in native
-        )
+        assert native and all(name.startswith("org/sqlite/native/Mac/aarch64/") for name in native)
         for name in names:
             if name.endswith("/"):
                 continue
             assert archive.read(name) == name.encode()
-
-
-def test_unknown_host_task_keeps_all_native_payloads(tmp_path: Path) -> None:
-    project = _fixture(tmp_path, paths="emptyList()")
-    result = _run(project, "nativeSqliteJar")
-    assert result.returncode == 0, result.stdout[-4000:]
-    with zipfile.ZipFile(project / "build/native-libs/sqlite-jdbc-1.jar") as archive:
-        native = {
-            name
-            for name in archive.namelist()
-            if name.startswith("org/sqlite/native/") and not name.endswith("/")
-        }
-    assert len(native) == 4
 
 
 def test_native_sqlite_task_fails_closed_for_missing_or_signed_jar(tmp_path: Path) -> None:
@@ -116,7 +88,6 @@ def test_native_sqlite_task_fails_closed_for_missing_or_signed_jar(tmp_path: Pat
     missing_root.mkdir()
     missing = _fixture(
         missing_root,
-        paths='sqliteNativePaths("Mac OS X", "aarch64")',
         natives=("Windows/x86_64/sqlite.dll",),
     )
     result = _run(missing, "nativeSqliteJar", "--no-build-cache")

@@ -13,9 +13,9 @@
 
 ## 下载发行包
 
-只想使用本工具时，从 [GitHub Releases](https://github.com/iampkuhz/feipi-session-browser/releases) 下载匹配本机系统和 CPU 的 runtime 包及 `MANIFEST.SHA256`。核对后解压，运行包内的 `bin/run serve`（Windows：`bin\run.bat serve`），打开终端给出的地址。原生包自带 Java，不需要 Git 或 Gradle。
+新发行仅支持 Apple Silicon（macOS arm64）。从 [GitHub Releases](https://github.com/iampkuhz/feipi-session-browser/releases) 下载 macOS arm64 runtime 包和 `MANIFEST.SHA256`。核对后解压，运行包内的 `bin/run serve`，打开终端给出的地址。包内置 Java，不需要 Git 或 Gradle。
 
-见[安装、更新与失败恢复](docs/release/README.md#本机安装与更新)。维护或修改源码时，使用下面的开发入口。
+见[安装、更新与失败恢复](docs/release/README.md#安装更新与恢复)。维护或修改源码时，使用下面的开发入口。
 
 ## 从源码开始使用
 

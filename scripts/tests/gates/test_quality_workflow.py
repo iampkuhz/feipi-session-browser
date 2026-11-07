@@ -1,4 +1,4 @@
-"""CI 统一 Gate receipt 与 Java portability 分工合同。"""
+"""CI 统一 Gate receipt 与 Java 产品验证分工合同。"""
 
 from pathlib import Path
 
@@ -17,9 +17,9 @@ def test_quality_workflow_uses_incremental_base_and_manual_full() -> None:
     assert 'if-no-files-found: error' in text
 
 
-def test_java_matrix_is_named_as_portability_not_unified_gate() -> None:
+def test_java_quality_does_not_claim_the_unified_gate_receipt() -> None:
     text = (ROOT / '.github/workflows/java-quality.yml').read_text(encoding='utf-8')
 
-    assert 'name: Java Portability' in text
-    assert 'java-portability:' in text
+    assert 'name: Java Quality' in text
+    assert 'tmp/quality/runs/' not in text
     assert '统一 Gate receipt 由 quality.yml 负责' in text

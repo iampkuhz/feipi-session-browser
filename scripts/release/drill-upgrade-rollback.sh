@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 职责：复用真实五包全集验收；不执行数据迁移、备份或回滚。
+# 职责：复用唯一原生归档与候选验收；不执行数据迁移、备份或回滚。
 # 入口：接受 verify-candidate 的全部参数，必须显式提供预期来源身份。
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

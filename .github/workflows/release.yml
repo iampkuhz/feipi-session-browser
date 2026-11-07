@@ -248,8 +248,9 @@ jobs:
                   break
               page += 1
           assets = {path.name: path.read_bytes() for path in Path('verified-candidate').iterdir() if path.is_file()}
-          if len(assets) != 15:
-              raise RuntimeError('Expected all 15 verified candidate assets')
+          archive = 'app-cli-' + os.environ['VERSION'] + '-runtime-macos-arm64.tar.gz'
+          if set(assets) != {archive, archive + '.provenance.json', archive + '.smoke.json', 'MANIFEST.SHA256'}:
+              raise RuntimeError('Expected the exact macOS arm64 candidate asset set')
           notes = Path('docs/release/notes') / (tag + '.md')
           # Only pure numeric X.Y / X.Y.Z versions are stable and eligible for latest.
           prerelease = re.fullmatch(r'[0-9]+\.[0-9]+(?:\.[0-9]+)?', os.environ['VERSION']) is None

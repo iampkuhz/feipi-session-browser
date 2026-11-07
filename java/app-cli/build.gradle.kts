@@ -278,41 +278,23 @@ distributions {
     }
 }
 
-// generic 保留原始全平台 JDBC；只有宿主 runtime 包使用裁剪后的同名 JAR。
-// Linux 同时保留 glibc/musl，不能以构建机 libc 推断使用者的环境。
-fun sqliteNativePaths(os: String, arch: String): List<String> = when (os) {
-    "Mac OS X" -> when (arch) {
-        "aarch64", "arm64" -> listOf("Mac/aarch64")
-        "x86_64", "amd64" -> listOf("Mac/x86_64")
-        else -> emptyList()
-    }
-    "Linux" -> when (arch) {
-        "x86_64", "amd64" -> listOf("Linux/x86_64", "Linux-Musl/x86_64")
-        else -> emptyList()
-    }
-    else -> if (os.startsWith("Windows") &&
-        arch in listOf("amd64", "x86_64")) {
-        listOf("Windows/x86_64")
-    } else {
-        // 未声明的宿主不猜测 SQLite 的平台映射，安全保留全部 native。
-        emptyList()
-    }
-}
-val nativeSqlitePaths = sqliteNativePaths(System.getProperty("os.name"), System.getProperty("os.arch"))
+// 发行只裁剪 macOS arm64；其他宿主的内部测试使用未修改的 JDBC。
+val macArm64 = System.getProperty("os.name") == "Mac OS X" &&
+    System.getProperty("os.arch") in setOf("aarch64", "arm64")
+val sqliteNativePath = "org/sqlite/native/Mac/aarch64/"
 val sqliteJdbcJar = configurations.runtimeClasspath.map { classpath ->
     classpath.single { it.name.startsWith("sqlite-jdbc-") && it.extension == "jar" }
 }
 val nativeSqliteJar = tasks.register<Zip>("nativeSqliteJar") {
     group = "distribution"
-    description = "仅为宿主 runtime 发行包保留目标 SQLite native，保留类、SPI、许可与来源。"
+    description = "仅保留 macOS arm64 SQLite native，保留类、SPI、许可与来源。"
     archiveFileName.set(sqliteJdbcJar.map { it.name })
     destinationDirectory.set(layout.buildDirectory.dir("native-libs"))
-    inputs.property("nativePaths", nativeSqlitePaths)
-    val requiredPaths = nativeSqlitePaths
+    val requiredPath = sqliteNativePath
+    inputs.property("nativePath", requiredPath)
     from(zipTree(sqliteJdbcJar)) {
         exclude { entry ->
-            entry.path.startsWith("org/sqlite/native/") && requiredPaths.isNotEmpty() &&
-                requiredPaths.none { entry.path.startsWith("org/sqlite/native/$it/") }
+            entry.path.startsWith("org/sqlite/native/") && !entry.path.startsWith(requiredPath)
         }
     }
     includeEmptyDirs = false
@@ -323,10 +305,8 @@ val nativeSqliteJar = tasks.register<Zip>("nativeSqliteJar") {
             require(names.none { it.matches(Regex("META-INF/[^/]+\\.(SF|RSA|DSA|EC)", RegexOption.IGNORE_CASE)) }) {
                 "不能裁剪已签名的 SQLite JAR"
             }
-            requiredPaths.forEach { path ->
-                require(names.any { it.startsWith("org/sqlite/native/$path/") }) {
-                    "SQLite JAR 缺少目标 native: $path"
-                }
+            require(names.any { it.startsWith(requiredPath) }) {
+                "SQLite JAR 缺少目标 native: $requiredPath"
             }
         }
     }
@@ -558,19 +538,14 @@ val generateRuntimeLauncher = tasks.register("generateRuntimeLauncher") {
 
 // 测试只准备应用文件，直接复用 jlink image 和 launcher，不复制整个 runtime。
 val runtimeAppContents = copySpec {
-    from(tasks.named("startScripts")) {
-        into("bin")
-        filesMatching("app-cli") { permissions { unix("0755") } }
-    }
-    from(sourceVersionFile)
     from(runtimeJars) {
         into("lib")
-        exclude("sqlite-jdbc-*.jar")
+        if (macArm64) exclude("sqlite-jdbc-*.jar")
     }
-    from(nativeSqliteJar) { into("lib") }
+    if (macArm64) from(nativeSqliteJar) { into("lib") }
 }
 
-val prepareRuntimeDist = tasks.register<Sync>("prepareRuntimeDist") {
+tasks.register<Sync>("prepareRuntimeDist") {
     group = "verification"
     description = "只为真实 runtime 测试准备应用文件，不复制 jlink image。"
     dependsOn(generateRuntimeLauncher, jlinkImage)
@@ -578,9 +553,25 @@ val prepareRuntimeDist = tasks.register<Sync>("prepareRuntimeDist") {
     into(runtimeLayout.map { it.dir("app") })
 }
 
-val runtimeContents = copySpec {
+tasks.register<Tar>("runtimeDistTar") {
+    group = "distribution"
+    description = "打包唯一 macOS arm64 自包含运行时。"
+    dependsOn(generateRuntimeLauncher)
+    archiveBaseName.set("${project.name}-runtime")
+    compression = Compression.GZIP
+    isPreserveFileTimestamps = false
+    isReproducibleFileOrder = true
+    filePermissions { unix("0644") }
+    dirPermissions { unix("0755") }
+    destinationDirectory.set(layout.buildDirectory.dir("distributions"))
+    val supportedHost = macArm64
+    inputs.property("macArm64", supportedHost)
+    doFirst {
+        require(supportedHost) { "runtimeDistTar 只支持 macOS arm64" }
+    }
     into("app-cli") {
         from(runtimeLauncherDirectory) {
+            include("run")
             into("bin")
             filesMatching("run") { permissions { unix("0755") } }
         }
@@ -591,26 +582,4 @@ val runtimeContents = copySpec {
             filesMatching(listOf("bin/*", "lib/jspawnhelper")) { permissions { unix("0755") } }
         }
     }
-}
-
-fun AbstractArchiveTask.configureRuntimeArchive() {
-    dependsOn(generateRuntimeLauncher)
-    archiveBaseName.set("${project.name}-runtime")
-    isPreserveFileTimestamps = false
-    isReproducibleFileOrder = true
-    filePermissions { unix("0644") }
-    dirPermissions { unix("0755") }
-    with(runtimeContents)
-    destinationDirectory.set(layout.buildDirectory.dir("distributions"))
-}
-tasks.register<Zip>("runtimeDistZip") {
-    group = "distribution"
-    description = "直接打包包含自包含 runtime 的 ZIP 发行包。"
-    configureRuntimeArchive()
-}
-tasks.register<Tar>("runtimeDistTar") {
-    group = "distribution"
-    description = "直接打包包含自包含 runtime 的 tar.gz 发行包。"
-    compression = Compression.GZIP
-    configureRuntimeArchive()
 }

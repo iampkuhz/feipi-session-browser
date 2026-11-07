@@ -52,9 +52,17 @@ def _publisher(tmp_path, monkeypatch, case='happy', version='0.4'):
         monkeypatch.setenv(name, value)
     candidate = tmp_path / 'verified-candidate'
     candidate.mkdir()
-    assets = {f'asset-{i:02}': f'body-{i}'.encode() for i in range(15)}
+    archive = f'app-cli-{version}-runtime-macos-arm64.tar.gz'
+    assets = {
+        archive: b'archive',
+        archive + '.provenance.json': b'provenance',
+        archive + '.smoke.json': b'smoke',
+        'MANIFEST.SHA256': b'manifest',
+    }
     for name, data in assets.items():
         (candidate / name).write_bytes(data)
+    if case == 'bad-local-name':
+        (candidate / 'MANIFEST.SHA256').rename(candidate / 'surprise.txt')
     calls, handlers = [], []
 
     def transport(req, **_):
@@ -95,8 +103,8 @@ def _publisher(tmp_path, monkeypatch, case='happy', version='0.4'):
             return Response({'tag_name': 'v' + version, 'draft': True})
         if method == 'PATCH':
             assert payload == {'draft': False}
-            assert sum('/blob/' in item[1] for item in calls) == 15
-            assert sum('/uploads?' in item[1] for item in calls) == 15
+            assert sum('/blob/' in item[1] for item in calls) == 4
+            assert sum('/uploads?' in item[1] for item in calls) == 4
             return Response({'draft': False, 'html_url': 'https://example.test/public/1'})
         raise AssertionError('Unexpected offline request: ' + method + ' ' + url)
 
@@ -116,6 +124,12 @@ def _publisher(tmp_path, monkeypatch, case='happy', version='0.4'):
     except (RuntimeError, OSError) as caught:
         error = caught
     return calls, handlers, error
+
+
+def test_unexpected_local_candidate_name_never_creates_draft(tmp_path, monkeypatch):
+    calls, _, error = _publisher(tmp_path, monkeypatch, case='bad-local-name')
+    assert isinstance(error, RuntimeError)
+    assert not any(method == 'POST' for method, _, _ in calls)
 
 
 @pytest.mark.parametrize('case', ['draft', 'public'])
@@ -268,7 +282,7 @@ def test_shared_workflow_permissions_and_fresh_checkout_prerequisites():
     browsers = next(
         index
         for index, step in enumerate(steps)
-        if 'npx playwright install --with-deps chromium' in step.get('run', '')
+        if 'npx playwright install chromium' in step.get('run', '')
     )
     gate = next(
         index for index, step in enumerate(steps) if step['name'] == 'Unified quality gates'
@@ -280,6 +294,7 @@ def test_shared_workflow_permissions_and_fresh_checkout_prerequisites():
 def test_quality_prepares_clean_runner_without_weakening_gate_isolation():
     workflow = yaml.safe_load((ROOT / '.github/workflows/quality.yml').read_text())
     job = workflow['jobs']['python-quality']
+    assert job['runs-on'] == 'macos-15'
     assert job['env']['PLAYWRIGHT_BROWSERS_PATH'] == (
         '${{ github.workspace }}/.local/playwright-browsers'
     )
@@ -293,98 +308,72 @@ def test_quality_prepares_clean_runner_without_weakening_gate_isolation():
     wrapper = steps[install]['run'].split()[0]
     assert (ROOT / wrapper).is_file(), f'Gradle wrapper does not exist: {wrapper}'
     java = next(i for i, step in enumerate(steps) if step['name'] == 'Set up JDK 25')
-    browsers = next(
-        i
-        for i, step in enumerate(steps)
-        if step.get('run') == 'npx playwright install --with-deps chromium'
+    assert steps[java]['with']['architecture'] == 'arm64'
+    host = next(
+        i for i, step in enumerate(steps) if step['name'] == 'Check native macOS arm64 host'
     )
-    assert java < install < gate
+    assert 'Darwin arm64' in steps[host]['run']
+    browsers = next(
+        i for i, step in enumerate(steps) if step.get('run') == 'npx playwright install chromium'
+    )
+    assert host < java < install < gate
     assert browsers < gate
     for step in steps:
         assert 'PLAYWRIGHT_BROWSERS_PATH' not in step.get('env', {})
         assert 'XDG_CACHE_HOME' not in step.get('env', {})
-    for index in (install, browsers, gate):
+    for index in (host, install, browsers, gate):
         assert 'if' not in steps[index]
         assert not steps[index].get('continue-on-error', False)
     assert 'XDG_CACHE_HOME' not in job['env']
     assert 'python3 scripts/gates/cli.py run --mode full' in steps[gate]['run']
 
 
-def test_portability_collects_independent_failures_without_masking_exit_status():
-    workflow = yaml.safe_load((ROOT / '.github/workflows/java-quality.yml').read_text())
-    job = workflow['jobs']['java-portability']
-    assert job['strategy']['fail-fast'] is False
-    assert job['strategy']['matrix']['os'] == [
-        'ubuntu-latest',
-        'macos-15-intel',
-        'windows-latest',
-    ]
-    steps = {step['name']: step for step in job['steps']}
-    posix = steps['Gradle check (POSIX)']
-    windows = steps['Gradle check (Windows)']
-    assert posix['run'] == './java/gradlew -p java check --continue'
-    assert windows['run'] == r'.\java\gradlew.bat -p java check --continue'
-    assert posix['if'] == "runner.os != 'Windows'"
-    assert windows['if'] == "runner.os == 'Windows'"
-    assert windows['shell'] == 'cmd'
-    assert 'continue-on-error' not in job
-    assert all('continue-on-error' not in step for step in job['steps'])
-    report = steps['Upload test results']
-    assert report['if'] == 'always()'
-    assert report['uses'].startswith('actions/upload-artifact@')
-    assert '**/build/test-results/**/*.xml' in report['with']['path']
-    assert '**/build/reports/tests/' in report['with']['path']
-
-
-def test_native_product_checks_block_candidates_without_replacing_canonical_gate():
+def test_only_native_arm64_build_can_seal_candidate_after_full_gate():
     workflow = yaml.safe_load((ROOT / '.github/workflows/distribution.yml').read_text())
     jobs = workflow['jobs']
+    assert set(jobs) == {'quality', 'build'}
     assert jobs['quality']['uses'] == './.github/workflows/quality.yml'
     assert jobs['quality']['with']['full-mode'] is True
     build = jobs['build']
-    assert build['needs'] == 'quality'
-    assert build['strategy']['fail-fast'] is False
-    assert {entry['platform'] for entry in build['strategy']['matrix']['include']} == {
-        'macos-arm64',
-        'macos-x64',
-        'linux-x64',
-        'windows-x64',
-    }
+    assert build['needs'] == 'quality' and build['runs-on'] == 'macos-15'
+    assert 'strategy' not in build
     steps = build['steps']
     named = {step['name']: step for step in steps}
-    posix = named['Build native runtime (POSIX)']
-    windows = named['Build native runtime (Windows)']
-    assert 'tasks=(check :java:app-cli:runtimeDistTar)' in posix['run']
-    assert '[[ "$PLATFORM" == linux-x64 ]]; then tasks+=(:java:app-cli:distZip)' in posix['run']
-    assert './java/gradlew -p java "${tasks[@]}" --continue --no-daemon' in posix['run']
-    assert sum(':java:app-cli:distZip' in step.get('run', '') for step in steps) == 1
-    assert windows['run'] == (
-        r'.\java\gradlew.bat -p java check :java:app-cli:runtimeDistZip --continue --no-daemon'
-    )
-    assert posix['if'] == "runner.os != 'Windows'"
-    assert windows['if'] == "runner.os == 'Windows'"
-    assert build['defaults']['run']['shell'] == 'bash'
-    assert windows['shell'] == 'cmd'
+    assert named['Set up native arm64 JDK 25']['with']['architecture'] == 'arm64'
+    guard = named['Check macOS arm64, JDK 25 and source version']
+    assert "platform.machine() == 'arm64'" in guard['run']
+    check = named['Check and build the macOS arm64 runtime']
+    assert './java/gradlew -p java check :java:app-cli:runtimeDistTar ' in check['run']
     prepare = named['Prepare and launch actual native archive without external JDK']
-    upload = named['Upload native group including provenance and real smoke receipt']
-    assert steps.index(posix) < steps.index(prepare) < steps.index(upload)
-    assert steps.index(windows) < steps.index(prepare)
-    assert 'if' not in prepare and 'if' not in upload
-    assert '--smoke' in prepare['run'] and 'verify-archive' not in prepare['run']
-    assert upload['with']['compression-level'] == 0
-    assert named['Upload generic group once']['with']['compression-level'] == 0
-    assert all('continue-on-error' not in step for step in steps)
-    assert set(jobs['verify']['needs']) == {'quality', 'build'}
-    for job in jobs.values():
-        assert 'if' not in job
-        assert 'continue-on-error' not in job
-    assert all('continue-on-error' not in step for step in jobs['verify']['steps'])
+    assert (
+        'prepare --dist-dir java/app-cli/build/distributions --output-dir verified-candidate'
+        in prepare['run']
+    )
+    upload = named['Upload the sole verified candidate']
+    assert steps.index(guard) < steps.index(check) < steps.index(prepare) < steps.index(upload)
+    assert upload['with']['path'] == 'verified-candidate/'
+    assert upload['with']['if-no-files-found'] == 'error'
+    assert sum('upload-artifact' in step.get('uses', '') for step in steps) == 1
+    assert all(
+        'if' not in item and 'continue-on-error' not in item for item in (*jobs.values(), *steps)
+    )
 
 
 def test_java_full_uses_current_entry_with_required_comment_language_rule():
     workflow = yaml.safe_load((ROOT / '.github/workflows/java-quality.yml').read_text())
+    assert set(workflow['jobs']) == {'java-full'}
     job = workflow['jobs']['java-full']
-    assert job['needs'] == 'java-portability'
+    assert job['runs-on'] == 'macos-15' and 'strategy' not in job and 'needs' not in job
+    steps = {step['name']: step for step in job['steps']}
+    assert steps['Set up native arm64 JDK 25']['with']['architecture'] == 'arm64'
+    assert 'Darwin arm64' in steps['Check native macOS arm64 host']['run']
+    assert ':java:app-cli:installDist' in steps['Check development launcher']['run']
+    assert all(':distZip' not in step.get('run', '') for step in steps.values())
+    uploads = [step for step in steps.values() if 'upload-artifact' in step.get('uses', '')]
+    assert uploads == [steps['Upload quality reports']]
+    assert uploads[0]['if'] == 'always()'
+    assert '**/build/test-results/**/*.xml' in uploads[0]['with']['path']
+    assert '**/build/reports/' in uploads[0]['with']['path']
     quality = next(step for step in job['steps'] if step['name'] == 'qualityFull')
     assert quality['run'] == './java/gradlew -p java qualityFull'
     assert 'if' not in quality
@@ -405,49 +394,14 @@ def test_java_full_uses_current_entry_with_required_comment_language_rule():
     assert '"--rules", javaQualityRules.get()' in source_rules
 
 
-def test_stable_portability_runner_preserves_both_native_macos_architectures():
-    portability = yaml.safe_load((ROOT / '.github/workflows/java-quality.yml').read_text())
-    assert portability['jobs']['java-portability']['strategy']['matrix']['os'] == [
-        'ubuntu-latest',
-        'macos-15-intel',
-        'windows-latest',
-    ]
-    distribution = yaml.safe_load((ROOT / '.github/workflows/distribution.yml').read_text())
-    targets = distribution['jobs']['build']['strategy']['matrix']['include']
-    assert {(entry['os'], entry['platform'], entry['arch']) for entry in targets} == {
-        ('macos-15', 'macos-arm64', 'arm64'),
-        ('macos-15-intel', 'macos-x64', 'x64'),
-        ('ubuntu-24.04', 'linux-x64', 'x64'),
-        ('windows-2025', 'windows-x64', 'x64'),
-    }
-    assert len(targets) == 4
-
-
-def test_windows_cli_smoke_calls_each_batch_and_stops_at_first_failure():
-    workflow = yaml.safe_load((ROOT / '.github/workflows/java-quality.yml').read_text())
-    job = workflow['jobs']['java-portability']
-    step = next(item for item in job['steps'] if item['name'] == 'CLI smoke test (Windows)')
-    assert step['shell'] == 'cmd'
-    assert step['if'] == "runner.os == 'Windows'"
-    assert 'continue-on-error' not in step
-    assert step['run'].splitlines() == [
-        r'call .\java\gradlew.bat -p java :java:app-cli:installDist',
-        'if not "%errorlevel%"=="0" exit /b %errorlevel%',
-        r'call java\app-cli\build\install\app-cli\bin\app-cli.bat --help',
-        'if not "%errorlevel%"=="0" exit /b %errorlevel%',
-        r'call java\app-cli\build\install\app-cli\bin\app-cli.bat --version',
-        'if not "%errorlevel%"=="0" exit /b %errorlevel%',
-    ]
-
-
 def test_rc_attests_to_sealed_artifact_without_downloading_another_copy():
     release = yaml.safe_load((ROOT / '.github/workflows/release.yml').read_text())['jobs']
     distribution = yaml.safe_load((ROOT / '.github/workflows/distribution.yml').read_text())
     entry = distribution.get('on', distribution.get(True))['workflow_call']
-    verify = distribution['jobs']['verify']
-    assert entry['outputs']['candidate-id']['value'] == '${{ jobs.verify.outputs.candidate-id }}'
-    assert verify['outputs']['candidate-id'] == '${{ steps.seal.outputs.artifact-id }}'
-    upload = verify['steps'][-1]
+    build = distribution['jobs']['build']
+    assert entry['outputs']['candidate-id']['value'] == '${{ jobs.build.outputs.candidate-id }}'
+    assert build['outputs']['candidate-id'] == '${{ steps.seal.outputs.artifact-id }}'
+    upload = build['steps'][-1]
     assert upload['id'] == 'seal'
     assert (
         upload['with']['name']
@@ -476,8 +430,8 @@ def test_rc_attests_to_sealed_artifact_without_downloading_another_copy():
     preflight = next(step for step in steps if step['name'].startswith('Reject a missing'))
     assert steps.index(preflight) < steps.index(download) < steps.index(verify_candidate)
     assert steps.index(verify_candidate) < steps.index(remote_tag)
-    assert entry['outputs']['candidate-key']['value'] == '${{ jobs.verify.outputs.candidate-key }}'
-    assert verify['outputs']['candidate-key'] == (
+    assert entry['outputs']['candidate-key']['value'] == '${{ jobs.build.outputs.candidate-key }}'
+    assert build['outputs']['candidate-key'] == (
         "${{ format('{0}:{1}:{2}', github.sha, github.run_id, github.run_attempt) }}"
     )
     for check in (rc['steps'][0], preflight):

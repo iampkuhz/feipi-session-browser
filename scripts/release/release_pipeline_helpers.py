@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """发布工程归档验收工具。
 
-职责：准备唯一资产、严格校验清单、安全解包、运行本机启动器及汇总五包。
+职责：准备唯一 macOS arm64 原生包、安全解包、真实启动并验证候选身份。
 不负责产品构建、Git 或发布操作，不证明跨版本迁移能力。
 入口：命令行子命令；仅供开发与发布环境使用，不进入产品运行链。
 """
@@ -11,24 +11,21 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 import platform as system_platform
 import re
 import shutil
-import stat
 import subprocess
 import sys
 import tarfile
 import tempfile
-import zipfile
 from dataclasses import asdict, dataclass
 from pathlib import Path, PurePosixPath
 
-NATIVE_PLATFORMS = frozenset({'macos-arm64', 'macos-x64', 'linux-x64', 'windows-x64'})
+PLATFORM = 'macos-arm64'
 VERSION_PATTERN = re.compile(
     r'(?:[0-9]+\.[0-9]+(?:-[A-Za-z0-9._-]+)?|[0-9]+\.[0-9]+\.[0-9]+(?:[.-][A-Za-z0-9._-]+)?)'
 )
-ASSET_PATTERN = re.compile(r'[A-Za-z0-9][A-Za-z0-9._-]*\.(?:tar\.gz|zip)')
+ASSET_PATTERN = re.compile(r'[A-Za-z0-9][A-Za-z0-9._-]*\.tar\.gz')
 
 
 @dataclass(frozen=True)
@@ -70,12 +67,10 @@ class VerificationResult:
     """记录本次实际启动器验证结果，不表示其他平台已执行。"""
 
     success: bool
-    platform: str
-    archive_path: str
     error: str | None = None
-    version_in_archive: str | None = None
     launcher_version_output: str | None = None
     launcher_help_output: str | None = None
+    serve_help_output: str | None = None
 
 
 def compute_sha256(path: Path):
@@ -89,7 +84,7 @@ def _regular(path):
 
 
 def _archives(directory):
-    return sorted(p for p in directory.iterdir() if p.name.endswith(('.zip', '.tar.gz')))
+    return sorted(p for p in directory.iterdir() if p.name.endswith('.tar.gz'))
 
 
 def parse_manifest(path: Path):
@@ -215,123 +210,57 @@ def _validate_entries(entries):
             raise ValueError(f'file used as directory: {key}')
 
 
-def _extract(archive_path, destination, fmt):
+def safe_extract_tar(path: Path, destination: Path):
+    """先验证所有条目再解包，保留可执行权限，不接受链接或特殊文件。"""
     if destination.is_symlink() or (destination.exists() and any(destination.iterdir())):
         return False, 'extraction destination must be empty and not a symlink'
     try:
-        if fmt == 'tar':
-            with tarfile.open(archive_path, 'r:*') as archive:
-                members = archive.getmembers()
-                _validate_entries(
-                    [
-                        (m.name, 'directory' if m.isdir() else 'file' if m.isreg() else 'forbidden')
-                        for m in members
-                    ]
-                )
-                destination.mkdir(parents=True, exist_ok=True)
-                for member in members:
-                    target = destination / str(_safe_path(member.name))
-                    if member.isdir():
-                        target.mkdir(parents=True, exist_ok=True)
-                    else:
-                        target.parent.mkdir(parents=True, exist_ok=True)
-                        source = archive.extractfile(member)
-                        if source is None:
-                            raise ValueError('missing tar content')
-                        with source, target.open('xb') as output:
-                            shutil.copyfileobj(source, output)
-                        target.chmod(member.mode & 0o777)
-        else:
-            with zipfile.ZipFile(archive_path) as archive:
-                members = archive.infolist()
-                entries = []
-                for member in members:
-                    mode = member.external_attr >> 16
-                    file_type = stat.S_IFMT(mode)
-                    kind = 'directory' if member.is_dir() else 'file'
-                    if file_type not in {0, stat.S_IFREG, stat.S_IFDIR} or (
-                        file_type == stat.S_IFDIR and not member.is_dir()
-                    ):
-                        kind = 'forbidden'
-                    entries.append((member.filename, kind))
-                _validate_entries(entries)
-                destination.mkdir(parents=True, exist_ok=True)
-                for member in members:
-                    target = destination / str(_safe_path(member.filename))
-                    if member.is_dir():
-                        target.mkdir(parents=True, exist_ok=True)
-                    else:
-                        target.parent.mkdir(parents=True, exist_ok=True)
-                        with archive.open(member) as source, target.open('xb') as output:
-                            shutil.copyfileobj(source, output)
-                        mode = (member.external_attr >> 16) & 0o777
-                        if mode:
-                            target.chmod(mode)
+        with tarfile.open(path, 'r:gz') as archive:
+            members = archive.getmembers()
+            _validate_entries(
+                (m.name, 'directory' if m.isdir() else 'file' if m.isreg() else 'forbidden')
+                for m in members
+            )
+            destination.mkdir(parents=True, exist_ok=True)
+            for member in members:
+                target = destination / _safe_path(member.name)
+                if member.isdir():
+                    target.mkdir(parents=True, exist_ok=True)
+                    continue
+                target.parent.mkdir(parents=True, exist_ok=True)
+                source = archive.extractfile(member)
+                if source is None:
+                    raise ValueError('missing tar content')
+                with source, target.open('xb') as output:
+                    shutil.copyfileobj(source, output)
+                target.chmod(member.mode & 0o777)
         return True, None
-    except (
-        OSError,
-        ValueError,
-        EOFError,
-        tarfile.TarError,
-        zipfile.BadZipFile,
-        RuntimeError,
-    ) as error:
+    except (OSError, ValueError, EOFError, tarfile.TarError) as error:
         return False, f'extraction failed: {error}'
 
 
-def safe_extract_tar(path: Path, destination: Path):
-    """先检查全部条目再手工解包；明确拒绝所有链接及特殊文件。"""
-    return _extract(path, destination, 'tar')
+def is_macos_arm64():
+    """检查真实原生宿主，不把异平台验证记为发行 smoke。"""
+    return system_platform.system() == 'Darwin' and system_platform.machine().lower() in {
+        'arm64',
+        'aarch64',
+    }
 
 
-def safe_extract_zip(path: Path, destination: Path):
-    """先检查全部条目再手工解包，并保留启动文件权限。"""
-    return _extract(path, destination, 'zip')
-
-
-def host_platform():
-    """识别当前宿主，防止异平台验证被记为实际启动。"""
-    system = {'Darwin': 'macos', 'Linux': 'linux', 'Windows': 'windows'}.get(
-        system_platform.system(), 'unknown'
-    )
-    arch = {'arm64': 'arm64', 'aarch64': 'arm64', 'x86_64': 'x64', 'amd64': 'x64'}.get(
-        system_platform.machine().lower(), 'unknown'
-    )
-    return f'{system}-{arch}'
-
-
-def _package_root(extracted, platform):
-    expected = 'app-cli' if platform in NATIVE_PLATFORMS else None
-    roots = list(extracted.iterdir())
-    if len(roots) != 1 or not roots[0].is_dir() or (expected and roots[0].name != expected):
-        raise ValueError('archive must contain exactly one package root')
-    return roots[0]
-
-
-def _structure(extracted, platform, version):
-    root = _package_root(extracted, platform)
+def _structure(extracted, version):
+    root = extracted / 'app-cli'
+    if list(extracted.iterdir()) != [root] or not root.is_dir():
+        raise ValueError('archive must contain exactly one app-cli root')
     version_file = root / 'VERSION'
-    if not _regular(version_file):
-        raise ValueError('VERSION file not found')
-    if version_file.read_text(encoding='utf-8').strip() != version:
-        raise ValueError('VERSION mismatch')
-    if platform == 'generic':
-        jars = list((root / 'lib').glob('*.jar'))
-        if root.name != f'app-cli-{version}' or not jars or any(not _regular(jar) for jar in jars):
-            raise ValueError('invalid generic layout')
-    else:
-        windows = platform == 'windows-x64'
-        for relative in [
-            'bin/run.bat' if windows else 'bin/run',
-            'runtime/bin/java.exe' if windows else 'runtime/bin/java',
-        ]:
-            if not _regular(root / relative):
-                raise ValueError(f'missing launcher/runtime: {relative}')
-            if not windows and not (root / relative).stat().st_mode & 0o111:
-                raise ValueError(f'launcher/runtime not executable: {relative}')
-        jars = list((root / 'app/lib').glob('*.jar'))
-        if not jars or any(not _regular(jar) for jar in jars):
-            raise ValueError('app/lib jars missing or not regular files')
+    if not _regular(version_file) or version_file.read_text(encoding='utf-8').strip() != version:
+        raise ValueError('missing or mismatched VERSION')
+    for relative in ('bin/run', 'runtime/bin/java'):
+        file = root / relative
+        if not _regular(file) or not file.stat().st_mode & 0o111:
+            raise ValueError(f'missing or non-executable launcher/runtime: {relative}')
+    jars = list((root / 'app/lib').glob('*.jar'))
+    if not jars or any(not _regular(jar) for jar in jars):
+        raise ValueError('app/lib jars missing or not regular files')
     return root
 
 
@@ -345,98 +274,85 @@ def _valid_outputs(version_output, help_output, version):
     )
 
 
-def run_launcher_smoke_test(
-    extract_dir: Path, platform: str, expected_version: str, isolate_env=True
-):
-    """隔离系统 Java 后执行包内启动器；不直接调用 Java 绕过启动入口。"""
-    result = VerificationResult(False, platform, str(extract_dir))
+def _valid_serve_help(output):
+    return 'Usage:' in output and '--no-scan' in output and '--index-dir' in output
+
+
+def _launch(root, args, env):
+    completed = subprocess.run(
+        [str(root / 'bin/run'), *args],
+        cwd=root,
+        env=env,
+        capture_output=True,
+        timeout=60,
+        check=False,
+    )
     try:
-        root = _structure(extract_dir, platform, expected_version).resolve()
-        result.version_in_archive = expected_version
-        if platform != host_platform() or not isolate_env:
-            raise ValueError('native smoke requires matching host and isolated environment')
-        env = {
-            key: value
-            for key, value in os.environ.items()
-            if key.upper()
-            not in {
-                'JAVA_HOME',
-                'JDK_HOME',
-                'JRE_HOME',
-                'JAVA_TOOL_OPTIONS',
-                '_JAVA_OPTIONS',
-                'JDK_JAVA_OPTIONS',
-                'CLASSPATH',
-                'PATH',
-            }
-        }
+        stdout = completed.stdout.decode('utf-8')
+        stderr = completed.stderr.decode('utf-8')
+    except UnicodeError as error:
+        raise ValueError(f'launcher output is not UTF-8: {args[-1]}') from error
+    if completed.returncode:
+        raise ValueError(
+            f'launcher {args[-1]} failed: returncode={completed.returncode}, '
+            f'stdout_chars={len(stdout)}, stderr_chars={len(stderr)}'
+        )
+    return stdout.strip(), stderr
+
+
+def run_launcher_smoke_test(extract_dir: Path, version: str):
+    """只用归档 launcher，核验 JVM 架构、隔离 home 和无扫描 serve 帮助。"""
+    result = VerificationResult(False)
+    try:
+        if not is_macos_arm64():
+            raise ValueError('release smoke requires native macOS arm64')
+        root = _structure(extract_dir, version).resolve()
         with tempfile.TemporaryDirectory(prefix='release-tools-') as directory:
-            tools = Path(directory)
-            if os.name != 'nt':
-                dirname = shutil.which('dirname', path='/usr/bin:/bin')
-                if not dirname:
-                    raise ValueError('system dirname unavailable')
-                (tools / 'dirname').symlink_to(dirname)
-                blocker = tools / 'java'
-                blocker.write_text('#!/bin/sh\nexit 97\n', encoding='utf-8')
-                blocker.chmod(0o755)
-            env['PATH'] = str(tools)
-            launcher = root / 'bin' / ('run.bat' if os.name == 'nt' else 'run')
-            command = [str(launcher)]
-            if os.name == 'nt':
-                command = [
-                    str(Path(os.environ['SystemRoot']) / 'System32/cmd.exe'),
-                    '/d',
-                    '/c',
-                    str(launcher),
-                ]
-            outputs = []
-            for argument in ('--version', '--help'):
-                completed = subprocess.run(
-                    [*command, argument],
-                    cwd=root,
-                    env=env,
-                    capture_output=True,
-                    timeout=60,
-                    check=False,
-                )
-                # JDK 管道输出按 UTF-8 严格解码，不依赖 Windows ANSI locale。
-                stdout = completed.stdout.decode('utf-8')
-                stderr = completed.stderr.decode('utf-8')
-                if completed.returncode:
-                    raise ValueError(
-                        f'launcher {argument} failed: returncode={completed.returncode}, '
-                        f'stdout_chars={len(stdout)}, stderr_chars={len(stderr)}'
-                    )
-                outputs.append(stdout.strip())
-            if not _valid_outputs(*outputs, expected_version):
-                diagnostics = {
-                    'version_chars': len(outputs[0]),
-                    'help_chars': len(outputs[1]),
-                    'version_sgr': len(re.findall(r'\x1b\[[0-9;]*m', outputs[0])),
-                    'help_sgr': len(re.findall(r'\x1b\[[0-9;]*m', outputs[1])),
-                    'version_matches': _valid_outputs(
-                        outputs[0], 'Usage: scan serve', expected_version
-                    ),
-                    'help_matches': _valid_outputs(expected_version, outputs[1], expected_version),
-                }
-                raise ValueError(f'launcher version/help output mismatch: {diagnostics}')
-            result.launcher_version_output, result.launcher_help_output = outputs
-            result.success = True
+            sandbox = Path(directory).resolve()
+            home = sandbox / 'home'
+            home.mkdir()
+            index = sandbox / 'index'
+            dirname = shutil.which('dirname', path='/usr/bin:/bin')
+            if not dirname:
+                raise ValueError('system dirname unavailable')
+            (sandbox / 'dirname').symlink_to(dirname)
+            blocker = sandbox / 'java'
+            blocker.write_text('#!/bin/sh\nexit 97\n', encoding='utf-8')
+            blocker.chmod(0o755)
+            env = {
+                'HOME': str(home),
+                'USERPROFILE': str(home),
+                'PATH': str(sandbox),
+                'JAVA_TOOL_OPTIONS': f'-Duser.home="{home}"',
+            }
+            version_output, _ = _launch(root, ['--version'], env)
+            help_output, _ = _launch(root, ['--help'], env)
+            serve_output, properties = _launch(
+                root,
+                ['serve', '--no-scan', '--index-dir', str(index), '--help'],
+                env | {'JDK_JAVA_OPTIONS': '-XshowSettings:properties'},
+            )
+            if re.findall(r'^\s*user\.home = (.*)$', properties, re.M) != [str(home)]:
+                raise ValueError('launcher did not use the isolated JVM home')
+            architectures = re.findall(r'^\s*os\.arch = (.*)$', properties, re.M)
+            if architectures not in (['aarch64'], ['arm64']):
+                raise ValueError('launcher JVM os.arch must be aarch64 or arm64')
+            if index.exists() or index.is_symlink():
+                raise ValueError('serve help unexpectedly created an index')
+            if not _valid_outputs(version_output, help_output, version) or not _valid_serve_help(
+                serve_output
+            ):
+                raise ValueError('launcher version/help output mismatch')
+            result = VerificationResult(True, None, version_output, help_output, serve_output)
     except (ValueError, OSError, subprocess.SubprocessError) as error:
         result.error = str(error)
     return result
 
 
-def archive_name(provenance: Provenance, platform: str):
-    """生成携带版本和平台的固定资产名；来源由旁车严格绑定。"""
+def archive_name(provenance: Provenance):
+    """生成唯一发行资产名；来源由旁车严格绑定。"""
     provenance.validate()
-    if platform not in NATIVE_PLATFORMS | {'generic'}:
-        raise ValueError('unexpected platform')
-    if platform == 'generic':
-        return f'app-cli-{provenance.version}-generic.zip'
-    suffix = 'zip' if platform == 'windows-x64' else 'tar.gz'
-    return f'app-cli-{provenance.version}-runtime-{platform}.{suffix}'
+    return f'app-cli-{provenance.version}-runtime-{PLATFORM}.tar.gz'
 
 
 def sidecar(archive: Path, suffix: str):
@@ -444,47 +360,19 @@ def sidecar(archive: Path, suffix: str):
     return archive.with_name(archive.name + suffix)
 
 
-def _identity(entry, provenance, platform):
+def _identity(entry, provenance):
     return {
         **provenance.to_dict(),
-        'platform': platform,
-        'producer_platform': 'linux-x64' if platform == 'generic' else platform,
+        'platform': PLATFORM,
+        'producer_platform': PLATFORM,
         'filename': entry.filename,
         'sha256': entry.sha256,
         'size': entry.size,
     }
 
 
-def write_provenance(
-    archive: Path, provenance: Provenance, platform: str, *, entry: ManifestEntry | None = None
-):
-    """为准备后的资产写入来源与内容身份。"""
-    sidecar(archive, '.provenance.json').write_text(
-        json.dumps(_identity(entry or _measure(archive), provenance, platform), sort_keys=True)
-        + '\n',
-        encoding='utf-8',
-    )
-
-
-def write_smoke_receipt(
-    archive: Path,
-    provenance: Provenance,
-    platform: str,
-    version_output: str,
-    help_output: str,
-    *,
-    entry: ManifestEntry | None = None,
-):
-    """记录已执行的原生验证输出；调用方必须先完成真实启动。"""
-    data = {
-        **_identity(entry or _measure(archive), provenance, platform),
-        'host_platform': platform,
-        'version_output': version_output,
-        'help_output': help_output,
-    }
-    sidecar(archive, '.smoke.json').write_text(
-        json.dumps(data, sort_keys=True) + '\n', encoding='utf-8'
-    )
+def _write_sidecar(archive, suffix, data):
+    sidecar(archive, suffix).write_text(json.dumps(data, sort_keys=True) + '\n', encoding='utf-8')
 
 
 def _read_json(path):
@@ -506,63 +394,56 @@ def _read_json(path):
     return data
 
 
-def _check_metadata(archive, entry, provenance, platform, smoke=False):
+def _check_metadata(archive, entry, provenance, *, smoke=False):
     suffix = '.smoke.json' if smoke else '.provenance.json'
     data = _read_json(sidecar(archive, suffix))
-    expected = _identity(entry, provenance, platform)
+    expected = _identity(entry, provenance)
     if smoke:
-        expected.update(
-            host_platform=platform,
-            version_output=data.get('version_output'),
-            help_output=data.get('help_output'),
+        version, help_text, serve_help = (
+            data.get(key) for key in ('version_output', 'help_output', 'serve_help_output')
         )
         if (
-            not isinstance(data.get('version_output'), str)
-            or not isinstance(data.get('help_output'), str)
-            or not _valid_outputs(data['version_output'], data['help_output'], provenance.version)
+            not all(isinstance(output, str) for output in (version, help_text, serve_help))
+            or not _valid_outputs(version, help_text, provenance.version)
+            or not _valid_serve_help(serve_help)
         ):
             raise ValueError('invalid smoke outputs')
+        expected.update(
+            host_platform=PLATFORM,
+            version_output=version,
+            help_output=help_text,
+            serve_help_output=serve_help,
+            isolated_jvm_home=True,
+        )
     if data != expected or any(
         type(data[key]) is not type(value) for key, value in expected.items()
     ):
         raise ValueError(f'provenance/receipt mismatch: {archive.name}')
 
 
-def _inspect(archive, platform, version, *, smoke=False):
+def _inspect(archive, version, *, smoke=False):
     with tempfile.TemporaryDirectory(prefix='release-inspect-') as temporary:
         destination = Path(temporary) / 'package'
-        success, error = (safe_extract_zip if archive.name.endswith('.zip') else safe_extract_tar)(
-            archive, destination
-        )
-        if not success:
+        valid, error = safe_extract_tar(archive, destination)
+        if not valid:
             raise ValueError(error)
-        if smoke:
-            result = run_launcher_smoke_test(destination, platform, version)
-            if not result.success:
-                raise ValueError(result.error)
-            return result
-        _structure(destination, platform, version)
-        return None
+        if not smoke:
+            _structure(destination, version)
+            return None
+        result = run_launcher_smoke_test(destination, version)
+        if not result.success:
+            raise ValueError(result.error)
+        return result
 
 
-def prepare_platform_artifact(
-    dist_dir: Path, output_dir: Path, platform: str, provenance: Provenance, *, smoke=False
-):
-    """私有 staging 内一次散列、检查；原生可在同次解包执行真实 smoke。"""
-    filename = archive_name(provenance, platform)
-    if platform == 'generic' and host_platform() != 'linux-x64':
-        raise ValueError('generic must be prepared on linux-x64')
-    if smoke and (platform not in NATIVE_PLATFORMS or platform != host_platform()):
-        raise ValueError('native smoke requires matching host')
-    source_name = (
-        f'app-cli-{provenance.version}.zip'
-        if platform == 'generic'
-        else f'app-cli-runtime-{provenance.version}.'
-        + ('zip' if platform == 'windows-x64' else 'tgz')
-    )
-    source = dist_dir / source_name
+def prepare_candidate(dist_dir: Path, output_dir: Path, provenance: Provenance):
+    """仅发布私有 staging 内实际启动且可追溯的唯一归档，不重打包。"""
+    filename = archive_name(provenance)
+    if not is_macos_arm64():
+        raise ValueError('release preparation requires native macOS arm64')
+    source = dist_dir / f'app-cli-runtime-{provenance.version}.tgz'
     if not _regular(source):
-        raise ValueError(f'expected build archive missing: {source_name}')
+        raise ValueError(f'expected build archive missing: {source.name}')
     if output_dir.exists() or output_dir.is_symlink():
         raise ValueError('output directory already exists')
     output_dir.parent.mkdir(parents=True, exist_ok=True)
@@ -571,148 +452,71 @@ def prepare_platform_artifact(
         staging.mkdir()
         target = staging / filename
         entry = _copy_and_measure(source, target)
-        result = _inspect(target, platform, provenance.version, smoke=smoke)
-        write_provenance(target, provenance, platform, entry=entry)
-        if result is not None:
-            write_smoke_receipt(
-                target,
-                provenance,
-                platform,
-                result.launcher_version_output,
-                result.launcher_help_output,
-                entry=entry,
-            )
+        result = _inspect(target, provenance.version, smoke=True)
+        identity = _identity(entry, provenance)
+        _write_sidecar(target, '.provenance.json', identity)
+        _write_sidecar(
+            target,
+            '.smoke.json',
+            {
+                **identity,
+                'host_platform': PLATFORM,
+                'version_output': result.launcher_version_output,
+                'help_output': result.launcher_help_output,
+                'serve_help_output': result.serve_help_output,
+                'isolated_jvm_home': True,
+            },
+        )
         _write_manifest(staging, [entry])
         staging.rename(output_dir)
     return output_dir / filename
 
 
-def _check_asset_metadata(archive, entry, provenance, platform):
-    _check_metadata(archive, entry, provenance, platform)
-    if platform != 'generic':
-        _check_metadata(archive, entry, provenance, platform, smoke=True)
-
-
-def _candidate_plan(candidate, provenance):
-    """先拒绝缺包、身份和元数据错误，再读取大归档。"""
-    provenance.validate()
-    if not candidate.is_dir() or candidate.is_symlink():
-        raise ValueError('candidate directory missing or symlink')
-    groups = (
-        [candidate] if (candidate / 'MANIFEST.SHA256').exists() else sorted(candidate.iterdir())
-    )
-    if not groups or any(not p.is_dir() or p.is_symlink() for p in groups):
-        raise ValueError('candidate requires flat manifest or one level of platform directories')
-    platforms = {
-        archive_name(provenance, platform): platform for platform in NATIVE_PLATFORMS | {'generic'}
-    }
-    assets = {}
-    for group in groups:
-        entries, error = parse_manifest(group / 'MANIFEST.SHA256')
-        if error:
-            raise ValueError(error)
-        allowed = {'MANIFEST.SHA256'}
-        for entry in entries:
-            archive = group / entry.filename
-            platform = platforms.get(entry.filename)
-            if platform is None or platform in assets:
-                raise ValueError(f'duplicate or unexpected package: {archive.name}')
-            if not _regular(archive) or archive.stat().st_size != entry.size:
-                raise ValueError(f'missing, nonregular or wrong-size archive: {archive.name}')
-            _check_asset_metadata(archive, entry, provenance, platform)
-            allowed.update({archive.name, archive.name + '.provenance.json'})
-            if platform != 'generic':
-                allowed.add(archive.name + '.smoke.json')
-            assets[platform] = archive, entry
-        if {p.name for p in group.iterdir()} != allowed:
-            raise ValueError('unexpected or missing candidate metadata')
-    if set(assets) != NATIVE_PLATFORMS | {'generic'}:
-        raise ValueError('missing native platform or unique generic package')
-    return assets
-
-
-def verify_candidate_set(candidate_dir: Path, expected: Provenance):
-    """在汇总边界复核输入清单、归档及四个原生验证凭据。"""
+def verify_candidate_set(candidate: Path, provenance: Provenance):
+    """复核唯一候选的精确文件集合、身份、字节及归档结构，不在异平台运行。"""
     try:
-        assets = _candidate_plan(candidate_dir, expected)
-        for platform, (archive, entry) in assets.items():
-            _require_matching_bytes(entry, _measure(archive))
-            _inspect(archive, platform, expected.version)
-        return (
-            True,
-            [],
-            {
-                'native_platforms': sorted(NATIVE_PLATFORMS),
-                'generic': 'generic',
-                'total_packages': len(assets),
-            },
-        )
-    except (ValueError, OSError, UnicodeError, TypeError) as error:
+        filename = archive_name(provenance)
+        if not candidate.is_dir() or candidate.is_symlink():
+            raise ValueError('candidate directory missing or symlink')
+        archive = candidate / filename
+        manifest = candidate / 'MANIFEST.SHA256'
+        expected = {
+            archive,
+            manifest,
+            sidecar(archive, '.provenance.json'),
+            sidecar(archive, '.smoke.json'),
+        }
+        if set(candidate.iterdir()) != expected or not all(_regular(file) for file in expected):
+            raise ValueError('unexpected, missing or nonregular candidate file')
+        entries, error = parse_manifest(manifest)
+        if error or len(entries) != 1 or entries[0].filename != filename:
+            raise ValueError(error or 'expected one exact archive in manifest')
+        entry = entries[0]
+        _check_metadata(archive, entry, provenance)
+        _check_metadata(archive, entry, provenance, smoke=True)
+        if _measure(archive) != entry:
+            raise ValueError(f'size or hash mismatch: {archive.name}')
+        _inspect(archive, provenance.version)
+        return True, [], {'native_platform': PLATFORM, 'total_packages': 1}
+    except (ValueError, OSError, TypeError) as error:
         return False, [str(error)], {}
 
 
-def _require_matching_bytes(expected, actual):
-    if actual != expected:
-        raise ValueError(f'size or hash mismatch: {expected.filename}')
-
-
-def create_verified_candidate(
-    candidate_dir: Path, expected: Provenance, output_dir: Path | None = None
-):
-    """在复制到私有 staging 时核验输入字节，随后只检查 staging 归档。"""
-    output_dir = output_dir or candidate_dir.parent / 'verified-candidate'
-    try:
-        if output_dir.exists() or output_dir.is_symlink():
-            raise ValueError('output already exists')
-        assets = _candidate_plan(candidate_dir, expected)
-        with tempfile.TemporaryDirectory(
-            prefix='release-verified-', dir=output_dir.parent
-        ) as temporary:
-            staging = Path(temporary) / 'candidate'
-            staging.mkdir()
-            for platform, (archive, entry) in assets.items():
-                target = staging / archive.name
-                _require_matching_bytes(entry, _copy_and_measure(archive, target))
-                for suffix in ('.provenance.json', '.smoke.json'):
-                    if suffix == '.smoke.json' and platform == 'generic':
-                        continue
-                    shutil.copyfile(sidecar(archive, suffix), sidecar(target, suffix))
-                _check_asset_metadata(target, entry, expected, platform)
-                _inspect(target, platform, expected.version)
-            _write_manifest(staging, [entry for _, entry in assets.values()])
-            staging.rename(output_dir)
-        return True, [], output_dir
-    except (ValueError, OSError, UnicodeError, TypeError) as error:
-        return False, [str(error)], None
-
-
 def main():
-    """解析命令并返回稳定退出码；验证命令不执行任何发布操作。"""
+    """解析命令并返回退出码；不执行 Git 或远端发布。"""
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
     checksum = commands.add_parser('checksums')
     checksum.add_argument('--dist-dir', type=Path, required=True)
     checksum.add_argument('--verify', action='store_true')
-    for name in ['prepare', 'verify-archive', 'verify-candidate', 'create-verified']:
-        command = commands.add_parser(name)
-        for field in ['version', 'source-sha', 'run-id', 'run-attempt']:
+    prepare = commands.add_parser('prepare')
+    prepare.add_argument('--dist-dir', type=Path, required=True)
+    prepare.add_argument('--output-dir', type=Path, required=True)
+    verify = commands.add_parser('verify-candidate')
+    verify.add_argument('--candidate-dir', type=Path, required=True)
+    for command in (prepare, verify):
+        for field in ('version', 'source-sha', 'run-id', 'run-attempt'):
             command.add_argument('--' + field, required=True)
-        if name in {'prepare', 'verify-archive'}:
-            command.add_argument(
-                '--platform',
-                choices=sorted(NATIVE_PLATFORMS | ({'generic'} if name == 'prepare' else set())),
-                required=True,
-            )
-        if name == 'prepare':
-            command.add_argument('--dist-dir', type=Path, required=True)
-            command.add_argument('--output-dir', type=Path, required=True)
-            command.add_argument('--smoke', action='store_true')
-        elif name == 'verify-archive':
-            command.add_argument('--archive', type=Path, required=True)
-        else:
-            command.add_argument('--candidate-dir', type=Path, required=True)
-            if name == 'create-verified':
-                command.add_argument('--output-dir', type=Path, required=True)
     args = parser.parse_args()
     try:
         if args.command == 'checksums':
@@ -724,75 +528,19 @@ def main():
                     raise ValueError('; '.join(errors))
             else:
                 generate_manifest(args.dist_dir)
-            return 0
-        provenance = Provenance(args.version, args.source_sha, args.run_id, args.run_attempt)
-        provenance.validate()
-        if args.command == 'prepare':
-            print(
-                prepare_platform_artifact(
-                    args.dist_dir, args.output_dir, args.platform, provenance, smoke=args.smoke
-                )
-            )
-        elif args.command == 'verify-archive':
-            if not _regular(args.archive):
-                raise ValueError('archive must be a regular file, not symlink')
-            archive = args.archive.resolve()
-            sidecar(archive, '.smoke.json').unlink(missing_ok=True)
-            if archive.name != archive_name(provenance, args.platform):
-                raise ValueError('archive name mismatch')
-            entries, error = parse_manifest(archive.parent / 'MANIFEST.SHA256')
-            if error:
-                raise ValueError(error)
-            entry = next((entry for entry in entries if entry.filename == archive.name), None)
-            if entry is None:
-                raise ValueError('archive absent from manifest')
-            _check_metadata(archive, entry, provenance, args.platform)
-            errors = _manifest_errors(entries, archive.parent)
-            if errors:
-                raise ValueError('; '.join(errors))
-            with tempfile.TemporaryDirectory(prefix='release-smoke-') as temporary:
-                destination = Path(temporary) / 'package'
-                valid, error = (
-                    safe_extract_zip if archive.name.endswith('.zip') else safe_extract_tar
-                )(archive, destination)
-                if not valid:
-                    print(error, file=sys.stderr)
-                    return 11
-                result = run_launcher_smoke_test(destination, args.platform, args.version)
-                if not result.success:
-                    print(result.error, file=sys.stderr)
-                    return 13
-                write_smoke_receipt(
-                    archive,
-                    provenance,
-                    args.platform,
-                    result.launcher_version_output,
-                    result.launcher_help_output,
-                    entry=entry,
-                )
-                print(json.dumps(asdict(result)))
-        elif args.command == 'verify-candidate':
-            valid, errors, summary = verify_candidate_set(args.candidate_dir, provenance)
-            if not valid:
-                raise ValueError('; '.join(errors))
-            print(json.dumps(summary))
         else:
-            valid, errors, output = create_verified_candidate(
-                args.candidate_dir, provenance, args.output_dir
-            )
-            if not valid:
-                raise ValueError('; '.join(errors))
-            print(output)
+            provenance = Provenance(args.version, args.source_sha, args.run_id, args.run_attempt)
+            if args.command == 'prepare':
+                print(prepare_candidate(args.dist_dir, args.output_dir, provenance))
+            else:
+                valid, errors, summary = verify_candidate_set(args.candidate_dir, provenance)
+                if not valid:
+                    raise ValueError('; '.join(errors))
+                print(json.dumps(summary))
         return 0
-    except (OSError, ValueError, UnicodeError, TypeError) as error:
+    except (OSError, ValueError, TypeError) as error:
         print(str(error), file=sys.stderr)
-        return {
-            'checksums': 10,
-            'prepare': 1,
-            'verify-archive': 15,
-            'verify-candidate': 14,
-            'create-verified': 14,
-        }[args.command]
+        return {'checksums': 10, 'prepare': 1, 'verify-candidate': 14}[args.command]
 
 
 if __name__ == '__main__':

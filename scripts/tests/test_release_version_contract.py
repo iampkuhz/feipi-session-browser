@@ -159,30 +159,24 @@ def test_release_workflow_accepts_two_part_and_patch_versions():
         assert not _bash_regex_matches(input_pattern, value), value
 
 
-def test_runtime_archives_define_precise_executable_permissions():
+def test_arm64_runtime_archive_has_only_its_launcher_and_precise_permissions():
     source = CLI_BUILD.read_text(encoding='utf-8')
-    archive_config = source.split('fun AbstractArchiveTask.configureRuntimeArchive() {', 1)[1]
-    archive_config, archives = archive_config.split('tasks.register<Zip>("runtimeDistZip")', 1)
-    assert 'filePermissions { unix("0644") }' in archive_config
-    assert 'dirPermissions { unix("0755") }' in archive_config
-    assert 'with(runtimeContents)' in archive_config
-    assert archives.count('configureRuntimeArchive()') == 2
-    assert 'tasks.register<Tar>("runtimeDistTar")' in archives
-    contents = source.split('val runtimeContents = copySpec {', 1)[1]
-    contents = contents.split('fun AbstractArchiveTask.configureRuntimeArchive()', 1)[0]
-    assert 'filesMatching("run") { permissions { unix("0755") } }' in contents
-    app = source.split('val runtimeAppContents = copySpec {', 1)[1]
-    app = app.split('val prepareRuntimeDist', 1)[0]
-    assert 'filesMatching("app-cli") { permissions { unix("0755") } }' in app
-    assert 'into("app") { with(runtimeAppContents) }' in contents
-    preparation = source.split('val prepareRuntimeDist', 1)[1].split('val runtimeContents', 1)[0]
-    assert 'with(runtimeAppContents)' in preparation
-    assert 'into(runtimeLayout.map { it.dir("app") })' in preparation
-    assert 'from(jlinkImage)' not in preparation
+    assert 'runtimeDistZip' not in source
+    archive = source.split('tasks.register<Tar>("runtimeDistTar")', 1)[1]
+    assert 'require(supportedHost)' in archive
+    assert 'filePermissions { unix("0644") }' in archive
+    assert 'dirPermissions { unix("0755") }' in archive
+    assert 'include("run")' in archive and 'run.bat' not in archive
+    assert 'filesMatching("run") { permissions { unix("0755") } }' in archive
+    assert 'into("app") { with(runtimeAppContents) }' in archive
     assert (
         'filesMatching(listOf("bin/*", "lib/jspawnhelper")) { permissions { unix("0755") } }'
-        in contents
+        in archive
     )
+    preparation = source.split('tasks.register<Sync>("prepareRuntimeDist")', 1)[1]
+    preparation = preparation.split('tasks.register<Tar>', 1)[0]
+    assert 'with(runtimeAppContents)' in preparation
+    assert 'from(jlinkImage)' not in preparation
 
 
 def test_release_pipeline_is_an_exact_public_executable():
