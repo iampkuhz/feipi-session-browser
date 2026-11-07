@@ -28,6 +28,69 @@ import org.junit.jupiter.api.Test;
 /** Round 按钮的流式完整正文契约，不能通过物化旧制品实现。 */
 class StreamingRoundPayloadTest {
   @Test
+  void roundReadingDoesNotBorrowRoleFromAnotherCallReferencingTheSameText() throws Exception {
+    var calls =
+        IntStream.rangeClosed(1, 2)
+            .mapToObj(
+                i ->
+                    new NormalizedCall(
+                        "c" + i,
+                        i,
+                        "C" + i,
+                        CallScope.MAIN,
+                        Optional.empty(),
+                        Optional.empty(),
+                        Optional.of("shared-turn"),
+                        "synthetic-model",
+                        Optional.empty(),
+                        NormalizedCallUsage.empty(),
+                        NormalizedCallRequest.empty(),
+                        NormalizedCallResponse.empty(),
+                        List.of(
+                            new SourceUnitRefRange(
+                                Optional.empty(),
+                                0,
+                                1,
+                                List.of("shared"),
+                                i == 1 ? Optional.of("user") : Optional.empty())),
+                        List.of(),
+                        Map.of(),
+                        Map.of()))
+            .toList();
+    var entries =
+        Map.of(
+            "shared",
+            catalog("shared", "message", SourceUnitDirection.REQUEST, Map.of("text", "SHARED")));
+    var artifact =
+        new NormalizedSessionArtifact(
+            NormalizedConstants.SCHEMA_VERSION,
+            NormalizedAgent.CODEX,
+            List.of(),
+            Map.of(),
+            calls,
+            List.of(),
+            List.of(),
+            entries,
+            Map.of());
+    var content =
+        stream(
+            artifact,
+            List.of(
+                new NormalizedContentUnit(
+                    0, List.of(), calls, List.of(), List.of(), entries, List.of())));
+    var reader = new SessionContentReader(content, 1);
+    var first = reader.payload("main:req:c1", PayloadVisibility.FULL).orElseThrow();
+    var second = reader.payload("main:req:c2", PayloadVisibility.FULL).orElseThrow();
+    var round = reader.payload("round:req:1", PayloadVisibility.FULL).orElseThrow();
+    assertThat(first.reading())
+        .extracting(PayloadLookup.ReadingBlock::text)
+        .containsExactly("SHARED");
+    assertThat(second.reading()).isEmpty();
+    assertThat(round.content()).isEqualTo("C1 · c1\nSHARED\n\nC2 · c2\nSHARED");
+    assertThat(round.reading()).containsExactly(new PayloadLookup.ReadingBlock("C1", "SHARED"));
+  }
+
+  @Test
   void roundBodiesMatchLegacyAndPreferMainCallsAcrossMoreThan500Members() throws Exception {
     var calls = new java.util.ArrayList<NormalizedCall>();
     for (int i = 1; i <= 503; i++) calls.add(call(i, CallScope.MAIN, Optional.empty()));

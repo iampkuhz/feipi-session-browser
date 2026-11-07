@@ -41,6 +41,6 @@
 ## 触发门禁
 
 - `./java/gradlew -p java :java:web:test --tests '*WebStaticResourceContractTest'`
-- `python3 scripts/gates/cli.py run --mode incremental --gate browserBehaviorTests`
+- `python3 scripts/gates/cli.py run --mode incremental --gate browserTests`
 - fixture-based 导出测试
 - `python3 scripts/gates/cli.py run --mode incremental --gate agentConfigurationPolicy`

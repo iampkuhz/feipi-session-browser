@@ -50,7 +50,7 @@ public final class SqliteIndexWriter implements IndexWriterPort {
           + "indexed_at, file_mtime, file_path, "
           + TokenProvenanceSqlMapper.COLUMNS
           + ", timing_json, round_count, llm_call_count, content_measured, user_message_measured,"
-          + " assistant_message_measured) VALUES (";
+          + " assistant_message_measured, model_call_count) VALUES (";
 
   private static final String ARTIFACT_INSERT_PREFIX =
       "INSERT OR REPLACE INTO session_artifacts ("
@@ -545,7 +545,8 @@ public final class SqliteIndexWriter implements IndexWriterPort {
     sb.append(row.llmCallCount() == null ? "NULL" : row.llmCallCount()).append(", ");
     sb.append(row.contentMeasured() ? 1 : 0).append(", ");
     sb.append(row.userMessageMeasured() ? 1 : 0).append(", ");
-    sb.append(row.assistantMessageMeasured() ? 1 : 0);
+    sb.append(row.assistantMessageMeasured() ? 1 : 0).append(", ");
+    sb.append(row.modelCallCount() == null ? "NULL" : row.modelCallCount());
     sb.append(")");
     pending.add(sb.toString());
   }

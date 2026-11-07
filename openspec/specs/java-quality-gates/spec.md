@@ -22,6 +22,16 @@ Gradle settings、根 build、properties 和 wrapper SHALL 位于 `java/`；从�
 - **Then** 项目 ID、任务语义、依赖锁与质量阈值 SHALL 一致
 - **And** Checkstyle SHALL 同时设置新 configFile 与 configDirectory，使 suppressions 实际生效
 
+### Requirement: 昂贵验证按实际消费者运行
+
+浏览器与 CLI smoke SHALL 由运行分发输入、相关测试/数据或共享执行配置触发；与运行消费者无关的测试叶子 SHALL 使用对应原生检查。浏览器触发后 SHALL 通过 Playwright 原生发现用例，不使用固定清单。Framework 对已知叶子 SHALL 按消费者发现目录，对共享或未知依赖 SHALL 保守完整发现。
+
+#### Scenario: 验证已触发的浏览器和 CLI 消费者
+
+- **When** 浏览器或 scan/serve smoke 被选择
+- **Then** SHALL 保留真实 launcher、隔离自动扫描、实例及内容验证和全部相关产品断言
+- **And** fixture 代理 SHALL 独立管理下游连接，不把上游连接声明透传；不得以重试或跳过掩盖失败
+
 ## Record component Javadoc owner
 
 Java gate id：

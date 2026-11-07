@@ -69,6 +69,10 @@
                 <span class="sd-agent-pill" data-session-agent>{{ current_agent }}</span>
                 <h1 title="Session metadata is loaded from /meta API">Loading session…</h1>
             </div>
+            <details class="sd-title-original" data-session-original-title hidden>
+                <summary>Original title</summary>
+                <pre></pre>
+            </details>
             <div class="sd-hero-url">
                 <span class="sd-hero-url-label">Session ID</span>
                 <span class="sd-hero-url-text" title="{{ session_id }}" data-session-id-text>{{ session_id }}</span>
@@ -110,7 +114,7 @@
                 <div class="sd-kpi__value" title="Loaded from diagnostics API">Loading…</div>
                 <div class="sd-kpi__label">Run Health</div>
                 <div class="sd-kpi__subgrid">
-                    <span>Issue Rounds <b>Loading…</b></span>
+                    <span>Issue rows <b>Loading…</b></span>
                     <span>Failed Tools <b class="sd-kpi-tone">Loading…</b></span>
                     <span>Payload Gaps <b>Loading…</b></span>
                     <span>Attribution Gaps <b>Loading…</b></span>
@@ -134,20 +138,21 @@
                 <div class="sd-kpi__label">Cache Health</div>
                 <div class="sd-kpi__subgrid">
                     <span>Input-side Tokens <b>Loading…</b></span>
-                    <span>Cache ratio source <b>API</b></span>
+                    <span>Low-cache rows <b>Loading…</b></span>
+                    <span>Fresh-spike rows <b>Loading…</b></span>
                 </div>
             </div>
             <div class="sd-kpi sd-kpi--stack" aria-label="Workload" title="Loaded from metrics API">
                 <div class="sd-kpi__value">Loading…</div>
                 <div class="sd-kpi__label">Workload</div>
                 <div class="sd-kpi__subgrid">
-                    <span>User Messages <b>Loading…</b></span>
-                    <span>Assistant Messages <b>Loading…</b></span>
+                    <span>Main records <b>Loading…</b></span>
+                    <span>Subagent records <b>Loading…</b></span>
                     <span>Tool Calls <b>Loading…</b></span>
                     <span>Subagent Runs <b>Loading…</b></span>
                 </div>
             </div>
-            <div class="sd-kpi sd-kpi--stack" aria-label="Source Task Active" title="MAIN source task-window union; includes tools/wait, not model inference. Unknown timing is N/A.">
+            <div class="sd-kpi sd-kpi--stack" aria-label="Source Task Active">
                 <div class="sd-kpi__value">Loading…</div>
                 <div class="sd-kpi__label">Source Task Active</div>
                 <div class="sd-kpi__subgrid">
@@ -186,7 +191,7 @@
 <section class="sd-trace-panel" id="sd-tab-panel-trace" data-trace-panel data-tab-panel="trace" role="tabpanel">
     <div class="sd-trace-head">
         <div>
-            <div class="sd-trace-sub">Round 内按触发时间平铺 assistant text、tool call、subagent run；仅并发 tool calls 保留分组。</div>
+            <div class="sd-trace-sub"><span data-trace-boundaries></span> R：有本地模型响应边界；G：独立调用边界未确认的记录组。日志不包含全部 provider 请求或重试。</div>
         </div>
         <div class="sd-trace-actions">
             <div class="sd-seg" role="group" aria-label="Trace status filter">
@@ -209,7 +214,7 @@
         </colgroup>
         <thead>
             <tr>
-                <th class="round-col">Round</th>
+                <th class="round-col">Round / group</th>
                 <th>Summary</th>
                 <th class="metrics-col">Metrics</th>
                 <th class="attribution-col">Attribution</th>

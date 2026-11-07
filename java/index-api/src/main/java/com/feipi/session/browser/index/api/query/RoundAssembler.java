@@ -1,6 +1,7 @@
 package com.feipi.session.browser.index.api.query;
 
 import com.feipi.session.browser.domain.enums.CallScope;
+import com.feipi.session.browser.domain.normalized.NormalizedAgent;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
 import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
@@ -21,7 +22,8 @@ public final class RoundAssembler {
    * @return 逻辑轮次列表
    */
   public static List<CallRound> buildRounds(NormalizedSessionArtifact artifact, long userMessages) {
-    List<CallRound> rounds = buildRounds(artifact.calls(), artifact.toolExecutions());
+    List<CallRound> rounds =
+        buildRounds(artifact.calls(), artifact.toolExecutions(), artifact.agent());
     return rounds.isEmpty() && userMessages > 0
         ? List.of(new CallRound(1, List.of(), List.of(), null))
         : rounds;
@@ -46,13 +48,20 @@ public final class RoundAssembler {
    */
   public static List<CallRound> buildRounds(
       List<NormalizedCall> calls, List<NormalizedToolExecution> toolExecutions) {
+    return buildRounds(calls, toolExecutions, null);
+  }
+
+  private static List<CallRound> buildRounds(
+      List<NormalizedCall> calls,
+      List<NormalizedToolExecution> toolExecutions,
+      NormalizedAgent agent) {
     Objects.requireNonNull(calls, "calls 不得为 null");
     Objects.requireNonNull(toolExecutions, "toolExecutions 不得为 null");
     if (calls.isEmpty()) {
       return List.of();
     }
 
-    RoundGrouping grouping = new RoundGrouping();
+    RoundGrouping grouping = new RoundGrouping(agent);
     List<List<String>> roundCallIds = new ArrayList<>();
     List<List<String>> roundToolCallIds = new ArrayList<>();
     List<String> roundParentCallIds = new ArrayList<>();

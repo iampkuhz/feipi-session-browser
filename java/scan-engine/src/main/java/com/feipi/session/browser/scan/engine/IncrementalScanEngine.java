@@ -93,7 +93,7 @@ public final class IncrementalScanEngine {
   private static final int FLUSH_INTERVAL = 100;
 
   /** 当前扫描逻辑版本；重建显式用户边界后的工具归属，并保留来源identity、事件日与计量语义。 */
-  public static final int CURRENT_SCAN_LOGIC_VERSION = 18;
+  public static final int CURRENT_SCAN_LOGIC_VERSION = 19;
 
   private final NormalizationEngine normalizationEngine;
   private final NormalizedArtifactWriter artifactWriter;

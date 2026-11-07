@@ -7,6 +7,20 @@
   white-space: normal;
   overflow-wrap: anywhere;
 }
+.token-provenance > summary {
+  width: fit-content;
+  max-width: 100%;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text);
+}
+.token-provenance > p {
+  margin: 4px 0 0;
+  text-align: start;
+}
+.token-provenance:not([open]) > :not(summary) {
+  display: none;
+}
 .token-provenance-value[data-token-measurement] {
   min-width: 0;
   max-width: 100%;
@@ -29,4 +43,119 @@
 }
 .token-provenance-flow > .token-provenance {
   flex-basis: 100%;
+}
+
+.token-evidence,
+.token-composition dl {
+  display: grid;
+  grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+  gap: 3px 10px;
+  margin: 6px 0 0;
+  text-align: start;
+}
+
+.token-evidence dt,
+.token-composition dt {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.token-evidence dd,
+.token-composition dd {
+  margin: 0;
+}
+
+.token-composition {
+  margin-top: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+  text-align: start;
+}
+
+.token-composition p {
+  margin: 0;
+  font-weight: 600;
+}
+
+.token-component::before {
+  content: "";
+  display: inline-block;
+  width: 0.55em;
+  height: 0.55em;
+  margin-inline-end: 0.35em;
+  border-radius: 50%;
+  background: var(--component-color);
+}
+.token-component--fresh { --component-color: var(--token-input-fresh); }
+.token-component--read { --component-color: var(--token-cache-read); }
+.token-component--write { --component-color: var(--token-cache-write); }
+.token-component--out { --component-color: var(--token-output-visible); }
+
+.token-cell .token-total__value[data-token-measurement] {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
+.token-cell .tokenbar {
+  flex: 0 0 auto;
+}
+
+.token-cell .token-evidence {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1px;
+}
+.token-cell .token-evidence dt:not(:first-child) {
+  margin-top: 4px;
+}
+.token-composition dl {
+  grid-template-columns: minmax(0, 1fr) minmax(0, max-content);
+  align-items: baseline;
+}
+.token-composition dd {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.token-composition dd small {
+  display: block;
+  color: var(--text-subtle);
+  font-size: inherit;
+}
+
+.token-total__status {
+  color: var(--text-subtle);
+  font-size: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.token-bar-trigger {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  padding: 4px 0;
+  min-height: 24px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.token-bar-popover {
+  position: fixed;
+  inset: var(--token-popover-y, 8px) auto auto var(--token-popover-x, 8px);
+  margin: 0;
+  box-sizing: border-box;
+  width: min(320px, calc(100vw - 16px));
+  max-height: calc(100dvh - 16px);
+  overflow: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card-bg);
+  color: var(--text);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 18%);
+  font-size: 12px;
+}
+
+.token-bar-popover .tokenbar {
+  display: flex;
+  width: 100%;
+  margin-block: 6px;
 }

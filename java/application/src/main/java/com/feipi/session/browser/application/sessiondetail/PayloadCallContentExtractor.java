@@ -1,16 +1,19 @@
 package com.feipi.session.browser.application.sessiondetail;
 
+import com.feipi.session.browser.domain.normalized.NormalizedAgent;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
 import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
 import com.feipi.session.browser.domain.normalized.SourceUnitCatalogEntry;
 import com.feipi.session.browser.domain.normalized.SourceUnitRefRange;
+import com.feipi.session.browser.query.api.SensitiveFieldPolicy;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.regex.Pattern;
 
 /**
  * 从归一化调用源单元提取 payload 文本内容。
@@ -37,6 +40,18 @@ public final class PayloadCallContentExtractor {
   private static final String FIELD_OUTPUT = "output";
   private static final int MAX_PREVIEW_LENGTH = 2000;
 
+  private static final Pattern PROJECT_INSTRUCTIONS_OPEN =
+      Pattern.compile(
+          "\\A# AGENTS\\.md instructions for [^\\r\\n]+\\R(?:[ \\t]*\\R)*[ \\t]*<INSTRUCTIONS>");
+  private static final Pattern PROJECT_INSTRUCTIONS_BOUNDARY =
+      Pattern.compile("(?m)^([ \\t]*)(`{3,}|~{3,}|</INSTRUCTIONS>)([^\\r\\n]*)");
+  private static final List<String> CODEX_CONTEXT_TAGS =
+      List.of(
+          "environment_context",
+          "codex_internal_context",
+          "permissions instructions",
+          "subagent_notification");
+
   private PayloadCallContentExtractor() {}
 
   /** 只提取显式用户消息，不把 request 中的工具结果或系统上下文当用户输入。 */
@@ -44,23 +59,16 @@ public final class PayloadCallContentExtractor {
       NormalizedCall call, NormalizedSessionArtifact artifact) {
     List<String> texts = new ArrayList<>();
     for (Map<String, Object> unit : call.sourceUnits()) {
-      if (ROLE_USER.equals(unit.get(FIELD_ROLE))
-          && !TYPE_TOOL_RESULT.equals(unit.get(FIELD_TYPE))) {
+      if (isReadingInline(unit, ROLE_USER)) {
         texts.add(extractTextValue(unit));
       }
     }
     for (SourceUnitRefRange range : call.sourceUnitRefRanges()) {
       for (String ref : catalogRefs(range, artifact)) {
         SourceUnitCatalogEntry entry = artifact.sourceUnitCatalog().get(ref);
-        if (entry == null
-            || !"request".equals(entry.direction().getValue())
-            || TYPE_TOOL_RESULT.equals(entry.unitType())) continue;
-        Map<?, ?> payload = entry.payload() instanceof Map<?, ?> map ? map : Map.of();
-        if (TYPE_TOOL_RESULT.equals(payload.get(FIELD_TYPE))) continue;
-        if (ROLE_USER.equals(payload.get(FIELD_ROLE))
-            || range.role().filter(ROLE_USER::equals).isPresent()
-            || List.of("user_message", "user_text", "input_text").contains(entry.unitType())
-            || "current_user_message".equals(entry.candidate())) {
+        if (entry != null
+            && "request".equals(entry.direction().getValue())
+            && isReadingEntry(entry, range.role(), true)) {
           texts.add(catalogEntryText(entry));
         }
       }
@@ -120,6 +128,192 @@ public final class PayloadCallContentExtractor {
     return resolveInline(call.sourceUnits(), ROLE_ASSISTANT, null, null);
   }
 
+  static ReadingText readingText(
+      NormalizedCall call, NormalizedSessionArtifact artifact, boolean request) {
+    boolean codexRequest = request && artifact.agent() == NormalizedAgent.CODEX;
+    var reading = new ReadingText(codexRequest);
+    resolveFromCatalog(call, artifact, request, reading);
+    return reading.orElse(readingInline(call, request, codexRequest));
+  }
+
+  static ReadingText readingInline(NormalizedCall call, boolean request, boolean codexRequest) {
+    String role = request ? ROLE_USER : ROLE_ASSISTANT;
+    var reading = new ReadingText(codexRequest);
+    for (var unit : call.sourceUnits()) {
+      if (isReadingInline(unit, role)) reading.add(extractTextValue(unit));
+    }
+    return reading;
+  }
+
+  /**
+   * 仅用已读调用的内联可见文本生成短预览，不回读来源目录或调用载荷。
+   *
+   * @param call 当前已读的归一化调用
+   * @param request 是否查找用户侧文本，否则查找助手侧文本
+   * @param codexRequest 是否识别 Codex 请求的说明样式
+   * @return 经过默认遮蔽的首行短预览，没有证据时为空
+   */
+  public static String inlinePreview(NormalizedCall call, boolean request, boolean codexRequest) {
+    String role = request ? ROLE_USER : ROLE_ASSISTANT;
+    for (var unit : call.sourceUnits()) {
+      if (!isReadingInline(unit, role)) continue;
+      String value = extractTextValue(unit);
+      if (codexRequest) {
+        String suffix = projectInstructionsSuffix(value);
+        if (suffix != null) value = suffix;
+        else if (PROJECT_INSTRUCTIONS_OPEN.matcher(value.stripLeading()).find()) continue;
+        if (standaloneContext(value)) continue;
+      }
+      String first = value.stripLeading().lines().findFirst().orElse("").stripTrailing();
+      if (first.isEmpty() || first.length() > 4096) continue;
+      String masked = SensitiveFieldPolicy.DEFAULT.applyMasking(first);
+      int length = masked.codePointCount(0, masked.length());
+      return length > 160 ? masked.substring(0, masked.offsetByCodePoints(0, 160)) + "…" : masked;
+    }
+    return "";
+  }
+
+  /** 汇集可归属的对话；无法区分真实引用与上下文注入的独立段落只留在原始记录。 */
+  static final class ReadingText {
+    private final boolean codexRequest;
+    private final StringBuilder text = new StringBuilder();
+    private boolean unconfirmedContext;
+
+    ReadingText(boolean codexRequest) {
+      this.codexRequest = codexRequest;
+    }
+
+    void add(String value) {
+      if (value == null || value.isBlank()) return;
+      if (codexRequest) {
+        String suffix = projectInstructionsSuffix(value);
+        if (suffix != null) {
+          unconfirmedContext = true;
+          value = suffix;
+        }
+        if (standaloneContext(value)) {
+          unconfirmedContext = true;
+          return;
+        }
+        if (value.isBlank()) return;
+      }
+      if (!text.isEmpty()) text.append('\n');
+      text.append(value);
+    }
+
+    ReadingText orElse(ReadingText inline) {
+      if (text.isEmpty()) {
+        inline.unconfirmedContext |= unconfirmedContext;
+        return inline;
+      }
+      return this;
+    }
+
+    String text() {
+      return text.toString();
+    }
+
+    boolean unconfirmedContext() {
+      return unconfirmedContext;
+    }
+  }
+
+  // 只分离具有完整标题与结束边界的前缀；不推断标签内文本的真实归属。
+  private static String projectInstructionsSuffix(String value) {
+    String text = value.stripLeading();
+    var opening = PROJECT_INSTRUCTIONS_OPEN.matcher(text);
+    if (!opening.find()) return null;
+    int end = projectInstructionsEnd(text, opening.end());
+    if (end < 0) return null;
+    String suffix = text.substring(end).stripLeading();
+    // Codex 有时紧接着序列化环境块，不会在两个标签间写换行。
+    for (String tag : CODEX_CONTEXT_TAGS) {
+      int contextEnd = contextEnd(suffix, tag);
+      if (contextEnd >= 0) suffix = suffix.substring(contextEnd).stripLeading();
+    }
+    return suffix;
+  }
+
+  // 只扫描边界候选行。围栏中的标签是示例；不完整或含糊的边界保留原文。
+  private static int projectInstructionsEnd(String text, int from) {
+    var boundary = PROJECT_INSTRUCTIONS_BOUNDARY.matcher(text);
+    String fence = "";
+    for (boolean found = boundary.find(from); found; found = boundary.find()) {
+      String indent = boundary.group(1);
+      String marker = boundary.group(2);
+      String tail = boundary.group(3);
+      if (marker.startsWith("<")) {
+        if (fence.isEmpty()
+            && indent.isEmpty()
+            && (tail.isBlank()
+                || CODEX_CONTEXT_TAGS.stream()
+                    .anyMatch(tag -> tail.stripLeading().startsWith("<" + tag + ">")))) {
+          return boundary.end(2);
+        }
+      } else if (indent.length() <= 3 && indent.indexOf('\t') < 0) {
+        if (fence.isEmpty()) {
+          if (marker.charAt(0) == '~' || tail.indexOf('`') < 0) fence = marker;
+        } else if (marker.charAt(0) == fence.charAt(0)
+            && marker.length() >= fence.length()
+            && tail.chars().allMatch(c -> c == ' ' || c == '\t')) {
+          fence = "";
+        }
+      }
+    }
+    return -1;
+  }
+
+  private static boolean standaloneContext(String value) {
+    String text = value.strip();
+    return CODEX_CONTEXT_TAGS.stream().anyMatch(tag -> contextEnd(text, tag) == text.length());
+  }
+
+  private static int contextEnd(String text, String tag) {
+    String opening = "<" + tag + ">";
+    if (!text.startsWith(opening)) return -1;
+    String closing = "</" + tag + ">";
+    int offset = text.indexOf(closing, opening.length());
+    return offset < 0 ? -1 : offset + closing.length();
+  }
+
+  private static boolean isReadingInline(Map<?, ?> unit, String role) {
+    return role.equals(unit.get(FIELD_ROLE))
+        && !Boolean.TRUE.equals(unit.get("isMeta"))
+        && !isNonMessage(unit.get(FIELD_TYPE));
+  }
+
+  static boolean isReadingEntry(
+      SourceUnitCatalogEntry entry, Optional<String> rangeRole, boolean request) {
+    Map<?, ?> payload = entry.payload() instanceof Map<?, ?> map ? map : Map.of();
+    if (Boolean.TRUE.equals(payload.get("isMeta"))
+        || isNonMessage(entry.unitType())
+        || isNonMessage(payload.get(FIELD_TYPE))) return false;
+    String role = request ? ROLE_USER : ROLE_ASSISTANT;
+    if (payload.get(FIELD_ROLE) instanceof String explicit) return role.equalsIgnoreCase(explicit);
+    if (rangeRole.filter(role::equalsIgnoreCase).isPresent()) return true;
+    return request
+        ? List.of("user", "user_message", "user_text", "input_text").contains(entry.unitType())
+            || "current_user_message".equals(entry.candidate())
+        : List.of("assistant", "assistant_message", "assistant_text", "output_text")
+            .contains(entry.unitType());
+  }
+
+  private static boolean isNonMessage(Object type) {
+    return type instanceof String value
+        && List.of(
+                TYPE_TOOL_RESULT,
+                "tool_use",
+                "function_call",
+                "custom_tool_call",
+                "function_call_output",
+                "custom_tool_call_output",
+                "reasoning",
+                "thinking",
+                "system",
+                "developer")
+            .contains(value);
+  }
+
   /**
    * 提取 assistant 可见文本预览，用于 round 摘要。
    *
@@ -127,7 +321,7 @@ public final class PayloadCallContentExtractor {
    */
   public static String extractAssistantText(
       NormalizedCall call, NormalizedSessionArtifact artifact) {
-    String responseContent = extractResponseText(call, artifact);
+    String responseContent = readingText(call, artifact, false).text();
     if (responseContent.isEmpty()) {
       return "";
     }
@@ -252,6 +446,14 @@ public final class PayloadCallContentExtractor {
   /** 通过 sourceUnitRefRanges 从 catalog 中解析内容。 */
   private static String resolveFromCatalog(
       NormalizedCall call, NormalizedSessionArtifact artifact, boolean requestSide) {
+    return resolveFromCatalog(call, artifact, requestSide, null);
+  }
+
+  private static String resolveFromCatalog(
+      NormalizedCall call,
+      NormalizedSessionArtifact artifact,
+      boolean requestSide,
+      ReadingText reading) {
     Map<String, SourceUnitCatalogEntry> catalog = artifact.sourceUnitCatalog();
     if (catalog.isEmpty() || call.sourceUnitRefRanges().isEmpty()) {
       return "";
@@ -275,6 +477,10 @@ public final class PayloadCallContentExtractor {
         }
         if (List.of("tool_use", "function_call", "custom_tool_call").contains(entry.unitType()))
           continue;
+        if (reading != null) {
+          if (isReadingEntry(entry, rangeRole, requestSide)) reading.add(catalogEntryText(entry));
+          continue;
+        }
         String text = catalogEntryText(entry);
         if (!text.isEmpty()) {
           if (!sb.isEmpty()) {

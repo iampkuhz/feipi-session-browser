@@ -4,34 +4,42 @@
 
 ## 开发环境与验证
 
-产品构建使用 JDK 25 与 Gradle Wrapper。Python 仅用于 Gate/Harness 开发工具，使用 Python 3.12 与 uv 安装锁定依赖：
-
-`scripts/session-browser.sh` 在需要 Java 的入口（`deps`、`test`、`serve` 及其他转发给 Java CLI 的命令）自动发现并验证 JDK 25。优先级为：显式 `JAVA_HOME` → `PATH` 中的真实 Java（包括 shim、多层软链接）→ SDKMAN（`SDKMAN_CANDIDATES_DIR`、`SDKMAN_DIR/candidates`、默认 `~/.sdkman/candidates`、Homebrew `sdkman-cli/libexec/candidates`）→ macOS `/usr/libexec/java_home -F -v 25` → Homebrew `openjdk@25` / `openjdk`（`HOMEBREW_PREFIX`、`/opt/homebrew`、`/usr/local`，包括 macOS bundle 布局）。脚本实际执行 Java，读取 `java.specification.version` 和真实 `java.home`，再验证该目录的 Java 与 `javac -version`，不会将系统占位、旧版本或 JRE 当作有效 JDK；`JAVA_TOOL_OPTIONS` 的提示行不影响版本识别。显式设置但无效或非 JDK 25 的 `JAVA_HOME` 会立即失败，不静默回退。选择结果仅供当前脚本及子进程使用，不改个人配置。`deps plan`、`deps --help`、`quality` 及参数校验等不需要 Java 的分支不受影响。
-
-直接执行 Gradle Wrapper（例如 `./java/gradlew -p java check`）时，脚本的发现逻辑不会生效，需要自行将 `JAVA_HOME` 设为本机实际 JDK 25 安装目录，并将 `$JAVA_HOME/bin` 放在 `PATH` 最前。交互式 shell 的 `java` 函数或别名不会自动传给 Gradle、Python 和 Node 子进程；不能只凭终端中的 `java -version` 判断构建版本。先用 `"$JAVA_HOME/bin/java" -version` 与 `./java/gradlew -p java --version` 确认 Java、Launcher JVM 和 Daemon JVM 均为 25，再运行下列检查。发行构建的 `jdeps` 和 `jlink` 跟随实际 Gradle JVM，并把 JDK 输入纳入增量判断，避免复用其他版本生成的 runtime。
+产品用 JDK 25；POSIX Gradle Wrapper 和 Gate 自动发现，错误的显式 `JAVA_HOME` 不回退。排查时运行
+`./java/gradlew -p java --version`，确认 Launcher JVM 和 Daemon JVM 均为 25；显式设置时也可运行
+`"$JAVA_HOME/bin/java" -version`。完整发现逻辑见 `scripts/harness/java_env.sh`。
 
 ```bash
-# 在仓库根目录运行
+# 首次或锁定环境变化时，从仓库根执行
 UV_PROJECT_ENVIRONMENT="$PWD/.local/python/venv" uv sync --project scripts --frozen --extra dev
 ./scripts/session-browser.sh deps
-
-# 修改产品代码或测试后
-./scripts/session-browser.sh test
-
-# Python 工程工具测试：仓库根与 Python 项目根分离
-UV_PROJECT_ENVIRONMENT="$PWD/.local/python/venv" uv run --project scripts --frozen --extra dev python -m pytest -c scripts/pyproject.toml --rootdir . scripts/tests
-
-# Gradle 工程根在 java/，保留 :java:* 任务名
-./java/gradlew -p java check
-
-# 提交或交接前统一增量验证
-python3 scripts/gates/cli.py run --mode incremental
-
-# 修改构建配置后额外验证
-python3 scripts/gates/cli.py run --mode incremental --target java-build
 ```
 
+## 日常小改
+
+定位改动和相邻测试后，选一个能证明效果的命令。这里是**反馈**，不扫整个脏工作区、不生成交付 receipt。
+
+| 改动 | 就地反馈（从仓库根运行） |
+|---|---|
+| 普通 Markdown | `git diff HEAD --check -- <path>`；新文件直接审阅，修改链接时核对目标 |
+| 局部 Java | `./java/gradlew -p java :java:<module>:test --tests '*<TestClass>'` |
+| 页面样式/交互 | `npm --prefix java/tests/playwright test -- <相邻-spec>`；共享样式选受影响的多个 spec。结构修改可选相邻 Web 资源契约测试 |
+| 工程脚本 | Shell 用 `bash -n -- <path>`，行为改动跑相邻测试。Python 用 `.local/python/venv/bin/python -m pytest -c scripts/pyproject.toml --rootdir . -n 0 <test-path>`；无运行行为时可用 Ruff 定向检查 |
+| 共享契约 | OpenSpec 和实际消费者的定向测试；不把局部证据当交付 |
+
+提交或交接时一次运行 `python3 scripts/gates/cli.py run --mode incremental`，不传 `--changed-files`、
+`--base` 或 selector。它覆盖 staged、unstaged、untracked 路径的**当前工作树内容**；不证明与工作树不同的部分暂存版本。
+未验证的其他差异仍在范围内；输入变化需重跑，历史 receipt 不复用。Gradle 的
+`UP-TO-DATE`/`FROM-CACHE` 是由原生输入和工具环境判定的复用，不是测试重跑。
+Java 根 `check` 已覆盖全模块测试与零跳过时，不另跑产品 `test`；构建配置按 `AGENTS.md` 另验 `java-build`。
+浏览器最终仍用原生发现完整套件；纯 Web 测试或测试模块构建不启动运行分发。Framework 对已知叶子按实际消费者发现测试，共享或未知输入仍走整套；不要把局部 spec 当全量。更多 Gate 用法见 [Gate CLI](../gates/gate-control-plane.md)。
+
 `session-browser.sh` 只直接处理 `deps`、`test`、`quality`；`serve` 启动前先执行 `:java:app-cli:installDist` 的 Gradle 增量构建（不运行测试），并由 Java CLI 安全替换同端口且可识别的旧 serve 进程，其他子命令原样转发给 Java CLI。详细工程规则见 [AGENTS.md](../../AGENTS.md)，脚本说明见 [scripts/README.md](../../scripts/README.md)。
+
+修改 serve/scan 或启动链，需要验收真实启动时，可直接运行下面的消费者；不需要先 `deps`、手工 `scan --full` 或抄固定端口。它使用 synthetic 源和临时独立索引，消费本次 `serve --port 0` 输出的实际地址，验证自动扫描后的列表和详情文本，并用第二受控实例验证错地址会被拒绝。验收前后核对进程、索引和安装包指纹，只清理自己启动的进程。该测试也是 `scanCommandSmoke` suite 的第一个候选生产者：公开 serve 构建一次后，原扫描测试消费同一安装包，不再先运行重复的 installDist prerequisite。该 suite 串行执行，避免共享安装输出与扫描消费者并发。
+
+```bash
+UV_PROJECT_ENVIRONMENT="$PWD/.local/python/venv" uv run --project scripts --frozen --extra dev python -m pytest -c scripts/pyproject.toml --rootdir . -n 0 -q -s scripts/tests/script_commands/test_session_browser_serve_smoke.py
+```
 
 Python 项目配置和 pre-commit 配置集中在 `scripts/`；从仓库根安装或运行 hooks 时必须显式指定配置：
 

@@ -92,7 +92,7 @@ final class ManagedSessionContent implements NormalizedSessionContent {
             frame.fact.tools().stream().map(ManagedNormalizationPlan.ToolIdentity::id).toList()),
         List.of(),
         units,
-        Map.of(),
+        TokenAccountant.modelCallEvidence(frame.fact.callId().orElse("")),
         new LinkedHashMap<String, Object>(frame.provenance),
         frame.subagent,
         frame.parentToolName);

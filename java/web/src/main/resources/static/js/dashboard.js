@@ -162,10 +162,10 @@
             { key: 'codex', scope: 'codex', label: 'Codex', countKey: 'codex_count', promptKey: 'codex_prompts', tokenKey: 'codex_tokens', dot: 'codex' }
         ];
         var TOKEN_LAYERS = [
-            { key: 'fresh_input_tokens', cls: 'fresh', label: 'Fresh' },
-            { key: 'cache_read_tokens', cls: 'read', label: 'Cache Read' },
-            { key: 'cache_write_tokens', cls: 'write', label: 'Cache Write' },
-            { key: 'output_tokens', cls: 'out', label: 'Output' }
+            { key: 'fresh_input_tokens', token: 'fresh', cls: 'fresh', label: 'Fresh' },
+            { key: 'cache_read_tokens', token: 'cacheRead', cls: 'read', label: 'Cache Read' },
+            { key: 'cache_write_tokens', token: 'cacheWrite', cls: 'write', label: 'Cache Write' },
+            { key: 'output_tokens', token: 'output', cls: 'out', label: 'Output' }
         ];
 
         /** 解析 UTC cohort 日期；未知日期不回退为今天，也不使用浏览器本地时区。 */
@@ -400,8 +400,9 @@
         }
 
         function yAxisHtml(ticks, formatter, extraClass) {
-            return '<div class="y-axis' + (extraClass ? ' ' + extraClass : '') + '">' + ticks.map(function(v) {
-                return '<span>' + escapeHtml(formatter ? formatter(v) : v) + '</span>';
+            return '<div class="y-axis' + (extraClass ? ' ' + extraClass : '') + '">' + ticks.map(function(v, i) {
+                return '<span style="--tick-position:' + (i / (ticks.length - 1) * 100).toFixed(2) + '%">'
+                    + escapeHtml(formatter ? formatter(v) : v) + '</span>';
             }).join('') + '</div>';
         }
 
@@ -414,7 +415,8 @@
         function xAxisHtml(data) {
             var step = Math.max(Math.floor(data.length / 8), 1);
             var labels = data.map(function(d, i) {
-                return '<span>' + (i % step === 0 ? escapeHtml(formatDisplayDate(d.date)) : '') + '</span>';
+                return '<span data-bucket="' + escapeHtml(d.date) + '" title="' + escapeHtml(d.date + ' UTC') + '">'
+                    + (i % step === 0 ? escapeHtml(formatDisplayDate(d.date)) : '') + '</span>';
             }).join('');
             return '<div class="x-axis" style="--n:' + data.length + '">' + labels + '</div>';
         }
@@ -477,8 +479,21 @@
             return (d[prefix + '_cache_read_tokens'] || 0) / input * 100;
         }
 
-        function normalizeCacheMetricFlags(data) {
-            return data;
+        function cacheCohorts() {
+            var sessions = new Map(rawData.map(function (d) { return [d.date, d]; }));
+            var series = { average: 'total_count', claude_code: 'claude_count', qoder: 'qoder_count', codex: 'codex_count' };
+            return applyScope(cacheRawData.map(function (point) {
+                var session = sessions.get(point.date);
+                if (!session || session.total_count == null) return point;
+                var result = Object.assign({}, point);
+                Object.keys(series).forEach(function (key) {
+                    // An absent agent has no cohort that can poison a measured weekly/monthly denominator.
+                    if (session[series[key]] !== 0 || inputSide(point, key) !== 0) return;
+                    delete result[key + '_provenance'];
+                    delete result[key + '_cache_metric_known'];
+                });
+                return result;
+            }), getCacheFields());
         }
 
         function linePath(data, maxVal, valueFn, xFn, yFn) {
@@ -541,13 +556,12 @@
             var measurement = trendMeasurement(d);
             TOKEN_LAYERS.forEach(function(layer) {
                 var value = d[layer.key] || 0;
-                var key = { fresh: 'fresh', read: 'cacheRead', write: 'cacheWrite', out: 'output' }[layer.cls];
-                rows.push(tooltipRow(layer.cls, layer.label, TokenProvenance.value(measurement, key, formatTokens), TokenProvenance.state(measurement) === 'provider_reported' ? share(value, total) : 'N/A'));
+                rows.push(tooltipRow(layer.cls, layer.label, TokenProvenance.value(measurement, layer.token, formatTokens), TokenProvenance.state(measurement) === 'provider_reported' ? share(value, total) : ''));
             });
             rows.push(tooltipRow('total', 'Total', TokenProvenance.total(measurement, formatTokens), share(total, rangeTotal), 'tooltip-row--total'));
             rows.push(tooltipRow('total', 'Measurement', TokenProvenance.note(measurement) || 'Provider reported', ''));
-            var prevTotal = previous ? totalTokens(previous) : null;
-            var delta = prevTotal == null ? 'N/A' : formatSignedTokens(total - prevTotal);
+            var prevTotal = previous ? plottableTokenTotal(previous) : null;
+            var delta = prevTotal == null || plottableTokenTotal(d) == null ? 'N/A' : formatSignedTokens(total - prevTotal);
             rows.push(tooltipRow('total', 'Delta', delta, ''));
             return tooltipShell(label, rows);
         }
@@ -555,6 +569,17 @@
         function trendMeasurement(d) {
             return { total: totalTokens(d), fresh: d.fresh_input_tokens, cacheRead: d.cache_read_tokens,
                 cacheWrite: d.cache_write_tokens, output: d.output_tokens, provenance: d.provenance };
+        }
+
+        function plottableTokenTotal(d) {
+            var total = totalTokens(d);
+            return total > 0 || TokenProvenance.state(trendMeasurement(d)) === 'provider_reported'
+                || TokenProvenance.state(trendMeasurement(d)) === 'estimated' ? total : null;
+        }
+
+        function promptTotal(point, sessionCount) {
+            return point.total_prompts > 0 || point.user_message_sample_count > 0 || sessionCount === 0
+                ? point.total_prompts || 0 : null;
         }
 
         function buildPromptTooltip(label, d, trendPoint) {
@@ -579,9 +604,12 @@
             scopedAgents.forEach(function(agent) {
                 var prompts = d[agent.promptKey] || 0;
                 if (!prompts && activeScope !== 'all') return;
-                rows.push(tooltipRow(agent.dot, agent.label, formatNumber(prompts), share(prompts, totalPrompts)));
+                var samples = d[agent.key + '_user_message_sample_count'];
+                var starts = trendPoint && trendPoint[agent.countKey] || 0;
+                rows.push(tooltipRow(agent.dot, agent.label, !prompts && !samples && starts > 0 ? 'N/A' : formatNumber(prompts), share(prompts, totalPrompts)));
             });
-            rows.push(tooltipRow('total', 'Total User Prompts', formatNumber(totalPrompts), '', 'tooltip-row--total'));
+            rows.push(tooltipRow('total', 'Total User Prompts',
+                promptTotal(d, totalSessions) == null ? 'N/A' : formatNumber(totalPrompts), '', 'tooltip-row--total'));
 
             rows.push(tooltipSection('Avg Prompts / Session (line)'));
             rows.push(tooltipLineRow('prompt-average', 'Overall', totalAverage,
@@ -649,44 +677,59 @@
             TOKEN_LAYERS.forEach(function(layer) {
                 var upper = [];
                 var lower = [];
+                function closeArea() {
+                    if (!upper.length) return;
+                    if (upper.length === 1) {
+                        var width = 28 / data.length;
+                        upper = [[upper[0][0] - width, upper[0][1]], [upper[0][0] + width, upper[0][1]]];
+                        lower = [[lower[0][0] - width, lower[0][1]], [lower[0][0] + width, lower[0][1]]];
+                    }
+                    var coords = upper.concat(lower.reverse()).map(function(p) { return p[0].toFixed(2) + ',' + p[1].toFixed(2); });
+                    paths += '<path class="area-layer area-layer--' + layer.cls + '" d="M ' + coords.join(' L ') + ' Z"></path>';
+                    upper = [];
+                    lower = [];
+                }
                 data.forEach(function(d, i) {
+                    var value = d[layer.key] || 0;
+                    var measurement = TokenProvenance.state(trendMeasurement(d), layer.token);
+                    if (plottableTokenTotal(d) == null || (!value && !['provider_reported', 'estimated'].includes(measurement))) {
+                        closeArea();
+                        return;
+                    }
                     var x = xBandCenterPct(i, data.length);
                     var low = cumulative[i];
-                    var high = low + (d[layer.key] || 0);
+                    var high = low + value;
                     lower.push([x, yPct(low, maxVal)]);
                     upper.push([x, yPct(high, maxVal)]);
                     cumulative[i] = high;
                 });
-                var dPath = 'M ' + upper.map(function(p) { return p[0].toFixed(2) + ',' + p[1].toFixed(2); }).join(' L ');
-                dPath += ' L ' + lower.slice().reverse().map(function(p) { return p[0].toFixed(2) + ',' + p[1].toFixed(2); }).join(' L ');
-                dPath += ' Z';
-                paths += '<path class="area-layer area-layer--' + layer.cls + '" d="' + dPath + '"></path>';
+                closeArea();
             });
-            paths += '<path class="area-total-line" d="' + linePath(data, maxVal, totalTokens) + '"></path>';
+            paths += '<path class="area-total-line" d="' + linePath(data, maxVal, plottableTokenTotal) + '"></path>';
 
             var activeScope = getActiveScope();
             var targets = '';
             data.forEach(function(d, i) {
-                var total = totalTokens(d);
+                var total = plottableTokenTotal(d);
                 var x = xBandCenterPct(i, data.length);
                 var y = yPct(total, maxVal);
                 var tip = buildTokenTooltip(formatDisplayDate(d.date), d, rangeTotal, i > 0 ? data[i - 1] : null);
                 var edge = edgeClass(i, data.length, 'chart-hover-target');
-                targets += '<span class="chart-hover-target' + (edge ? ' ' + edge : '') + '" style="--point-x:' + x.toFixed(2) + '%;--point-y:' + y.toFixed(2) + '%"><span class="chart-hover-guide"></span><span class="area-point"></span>' + tip + '</span>';
+                targets += '<span class="chart-hover-target' + (edge ? ' ' + edge : '') + '" style="--point-x:' + x.toFixed(2) + '%;--point-y:' + y.toFixed(2) + '%"><span class="chart-hover-guide"></span>'
+                    + (total == null ? '' : '<span class="area-point"></span>') + tip + '</span>';
             });
 
             var legend = TOKEN_LAYERS.map(function(layer) {
                 var value = data.reduce(function(sum, d) { return sum + (d[layer.key] || 0); }, 0);
                 var p = data.reduce(function(previous, d) { return d.provenance ? TokenProvenance.merge(previous, d.provenance) : previous; }, null);
-                var key = { fresh: 'fresh', read: 'cacheRead', write: 'cacheWrite', out: 'output' }[layer.cls];
                 var tokens = { provenance: p };
-                tokens[key] = value;
+                tokens[layer.token] = value;
                 return '<span class="chart-legend__item"><i class="chart-legend__dot chart-legend__dot--' + layer.cls + '"></i>' +
-                    escapeHtml(layer.label) + ' ' + escapeHtml(TokenProvenance.value(tokens, key, formatTokens)) + ' ' + escapeHtml(TokenProvenance.state(tokens) === 'provider_reported' ? share(value, rangeTotal) : 'N/A') + '</span>';
+                    escapeHtml(layer.label) + ' ' + escapeHtml(TokenProvenance.amount(tokens, layer.token, formatTokens)) + '</span>';
             }).join('');
 
             setChartMarkup(container, '<div class="chart">' + yHtml +
-                '<div class="plot plot--area" style="--n:' + data.length + '"><svg class="area-plot" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">' + paths + '</svg>' + targets + '</div>' +
+                '<div class="plot plot--area" style="--n:' + data.length + '"><svg class="area-plot line-plot--bar-aligned" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">' + paths + '</svg><div class="line-targets line-targets--bar-aligned">' + targets + '</div></div>' +
                 xAxisHtml(data) + '<div class="chart-legend">' + legend + '</div></div>');
         }
 
@@ -795,7 +838,7 @@
         function renderCacheHealthChart() {
             var container = document.getElementById('cache-health-chart');
             if (!container) return;
-            var data = normalizeCacheMetricFlags(applyScope(cacheRawData, getCacheFields()));
+            var data = cacheCohorts();
             if (!data.length) { setChartMarkup(container, '<p class="chart-empty">该时间窗口无数据。</p>'); return; }
 
             var activeScope = getActiveScope();
@@ -806,6 +849,7 @@
                 { prefix: 'qoder', label: 'Qoder' },
                 { prefix: 'codex', label: 'Codex' }
             ];
+            if (activeScope !== 'all') specs = specs.filter(function(spec) { return spec.prefix === highlightPrefix; });
             var domain = cacheAxisDomain(data, specs);
             var cacheY = function(value) { return yPctRange(value, domain.min, domain.max, 5); };
             var yHtml = yAxisHtml(domain.ticks, formatCacheTick);
@@ -886,11 +930,17 @@
             if (node) node.textContent = value;
         }
 
+        function showEventPart(hook, show) {
+            var node = document.querySelector('[data-event-activity-' + hook + ']');
+            if (node) node.hidden = !show;
+        }
+
         function eventActivityError(error, retry) {
             var unavailable = error && error.message === 'HTTP 501';
             var status = error && /^HTTP [0-9]{3}$/.test(error.message) ? error.message : 'Request failed';
+            eventText('window', 'UTC · no event window available');
             eventText('state', unavailable
-                ? 'Unknown — this query port does not support event activity (HTTP 501).'
+                ? 'Unavailable (HTTP 501)'
                 : 'Unable to load event activity: ' + status + '.');
             var state = document.querySelector('[data-event-activity-state]');
             if (state) {
@@ -910,14 +960,17 @@
             }
             var rows = document.querySelector('[data-event-activity-days]');
             if (rows) rows.replaceChildren();
-            eventText('coverage', 'Unknown — no event coverage response.');
-            eventText('undated', 'Undated usage: N/A — no response; never assigned to a date.');
-            eventText('future', 'Future-timestamp coverage: N/A — no response.');
+            showEventPart('table-wrap', false);
+            showEventPart('summary', false);
+            showEventPart('disclosure', false);
+            eventText('empty', unavailable ? 'The selected query source does not provide event-date statistics.' : '');
+            showEventPart('empty', unavailable);
         }
 
-        function eventComponentText(component) {
-            return component && component.reportedSamples > 0 && component.reportedTokens != null
-                ? formatNumber(component.reportedTokens) : 'N/A';
+        function eventComponentText(component, exact) {
+            if (!component || !(component.reportedSamples > 0) || component.reportedTokens == null) return 'N/A';
+            var n = component.reportedTokens;
+            return exact || n < 1000 ? formatNumber(n) : formatTokens(n);
         }
 
         function eventComponentEvidence(component) {
@@ -933,16 +986,25 @@
         function renderEventActivity(part) {
             if (!part) return;
             var coverage = part.coverageCounts || {};
-            eventText('state', part.coverage === 'partial' ? 'Partial — observed lower bound, not complete human questions or daily consumption.' : 'Unknown — no summarized event evidence.');
-            eventText('coverage', 'Coverage — all selected sources, not limited to the ' + part.windowDays + '-day window: '
-                + Object.keys(coverage).sort().map(function (key) { return key + '=' + coverage[key]; }).join('; '));
-            eventText('future', 'Future-excluded day buckets=' + (coverage.futureExcludedDayBuckets == null ? 'N/A' : coverage.futureExcludedDayBuckets)
-                + '; observed user messages=' + (coverage.futureExcludedObservedUserMessages == null ? 'N/A' : coverage.futureExcludedObservedUserMessages)
-                + '. Entire mixed day buckets are conservatively excluded until their latest event has occurred; lower bound only.');
+            function count(key) {
+                return coverage[key] == null ? 'N/A' : formatNumber(coverage[key]);
+            }
+            eventText('state', part.coverage === 'partial' ? 'Partial coverage' : 'Unknown coverage');
+            var state = document.querySelector('[data-event-activity-state]');
+            if (state) state.setAttribute('role', 'status');
+            eventText('coverage', count('indexedSessions') + ' indexed sessions; ' + count('summarizedSessions')
+                + ' with event evidence; ' + count('unknownSessions') + ' without event coverage. '
+                + count('observedUserMessages') + ' observed user messages (' + count('undatedUserMessages') + ' undated).');
+            eventText('usage', count('supportedUsageEvents') + ' supported usage events; '
+                + count('unsupportedUsageEvents') + ' unsupported usage events; ' + count('undatedUsageEvents') + ' undated usage events.');
+            eventText('future', count('futureExcludedDayBuckets') + ' excluded day buckets · '
+                + count('futureExcludedObservedUserMessages') + ' observed user messages. Entire mixed day buckets are excluded until their latest event occurs.');
             var undated = part.undatedTokens || {};
-            eventText('undated', 'Undated usage — never assigned to a date: ' + eventTokenKeys.map(function (key) {
-                return key + ': ' + eventComponentText(undated[key]) + ' (' + eventComponentEvidence(undated[key]) + ')';
-            }).join('; '));
+            var tokenLabels = ['Fresh', 'Cache read', 'Cache write', 'Output'];
+            eventText('undated', 'Undated usage — never assigned to a date; only provider-reported amounts: '
+                + eventTokenKeys.map(function (key, i) {
+                    return tokenLabels[i] + ': ' + eventComponentText(undated[key], true);
+                }).join(' · '));
             var buckets = {};
             var window = calendarWindow();
             (part.days || []).forEach(function (day) {
@@ -971,7 +1033,19 @@
             var rows = document.querySelector('[data-event-activity-days]');
             if (!rows) return;
             rows.replaceChildren();
-            Object.keys(buckets).sort().forEach(function (key) {
+            var dates = Object.keys(buckets).sort().reverse();
+            var exact = document.querySelector('[data-event-activity-exact]');
+            var tokenCells = [];
+            eventText('window', window.start + ' to ' + window.end + ' UTC · ' + dates.length + ' observed '
+                + ({ day: 'days', week: 'weeks', month: 'months' }[getGrain()] || 'periods'));
+            eventText('summary', count('summarizedSessions') + ' of ' + count('indexedSessions')
+                + ' indexed sessions have event evidence across the selected sources.');
+            showEventPart('summary', part.coverage === 'partial');
+            showEventPart('table-wrap', dates.length > 0);
+            showEventPart('empty', !dates.length);
+            showEventPart('disclosure', part.coverage === 'partial' || dates.length > 0);
+            eventText('empty', 'No observed event dates in this window. Missing evidence is not measured zero.');
+            dates.forEach(function (key) {
                 var row = document.createElement('tr');
                 var bucket = buckets[key];
                 [key, formatNumber(bucket.observedUserMessages)].forEach(function (value) {
@@ -980,21 +1054,19 @@
                     row.appendChild(cell);
                 });
                 eventTokenKeys.forEach(function (tokenKey) {
+                    var component = bucket.tokens[tokenKey];
                     var cell = document.createElement('td');
-                    cell.textContent = eventComponentText(bucket.tokens[tokenKey]);
-                    cell.title = eventComponentEvidence(bucket.tokens[tokenKey]);
+                    cell.title = eventComponentText(component, true) + ' · ' + eventComponentEvidence(component);
                     row.appendChild(cell);
+                    tokenCells.push([cell, component]);
                 });
                 rows.appendChild(row);
             });
-            if (!rows.children.length) {
-                var row = document.createElement('tr');
-                var cell = document.createElement('td');
-                cell.colSpan = 6;
-                cell.textContent = 'Unknown — no observed day buckets in this window; not measured zero.';
-                row.appendChild(cell);
-                rows.appendChild(row);
+            function updateAmounts() {
+                tokenCells.forEach(function (entry) { entry[0].textContent = eventComponentText(entry[1], exact && exact.checked); });
             }
+            if (exact) exact.onchange = updateAmounts;
+            updateAmounts();
         }
 
         function updateDashboardSummary(summary) {
@@ -1005,7 +1077,7 @@
             setKpiValue('Prompt Activity', formatNumber(summary.userMessages));
             setKpiValue('Failed Tools', formatNumber(summary.failedTools));
             setKpiValue('Cache Read Ratio', TokenProvenance.ratio(summary.tokens, summary.cacheReadRatio), summary.tokens);
-            applyCacheReadStatistics(summary.cacheReadStatistics);
+            applyCacheReadStatistics(summary.cacheReadStatistics, summary.tokens);
             applyMessageStatistics(summary);
         }
 
@@ -1034,7 +1106,7 @@
             });
         }
 
-        function applyCacheReadStatistics(statistics) {
+        function applyCacheReadStatistics(statistics, tokens) {
             var card = Array.from(document.querySelectorAll('.metric-card--kpi')).find(function(item) {
                 var label = item.querySelector('.metric-card__label');
                 return label && label.textContent.trim() === 'Cache Read Ratio';
@@ -1050,12 +1122,12 @@
             card.querySelectorAll('.metric-card__secondary-value').forEach(function(value, index) {
                 value.textContent = values[index] || 'N/A';
             });
-            var note = card.querySelector('[data-cache-measurement]') || document.createElement('p');
+            var note = document.createElement('p');
             note.setAttribute('data-cache-measurement', '');
-            note.className = 'token-provenance';
-            note.textContent = validBasis ? 'Measured subset: provider-reported input with >0 tokens. Excluded: ' + count('excludedSessions') + ' sessions.'
+            note.textContent = validBasis ? 'Cache ratio uses cache-read tokens divided by reported input tokens. Session statistics use ' + count('eligibleSessions')
+                + ' sessions with positive provider-reported input. Excluded: ' + count('excludedSessions') + ' sessions.'
                 : 'Cache session distribution not reported by API; measurable subset is unknown.';
-            if (!note.parentElement) (card.querySelector('.metric-card__body') || card).appendChild(note);
+            TokenProvenance.attach(card, tokens, note);
         }
 
         function setKpiValue(label, value, tokens) {
@@ -1065,7 +1137,7 @@
                 if (!labelEl || labelEl.textContent.trim() !== label) continue;
                 var valueEl = cards[i].querySelector('.metric-card__value');
                 if (valueEl) valueEl.textContent = value;
-                if (tokens) TokenProvenance.attach(cards[i], tokens);
+                if (tokens && label !== 'Cache Read Ratio') TokenProvenance.attach(cards[i], tokens);
                 if (tokens && label === 'Total Tokens') {
                     cards[i].querySelectorAll('.metric-card__secondary-row').forEach(function(row) {
                         var secondaryLabel = row.querySelector('.metric-card__secondary-label');
@@ -1156,8 +1228,8 @@
             target[prefix + '_cache_read_tokens'] = tuple.cacheRead || 0;
             target[prefix + '_cache_write_tokens'] = tuple.cacheWrite || 0;
             target[prefix + '_provenance'] = tuple.provenance || tuple.ratio && tuple.ratio.provenance || {};
-            target[prefix + '_cache_metric_known'] = !!(tuple.ratio && tuple.ratio.value != null)
-                && TokenProvenance.measuredInput({ provenance: target[prefix + '_provenance'] });
+            target[prefix + '_cache_metric_known'] = TokenProvenance.measuredInput({ provenance: target[prefix + '_provenance'] })
+                && (Boolean(tuple.ratio && tuple.ratio.value != null) || inputSide(target, prefix) === 0);
         }
 
         function updateChartStats() {
@@ -1175,16 +1247,16 @@
                 ? formatNumber(latestSession.total_count)
                 : 'N/A'));
             setStatText('latest-tokens', 'Latest: ' + (latestSession
-                ? TokenProvenance.total(trendMeasurement(latestSession), formatTokens)
+                ? TokenProvenance.amount(trendMeasurement(latestSession), 'total', formatTokens)
                 : 'N/A'));
             setStatText('latest-prompts', 'Latest: ' + (latestPrompt
-                ? formatNumber(latestPrompt.total_prompts)
+                ? (promptTotal(latestPrompt, latestSession && latestSession.total_count || 0) == null ? 'N/A' : formatNumber(latestPrompt.total_prompts))
                 : 'N/A'));
             setStatText('range-total-sessions', 'Range total: ' + formatNumber(cohort.reduce(function(sum, point) { return sum + (point.total_count || 0); }, 0)));
-            setStatText('range-total-tokens', 'Range total: ' + TokenProvenance.total(rangeTokens, formatTokens));
+            setStatText('range-total-tokens', 'Range total: ' + TokenProvenance.amount(rangeTokens, 'total', formatTokens));
             var tokenChart = document.getElementById('token-trend-chart');
             TokenProvenance.attach(tokenChart && tokenChart.parentElement, rangeTokens);
-            var cacheCohort = normalizeCacheMetricFlags(applyScope(cacheRawData, getCacheFields()));
+            var cacheCohort = cacheCohorts();
             var prefix = scopeToAgentKey(getActiveScope());
             var latestCache = cacheCohort[cacheCohort.length - 1];
             var latestRatio = latestCache ? cacheRatio(latestCache, prefix) : null;
@@ -1196,6 +1268,18 @@
             setStatText('range-total-prompts', 'Range total: ' + formatNumber(promptCohort.reduce(function(sum, point) { return sum + (point.total_prompts || 0); }, 0)));
             setStatText('latest-ratio', 'Latest ratio: ' + (latestRatio === null ? 'N/A' : formatPct(latestRatio)));
             setStatText('lowest-ratio', 'Lowest ratio: ' + (ratios.length ? formatPct(Math.min.apply(null, ratios)) : 'N/A'));
+            var evidence = document.querySelector('[data-trend-first-evidence]');
+            if (evidence && [1, 2, 3, 4].every(function(index) { return dashboardParts[index]; })) {
+                var sessions = new Map(cohort.map(function(point) { return [point.date, point.total_count]; }));
+                function first(points, predicate) {
+                    var match = points.find(predicate);
+                    return match ? match.date : '窗口内无证据';
+                }
+                evidence.textContent = '窗口内首个有数据的桶：Session ' + first(cohort, function(p) { return p.total_count > 0; })
+                    + ' · Prompt ' + first(promptCohort, function(p) { return sessions.get(p.date) > 0 && promptTotal(p, sessions.get(p.date)) != null; })
+                    + ' · Token ' + first(cohort, function(p) { return plottableTokenTotal(p) != null; })
+                    + ' · Cache ' + first(cacheCohort, function(p) { return cacheRatio(p, prefix) != null; });
+            }
             var window = calendarWindow();
             document.querySelectorAll('[data-stat]').forEach(function(el) {
                 el.setAttribute('aria-description', 'UTC session-start cohort ' + window.start + ' — ' + window.end
@@ -1307,7 +1391,7 @@
             if (legend) {
                 legend.replaceChildren();
                 rows.forEach(function(row) {
-                    var item = document.createElement('span');
+                    var item = document.createElement('div');
                     item.className = 'hbar-legend__item';
                     var dot = document.createElement('span');
                     dot.className = 'hbar-legend__dot hbar-legend__dot--' + row.agent;
@@ -1346,21 +1430,22 @@
             var detailTable = document.querySelector('section[aria-label="Model Efficiency Detail"] table.data-table tbody');
             if (detailTable && deepResp && Array.isArray(deepResp.rows)) {
                 setTableBodyMarkup(detailTable, deepResp.rows.map(efficiencyDetailRowHtml).join(''));
-                attachEfficiencyProvenance(detailTable, deepResp.rows, 2);
+                attachEfficiencyProvenance(detailTable, deepResp.rows, 7);
             }
         }
 
         function attachEfficiencyProvenance(body, rows, column) {
             Array.from(body.rows).forEach(function(tr, index) {
                 if (rows[index]) {
-                    TokenProvenance.attach(tr.cells[column], { provenance: rows[index].provenance });
                     var samples = efficiencySamples(rows[index]);
+                    var note;
                     if (samples) {
-                        var note = document.createElement('small');
-                        note.className = 'muted';
+                        note = document.createElement('p');
                         note.textContent = samples;
-                        tr.cells[column].appendChild(note);
                     }
+                    var cell = tr.cells[column];
+                    TokenProvenance.attach(cell, { provenance: rows[index].provenance }, note);
+                    if (column === 7 && !cell.firstChild) cell.textContent = 'Provider reported';
                 }
             });
         }
@@ -1408,7 +1493,7 @@
                 '<td class="numeric">' + escapeHtml(TokenProvenance.ratio(null, { value: row.cacheReuseRatio, provenance: row.provenance })) + '</td>' +
                 '<td class="numeric">' + (row.contentSampleCount === 0 || row.avgToolsPerSession == null ? 'N/A' : row.avgToolsPerSession.toFixed(1)) + '</td>' +
                 '<td class="numeric">' + (row.failedPerSession == null ? 'N/A' : row.failedPerSession.toFixed(1)) + '</td>' +
-                '<td>' + escapeHtml(TokenProvenance.note({ provenance: row.provenance }) || 'Provider reported') + '</td></tr>';
+                '<td></td></tr>';
         }
 
         function renderAll() {

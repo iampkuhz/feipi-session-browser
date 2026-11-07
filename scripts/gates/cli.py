@@ -141,7 +141,19 @@ def _explain(args: argparse.Namespace) -> str:
 def _run(args: argparse.Namespace, repo_root: Path) -> int:
     started_at = datetime.now(UTC).isoformat()
     plan = _compile(args, repo_root)
-    results = orchestrate_gate_run(plan, repo_root, event_sink=_event_sink)
+    completion: list[ExecutionEvent] = []
+
+    def report(event: ExecutionEvent) -> None:
+        if event.kind == 'DONE':
+            completion.append(event)
+        else:
+            _event_sink(event)
+
+    results = orchestrate_gate_run(plan, repo_root, event_sink=report)
+    if plan.snapshot.source == 'git-working-tree' and (
+        capture_change_snapshot(repo_root) != plan.snapshot
+    ):
+        raise RuntimeError('worktree inputs changed during validation; run again on stable inputs')
     finished_at = datetime.now(UTC).isoformat()
     receipt = store_run_receipt(
         plan,
@@ -151,6 +163,8 @@ def _run(args: argparse.Namespace, repo_root: Path) -> int:
         started_at=started_at,
         finished_at=finished_at,
     )
+    for event in completion:
+        _event_sink(event)
     print(render_run_receipt(receipt))
     return {'PASS': 0, 'BLOCKED': 1}.get(receipt.status, 2)
 

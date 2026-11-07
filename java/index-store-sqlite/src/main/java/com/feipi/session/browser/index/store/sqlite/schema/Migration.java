@@ -71,6 +71,7 @@ public record Migration(SchemaVersion version, String description, String sqlRes
         new Migration(new SchemaVersion(3), "独立内容指标", "sql/V003__content_metrics.sql"),
         new Migration(new SchemaVersion(4), "独立消息测量覆盖", "sql/V004__message_measurement.sql"),
         new Migration(new SchemaVersion(5), "扫描失败安全详情", "sql/V005__scan_failure_details.sql"),
-        new Migration(new SchemaVersion(6), "事件日观察事实", "sql/V006__event_activity.sql"));
+        new Migration(new SchemaVersion(6), "事件日观察事实", "sql/V006__event_activity.sql"),
+        new Migration(new SchemaVersion(7), "独立模型调用边界计数", "sql/V007__model_call_count.sql"));
   }
 }

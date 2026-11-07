@@ -47,7 +47,6 @@
                 <button class="icon-button icon-button--info" data-action="metric-info" data-metric="projects-count" aria-label="Metric info: number of indexed projects" title="说明：当前索引中识别到的本地项目/工作区数量">&#9432;</button>
             </div>
             <div class="metric-card__value mono">Loading…</div>
-            <div class="metric-card__sub">Loaded from /api/projects/summary</div>
         </div>
     </div>
     <div class="metric-card">
@@ -58,7 +57,6 @@
                 <button class="icon-button icon-button--info" data-action="metric-info" data-metric="total-sessions" aria-label="Metric info: total sessions across all projects" title="说明：所有项目下已索引的 session 总数">&#9432;</button>
             </div>
             <div class="metric-card__value mono">Loading…</div>
-            <div class="metric-card__sub">Loaded from /api/projects/summary</div>
         </div>
     </div>
     <div class="metric-card">
@@ -69,7 +67,6 @@
                 <button class="icon-button icon-button--info" data-action="metric-info" data-metric="total-tokens" aria-label="Metric info: total token consumption" title="说明：所有项目的 token 消耗合计，使用缩写并保留 1 位小数">&#9432;</button>
             </div>
             <div class="metric-card__value mono">Loading…</div>
-            <div class="metric-card__sub">Loaded from /api/projects/summary</div>
         </div>
     </div>
     <div class="metric-card">
@@ -80,7 +77,6 @@
                 <button class="icon-button icon-button--info" data-action="metric-info" data-metric="failed-tools" aria-label="Metric info: failed tool call count" title="说明：所有项目中 failed tool result 的数量，不包含 successful result">&#9432;</button>
             </div>
             <div class="metric-card__value mono">Loading…</div>
-            <div class="metric-card__sub">Loaded from /api/projects/summary</div>
         </div>
     </div>
 </section>
@@ -106,7 +102,7 @@
         <div class="table-toolbar">
             <div>
                 <div class="card-title">All Projects</div>
-                <div class="card-sub">Project rows are loaded from /api/projects/rows.</div>
+                <div class="card-sub">Projects matching the current search.</div>
             </div>
         </div>
         <div class="table-wrap">
@@ -129,7 +125,6 @@
                             <div class="empty-state__icon" aria-hidden="true">⏳</div>
                             <span class="agents-cell__inner" hidden aria-hidden="true"></span>
                             <h2 class="empty-state__title">Loading projects</h2>
-                            <p class="empty-state__text">Project rows are loaded from /api/projects/rows.</p>
                         </div>
                     </td></tr>
                 </tbody>

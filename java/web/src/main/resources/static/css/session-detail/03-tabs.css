@@ -72,3 +72,28 @@
   align-items: center;
   gap: 8px;
 }
+
+@media (max-width: 850px) {
+  .sd-trace-head {
+    height: auto;
+    min-height: 46px;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding-block: 8px;
+  }
+  .sd-trace-head > :first-child {
+    flex-basis: 100%;
+  }
+  .sd-trace-actions {
+    flex-wrap: wrap;
+    max-width: 100%;
+    margin-left: 0;
+  }
+  .sd-trace-actions .sd-seg-btn {
+    min-width: 0;
+    white-space: nowrap;
+  }
+  .sd-toggle-all-btn {
+    min-width: 0;
+  }
+}

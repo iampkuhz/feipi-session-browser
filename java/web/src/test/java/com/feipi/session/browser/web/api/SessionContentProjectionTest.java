@@ -28,7 +28,10 @@ class SessionContentProjectionTest {
             SessionDetailParityAnalyzerTest.healthDetail(false, 0), content);
     assertThat(rows).hasSize(1);
     assertThat(rows.getFirst().callCount()).isEqualTo(10234);
-    assertThat(rows.getFirst().calls()).hasSizeLessThanOrEqualTo(500);
+    assertThat(rows.getFirst().calls()).isEmpty();
+    assertThat(rows.getFirst().parity())
+        .containsEntry("summary", "synthetic response 1")
+        .containsEntry("summaryRole", "assistant");
     assertThat(rows.getFirst().tokens().total()).isEqualTo(20468);
   }
 
@@ -131,6 +134,59 @@ class SessionContentProjectionTest {
           } while (next != null);
           assertThat(calls).isEqualTo(10234);
         });
+  }
+
+  @Test
+  void evidencedMainAndUnconfirmedChildKeepSeparateCountsAndPayloads() throws Exception {
+    var detail = SessionDetailParityAnalyzerTest.healthDetail(false, 0);
+    var main = call(1, "token_usage_record:synthetic-main");
+    var child =
+        new NormalizedCall(
+            "child-SR1",
+            2,
+            "C2",
+            CallScope.SUBAGENT,
+            Optional.of(main.callId()),
+            Optional.of("synthetic-spawn"),
+            Optional.of("child-task"),
+            "synthetic-model",
+            Optional.empty(),
+            NormalizedCallUsage.empty(),
+            NormalizedCallRequest.empty(),
+            NormalizedCallResponse.empty(),
+            List.of(),
+            List.of(Map.of("type", "text", "role", "assistant", "text", "synthetic child output")),
+            Map.of(),
+            Map.of(),
+            Optional.of("child"),
+            Optional.of("spawn_agent"));
+    var artifact =
+        new com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact(
+            NormalizedConstants.SCHEMA_VERSION,
+            NormalizedAgent.CODEX,
+            List.of(),
+            Map.of(),
+            List.of(main, child),
+            List.of(),
+            List.of(),
+            Map.of(),
+            Map.of());
+    var content = NormalizedSessionContent.fromArtifact(artifact);
+    var rows = SessionContentProjection.rounds(detail, content);
+    assertThat(rows).hasSize(2);
+    assertThat(rows.getFirst().parity()).containsEntry("modelCallEvidence", "response_usage");
+    assertThat(rows.getLast().parity()).containsEntry("modelCallEvidence", "");
+    assertThat(rows.getLast().parentCallId()).isEqualTo(main.callId());
+    var reader =
+        new com.feipi.session.browser.application.sessiondetail.SessionContentReader(content, 0);
+    assertThat(reader.payload("round:resp:1", detail.visibility()).orElseThrow().content())
+        .endsWith("synthetic response 1")
+        .doesNotContain("synthetic child output");
+    assertThat(reader.payload("round:resp:2", detail.visibility()).orElseThrow().content())
+        .endsWith("synthetic child output")
+        .doesNotContain("synthetic response 1");
+    assertThat(reader.payload("sa:resp:child-SR1", detail.visibility()).orElseThrow().content())
+        .isEqualTo("synthetic child output");
   }
 
   @Test
@@ -245,8 +301,12 @@ class SessionContentProjectionTest {
   }
 
   private static NormalizedCall call(int index) {
+    return call(index, "synthetic-" + index);
+  }
+
+  private static NormalizedCall call(int index, String id) {
     return new NormalizedCall(
-        "synthetic-" + index,
+        id,
         index,
         "C" + index,
         CallScope.MAIN,

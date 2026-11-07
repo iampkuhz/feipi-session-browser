@@ -112,7 +112,7 @@
     </div>
 
     <div id="sessions-ajax-response">
-        <div class="table-wrap">
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Scrollable sessions table">
             <table class="data-table" role="table" aria-label="Sessions table">
                 <thead>
                     <tr>
@@ -121,7 +121,7 @@
                         <th class="static-header col-agent" scope="col">Agent</th>
                         <th class="static-header col-model" scope="col">Model</th>
                         <th class="sortable col-tokens" data-sort-key="tokens"{% if sort_by == 'tokens' %} data-sort-dir="{{ sort_dir }}"{% endif %} scope="col"><a class="c-data-table__sort" data-action="sort" data-sort-key="tokens" href="{{ sort_urls.tokens }}">Tokens <span class="c-data-table__sort-icon" aria-hidden="true"></span></a></th>
-                        <th class="sortable col-rounds" data-sort-key="rounds"{% if sort_by == 'rounds' %} data-sort-dir="{{ sort_dir }}"{% endif %} scope="col"><a class="c-data-table__sort" data-action="sort" data-sort-key="rounds" href="{{ sort_urls.rounds }}">Rounds <span class="c-data-table__sort-icon" aria-hidden="true"></span></a></th>
+                        <th class="sortable col-rounds" data-sort-key="rounds"{% if sort_by == 'rounds' %} data-sort-dir="{{ sort_dir }}"{% endif %} scope="col"><a class="c-data-table__sort" data-action="sort" data-sort-key="rounds" href="{{ sort_urls.rounds }}">Rounds / groups <span class="c-data-table__sort-icon" aria-hidden="true"></span></a></th>
                         <th class="sortable col-tools" data-sort-key="tools"{% if sort_by == 'tools' %} data-sort-dir="{{ sort_dir }}"{% endif %} scope="col"><a class="c-data-table__sort" data-action="sort" data-sort-key="tools" href="{{ sort_urls.tools }}">Tools <span class="c-data-table__sort-icon" aria-hidden="true"></span></a></th>
                         <th class="sortable col-subagents" data-sort-key="subagents"{% if sort_by == 'subagents' %} data-sort-dir="{{ sort_dir }}"{% endif %} scope="col"><a class="c-data-table__sort" data-action="sort" data-sort-key="subagents" href="{{ sort_urls.subagents }}">Subagents <span class="c-data-table__sort-icon" aria-hidden="true"></span></a></th>
                         <th class="sortable col-duration" data-sort-key="duration"{% if sort_by == 'duration' %} data-sort-dir="{{ sort_dir }}"{% endif %} scope="col"><a class="c-data-table__sort" data-action="sort" data-sort-key="duration" href="{{ sort_urls.duration }}">Wall Duration <span class="c-data-table__sort-icon" aria-hidden="true"></span></a></th>

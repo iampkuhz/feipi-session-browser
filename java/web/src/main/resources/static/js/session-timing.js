@@ -34,11 +34,13 @@
       return ['Completed', 'Incomplete', 'Aborted'][index] + ': '
         + (typeof count === 'number' && count >= 0 ? count : 'Not reported');
     }).join(' · ');
-    return 'MAIN task windows (union), including tools/wait; not model inference. '
+    var taskBasis = timing.activeTaskBasis === 'main_task_windows' ? 'Task basis: recorded main-task windows, with overlaps counted once. ' : '';
+    var turnBasis = timing.agentTurnBasis === 'main_agent_turn_duration' ? 'Agent-turn basis: recorded main-agent turn durations. '
+      : timing.agentTurnBasis === 'main_task_duration_sum' ? 'Agent-turn basis: summed main-task durations without usable time windows. ' : '';
+    return 'Main task time includes tools and waits during a task; not model inference. '
       + 'Agent Turn is cumulative MAIN-agent workload, not Task Active. '
-      + 'Non-task Wall Time: ' + nonTaskWall(timing) + ' (not user waiting). ' + counts
-      + (timing.activeTaskBasis ? ' · Task basis: ' + timing.activeTaskBasis : '')
-      + (timing.agentTurnBasis ? ' · Agent-turn basis: ' + timing.agentTurnBasis : '');
+      + taskBasis + turnBasis
+      + 'Non-task Wall Time: ' + nonTaskWall(timing) + ' (not user waiting). ' + counts;
   }
   function prepareTable(table) {
     if (!table) return;
@@ -69,11 +71,17 @@
       primary.classList.add('session-timing-value');
       primary.setAttribute('data-session-timing-value', '');
     }
-    var note = card.querySelector('[data-session-timing-note]') || document.createElement('p');
-    note.setAttribute('data-session-timing-note', '');
-    note.className = 'session-timing-note';
-    note.textContent = description(timing);
-    if (!note.parentElement) card.appendChild(note);
+    var note = card.querySelector('[data-session-timing-note]');
+    if (!note) {
+      note = document.createElement('details');
+      note.setAttribute('data-session-timing-note', '');
+      note.className = 'session-timing-note';
+      var summary = document.createElement('summary');
+      summary.textContent = 'Timing details';
+      note.append(summary, document.createElement('p'));
+      card.appendChild(note);
+    }
+    note.lastElementChild.textContent = description(timing);
   }
   window.SessionTiming = { seconds: seconds, value: value, nonTaskWall: nonTaskWall,
     description: description, prepareTable: prepareTable, applyDetail: applyDetail };

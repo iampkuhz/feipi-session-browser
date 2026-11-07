@@ -13,7 +13,7 @@
 6. 输出只包含 `Status: PASS|FAIL|BLOCKED`、Changed files、Validation、Effect checks、Risks，不贴长日志。
 7. required validation 的 failed、warning、skipped、not-run 或 unavailable 均不得描述为 PASS。
 
-8. main 只能聚合同一 `client/session_id` 的证据；subagent 的 PASS 不替代 main 的独立 required checks。
+8. main 只能聚合同一 `client/session_id` 的证据；subagent 的 PASS 不替代 main 的独立 required checks；subagent `FAIL`/`BLOCKED` 不得让 main 静默跳过 validation。
 9. 直接使用当前 Agent 原生 `spawn_agent`/`followup_task` 和原生等待/完成事件，不新增 CLI、队列、receipt、
    callback、watchdog 或仓库状态机。模型路由真源为共享 policy 的 `native_delegation`。
 10. 重要实现、复杂分析和独立验证用 `gpt-6.1-sol`，轻量定位用 `gpt-6-luna`；遵守宿主 API 模型/上下文限制，

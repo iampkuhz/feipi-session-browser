@@ -13,8 +13,6 @@ import sqlite3
 import subprocess
 from pathlib import Path
 
-import pytest
-
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPT_PATH = REPO_ROOT / 'scripts' / 'session-browser.sh'
 
@@ -156,8 +154,7 @@ def _create_qoder_fixture(data_dir: Path) -> None:
 # ─── Pytest fixtures ───────────────────────────────────────────────
 
 
-@pytest.fixture
-def isolated_env(tmp_path: Path):
+def _isolated_environment(tmp_path: Path):
     """Create isolated environment with tmp fixtures for all three agents.
 
     Returns a dict with env vars and paths for the test.
@@ -182,182 +179,63 @@ def isolated_env(tmp_path: Path):
     env['INDEX_DIR'] = str(index_dir)
     env['SESSION_BROWSER_SCAN_LOCK_TIMEOUT_SECONDS'] = '0'
 
-    return {
-        'env': env,
-        'home_dir': home_dir,
-        'claude_dir': claude_dir,
-        'codex_dir': codex_dir,
-        'qoder_dir': qoder_dir,
-        'index_dir': index_dir,
-    }
+    return env, index_dir
 
 
-# ─── Test cases ────────────────────────────────────────────────────
+def test_scan_public_entry_state_flow(tmp_path: Path):
+    """Cover public scan modes and filtering in one isolated index lifecycle."""
+    env, index = _isolated_environment(tmp_path)
+    db = index / 'index.sqlite'
 
+    def run(*args):
+        result = subprocess.run(
+            ['bash', str(SCRIPT_PATH), 'scan', *args],
+            cwd=str(REPO_ROOT),
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        assert result.returncode == 0, f'scan {args} failed: {result.stdout}\n{result.stderr}'
+        return result.stdout
 
-def test_scan_full_with_isolated_fixtures(isolated_env):
-    """Test `scan --full` with isolated tmp fixtures.
-
-    Verifies:
-    - exit code = 0
-    - stdout contains expected keywords
-    - counts match fixture data
-    - Codex subagent thread NOT counted
-    """
-    env = isolated_env['env']
-
-    result = subprocess.run(
-        ['bash', str(SCRIPT_PATH), 'scan', '--full'],
-        cwd=str(REPO_ROOT),
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
-
-    stdout = result.stdout
-    stderr = result.stderr
-
-    assert result.returncode == 0, (
-        f'scan --full failed with exit code {result.returncode}\nstdout: {stdout}\nstderr: {stderr}'
-    )
-
-    # Verify expected output keywords
-    assert 'Starting full scan' in stdout, f'Missing "Starting full scan" in output: {stdout}'
-    assert 'Scan complete' in stdout, f'Missing "Scan complete" in output: {stdout}'
-    assert 'Claude Code:' in stdout, f'Missing "Claude Code:" in output: {stdout}'
-    assert 'Codex:' in stdout, f'Missing "Codex:" in output: {stdout}'
-    assert 'Total:' in stdout, f'Missing "Total:" in output: {stdout}'
-
-    # Verify counts: Claude=1, Codex=1 (subagent excluded), Total=2
-    assert 'Claude Code: 1' in stdout, f'Expected "Claude Code: 1" in output: {stdout}'
-    assert 'Codex:       1' in stdout, f'Expected "Codex:       1" in output: {stdout}'
-    assert 'Total:       2' in stdout, f'Expected "Total:       2" in output: {stdout}'
-
-
-def test_scan_incremental_after_full(isolated_env):
-    """Test default incremental scan after full scan.
-
-    Verifies:
-    - Second run (incremental) exits 0
-    - Counts are consistent
-    """
-    env = isolated_env['env']
-
-    # First: full scan
-    result_full = subprocess.run(
-        ['bash', str(SCRIPT_PATH), 'scan', '--full'],
-        cwd=str(REPO_ROOT),
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
-    assert result_full.returncode == 0, (
-        f'Full scan failed: {result_full.stdout}\n{result_full.stderr}'
-    )
-
-    # Second: incremental scan (default)
-    result_incr = subprocess.run(
-        ['bash', str(SCRIPT_PATH), 'scan'],
-        cwd=str(REPO_ROOT),
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
-    assert result_incr.returncode == 0, (
-        f'Incremental scan failed: {result_incr.stdout}\n{result_incr.stderr}'
-    )
-
-    stdout = result_incr.stdout
-    assert 'Scan complete' in stdout or 'Incremental scan complete' in stdout, (
-        f'Missing scan completion message in output: {stdout}'
-    )
-
-
-def test_scan_full_agent_filter_claude(isolated_env):
-    """Test `scan --full --agent claude_code` — single agent filter."""
-    env = isolated_env['env']
-
-    result = subprocess.run(
-        ['bash', str(SCRIPT_PATH), 'scan', '--full', '--agent', 'claude_code'],
-        cwd=str(REPO_ROOT),
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
-
-    stdout = result.stdout
-    assert result.returncode == 0, (
-        f'scan --full --agent claude_code failed: {stdout}\n{result.stderr}'
-    )
-    assert 'Starting full scan' in stdout
-    assert 'Claude Code: 1' in stdout
-    assert 'Total:       1' in stdout
-
-
-def test_scan_full_agent_filter_codex(isolated_env):
-    """Test `scan --full --agent codex` — verifies subagent exclusion."""
-    env = isolated_env['env']
-
-    result = subprocess.run(
-        ['bash', str(SCRIPT_PATH), 'scan', '--full', '--agent', 'codex'],
-        cwd=str(REPO_ROOT),
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
-
-    stdout = result.stdout
-    assert result.returncode == 0, f'scan --full --agent codex failed: {stdout}\n{result.stderr}'
-    assert 'Starting full scan' in stdout
-    assert 'Codex:       1' in stdout
-    assert 'Total:       1' in stdout
-
-
-@pytest.mark.parametrize('agent', ['codex', 'claude_code'])
-def test_filtered_full_preserves_unselected_published_rows(isolated_env, agent):
-    """真实 launcher 必须把过滤范围传到引擎，而非只过滤发现目录。"""
-    env = isolated_env['env']
-    baseline = subprocess.run(
-        ['bash', str(SCRIPT_PATH), 'scan', '--full'],
-        cwd=str(REPO_ROOT),
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
-    assert baseline.returncode == 0, baseline.stderr
-    db = isolated_env['index_dir'] / 'index.sqlite'
-
-    def retained_state():
+    def source_state(agent):
         with sqlite3.connect(db) as conn:
             rows = conn.execute(
-                'SELECT * FROM sessions WHERE agent != ? ORDER BY session_key',
-                (agent,),
+                'SELECT * FROM sessions WHERE agent = ? ORDER BY session_key', (agent,)
             ).fetchall()
             artifacts = conn.execute(
                 'SELECT a.* FROM session_artifacts a JOIN sessions s USING(session_key) '
-                'WHERE s.agent != ? ORDER BY a.session_key,a.artifact_type',
+                'WHERE s.agent = ? ORDER BY a.session_key,a.artifact_type',
                 (agent,),
             ).fetchall()
             version = conn.execute(
-                "SELECT value FROM index_metadata WHERE key = 'scan_logic_version'",
+                "SELECT value FROM index_metadata WHERE key = 'scan_logic_version'"
             ).fetchone()
+            assert version is not None
             return rows, artifacts, version
 
-    before = retained_state()
-    assert len(before[0]) == 1
-    filtered = subprocess.run(
-        ['bash', str(SCRIPT_PATH), 'scan', '--full', '--agent', agent],
-        cwd=str(REPO_ROOT),
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
-    assert filtered.returncode == 0, filtered.stderr
-    assert retained_state() == before
+    full = run('--full')
+    assert all(
+        item in full
+        for item in (
+            'Starting full scan',
+            'Scan complete',
+            'Claude Code: 1',
+            'Codex:       1',
+            'Total:       2',
+        )
+    ), full
+    assert len(source_state('claude_code')[0]) == 1
+    assert len(source_state('codex')[0]) == 1  # Codex subagent is excluded.
+
+    incremental = run('--incremental')
+    assert 'Starting incremental scan' in incremental and 'Incremental scan complete' in incremental
+
+    for agent, expected in (('claude_code', 'Claude Code: 1'), ('codex', 'Codex:       1')):
+        unselected = 'codex' if agent == 'claude_code' else 'claude_code'
+        before = source_state(unselected)
+        assert len(before[0]) == 1
+        filtered = run('--full', '--agent', agent)
+        assert all(item in filtered for item in ('Starting full scan', expected, 'Total:       1'))
+        assert source_state(unselected) == before, f'{agent} filter changed {unselected}'

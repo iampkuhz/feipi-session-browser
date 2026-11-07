@@ -6,6 +6,7 @@ import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedCallUsage;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
 import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
+import com.feipi.session.browser.index.api.query.ContentRoundIndex;
 import com.feipi.session.browser.query.api.CallRound;
 import com.feipi.session.browser.web.api.PageApiDtos.TokenSegments;
 import com.feipi.session.browser.web.api.SessionDetailApiResponses.RoundIndexDto;
@@ -73,7 +74,16 @@ final class RoundIndexProjection {
       long sessionTokens,
       NormalizedSessionArtifact artifact,
       SessionDetailParityAnalyzer.RoundParity parity) {
-    Map<String, Object> parityMap = parity.toMap();
+    var parityMap = new LinkedHashMap<>(parity.toMap());
+    if (artifact != null && round.calls().size() == 1) {
+      callsForRound(round, artifact).stream()
+          .findFirst()
+          .ifPresent(
+              call ->
+                  parityMap.put(
+                      "modelCallEvidence",
+                      ContentRoundIndex.modelCallEvidence(artifact.agent(), call)));
+    }
     List<String> failedToolIds =
         displayedFailures(
             round,

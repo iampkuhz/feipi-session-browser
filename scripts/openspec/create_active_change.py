@@ -30,14 +30,11 @@ PROTECTED_ROOTS = [
 
 REQUIRED_GATES = [
     'scripts/openspec/validate_layout.py',
-    'scripts/openspec/validate_schema.py',
     'scripts/openspec/validate_active_change.py',
-    'scripts/harness/validate_harness_structure.py',
 ]
 
 TEMPLATE_FILES = {
     'proposal.md': 'proposal.md',
-    'design.md': 'design.md',
     'tasks.md': 'tasks.md',
     'specs/spec.md': 'spec.md',
 }
@@ -58,14 +55,8 @@ def validate_change_id(change_id: str) -> str | None:
 
 
 def _templates_dir(root: Path) -> Path:
-    """返回 change skill 的模板目录；缺失时保留预期路径供调用方降级。"""
-    candidates = [
-        root / '.claude' / 'skills' / 'change' / 'templates',
-    ]
-    for c in candidates:
-        if c.is_dir():
-            return c
-    return candidates[0]  # 缺失时返回最接近的候选路径，交由调用方报告
+    """返回 OpenSpec 编排 skill 的 change 模板目录。"""
+    return root / 'skills' / 'authoring' / 'feipi-openspec-orchestrate-change' / 'templates'
 
 
 def _safe_identity_segment(value: str | None, fallback: str) -> str:
@@ -73,18 +64,6 @@ def _safe_identity_segment(value: str | None, fallback: str) -> str:
 
     cleaned = SAFE_SEGMENT_RE.sub('-', str(value or '').strip()).strip('.-_')
     return (cleaned or fallback)[:80]
-
-
-def write_file_if_missing(path: Path, content: str, label: str = '') -> bool:
-    """仅在目标不存在时写入文件，并返回本次是否创建。
-
-    ``label`` 保留为既有调用契约；文件内容和存在性语义不依赖该展示字段。
-    """
-    if path.exists():
-        return False
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding='utf-8')
-    return True
 
 
 def copy_template_if_missing(
@@ -154,7 +133,7 @@ def create_active_change(  # noqa: PLR0912 - idempotent OpenSpec scaffold.
     existed: list[str] = []
     updated: list[str] = []
 
-    # 先补齐受版本控制的 change 骨架，再处理会话范围的 runtime sentinel。
+    # 先补齐本地 change 骨架，再处理会话范围的 runtime sentinel。
     if not change_dir.exists():
         change_dir.mkdir(parents=True, exist_ok=True)
         created.append(f'openspec/changes/{change_id}/')

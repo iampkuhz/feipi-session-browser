@@ -1229,3 +1229,11 @@
     justify-content: flex-start;
   }
 }
+.sd-payload-tool-link {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-block: 4px;
+  overflow-wrap: anywhere;
+}

@@ -79,98 +79,12 @@
   background: var(--surface-soft);
   border-radius: 999px;
   display: flex;
-  overflow: visible;
-  cursor: help;
+  overflow: hidden;
   border: 1px solid var(--line-soft);
 }
 .p-projects .tokenbar .tokenbar-seg {
   height: 100%;
   display: block;
-}
-/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Tooltip inside tokenbar — centered below bar, arrow pointing up` */
-.p-projects .token-cell .token-tooltip {
-  left: 50%;
-  top: calc(100% + 8px);
-  transform: translateX(-50%);
-  background: var(--surface);
-  border: 1px solid var(--line);
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.14);
-  border-radius: 12px;
-  padding: 12px;
-  width: 260px;
-  z-index: 5;
-  display: none;
-  pointer-events: none;
-}
-.p-projects .token-cell .token-tooltip::before {
-  content: '';
-  position: absolute;
-  top: -8px;
-  left: 50%;
-  transform: translateX(-50%) rotate(45deg);
-  width: 14px;
-  height: 14px;
-  background: var(--surface);
-  border-left: 1px solid var(--line);
-  border-top: 1px solid var(--line);
-}
-.p-projects .tokenbar:hover .token-tooltip,
-.p-projects .tokenbar:focus-within .token-tooltip {
-  display: block;
-}
-.p-projects .token-tooltip__title {
-  font-weight: 850;
-  margin-bottom: 8px;
-  font-size: 12px;
-}
-.p-projects .token-tooltip__row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  justify-content: space-between;
-  font-size: 12px;
-  margin: 6px 0;
-}
-.p-projects .token-tooltip__label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 90px;
-  flex-shrink: 0;
-  margin-right: auto;
-  color: var(--text-subtle);
-}
-.p-projects .token-tooltip__label .dot {
-  display: block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  margin: auto 0;
-}
-.p-projects .token-tooltip__type-name {
-  line-height: 1;
-}
-/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Tooltip dot colors now managed by ui-primitives.css (.dot--fresh/.read/.write/.out)` */
-.p-projects .token-tooltip__value {
-  font-family: var(--font-mono);
-  font-weight: 750;
-  min-width: 60px;
-  text-align: right;
-}
-.p-projects .token-tooltip__pct {
-  font-family: var(--font-mono);
-  font-weight: 600;
-  min-width: 52px;
-  text-align: right;
-  color: var(--text-subtle);
-}
-.p-projects .token-tooltip__total {
-  font-weight: 850;
-}
-.p-projects .token-tooltip__sep {
-  border-top: 1px solid var(--line-strong);
-  margin: 8px 0;
 }
 /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Agent badges (T103: dot + soft badge) ──────────────────` */
 /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`P-20/T026: .agents-cell must NOT define display:flex. Flex on <td> breaks border-height alignment with adjacent cells. Use .agents-cell__inner wrapper for layout isolation.` */

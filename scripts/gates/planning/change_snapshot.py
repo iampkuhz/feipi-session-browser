@@ -86,9 +86,13 @@ def _nul_paths(output: str) -> tuple[str, ...]:
 
 
 def _capture_worktree_files(repo_root: Path) -> tuple[str, ...]:
+    if _run_git(repo_root, 'ls-files', '--unmerged', '-z'):
+        raise ChangeSnapshotError('worktree has unresolved Git conflicts')
+    # 改名同时影响旧、新路径的消费者；类型变化也不能从输入中消失。
+    diff = ('diff', '--name-only', '--no-renames', '-z')
     outputs = (
-        _run_git(repo_root, 'diff', '--name-only', '--diff-filter=ACMRD', '-z'),
-        _run_git(repo_root, 'diff', '--cached', '--name-only', '--diff-filter=ACMRD', '-z'),
+        _run_git(repo_root, *diff),
+        _run_git(repo_root, *diff, '--cached'),
         _run_git(repo_root, 'ls-files', '--others', '--exclude-standard', '-z'),
     )
     return _normalize_files(path for output in outputs for path in output.split('\0') if path)
@@ -187,7 +191,7 @@ def capture_change_snapshot(
                 root,
                 'diff',
                 '--name-only',
-                '--diff-filter=ACMRD',
+                '--no-renames',
                 '-z',
                 f'{resolved_base}...HEAD',
             )

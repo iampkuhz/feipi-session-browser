@@ -564,3 +564,125 @@ def test_launcher_nonexecutable_is_not_repaired(tmp_path):
     assert not result.success
     assert 'not executable' in result.error
     assert (package / 'bin/run').stat().st_mode & 0o111 == 0
+
+
+def test_sealing_checks_five_staged_archives_once(tmp_path, monkeypatch):
+    candidate = _candidate(tmp_path / 'candidate')
+    inspected = []
+    inspect = h._inspect
+
+    def record(path, platform, version):
+        inspected.append(path)
+        inspect(path, platform, version)
+
+    monkeypatch.setattr(h, '_inspect', record)
+    success, errors, _ = h.create_verified_candidate(candidate, PROVENANCE)
+    assert success, errors
+    assert len(inspected) == 5
+    assert all(path.parent != candidate for path in inspected)
+
+
+def test_wrong_identity_preflights_before_reading_archives(tmp_path, monkeypatch):
+    candidate = _candidate(tmp_path / 'candidate')
+
+    def unexpected_read(_):
+        pytest.fail('wrong identity must be rejected before reading any archive')
+
+    monkeypatch.setattr(h, 'compute_sha256', unexpected_read)
+    expected = h.Provenance('0.4', 'b' * 40, '100', '1')
+    assert not h.create_verified_candidate(candidate, expected)[0]
+
+
+def test_combined_prepare_smoke_publishes_only_after_real_launcher_success(tmp_path):
+    raw = tmp_path / 'raw'
+    raw.mkdir()
+    package = raw / 'app-cli-runtime-0.4.tgz'
+    output = tmp_path / 'prepared'
+    for launcher in (
+        '#!/bin/sh\nexit 3\n',
+        '#!/bin/sh\ncase "$1" in\n--version) echo 0.4;;\n--help) echo "Usage: app-cli scan serve";;\n*) exit 1;;\nesac\n',
+    ):
+        _tar(
+            package,
+            [
+                ('app-cli/VERSION', tarfile.REGTYPE, '0.4'),
+                ('app-cli/bin/run', tarfile.REGTYPE, launcher),
+                ('app-cli/runtime/bin/java', tarfile.REGTYPE, 'model'),
+                ('app-cli/app/lib/model.jar', tarfile.REGTYPE, 'model'),
+            ],
+        )
+        if 'exit 3' in launcher:
+            with pytest.raises(ValueError, match='launcher --version failed'):
+                h.prepare_platform_artifact(raw, output, h.host_platform(), PROVENANCE, smoke=True)
+            assert not output.exists()
+        else:
+            asset = h.prepare_platform_artifact(
+                raw, output, h.host_platform(), PROVENANCE, smoke=True
+            )
+            assert (
+                json.loads(h.sidecar(asset, '.smoke.json').read_text())['version_output'] == '0.4'
+            )
+            assert h.verify_manifest_against_files(output / 'MANIFEST.SHA256', output)[0]
+    assert package.is_file()
+
+
+@pytest.mark.parametrize('fault', ['archive-change', 'sidecar-change', 'interrupted-copy'])
+def test_sealing_does_not_publish_if_transfer_changes_input(tmp_path, monkeypatch, fault):
+    candidate = _candidate(tmp_path / 'candidate')
+    transfer = h._copy_and_measure
+    output = tmp_path / 'verified'
+
+    def change_during_transfer(source, target):
+        if fault == 'archive-change':
+            data = source.read_bytes()
+            source.write_bytes(bytes([data[0] ^ 1]) + data[1:])
+        elif fault == 'sidecar-change':
+            h.sidecar(source, '.provenance.json').write_text('{}')
+        else:
+            target.write_bytes(b'partial')
+            raise OSError('injected interrupted copy')
+        return transfer(source, target)
+
+    monkeypatch.setattr(h, '_copy_and_measure', change_during_transfer)
+    success, errors, result = h.create_verified_candidate(candidate, PROVENANCE, output)
+    assert not success and errors and result is None
+    assert not output.exists()
+    assert not list(tmp_path.glob('release-verified-*'))
+
+
+def test_consistent_declarations_do_not_admit_unsafe_archive(tmp_path):
+    candidate = _candidate(tmp_path / 'candidate')
+    asset = candidate / h.archive_name(PROVENANCE, 'linux-x64')
+    _tar(asset, [('../escaped', tarfile.REGTYPE, 'bad')])
+    h.generate_manifest(candidate)
+    h.write_provenance(asset, PROVENANCE, 'linux-x64')
+    h.write_smoke_receipt(asset, PROVENANCE, 'linux-x64', '0.4', 'Usage: app-cli scan serve')
+    success, errors, output = h.create_verified_candidate(candidate, PROVENANCE)
+    assert not success and 'path traversal' in errors[0] and output is None
+    assert not (tmp_path / 'verified-candidate').exists()
+    assert not list(tmp_path.glob('release-verified-*'))
+
+
+def test_prepare_does_not_seal_bytes_changed_after_safety_check(tmp_path, monkeypatch):
+    raw = tmp_path / 'raw'
+    raw.mkdir()
+    package = raw / 'app-cli-runtime-0.4.tgz'
+    _tar(
+        package,
+        [
+            ('app-cli/VERSION', tarfile.REGTYPE, '0.4'),
+            ('app-cli/bin/run', tarfile.REGTYPE, 'model'),
+            ('app-cli/runtime/bin/java', tarfile.REGTYPE, 'model'),
+            ('app-cli/app/lib/model.jar', tarfile.REGTYPE, 'model'),
+        ],
+    )
+    original = package.read_bytes()
+    inspect = h._inspect
+
+    def replace_source_after_inspection(*args, **kwargs):
+        inspect(*args, **kwargs)
+        _tar(package, [('../escaped', tarfile.REGTYPE, 'bad')])
+
+    monkeypatch.setattr(h, '_inspect', replace_source_after_inspection)
+    output = h.prepare_platform_artifact(raw, tmp_path / 'prepared', 'macos-arm64', PROVENANCE)
+    assert output.read_bytes() == original

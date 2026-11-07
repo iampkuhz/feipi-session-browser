@@ -64,7 +64,7 @@ description: 用于 request/response、token、路径、环境变量、真实 se
 - `python3 scripts/gates/cli.py run --mode incremental --gate testDataPrivacy` — 检测真实 session fixture。
 - `python3 scripts/gates/cli.py run --mode incremental --gate credentialLeakScan` — 检测类密钥内容。
 - `python3 scripts/gates/cli.py run --mode incremental --gate governanceLayoutValidation` — registry 完整性。
-- `python3 scripts/harness/validate_harness_structure.py` — minimal harness 结构完整性。
+- `python3 scripts/openspec/validate_layout.py` — OpenSpec 与 minimal harness 结构完整性。
 - `bash scripts/harness/doctor.sh` — 全量环境体检。
 
 ## 输出格式

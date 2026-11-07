@@ -1,10 +1,12 @@
 package com.feipi.session.browser.web.api;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.feipi.session.browser.domain.normalized.SessionTiming;
 import com.feipi.session.browser.web.api.PageApiDtos.PageStateDto;
 import com.feipi.session.browser.web.api.PageApiDtos.PaginationDto;
 import com.feipi.session.browser.web.api.PageApiDtos.SelectOptionDto;
 import com.feipi.session.browser.web.api.PageApiDtos.TokenSegments;
+import com.feipi.session.browser.web.template.SafeMarkdownRenderer;
 import java.util.List;
 import java.util.Objects;
 
@@ -160,8 +162,9 @@ public final class SessionsApiResponses {
    * @param model 模型名称。
    * @param gitBranch Git branch 名称。
    * @param tokens token 组成统计。
-   * @param rounds 实测逻辑轮数，缺测为未知。
-   * @param llmCalls 实测模型调用数，缺测为未知。
+   * @param modelCallCount 确认的模型调用边界数；旧行无此值。
+   * @param rounds Codex 为有证据的模型调用数，其他来源为逻辑组数；缺测为未知。
+   * @param llmCalls 归一化调用记录数，可能含未确认独立模型调用边界的记录。
    * @param assistantMessages 有明确角色观测依据的助手消息数，缺测为未知。
    * @param tools 该字段在 API 响应中的业务值。
    * @param subagents 该字段在 API 响应中的业务值。
@@ -198,6 +201,7 @@ public final class SessionsApiResponses {
       TokenSegments tokens,
       /* 轮次数量 */
       Long rounds,
+      Long modelCallCount,
       Long llmCalls,
       Long assistantMessages,
       /* 工具调用数量 */
@@ -221,6 +225,12 @@ public final class SessionsApiResponses {
       String projectUrl,
       /* 匹配原因列表 */
       List<String> matchReasons) {
+
+    /** 返回表格显示的标题，不改变搜索和原始标题。 */
+    @JsonProperty("displayTitle")
+    public String displayTitle() {
+      return SafeMarkdownRenderer.title(title).text();
+    }
 
     /** 校验字段和业务不变量。 */
     public SessionRowDto {

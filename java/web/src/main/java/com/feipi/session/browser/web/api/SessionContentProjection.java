@@ -1,9 +1,12 @@
 package com.feipi.session.browser.web.api;
 
+import com.feipi.session.browser.application.sessiondetail.PayloadCallContentExtractor;
 import com.feipi.session.browser.application.sessiondetail.SessionContentReader;
 import com.feipi.session.browser.application.sessiondetail.SessionDetail;
 import com.feipi.session.browser.domain.enums.CallScope;
+import com.feipi.session.browser.domain.normalized.NormalizedAgent;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionContent;
+import com.feipi.session.browser.index.api.query.ContentRoundIndex;
 import com.feipi.session.browser.web.api.PageApiDtos.TokenSegments;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,6 +31,7 @@ final class SessionContentProjection {
         new SessionContentReader(content, detail.sessionRow().userMessageCount()).roundIndex();
     var summaries = new ArrayList<Summary>();
     for (int i = 0; i < index.roundCount(); i++) summaries.add(new Summary());
+    boolean codex = content.header().agent() == NormalizedAgent.CODEX;
     try (var cursor = content.openCursor()) {
       while (cursor.hasNext()) {
         var unit = cursor.next();
@@ -35,7 +39,19 @@ final class SessionContentProjection {
           int round = index.roundIndexForCall(call.callId()).orElseThrow();
           var summary = summaries.get(round - 1);
           summary.calls++;
+          if (summary.calls == 1) {
+            summary.evidence = ContentRoundIndex.modelCallEvidence(content.header().agent(), call);
+            summary.parent = call.parentCallId().orElse("");
+          }
           summary.usage.add(call);
+          if ((call.scope() == CallScope.MAIN || summary.calls == 1)
+              && summary.userPreview.isEmpty()) {
+            summary.userPreview = PayloadCallContentExtractor.inlinePreview(call, true, codex);
+            if (summary.userPreview.isEmpty() && summary.assistantPreview.isEmpty()) {
+              summary.assistantPreview =
+                  PayloadCallContentExtractor.inlinePreview(call, false, false);
+            }
+          }
           var usage = call.usage();
           summary.fresh += usage.fresh();
           summary.read += usage.cacheRead();
@@ -87,7 +103,7 @@ final class SessionContentProjection {
               i + 1,
               List.of(),
               List.of(),
-              "",
+              summary.parent,
               TokenSegments.of(
                   summary.fresh,
                   summary.read,
@@ -102,6 +118,12 @@ final class SessionContentProjection {
               summary.failed > 0 ? "failed" : "ok",
               signals,
               Map.of(
+                  "summary",
+                  summary.userPreview.isEmpty() ? summary.assistantPreview : summary.userPreview,
+                  "summaryRole",
+                  !summary.userPreview.isEmpty()
+                      ? "user"
+                      : summary.assistantPreview.isEmpty() ? "" : "assistant",
                   "membersPaged",
                   true,
                   "hasIssues",
@@ -109,7 +131,9 @@ final class SessionContentProjection {
                   "isLowCache",
                   lowCache,
                   "isFreshSpike",
-                  freshSpike)));
+                  freshSpike,
+                  "modelCallEvidence",
+                  summary.calls == 1 ? summary.evidence : "")));
     }
     return List.copyOf(rows);
   }
@@ -125,5 +149,9 @@ final class SessionContentProjection {
     long write;
     long output;
     boolean subagent;
+    String evidence = "";
+    String parent = "";
+    String userPreview = "";
+    String assistantPreview = "";
   }
 }

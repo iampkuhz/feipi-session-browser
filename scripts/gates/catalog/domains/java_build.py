@@ -4,6 +4,7 @@
 
 from scripts.gates.catalog.gate_contracts import Gate
 from scripts.gates.catalog.recipe_dsl import (
+    PRODUCT_EXECUTION_PATHS,
     changed,
     gradle_task,
     recipe,
@@ -15,12 +16,10 @@ GATES = (
         description='运行 Java 编译、测试和标准源码规则。',
         trigger=changed(
             'java/**/src/main/java/**/*.java',
-            'java/**/src/test/java/**/*.java',
             'java/**/src/main/kotlin/**/*.kt',
-            'java/**/src/test/kotlin/**/*.kt',
+            'java/**/src/test/**',
             '**/*.java',
             'java/gradle/config/architecture/java-modules.yaml',
-            'scripts/gates/config/technical-terms.json',
             'java/gradle/build-logic/**',
             'java/gradle/**',
             'java/build.gradle.kts',
@@ -30,6 +29,7 @@ GATES = (
             'java/gradlew',
             'java/gradlew.bat',
             'java/*.lockfile',
+            *PRODUCT_EXECUTION_PATHS,
         ),
         target_presets=('java-source', 'java-build'),
         recipe=recipe(

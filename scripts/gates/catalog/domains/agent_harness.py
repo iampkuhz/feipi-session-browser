@@ -54,6 +54,7 @@ GATES = (
             'scripts/gates/checks/agent/check_skill_registry.py',
             'harness/**',
             'scripts/harness/**/*.py',
+            'scripts/openspec/**/*.py',
             'openspec/**',
         ),
         target_presets=('agent-governance',),
@@ -63,11 +64,6 @@ GATES = (
             python_check(
                 'skillRegistry',
                 'agent.skill-registry',
-            ),
-            command(
-                'harnessStructure',
-                '{python}',
-                'scripts/harness/validate_harness_structure.py',
             ),
             command(
                 'openspecLayout',

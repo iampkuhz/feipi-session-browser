@@ -94,7 +94,6 @@ for (const width of [1440, 800]) {
       });
       expect(layout, `offline payload layout at ${width}px`).toEqual([]);
       expect(externalRequests).toEqual([]);
-      await page.screenshot({ path: testInfo.outputPath(`synthetic-export-${width}.png`), fullPage: true });
     } finally {
       await context.close();
     }

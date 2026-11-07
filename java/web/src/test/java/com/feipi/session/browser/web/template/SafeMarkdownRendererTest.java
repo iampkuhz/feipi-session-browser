@@ -19,6 +19,54 @@ class SafeMarkdownRendererTest {
 
   private final SafeMarkdownRenderer renderer = new SafeMarkdownRenderer();
 
+  @Test
+  void rendersTablesListsAndFencedCodeWithoutActiveImagesOrUnsafeLinks() {
+    String html =
+        renderer
+            .render(
+                """
+                | Metric | Value |
+                | --- | --- |
+                | Fresh | 7 |
+
+                - Measured
+
+                ```json
+                {"literal":"[not a link](https://example.invalid)"}
+                ```
+
+                [unsafe](javascript:alert(1))
+                ![figure](https://example.invalid/pixel.png)
+                """)
+            .value();
+    assertThat(html)
+        .contains("<table>", "<th>Metric</th>", "<td>7</td>", "<li>Measured</li>", "<pre><code")
+        .contains("[not a link]", "figure")
+        .doesNotContain("href=\"javascript:", "<img", "src=");
+  }
+
+  @Test
+  void plainTextWithLiteralHtmlStaysInTheTextView() {
+    assertThat(
+            SafeMarkdownRenderer.readingHtml(
+                "Fixture <img src=x onerror=alert(1)><script>alert(1)</script>"))
+        .isEmpty();
+  }
+
+  @Test
+  void localSessionReferencesAreRebasedAndSkillPathsAreNotNavigable() {
+    String html =
+        renderer
+            .render(
+                "[previous](http://127.0.0.1:18999/sessions/codex/00000000-0000-4000-8000-000000000001)"
+                    + " [$fixture](/synthetic/skills/fixture/SKILL.md)"
+                    + " [not a session](file:///synthetic/private)")
+            .value();
+    assertThat(html)
+        .contains("href=\"/sessions/codex/00000000-0000-4000-8000-000000000001\"", "$fixture")
+        .doesNotContain("127.0.0.1", "SKILL.md", "file:");
+  }
+
   @Nested
   @DisplayName("XSS 防护")
   class XssProtection {
@@ -91,7 +139,7 @@ class SafeMarkdownRendererTest {
     @DisplayName("链接正常渲染")
     void linkRendered() {
       SafeHtml result = renderer.render("[link](https://example.com)");
-      assertThat(result.value()).contains("<a href=\"https://example.com\">link</a>");
+      assertThat(result.value()).contains("<a ", "href=\"https://example.com\">link</a>");
     }
 
     @Test

@@ -12,13 +12,13 @@ from scripts.gates.planning import ChangeSnapshot, compile_gate_plan
 
 ROOT = Path(__file__).resolve().parents[2]
 EXPECTED_PATH_GATES = {
-    '.claude/agents/qwen-main-default.md': 'maintenanceLanguagePolicy',
+    '.claude/agents/qwen-main-default.md': 'agentConfigurationPolicy',
     'skills/authoring/feipi-java-feature-dev/SKILL.md': 'governanceLayoutValidation',
     'docs/acceptance-cases/features/HOOK_HARNESS.md': 'acceptanceTraceability',
     'scripts/gates/planning/plan_compiler.py': 'gateFrameworkTests',
     'java/web/src/main/java/com/feipi/session/browser/X.java': 'javaBuildVerification',
     'java/build.gradle.kts': 'javaBuildVerification',
-    'java/web/src/main/resources/templates/session-detail.html': 'browserBehaviorTests',
+    'java/web/src/main/resources/templates/session-detail.html': 'browserTests',
     '.qoder/settings.json': 'agentConfigurationPolicy',
     'scripts/session-browser.sh': 'scanCommandSmoke',
     '.agents/experimental/new-policy.yaml': 'agentConfigurationPolicy',
@@ -55,7 +55,7 @@ def test_plan_selects_governance_gates_for_agent_config_change() -> None:
 
     combined = result.stdout + result.stderr
     assert result.returncode == 0, combined
-    assert {'maintenanceLanguagePolicy', 'agentConfigurationPolicy'} <= {
+    assert {'agentConfigurationPolicy', 'credentialLeakScan'} <= {
         item['id'] for item in json.loads(combined)['gates']
     }
 

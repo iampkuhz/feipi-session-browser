@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+import subprocess
 import textwrap
 import urllib.error
 import urllib.parse
@@ -353,9 +354,10 @@ def test_native_product_checks_block_candidates_without_replacing_canonical_gate
     named = {step['name']: step for step in steps}
     posix = named['Build native runtime (POSIX)']
     windows = named['Build native runtime (Windows)']
-    assert posix['run'] == (
-        './java/gradlew -p java check :java:app-cli:runtimeDistTar --continue --no-daemon'
-    )
+    assert 'tasks=(check :java:app-cli:runtimeDistTar)' in posix['run']
+    assert '[[ "$PLATFORM" == linux-x64 ]]; then tasks+=(:java:app-cli:distZip)' in posix['run']
+    assert './java/gradlew -p java "${tasks[@]}" --continue --no-daemon' in posix['run']
+    assert sum(':java:app-cli:distZip' in step.get('run', '') for step in steps) == 1
     assert windows['run'] == (
         r'.\java\gradlew.bat -p java check :java:app-cli:runtimeDistZip --continue --no-daemon'
     )
@@ -368,6 +370,9 @@ def test_native_product_checks_block_candidates_without_replacing_canonical_gate
     assert steps.index(posix) < steps.index(prepare) < steps.index(upload)
     assert steps.index(windows) < steps.index(prepare)
     assert 'if' not in prepare and 'if' not in upload
+    assert '--smoke' in prepare['run'] and 'verify-archive' not in prepare['run']
+    assert upload['with']['compression-level'] == 0
+    assert named['Upload generic group once']['with']['compression-level'] == 0
     assert all('continue-on-error' not in step for step in steps)
     assert set(jobs['verify']['needs']) == {'quality', 'build'}
     for job in jobs.values():
@@ -433,3 +438,61 @@ def test_windows_cli_smoke_calls_each_batch_and_stops_at_first_failure():
         r'call java\app-cli\build\install\app-cli\bin\app-cli.bat --version',
         'if not "%errorlevel%"=="0" exit /b %errorlevel%',
     ]
+
+
+def test_rc_attests_to_sealed_artifact_without_downloading_another_copy():
+    release = yaml.safe_load((ROOT / '.github/workflows/release.yml').read_text())['jobs']
+    distribution = yaml.safe_load((ROOT / '.github/workflows/distribution.yml').read_text())
+    entry = distribution.get('on', distribution.get(True))['workflow_call']
+    verify = distribution['jobs']['verify']
+    assert entry['outputs']['candidate-id']['value'] == '${{ jobs.verify.outputs.candidate-id }}'
+    assert verify['outputs']['candidate-id'] == '${{ steps.seal.outputs.artifact-id }}'
+    upload = verify['steps'][-1]
+    assert upload['id'] == 'seal'
+    assert (
+        upload['with']['name']
+        == 'verified-candidate-${{ github.run_id }}-${{ github.run_attempt }}'
+    )
+    assert upload['with']['compression-level'] == 0
+
+    rc = release['release-candidate']
+    assert 'distribution' in rc['needs']
+    assert all('download-artifact' not in step.get('uses', '') for step in rc['steps'])
+    assert rc['steps'][0]['env']['CANDIDATE_ID'] == '${{ needs.distribution.outputs.candidate-id }}'
+    publisher = release['publish-release']
+    assert 'release-candidate' in publisher['needs']
+    steps = publisher['steps']
+    download = next(step for step in steps if 'download-artifact' in step.get('uses', ''))
+    assert download['with'] == {
+        'artifact-ids': '${{ needs.distribution.outputs.candidate-id }}',
+        'merge-multiple': True,
+        'path': 'verified-candidate/',
+    }
+    remote_tag = next(step for step in steps if 'git ls-remote' in step.get('run', ''))
+    verify_candidate = next(step for step in steps if 'verify-candidate' in step.get('run', ''))
+    verify_args = verify_candidate['run'].split()
+    candidate_dir = verify_args[verify_args.index('--candidate-dir') + 1]
+    assert candidate_dir == download['with']['path'].rstrip('/')
+    preflight = next(step for step in steps if step['name'].startswith('Reject a missing'))
+    assert steps.index(preflight) < steps.index(download) < steps.index(verify_candidate)
+    assert steps.index(verify_candidate) < steps.index(remote_tag)
+    assert entry['outputs']['candidate-key']['value'] == '${{ jobs.verify.outputs.candidate-key }}'
+    assert verify['outputs']['candidate-key'] == (
+        "${{ format('{0}:{1}:{2}', github.sha, github.run_id, github.run_attempt) }}"
+    )
+    for check in (rc['steps'][0], preflight):
+        assert check['env']['CANDIDATE_KEY'] == '${{ needs.distribution.outputs.candidate-key }}'
+        env = {'GITHUB_SHA': SHA, 'GITHUB_RUN_ID': '42', 'GITHUB_RUN_ATTEMPT': '2'}
+        for candidate_id, key, expected in [
+            ('17', f'{SHA}:42:2', 0),
+            ('17', f'{SHA}:42:1', 1),
+            ('', f'{SHA}:42:2', 1),
+            ('17,18', f'{SHA}:42:2', 1),
+        ]:
+            result = subprocess.run(
+                ['/bin/bash', '-c', check['run']],
+                env={**env, 'CANDIDATE_ID': candidate_id, 'CANDIDATE_KEY': key},
+                capture_output=True,
+                check=False,
+            )
+            assert result.returncode == expected

@@ -83,16 +83,15 @@ def _validate_recipe_step(step: RecipeStep, label: str) -> None:
             raise ValueError(f'{label}.tasks must contain exactly one item')
     elif step.kind is RecipeStepKind.JAVA_RULE:
         allowed = {'rules'}
-        if len(step.rules) != 1:
-            raise ValueError(f'{label}.rules must contain exactly one item')
+        if not step.rules:
+            raise ValueError(f'{label}.rules must not be empty')
+        _unique(step.rules, f'{label}.rules')
     elif step.kind is RecipeStepKind.PLAYWRIGHT:
         allowed = {'tests', 'args'}
-        if not step.tests:
-            raise ValueError(f'{label}.tests must not be empty')
     elif step.kind is RecipeStepKind.SCAN_SMOKE:
         allowed = {'tests', 'prerequisite_tasks', 'args'}
-        if not step.tests or not step.prerequisite_tasks:
-            raise ValueError(f'{label} requires tests and prerequisite_tasks')
+        if not step.tests:
+            raise ValueError(f'{label} requires tests')
     else:  # pragma: no cover - 新 adapter 必须先显式声明字段协议。
         raise ValueError(f'{label}.kind is unknown: {step.kind}')
 

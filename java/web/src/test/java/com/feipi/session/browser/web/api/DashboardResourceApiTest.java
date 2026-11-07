@@ -142,10 +142,10 @@ class DashboardResourceApiTest {
               assertThat(response.code()).isEqualTo(200);
               assertThat(response.body().string())
                   .contains("按 UTC 开始日，按" + grainLabel + "统计 " + scopeLabel + " 新增会话")
-                  .contains("该批 " + scopeLabel + " 会话的整段累计 tokens")
-                  .contains("该批 " + scopeLabel + " 会话的整段累计 user prompts")
-                  .contains("平均 prompts 的分母为同一批开始会话中的 user 消息实测样本")
-                  .contains("不是逐次真实消费日");
+                  .contains("该批 " + scopeLabel + " 会话的整段累计 tokens；缺测不画成零")
+                  .contains("该批 " + scopeLabel + " 会话的整段累计 user prompts；均值仅用消息数实测的会话（含实测 0）")
+                  .contains(scopeLabel + " 的 Cache Read Ratio；仅用来源可确认且大于零的输入分母，按 token 加权")
+                  .contains("累计值属于整段会话，不是当天的事件量");
             }
           }
         });

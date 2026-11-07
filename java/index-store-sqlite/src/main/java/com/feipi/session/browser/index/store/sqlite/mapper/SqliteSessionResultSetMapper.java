@@ -31,7 +31,7 @@ public final class SqliteSessionResultSetMapper {
           + " indexed_at, file_mtime, file_path, "
           + TokenProvenanceSqlMapper.COLUMNS
           + ", timing_json, round_count, llm_call_count, content_measured, user_message_measured,"
-          + " assistant_message_measured";
+          + " assistant_message_measured, model_call_count";
 
   private static Long nullableLong(ResultSet rs, String column) throws SQLException {
     long value = rs.getLong(column);
@@ -86,6 +86,7 @@ public final class SqliteSessionResultSetMapper {
         nullableLong(rs, "llm_call_count"),
         rs.getInt("content_measured") == 1,
         rs.getInt("user_message_measured") == 1,
-        rs.getInt("assistant_message_measured") == 1);
+        rs.getInt("assistant_message_measured") == 1,
+        nullableLong(rs, "model_call_count"));
   }
 }

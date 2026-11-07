@@ -18,7 +18,22 @@ public final class TokenAccountant {
 
   /** 判断 Codex 新旧 usage 记录是否是响应末尾的调用边界。 */
   static boolean isUsageClosingFrame(String callId) {
-    return callId.startsWith("token_count:") || callId.startsWith("token_usage_record:");
+    return callId.startsWith("token_count:") || isResponseUsageFrame(callId);
+  }
+
+  static boolean isResponseUsageFrame(String callId) {
+    return callId.startsWith("token_usage_record:") || callId.startsWith("token_usage_ordinal:");
+  }
+
+  /** 子调用改用展示身份后，仍保留原始记录的边界证据。 */
+  static Map<String, Object> modelCallEvidence(String sourceCallId) {
+    if (sourceCallId.startsWith("token_usage_record:")) {
+      return Map.of("modelCallEvidence", "response_usage");
+    }
+    if (sourceCallId.startsWith("token_count:")) {
+      return Map.of("modelCallEvidence", "closing_counter");
+    }
+    return Map.of();
   }
 
   /**

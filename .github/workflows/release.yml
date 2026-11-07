@@ -13,7 +13,6 @@ on:
       version:
         description: "发布版本号，不带 v 前缀（例如 0.4 或 0.4.1-rc.1）"
         required: true
-        default: "0.4"
       publish:
         description: "创建 GitHub Release；false 时只构建验证不发布"
         required: true
@@ -80,6 +79,10 @@ jobs:
           fi
 
           # VERSION 文件是唯一真源，必须与发布版本一致
+          if [[ "$version" == *..* ]]; then
+            echo "::error::发布版本不能包含连续的点。" >&2
+            exit 1
+          fi
           if [[ "$file_version" != "$version" ]]; then
             echo "::error::VERSION($file_version) 与发布版本($version)不一致。请先更新 VERSION 文件。" >&2
             exit 1
@@ -105,24 +108,18 @@ jobs:
       contents: read
       deployments: write
     steps:
-      - name: Checkout exact source
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          ref: ${{ github.sha }}
-      - name: Set up Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
-        with:
-          python-version: '3.12'
-      - name: Download the sole verified candidate
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: verified-candidate-${{ github.run_id }}-${{ github.run_attempt }}
-          path: verified-candidate/
-      - name: Reverify RC at the native Environment deployment boundary
+      - name: Record the sealed artifact from this distribution invocation
+        shell: bash
         env:
-          VERSION: ${{ needs.validate.outputs.version }}
+          CANDIDATE_ID: ${{ needs.distribution.outputs.candidate-id }}
+          CANDIDATE_KEY: ${{ needs.distribution.outputs.candidate-key }}
         run: |
-          python scripts/release/release_pipeline_helpers.py verify-candidate --candidate-dir verified-candidate --version "$VERSION" --source-sha "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT"
+          set -euo pipefail
+          if [[ ! "$CANDIDATE_ID" =~ ^[1-9][0-9]*$ || "$CANDIDATE_KEY" != "$GITHUB_SHA:$GITHUB_RUN_ID:$GITHUB_RUN_ATTEMPT" ]]; then
+            echo "::error::候选缺失或不属于当前源码、运行与尝试。" >&2
+            exit 1
+          fi
+          printf 'Verified candidate artifact ID: %s\n' "$CANDIDATE_ID"
 
   publish-release:
     needs: [validate, distribution, release-candidate]
@@ -143,6 +140,17 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
+      - name: Reject a missing or stale candidate before download
+        shell: bash
+        env:
+          CANDIDATE_ID: ${{ needs.distribution.outputs.candidate-id }}
+          CANDIDATE_KEY: ${{ needs.distribution.outputs.candidate-key }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$CANDIDATE_ID" =~ ^[1-9][0-9]*$ || "$CANDIDATE_KEY" != "$GITHUB_SHA:$GITHUB_RUN_ID:$GITHUB_RUN_ATTEMPT" ]]; then
+            echo "::error::候选缺失或不属于当前源码、运行与尝试。" >&2
+            exit 1
+          fi
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
@@ -150,7 +158,8 @@ jobs:
       - name: Download only the verified candidate from this run and attempt
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: verified-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          artifact-ids: ${{ needs.distribution.outputs.candidate-id }}
+          merge-multiple: true
           path: verified-candidate/
       - name: Verify candidate again after manual approval
         env:

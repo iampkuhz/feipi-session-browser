@@ -103,7 +103,7 @@ public final class CallBuilder {
             record.toolCalls().stream().map(SourceToolCall::toolCallId).toList()),
         List.of(),
         sourceUnits,
-        Map.of(),
+        TokenAccountant.modelCallEvidence(record.callId().orElse("")),
         new LinkedHashMap<String, Object>(record.usage().provenance()),
         frame.subagentId(),
         frame.parentToolName());

@@ -36,10 +36,9 @@ class ListShellTemplateContractTest {
     String template = resource("templates/projects.html");
 
     assertThat(template).contains("data-api-rows=\"/api/projects/rows\"");
-    assertThat(template).contains("Project rows are loaded from /api/projects/rows.");
     assertThat(template)
-        .contains("Loaded from /api/projects/summary")
-        .contains("Loading matching projects…");
+        .contains("Loading projects", "Loading matching projects…")
+        .doesNotContain("Loaded from /api/projects/", "Project rows are loaded from /api/");
     assertThat(template)
         .doesNotContain("{% for p in projects %}")
         .doesNotContain("data-name=\"{{ p.projectName")
@@ -71,7 +70,8 @@ class ListShellTemplateContractTest {
     String template = resource("templates/project.html");
 
     assertThat(template)
-        .contains("Agent mix rows are loaded from /api/projects/{projectKey}/agent-mix.")
+        .contains("Loading agent mix")
+        .doesNotContain("Agent mix rows are loaded from /api/")
         .doesNotContain("{% for agent in project_detail.agent_mix %}")
         .doesNotContain("{{ agent.tokens | format_compact_token }}")
         .doesNotContain("{{ agent.session_share | round(1) }}");

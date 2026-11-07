@@ -4,6 +4,8 @@
 
 from scripts.gates.catalog.gate_contracts import Gate
 from scripts.gates.catalog.recipe_dsl import (
+    JAVA_RUNTIME_BUILD_INPUTS,
+    PRODUCT_EXECUTION_PATHS,
     changed,
     gradle_task,
     java_rule,
@@ -21,16 +23,22 @@ GATES = (
             'java/tests/quality-gates/config/web-quality-baselines.json',
             'java/tests/**/*.js',
             'scripts/**/*.js',
+            'scripts/gates/catalog/domains/web_interface.py',
+            'scripts/gates/catalog/recipe_dsl.py',
+            'scripts/gates/execution/command_adapter.py',
         ),
         target_presets=('web-interface', 'gate-infrastructure', 'java-source'),
         recipe=recipe(
             90,
             180,
-            java_rule('rawInnerhtml', 'raw-innerhtml'),
-            java_rule('layoutInlineStyle', 'layout-inline-style'),
-            java_rule('templateContract', 'template-contract'),
-            java_rule('staticCssContract', 'static-resource-contract'),
-            java_rule('cssOwnership', 'css-ownership'),
+            java_rule(
+                'webSourceRules',
+                'raw-innerhtml',
+                'layout-inline-style',
+                'template-contract',
+                'static-resource-contract',
+                'css-ownership',
+            ),
         ),
     ),
     Gate(
@@ -51,53 +59,20 @@ GATES = (
         ),
     ),
     Gate(
-        name='browserVisualTests',
-        description='用 Playwright 验证主要页面、布局与视觉壳层契约。',
+        name='browserTests',
+        description='用 Playwright 完整发现并验证页面视觉、布局与交互契约。',
         trigger=changed(
-            'java/web/src/main/resources/templates/**',
-            'java/web/src/main/resources/static/**',
             'java/tests/playwright/**',
+            'java/tests/fixtures/**',
+            'java/*/src/main/**',
+            *JAVA_RUNTIME_BUILD_INPUTS,
+            *PRODUCT_EXECUTION_PATHS,
         ),
         target_presets=('web-interface',),
         recipe=recipe(
-            90,
-            240,
-            playwright(
-                'browserVisualTests',
-                (
-                    'ui-contract.spec.ts',
-                    'main-pages-visual.spec.ts',
-                    'session-detail-layout',
-                    'shell-states',
-                    'dashboard-chart-coordinates',
-                ),
-                '--workers={playwright_workers}',
-            ),
-        ),
-    ),
-    Gate(
-        name='browserBehaviorTests',
-        description='用 Playwright 验证 Session 详情与列表页交互。',
-        trigger=changed(
-            'java/web/src/main/resources/templates/**',
-            'java/web/src/main/resources/static/**',
-            'java/tests/playwright/**',
-        ),
-        target_presets=('web-interface',),
-        recipe=recipe(
-            90,
-            240,
-            playwright(
-                'browserBehaviorTests',
-                (
-                    'session-detail.spec.js',
-                    'session-detail-behavior-contracts.spec.js',
-                    'sessions-list.spec.js',
-                ),
-                '--grep-invert',
-                '100 轮',
-                '--workers={playwright_workers}',
-            ),
+            180,
+            480,
+            playwright('browserTests', (), '--workers={playwright_workers}'),
         ),
     ),
 )

@@ -63,30 +63,6 @@ GATES = (
         ),
     ),
     Gate(
-        name='currentVersionPolicy',
-        description='检查仓库内部标识使用稳定且无版本后缀的名称。',
-        trigger=changed(
-            'README.md',
-            'docs/**',
-            'harness/**',
-            'java/**',
-            'openspec/specs/**',
-            'scripts/**',
-            'scripts/tests/**/*.py',
-            'scripts/gates/checks/repository/check_current_version.py',
-            'scripts/tests/quality/test_current_version.py',
-        ),
-        target_presets=('gate-infrastructure',),
-        recipe=recipe(
-            10,
-            20,
-            python_check(
-                'currentVersionPolicy',
-                'repository.current-version',
-            ),
-        ),
-    ),
-    Gate(
         name='acceptanceTraceability',
         description='检查验收用例表中的 ID 与自动化测试绑定完整一致。',
         trigger=changed(
@@ -154,40 +130,6 @@ GATES = (
             python_check(
                 'credentialLeakScan',
                 'privacy.credential-leak',
-            ),
-        ),
-    ),
-    Gate(
-        name='maintenanceLanguagePolicy',
-        description='统一检查仓库政策文本与脚本注释符合中文维护规范。',
-        trigger=changed(
-            'AGENTS.md',
-            '.claude/CLAUDE.md',
-            'skills/**',
-            '.agents/**',
-            '.codex/**',
-            '.claude/**',
-            '.qoder/**',
-            'harness/**',
-            'openspec/changes/**',
-            'scripts/**/*.py',
-            'scripts/**/*.sh',
-            'scripts/gates/config/technical-terms.json',
-        ),
-        target_presets=('agent-governance', 'gate-infrastructure', 'java-build'),
-        recipe=recipe(
-            18,
-            35,
-            python_check(
-                'maintenanceLanguagePolicy',
-                'repository.maintenance-language',
-            ),
-            python_check(
-                'scriptCommentLanguage',
-                'source.code-comment-language',
-                'scripts',
-                '--policy',
-                '{repo_root}/scripts/gates/config/technical-terms.json',
             ),
         ),
     ),

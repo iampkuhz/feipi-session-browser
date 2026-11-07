@@ -8,7 +8,7 @@ Session Detail 是单个 session 的运行分析页，用于在首屏回答本�
 
 ## 页面布局
 
-- 路由固定为 `/sessions/<agent>/<session_id>`；模板固定为 `session.html`；MHTML 导出参数固定为 `?export=mhtml`。
+- 路由固定为 `/sessions/<agent>/<session_id>`；模板固定为 `session.html`；HTML 和 MHTML 下载入口见 [Session Export Contract](../../session-export-contract.md)。
 - 面包屑固定为 `Dashboard / Sessions / <agent> / <short session id>`。
 - 首屏顺序固定为 Page Head、Hero KPI、诊断卡片区、主 tab。
 - Hero KPI 区展示 session 标题、agent、session id copy、session 本地文件路径 copy 和 5 张一级 KPI：`Run Health`、`Total Tokens`、`Cache Health`、`Workload`、`Source Task Active`。
@@ -17,7 +17,7 @@ Session Detail 是单个 session 的运行分析页，用于在首屏回答本�
 - 主内容区固定包含 `Trace`、`Payload` 两个 tab。
 - Trace tab 固定为筛选条加 trace round table；round 展开后展示按时间顺序排列的步骤卡片。
 - Payload tab 固定为左右布局：左侧 call selector，右侧 selected call detail。
-- MHTML 导出必须保留 Hero KPI、诊断卡片、Trace 展开、payload modal、Payload tab 切换和 attribution 展开交互。
+- HTML 和 MHTML 是静态离线归档：保留已发布的调用、工具、正文、归属和 token 计量，用原生控件展开，不复制在线 tab、筛选和弹框。
 
 ### 导入分析范围
 
@@ -62,7 +62,7 @@ Session Detail 是单个 session 的运行分析页，用于在首屏回答本�
 - `Cache Read` 表示 provider reported Cache Read input token。
 - `Cache Write` 表示 provider reported cache creation/write input token。
 - `Output` 表示模型可见输出 token，不把隐藏 reasoning token 混入该值。
-- Codex round token 归属必须以有效 `event_msg.token_count` 为 LLM call 边界；`event_msg.agent_message` 和 `response_item.message role=assistant` 只作为响应展示材料关联到 call，不参与 token 边界判断。
+- Codex 以带明确响应身份的 `token_usage_record` 作为独立模型调用边界；仅有旧版累计计数时，有正向组件增量且能闭合的 `event_msg.token_count` 可作为边界。镜像或重复计数不增加调用数或 token；证据不足时显示记录分组，不推断真实模型调用。assistant 文本是展示材料，不是计量边界。
 - Codex 重复 `total_token_usage` 累计快照不得创建 round、不得贡献 token；诊断中必须保留 record index、timestamp、累计 total 和 `contribution=0`。
 - 四个二级指标合计必须等于一级值；无法和来源总量对齐时一级值仍显示互斥 component sum，tooltip 说明 component sum、source total、缺失字段、来源和精度。
 - 四个二级 token 指标展示 `绝对值 · 占比`，占比相对 Total Tokens，并按占比标记颜色。
@@ -78,10 +78,10 @@ Session Detail 是单个 session 的运行分析页，用于在首屏回答本�
 
 ### Workload
 
-- 一级值：主 agent LLM call 加 subagent LLM call 总数。
-- 二级指标固定为 `Main Calls`、`Subagent Calls`、`Tool Calls`、`Subagent Runs`。
-- `Main Calls` 表示当前 session 主 agent 发起的 LLM call 数。
-- `Subagent Calls` 表示 subagent 内部发起的 LLM call 数。
+- 一级值：主 agent 和 subagent 的归一化记录总数。
+- 二级指标为 `Main records`、`Subagent records`、`Tool Calls`、`Subagent Runs`。
+- `Main records` 表示归一化的主 agent 记录数，不等同于已验证的模型调用数。
+- `Subagent records` 表示归一化的子 agent 内部记录数，不计入主 agent。
 - `Tool Calls` 使用全局 tool call 总数；如需展示主 agent 口径，只在 tooltip 或 Tool Impact 中说明 `Main tools`。
 - `Subagent Runs` 表示独立 subagent 上下文启动次数。
 
@@ -221,7 +221,7 @@ Session Detail 是单个 session 的运行分析页，用于在首屏回答本�
 - `Assistant Thinking` 行展示 thinking 摘要、timestamp、source block 和 payload 入口；必须使用与 `Tool Call` 行同等高度的单行紧凑布局，长文本单行截断。
 - `Assistant Text` 行展示对用户可见文本摘要、timestamp 和 payload 入口；必须使用与 `Tool Call` 行同等高度的单行紧凑布局，长文本单行截断。该行 payload 只展示 assistant text / thinking 内容，不重复展示同一 LLM response 中已经在后续 `Tool Call` 行平铺展示的 tool call。
 - Codex 原始 JSONL 中同一 assistant 文案可能同时出现为 `event_msg.agent_message` 和 `response_item.message role=assistant`；Trace 必须把两者关联为同一个 assistant text 事件，优先使用 `response_item.message` 作为 canonical payload source，`event_msg` 只作为 UI/status mirror 或缺省处理，不得重复展示两行相同文本。
-- LLM usage、request/response payload 和 request/response attribution 入口由 round summary 行、Payload tab 和 payload modal 承载，不在 expanded timeline 中重复展示。
+- 单调用行的 Request/Response 不在展开内容中重复；多记录分组在展开后提供各成员的 Request/Response，正文与归因使用同一弹框。
 - `Fresh` 表示 tokenbar 和 Total 的互斥新输入分段；request attribution 摘要可单独展示 Provider Request Input / Provider 请求输入，用于解释归因分母。
 - `Tool Call` 行固定展示 tool name、command preview、result preview、timestamp、duration、result token estimate、`Result` action；duration 优先使用 tool wrapper 输出的 wall time，wall time 缺失或为 0 时使用 tool call 到 tool output 的 timestamp 差值兜底，不得把有明确时间跨度的 tool 统一显示为 `0s`；result token estimate 使用 `~<compact>`，且必须和 Result modal 中的 `result tokens` 数值一致。
 - 点击 `Result` 打开的 tool result payload modal 必须在 metadata rail 和 modal subtitle 展示该 result 文本的估算 token 数，字段名固定为 `result tokens`，数值格式为 `~<compact> tokens`；该值表示该 tool result 大概率进入下一次 LLM request 的输入压力，不得标记为 provider reported。
@@ -233,9 +233,9 @@ Session Detail 是单个 session 的运行分析页，用于在首屏回答本�
 
 ### LLM Call Attribution
 
-- `Request 归因` 入口打开 request attribution payload。
+- `Request` 打开当前调用的正文，弹框内可展开输入归因。
 - Trace round row 和 subround summary 行必须提供 request attribution 入口；Payload tab 保留完整归因详情。
-- Trace round row 上 request/response 按钮的可见文字固定为 `request` / `response`；modal title 使用 session 级全局 LLM call 编号，API 定位用的 payload id `llm-R{round}-IX{call}` 可继续使用 round-local call index，不得因此把 R2/R3 等后续 round 显示成重复的 `LLM Call #1`。
+- 单调用行只提供一对 `Request` / `Response` 按钮；多记录分组须展开后按调用查看归因。弹框定位保留调用身份，不以 round-local 序号冒充全局调用编号。
 - request attribution 内容固定包含 topgrid 元信息、用量分布、归因明细、重建上下文预览。
 - request attribution 的 topgrid 固定合并展示调用身份、请求摘要、调用信息/时间线/请求参数与覆盖率；桌面宽度下顶部三个 summary card 必须同一行展示，不得再使用左侧 metadata rail 承载这些信息。
 - 请求摘要字段固定为 agent、model、source、API family、provider、call id、Request 内容分母、Fresh、Cache Read、Cache Write、Provider 请求输入、本地重建、coverage、残差；不得在归因明细底部另起 `覆盖率与不确定性` 表格。
@@ -255,7 +255,7 @@ Session Detail 是单个 session 的运行分析页，用于在首屏回答本�
 - Qoder request attribution 必须优先使用 call-scoped `full_messages_array` 重建 Claude-like API messages bucket；该 bucket 必须包含当前 call 边界前的 user/assistant/tool_use/tool_result 输入，并使用完整 `content_token_estimate` 求和。
 - Qoder provider reported `cache_read_input_tokens` 必须只作为 request 摘要中的 `Cache Read` 与 `Provider 请求输入` accounting 信息展示；不得生成 raw `provider_cached_context` bucket，不得计入本地重建 coverage；`cache_creation_input_tokens` / Cache Write 同样只在摘要中展示，不进入 request bucket 分母。
 - Qoder 未持久化完整 available tools schema 时，request attribution 必须使用 Claude-Code-like SDK 默认工具定义并补充本 session 观测到的 Qoder-only 工具；不得只按实际调用过的工具数量估算完整工具定义。
-- `Response 归因` 入口打开 response attribution payload。
+- `Response` 打开当前调用的正文，弹框内可展开输出归因。
 - Trace round row 和 subround summary 行必须提供 response attribution 入口；Payload tab 保留完整归因详情。
 - response attribution 内容固定包含 topgrid 元信息、用量分布、归因明细、blocks 明细、可见内容摘要。
 - response attribution 的 topgrid 固定合并展示调用身份、响应摘要、归因备注与参数可得性；不得再使用左侧 metadata rail 承载这些信息。
@@ -264,7 +264,7 @@ Session Detail 是单个 session 的运行分析页，用于在首屏回答本�
 - 用量分布和归因明细必须占用 attribution modal 内容区全宽，不得被 side rail 挤压。
 - attribution bucket card header 固定展示 bucket label、precision、tokens、percent、expand chevron。
 - attribution modal 里动态渲染的 bucket card 必须带有与静态 payload 模板一致的可展开语义；点击 bucket header 展开/折叠详情时必须同步 `hidden`、`is-expanded` 和 `aria-expanded`。
-- Trace round/subround 行里的 request/response attribution 按钮不得依赖初始 HTML 中预嵌完整归因 payload；点击按钮时必须通过 `/api/sessions/{agent}/{session_id}/attribution/...` 后端 API 获取最新归因 payload 并基于 API 返回渲染。
+- 打开正文弹框时按调用和方向通过 `/api/sessions/{agent}/{session_id}/attribution/...` 加载，默认折叠，不在初始 HTML 预嵌完整归因。
 - attribution modal 的 bucket detail 必须是两层展开：第一层点击贡献来源 bucket 后，若存在 `details.explanation`，先以一行全宽说明文字直接展示在展开区顶部，不得把说明伪装成子分类 card；随后展示该 bucket 内部的子分类 card，所有子分类 card 必须单列排列且每个独占一行，不得在桌面宽度下排成多列；子分类 card 折叠态只展示精简摘要、来源/role/type/token 等短 meta，折叠态高度一致；第二层点击某个子分类 card 后，在该 card 内展示可得的完整原始内容或完整解释。
 - 当 attribution bucket 没有结构化 `details` 但有 `summary`、`source`、`count_label` 或 `content_preview` 时，modal 必须把这些字段作为 缺省 detail 展示，不得渲染成无法展开的空行。
 - attribution bucket percent 为当前弹框中参与分布 bucket 的显示占比，单个 bucket 不得超过 100%。
@@ -272,7 +272,7 @@ Session Detail 是单个 session 的运行分析页，用于在首屏回答本�
 
 ### Payload Modal
 
-- Trace 内点击 `Request`、`Response`、`Result`、`Request 归因`、`Response 归因` 时打开 payload modal。
+- Trace 内点击 `Request`、`Response` 或 `Result` 时打开 payload modal。
 - modal header 固定展示 payload title、payload id、Close button。
 - modal body 固定为 metadata rail 加 main content 的双栏布局。
 - metadata rail 展示 kind、status、size、result tokens、source、tool、tool status 中可用字段；`result tokens` 只在 `tool.result` / `subagent.tool.result` payload 中展示。

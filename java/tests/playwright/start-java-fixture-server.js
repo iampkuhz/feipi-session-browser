@@ -95,6 +95,8 @@ function consumePortClaim(port, token) {
 
 function startIdentityProxy(port, innerPort) {
   const proxy = http.createServer((request, response) => {
+    // Playwright 的请求池可能在代理空闲关闭时复用旧连接；每个下游响应显式结束该连接。
+    response.setHeader('connection', 'close');
     if (request.url === '/__feipi_fixture_identity') {
       response.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
       response.end(JSON.stringify(FIXTURE_IDENTITY));
@@ -153,7 +155,8 @@ function startIdentityProxy(port, innerPort) {
         releaseUpstream();
         return;
       }
-      response.writeHead(incoming.statusCode || 502, incoming.headers);
+      const { connection: _connection, 'keep-alive': _keepAlive, ...headers } = incoming.headers;
+      response.writeHead(incoming.statusCode || 502, headers);
       incoming.pipe(response);
     });
     upstream.on('error', error => fail('upstream_request_error', error));
@@ -254,7 +257,10 @@ async function waitUntilReady(baseURL, server) {
       const responses = await Promise.all(paths.map((item) => fetch(`${baseURL}${item}`, {
         signal: AbortSignal.timeout(2_000),
       })));
-      if (responses.every((response) => response.ok)) return true;
+      const scan = await fetchFixtureJson(baseURL, '/api/scan-status');
+      if (scan.status === 'failure') return false;
+      if (scan.status === 'success' && scan.errorCount === 0
+          && scan.publishedDataAvailable && responses.every((response) => response.ok)) return true;
     } catch (_) {
       // 进程启动期间连接失败属于预期重试条件。
     }
@@ -264,7 +270,7 @@ async function waitUntilReady(baseURL, server) {
 }
 
 /**
- * 启动真实 Java fixture 的唯一生命周期：准备数据、扫描、启动服务、等待就绪，
+ * 启动真实 Java fixture 的唯一生命周期：准备数据、正常启动并自动扫描、等待内容就绪，
  * 再挂载 identity proxy；端口 claim、信号处理和临时文件也在这里统一清理。
  */
 async function startServer({ claimToken = '' } = {}) {
@@ -287,6 +293,7 @@ async function startServer({ claimToken = '' } = {}) {
     innerPort = innerClaim.port;
     innerClaimPath = consumePortClaim(innerPort, innerClaim.token);
     // 启动器存在不代表其 JAR/静态资源仍对应当前源码；由 Gradle 增量同步后再验页面。
+    console.log('[playwright-fixture] build: one installDist');
     runChecked(
       path.join(ROOT, 'java', process.platform === 'win32' ? 'gradlew.bat' : 'gradlew'),
       ['-p', path.join(ROOT, 'java'), ':java:app-cli:installDist', '--console=plain'],
@@ -310,20 +317,15 @@ async function startServer({ claimToken = '' } = {}) {
       INDEX_DIR: indexDir,
       SESSION_BROWSER_LOG_LEVEL: 'WARN',
     };
-    runChecked(
-      launcher,
-      ['scan', '--full', '--index-dir', indexDir],
-      'fixture scan',
-      { env: javaEnv, timeout: 120_000 },
-    );
   } catch (error) {
     cleanup();
     throw error;
   }
 
+  console.log('[playwright-fixture] start: one normal serve with automatic scan');
   const server = spawn(
     launcher,
-    ['serve', '--host', '127.0.0.1', '--port', String(innerPort), '--allow-empty', '--no-scan'],
+    ['serve', '--host', '127.0.0.1', '--port', String(innerPort), '--allow-empty'],
     { cwd: ROOT, env: { ...process.env, ...javaEnv }, stdio: ['ignore', 'pipe', 'pipe'] },
   );
   let diagnostics = '';
@@ -342,7 +344,7 @@ async function startServer({ claimToken = '' } = {}) {
     stopExitCode = exitCode;
     if (proxy) proxy.close();
     if (!server.killed) server.kill(signal);
-    cleanup();
+    // 先等 Java exit 再清理 DB/日志目录，避免 shutdown 写回后残留目录或丢诊断。
   };
   process.on('SIGINT', () => stop('SIGINT'));
   process.on('SIGTERM', () => stop('SIGTERM'));

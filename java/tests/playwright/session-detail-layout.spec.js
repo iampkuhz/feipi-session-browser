@@ -11,24 +11,6 @@ const fs = require('fs');
 const path = require('path');
 const { runPlaywrightRoot } = require('./runtime-paths');
 
-const ATTRIBUTION_FIXTURE = {
-  kind: 'llm.response_attribution',
-  data: {
-    callId: 'layout-fixture-call-001',
-    callKey: 'C1',
-    model: 'layout-fixture-model',
-    scope: 'main',
-    timestamp: '2026-09-21T10:00:00Z',
-    totalTokens: 210,
-    freshInputTokens: 120,
-    outputTokens: 90,
-    cacheReadTokens: 30,
-    cacheWriteTokens: 10,
-    requestToolResultCount: 3,
-    responseToolCallCount: 2,
-  },
-};
-
 test.describe('会话详情 Phase 1 外壳布局', () => {
   test('[UI-SD-013][UI-SD-018][UI-VISUAL-003] 1440px 视口下外壳布局正确', async ({ page }) => {
     // 使用质量门禁指定的 1440x1100 视口
@@ -156,146 +138,59 @@ test.describe('会话详情 Phase 1 外壳布局', () => {
   });
 });
 
-test.describe('Attribution 弹框布局', () => {
-  async function openHydratedSession(page) {
-    const response = await page.goto('/sessions/claude_code/hifi-viz-session-001', {
-      waitUntil: 'domcontentloaded',
-      timeout: 30_000,
-    });
-    expect(response && response.ok(), 'fixture URL must return HTTP success').toBe(true);
-    await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true', { timeout: 10_000 });
-    await expect(page.locator('[data-trace-round-row]').first()).toBeVisible({ timeout: 10_000 });
-  }
-
-  async function installAttributionRoute(page) {
-    await page.route(/\/api\/sessions\/[^/]+\/[^/]+\/attribution\/\d+\/\d+\/(request|response)$/, async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(ATTRIBUTION_FIXTURE),
-      });
-    });
-  }
-
-  async function openAttributionModal(page) {
-    const button = page
-      .locator('button[data-action="open-payload"][data-payload-kind="llm.response_attribution"]:visible')
-      .first();
-    await expect(button, 'response attribution trigger must be visible').toBeVisible({ timeout: 10_000 });
-    await button.click();
+test.describe('正文弹框内的归因布局', () => {
+  async function openAttribution(page, width) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto('/sessions/claude_code/hifi-viz-session-001');
+    await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+    await page.locator('[data-attribution-path*="/response"]:visible').first().click();
     const modal = page.locator('dialog.payload-modal');
-    await expect.poll(
-      () => modal.evaluate((dialog) => dialog.open).catch(() => false),
-      { message: 'attribution modal must open', timeout: 5_000 },
-    ).toBe(true);
-    await expect(modal, 'attribution API must complete successfully').toHaveAttribute(
-      'data-attribution-state',
-      'success',
-      { timeout: 10_000 },
-    );
-    return modal;
+    const disclosure = modal.locator('[data-payload-attribution="response"]');
+    await expect(modal).toBeVisible();
+    await expect(disclosure).toHaveAttribute('data-attribution-call', /.+/);
+    await disclosure.locator('summary').press('Enter');
+    await expect(disclosure.locator('.sd-kv').first()).toBeVisible();
+    return { modal, disclosure };
   }
 
-  test('[UI-SD-LAYOUT-001] 桌面宽屏 attribution 弹框为两列卡片布局', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await installAttributionRoute(page);
-    await openHydratedSession(page);
-    await openAttributionModal(page);
-
-    const layout = await page.evaluate(() => {
-      const topgrids = document.querySelectorAll('.sd-attribution-topgrid');
-      if (topgrids.length === 0) return { error: 'no topgrid found' };
-      const firstGrid = topgrids[0];
-      const style = getComputedStyle(firstGrid);
-      const cards = firstGrid.querySelectorAll('.sd-attribution-topcard');
-      const cardRects = Array.from(cards).map((c) => {
-        const r = c.getBoundingClientRect();
-        return { top: Math.round(r.top), left: Math.round(r.left), width: Math.round(r.width) };
-      });
-      const hasTwoColumns = cards.length >= 2 && cardRects[0].top === cardRects[1].top && cardRects[0].left < cardRects[1].left;
-      return {
-        gridColumns: style.gridTemplateColumns,
-        cardCount: cards.length,
-        cardRects,
-        hasTwoColumns,
-        topgridCount: topgrids.length,
-      };
+  for (const [id, width, columns] of [
+    ['UI-SD-LAYOUT-001', 1440, 2], ['UI-SD-LAYOUT-002', 390, 1],
+  ]) {
+    test(`[${id}] 输出归因按屏宽排列为 ${columns} 列，原文仍在同一弹框`, async ({ page }) => {
+      const { modal, disclosure } = await openAttribution(page, width);
+      const grid = disclosure.locator('.sd-attribution-summary-grid');
+      const layout = await grid.locator('.sd-kv').evaluateAll(rows => rows.map(row => {
+        const { x, y, width } = row.getBoundingClientRect();
+        return { x, y, width };
+      }));
+      expect(layout.length).toBeGreaterThanOrEqual(3);
+      expect(new Set(layout.map(row => row.x)).size).toBe(columns);
+      if (columns === 2) {
+        expect(layout[0].y).toBeCloseTo(layout[1].y, 0);
+        expect(layout[0].x + layout[0].width).toBeLessThanOrEqual(layout[1].x + 1);
+      } else {
+        expect(layout[1].y).toBeGreaterThan(layout[0].y);
+      }
+      await expect(modal.locator('.sd-content-block').first()).toBeVisible();
+      await disclosure.locator('summary').press('Space');
+      await expect(grid).toBeHidden();
+      await expect(modal.locator('.sd-content-block').first()).toBeVisible();
     });
-
-    const layoutStr = JSON.stringify(layout, null, 2);
-    expect(layout.cardCount, `桌面首行应有至少 2 张卡片。结果：${layoutStr}`).toBeGreaterThanOrEqual(2);
-    expect(layout.hasTwoColumns, `桌面卡片应水平排列。结果：${layoutStr}`).toBe(true);
-  });
-
-  test('[UI-SD-LAYOUT-002] 窄屏 attribution 弹框回退单列', async ({ page }) => {
-    await page.setViewportSize({ width: 800, height: 600 });
-    await installAttributionRoute(page);
-    await openHydratedSession(page);
-    await openAttributionModal(page);
-
-    const layout = await page.evaluate(() => {
-      const topgrids = document.querySelectorAll('.sd-attribution-topgrid');
-      if (topgrids.length === 0) return { error: 'no topgrid found' };
-      const firstGrid = topgrids[0];
-      const style = getComputedStyle(firstGrid);
-      const cards = firstGrid.querySelectorAll('.sd-attribution-topcard');
-      const cardRects = Array.from(cards).map((c) => {
-        const r = c.getBoundingClientRect();
-        return { top: Math.round(r.top), left: Math.round(r.left), width: Math.round(r.width) };
-      });
-      const isSingleColumn = cards.length < 2 || cardRects.every((r, i) => i === 0 || r.top > cardRects[i - 1].top);
-      return {
-        gridColumns: style.gridTemplateColumns,
-        cardCount: cards.length,
-        cardRects,
-        isSingleColumn,
-      };
-    });
-
-    const layoutStr = JSON.stringify(layout, null, 2);
-    expect(layout.isSingleColumn, `窄屏卡片应垂直排列。结果：${layoutStr}`).toBe(true);
-  });
+  }
 
   for (const width of [1440, 390]) {
-  test(`[UI-SD-LAYOUT-003] 工具计数 label 与 value bounding boxes 不相交 (${width}px)`, async ({ page }) => {
-    await page.setViewportSize({ width, height: 900 });
-    await installAttributionRoute(page);
-    await openHydratedSession(page);
-    await openAttributionModal(page);
-
-    const kvGeometry = await page.evaluate(() => {
-      const toolCountsCard = document.querySelector('[data-attribution-card="tool-counts"]');
-      if (!toolCountsCard) return { error: 'tool-counts card not found' };
-      const kvRows = toolCountsCard.querySelectorAll('.sd-kv');
-      return Array.from(kvRows).map((kv) => {
-        const spans = kv.querySelectorAll(':scope > span');
-        if (spans.length < 2) return { error: 'missing spans', kv: kv.getAttribute('data-attribution-kv') };
-        const labelRect = spans[0].getBoundingClientRect();
-        const valueRect = spans[1].getBoundingClientRect();
-        return {
-          kv: kv.getAttribute('data-attribution-kv'),
-          label: { left: Math.round(labelRect.left), right: Math.round(labelRect.right), width: Math.round(labelRect.width) },
-          value: { left: Math.round(valueRect.left), right: Math.round(valueRect.right), width: Math.round(valueRect.width) },
-          overlap: labelRect.right > valueRect.left,
-          gap: Math.round(valueRect.left - labelRect.right),
-        };
-      });
+    test(`[UI-SD-LAYOUT-003] 已记录工具指令的标签和值不重叠 (${width}px)`, async ({ page }) => {
+      const { modal, disclosure } = await openAttribution(page, width);
+      const toolCount = disclosure.locator('.sd-kv').filter({ has: page.getByText('已记录工具指令', { exact: true }) });
+      await expect(toolCount).toBeVisible();
+      await expect(toolCount.locator('span').last()).toHaveText(/^\d+$/);
+      const [label, value] = await toolCount.locator('span').evaluateAll(spans => spans.map(span => {
+        const { left, right, top, bottom } = span.getBoundingClientRect();
+        return { left, right, top, bottom };
+      }));
+      expect(value.right).toBeLessThanOrEqual(width);
+      expect(label.right <= value.left + 1 || label.bottom <= value.top + 1).toBe(true);
+      expect(await modal.locator('.sd-modal-panel').evaluate(panel => panel.scrollLeft)).toBe(0);
     });
-
-    const geomStr = JSON.stringify(kvGeometry, null, 2);
-    if (kvGeometry.error) {
-      throw new Error(`工具计数卡片未找到。结果：${geomStr}`);
-    }
-    expect(kvGeometry.length, `工具计数应有至少 2 行。结果：${geomStr}`).toBeGreaterThanOrEqual(2);
-    for (const row of kvGeometry) {
-      expect(row.error).toBeUndefined();
-      expect(row.label.left).toBeGreaterThanOrEqual(0);
-      expect(row.value.width).toBeGreaterThan(0);
-      expect(row.value.right).toBeLessThanOrEqual(width);
-      expect(row.overlap, `${row.kv} label 与 value 不得重叠。结果：${geomStr}`).toBe(false);
-      expect(row.gap, `${row.kv} label 与 value 间距应 >= 0。结果：${geomStr}`).toBeGreaterThanOrEqual(0);
-    }
-    expect(await page.locator('dialog .sd-modal-panel').evaluate((panel) => panel.scrollLeft)).toBe(0);
-  });
   }
 });

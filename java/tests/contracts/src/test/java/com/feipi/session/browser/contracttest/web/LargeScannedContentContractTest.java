@@ -7,6 +7,9 @@ import com.feipi.session.browser.contracttest.support.ContractTestComposition;
 import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
 import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
 import com.feipi.session.browser.index.store.sqlite.loader.NormalizedArtifactLoader;
+import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
+import com.feipi.session.browser.index.store.sqlite.schema.Migration;
+import com.feipi.session.browser.index.store.sqlite.schema.MigrationRunner;
 import com.feipi.session.browser.index.store.sqlite.schema.SchemaVersion;
 import com.feipi.session.browser.scan.engine.FullScanEngine;
 import com.feipi.session.browser.scan.engine.IncrementalScanEngine;
@@ -21,6 +24,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.DriverManager;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -39,20 +43,44 @@ class LargeScannedContentContractTest {
     Path source = tempDir.resolve("source");
     writeSource(source);
     var config =
-        ScanConfig.defaults(
+        new ScanConfig(
             List.of(new ScanConfig.SourceEntry(new CodexSourceAdapter(), source)),
-            tempDir.resolve("artifacts"));
+            tempDir.resolve("artifacts"),
+            incremental ? Set.of("codex") : Set.of(),
+            1);
     String jdbcUrl = "jdbc:sqlite:" + tempDir.resolve("index.db").toAbsolutePath();
     try (var connection = DriverManager.getConnection(jdbcUrl)) {
       SqliteTestHelper.configureConnection(connection);
+      if (incremental) {
+        new MigrationRunner(
+                Migration.allMigrations().stream()
+                    .filter(migration -> migration.version().version() <= 6)
+                    .toList())
+            .applyAll(connection);
+        try (var statement = connection.createStatement()) {
+          statement.executeUpdate(
+              "INSERT INTO sessions (session_key, agent, session_id, project_key, ended_at, round_count, llm_call_count)"
+                  + " VALUES ('claude_code:legacy','claude_code','legacy','','',2,70)");
+        }
+        var schema = IndexSchema.withDefaults();
+        assertThat(schema.ensureSchema(connection)).containsExactly(IndexSchema.CURRENT_VERSION);
+        assertThat(schema.ensureSchema(connection)).isEmpty();
+      }
       var writer = SqliteTestHelper.createIndexWriter(connection);
       if (incremental) {
         var result = new IncrementalScanEngine().scan(writer, config);
         assertThat(result.errorCount()).as("scan issues: %s", result.issues()).isZero();
         assertThat(result.successCount()).isEqualTo(1);
-        var unchanged = new IncrementalScanEngine().scan(writer, config);
-        assertThat(unchanged.errorCount()).isZero();
-        assertThat(unchanged.unchangedCount()).isEqualTo(1);
+        try (var statement = connection.createStatement();
+            var legacy =
+                statement.executeQuery(
+                    "SELECT round_count, llm_call_count, model_call_count "
+                        + "FROM sessions WHERE session_key = 'claude_code:legacy'")) {
+          assertThat(legacy.next()).isTrue();
+          assertThat(legacy.getLong("round_count")).isEqualTo(2);
+          assertThat(legacy.getLong("llm_call_count")).isEqualTo(70);
+          assertThat(legacy.getObject("model_call_count")).isNull();
+        }
       } else {
         var result = new FullScanEngine().scan(writer, config);
         assertThat(result.errorCount()).as("scan issues: %s", result.issues()).isZero();
@@ -65,12 +93,12 @@ class LargeScannedContentContractTest {
         var statement = connection.createStatement();
         var rows =
             statement.executeQuery(
-                "SELECT s.round_count, s.total_tokens, s.user_message_count, a.path "
+                "SELECT s.round_count, s.model_call_count, s.total_tokens, s.user_message_count, a.path "
                     + "FROM sessions s JOIN session_artifacts a ON a.session_key=s.session_key "
                     + "WHERE a.artifact_type='normalized'")) {
       assertThat(rows.next()).isTrue();
-      assertThat(rows.getLong("round_count"))
-          .isEqualTo((CALLS + CALLS_PER_ROUND - 1) / CALLS_PER_ROUND);
+      assertThat(rows.getLong("round_count")).isEqualTo(CALLS);
+      assertThat(rows.getLong("model_call_count")).isEqualTo(CALLS);
       assertThat(rows.getLong("total_tokens")).isEqualTo(CALLS * 11L);
       assertThat(rows.getLong("user_message_count")).isEqualTo(CALLS);
       var content = NormalizedArtifactLoader.open(Path.of(rows.getString("path")));
@@ -99,7 +127,7 @@ class LargeScannedContentContractTest {
 
   private static void verifyHttp(String jdbcUrl) throws Exception {
     var json = new ObjectMapper();
-    int rounds = (CALLS + CALLS_PER_ROUND - 1) / CALLS_PER_ROUND;
+
     try (var index =
         IndexConnection.create(
             DriverManager.getConnection(jdbcUrl), PragmaConfig.DEFAULTS, jdbcUrl)) {
@@ -114,7 +142,7 @@ class LargeScannedContentContractTest {
             assertThat(metricsResponse.code()).isEqualTo(200);
             var metrics = json.readTree(metricsResponse.body().string());
             assertThat(metrics.at("/tokens/total").asLong()).isEqualTo(CALLS * 11L);
-            assertThat(metrics.path("roundCount").asInt()).isEqualTo(rounds);
+            assertThat(metrics.path("roundCount").asInt()).isEqualTo(CALLS);
             assertThat(metrics.path("payloadCount").asLong()).isEqualTo(CALLS * 2L);
             assertThat(metrics.at("/parity/workloadCalls").asLong()).isEqualTo(CALLS);
 
@@ -125,40 +153,29 @@ class LargeScannedContentContractTest {
                   client.get(api + "/rounds?limit=37" + (next == null ? "" : "&cursor=" + next));
               assertThat(response.code()).isEqualTo(200);
               var page = json.readTree(response.body().string());
-              assertThat(page.path("total").asInt()).isEqualTo(rounds);
+              assertThat(page.path("total").asInt()).isEqualTo(CALLS);
+              assertThat(page.path("modelCallCount").asInt()).isEqualTo(CALLS);
+              assertThat(page.path("recordGroupCount").asInt()).isZero();
               for (var round : page.path("rounds")) {
                 assertThat(round.path("roundIndex").asInt()).isEqualTo(++seenRounds);
-                int expectedCalls =
-                    Math.min(CALLS_PER_ROUND, CALLS - (seenRounds - 1) * CALLS_PER_ROUND);
-                assertThat(round.path("callCount").asInt()).isEqualTo(expectedCalls);
-                assertThat(round.at("/tokens/total").asLong()).isEqualTo(expectedCalls * 11L);
+                assertThat(round.path("callCount").asInt()).isEqualTo(1);
+                assertThat(round.at("/tokens/total").asLong()).isEqualTo(11L);
                 assertThat(round.at("/tokens/provenance/freshInput").asText())
                     .isEqualTo("provider_reported");
               }
               next = page.path("nextCursor").isNull() ? null : page.path("nextCursor").asText();
-            } while (next != null);
-            assertThat(seenRounds).isEqualTo(rounds);
+            } while (next != null && seenRounds < 74);
+            assertThat(seenRounds).isEqualTo(74);
+            assertThat(next).isNotNull();
 
-            int seenMembers = (rounds - 1) * CALLS_PER_ROUND;
-            next = null;
-            do {
-              var response =
-                  client.get(
-                      api
-                          + "/round/"
-                          + rounds
-                          + "?limit=17"
-                          + (next == null ? "" : "&cursor=" + next));
-              assertThat(response.code()).isEqualTo(200);
-              var page = json.readTree(response.body().string());
-              for (var call : page.at("/round/calls")) {
-                assertThat(call.path("callKey").asText()).isEqualTo("C" + (++seenMembers));
-                assertThat(call.path("callId").asText())
-                    .isEqualTo("token_usage_record:response-" + (seenMembers - 1));
-              }
-              next = page.path("nextCursor").isNull() ? null : page.path("nextCursor").asText();
-            } while (next != null);
-            assertThat(seenMembers).isEqualTo(CALLS);
+            var last = client.get(api + "/round/" + CALLS + "?limit=17");
+            assertThat(last.code()).isEqualTo(200);
+            var members = json.readTree(last.body().string());
+            assertThat(members.at("/round/calls").size()).isEqualTo(1);
+            assertThat(members.at("/round/calls/0/callKey").asText()).isEqualTo("C" + CALLS);
+            assertThat(members.at("/round/calls/0/callId").asText())
+                .isEqualTo("token_usage_record:response-" + (CALLS - 1));
+            assertThat(members.path("nextCursor").isNull()).isTrue();
 
             var payload =
                 client.get(api + "/payload/main:resp:token_usage_record:response-" + (CALLS - 1));

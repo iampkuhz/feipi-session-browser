@@ -1323,7 +1323,10 @@ public final class CodexSourceAdapter implements SourceAdapter {
         recordLocator,
         eventIndex,
         "assistant",
-        Optional.of("token_usage_record:" + (responseId.isBlank() ? eventIndex : responseId)),
+        Optional.of(
+            responseId.isBlank()
+                ? "token_usage_ordinal:" + eventIndex
+                : "token_usage_record:" + responseId),
         optionalText(model),
         optionalText(extractTimestamp(event)),
         optionalText(text(payload, "turn_id")),

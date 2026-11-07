@@ -2,6 +2,7 @@ package com.feipi.session.browser.web.export;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.feipi.session.browser.application.QueryCompositionRoot;
 import com.feipi.session.browser.application.sessiondetail.NormalizedArtifactReader;
 import com.feipi.session.browser.domain.enums.CallScope;
@@ -114,6 +115,59 @@ class ManagedContentExportHttpTest {
                 .containsExactlyElementsOf(
                     IntStream.range(0, 600).mapToObj(n -> "tool-" + n).toList());
             assertThat(body).contains("BODY-599-END", "RESULT-599-END", "INPUT-599-END", "Partial");
+          }
+        });
+  }
+
+  @Test
+  void offlineRowLabelsMatchConfirmedAndUnknownRowsBeyondTheLiveWindow() {
+    var measured =
+        new NormalizedCall(
+            "token_usage_record:synthetic-response-a",
+            1,
+            "C1",
+            CallScope.MAIN,
+            Optional.empty(),
+            Optional.empty(),
+            Optional.of("turn"),
+            "synthetic",
+            Optional.empty(),
+            NormalizedCallUsage.empty(),
+            NormalizedCallRequest.empty(),
+            NormalizedCallResponse.empty(),
+            List.of(),
+            List.of(),
+            Map.of("modelCallEvidence", "response_usage"),
+            Map.of());
+    var unknown =
+        ContentExportReplayTest.call(
+            1, CallScope.MAIN, List.of(), Map.of(), NormalizedCallUsage.empty());
+    var unit =
+        ContentExportReplayTest.unit(0, List.of(measured, unknown), List.of(), Map.of(), List.of());
+    JavalinTest.test(
+        app(new ContentExportReplayTest.CountingContent(List.of(unit), 2, 0, 0, 0)),
+        (server, client) -> {
+          var response = client.get("/api/sessions/codex/synthetic-export/rounds?limit=1");
+          assertThat(response.code()).isEqualTo(200);
+          var page = new ObjectMapper().readTree(response.body().string());
+          assertThat(page.get("roundCount").asInt()).isEqualTo(2);
+          assertThat(page.get("modelCallCount").asInt()).isEqualTo(1);
+          assertThat(page.get("recordGroupCount").asInt()).isEqualTo(1);
+          assertThat(page.get("rounds").size()).isEqualTo(1);
+          assertThat(page.get("nextCursor").asText()).isNotBlank();
+          for (String route :
+              List.of(
+                  "/sessions/codex/synthetic-export/export.html",
+                  "/export/mhtml?agent=codex&session_id=synthetic-export")) {
+            var export = client.get(route);
+            assertThat(export.code()).isEqualTo(200);
+            assertThat(export.body().string())
+                .contains(
+                    "Trace rows: 2 · Call records: 2",
+                    "Record and row totals are not model API call counts.",
+                    "<summary>R1 · " + measured.callId() + " · tokens",
+                    "<summary>G2 · " + unknown.callId() + " · tokens")
+                .doesNotContain("<summary>R2 ·", "Rounds: 2", " · Calls: 2");
           }
         });
   }

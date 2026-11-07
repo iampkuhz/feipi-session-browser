@@ -51,6 +51,9 @@ import java.util.Optional;
  */
 public final class SqliteSessionQueryRepository implements SessionQueryPort {
 
+  private static final String ROUND_SORT_VALUE =
+      "CASE WHEN model_call_count IS NULL THEN round_count ELSE NULLIF(model_call_count, 0) END";
+
   private static final String ACTIVE_TASK_SORT_VALUE =
       "CASE WHEN json_valid(timing_json) THEN CASE WHEN "
           + "json_extract(timing_json, '$.activeTaskPrecision') IN ('measured', 'partial') "
@@ -262,7 +265,10 @@ public final class SqliteSessionQueryRepository implements SessionQueryPort {
                 + sort.order().getValue()
                 + ", session_key ASC"
             : "round_count".equals(sort.sortKey())
-                ? "round_count IS NULL, round_count "
+                ? ROUND_SORT_VALUE
+                    + " IS NULL, "
+                    + ROUND_SORT_VALUE
+                    + " "
                     + sort.order().getValue()
                     + ", session_key ASC"
                 : sort.toSqlFragment();

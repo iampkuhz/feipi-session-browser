@@ -111,6 +111,70 @@ class ArtifactRowMapperTest {
   }
 
   @Test
+  void codexListCountExcludesUnconfirmedChildRecords() throws Exception {
+    var main =
+        new NormalizedCall(
+            "token_usage_record:synthetic-a",
+            1,
+            "C1",
+            CallScope.MAIN,
+            Optional.empty(),
+            Optional.empty(),
+            Optional.of("one-task"),
+            "synthetic",
+            Optional.empty(),
+            NormalizedCallUsage.empty(),
+            NormalizedCallRequest.empty(),
+            NormalizedCallResponse.empty(),
+            List.of(),
+            List.of(),
+            Map.of(),
+            Map.of());
+    var child =
+        new NormalizedCall(
+            "child-SR1",
+            2,
+            "C2",
+            CallScope.SUBAGENT,
+            Optional.of(main.callId()),
+            Optional.of("synthetic-spawn"),
+            Optional.of("child-task"),
+            "synthetic",
+            Optional.empty(),
+            NormalizedCallUsage.empty(),
+            NormalizedCallRequest.empty(),
+            NormalizedCallResponse.empty(),
+            List.of(),
+            List.of(),
+            Map.of(),
+            Map.of());
+    var artifact =
+        new NormalizedSessionArtifact(
+            NormalizedConstants.SCHEMA_VERSION,
+            NormalizedAgent.CODEX,
+            List.of(),
+            Map.of("session_key", "codex:synthetic", "session_id", "synthetic"),
+            List.of(main, child),
+            List.of(),
+            List.of(),
+            Map.of(),
+            Map.of());
+    var indexed = ArtifactRowMapper.toSessionRow(artifact, 12, "synthetic");
+    assertThat(indexed.roundCount()).isEqualTo(2);
+    assertThat(indexed.modelCallCount()).isEqualTo(1);
+    assertThat(indexed.llmCallCount()).isEqualTo(2);
+    var streamed =
+        ArtifactRowMapper.toContentSessionRow(
+            com.feipi.session.browser.domain.normalized.NormalizedSessionContent.fromArtifact(
+                artifact),
+            12,
+            "synthetic");
+    assertThat(streamed.roundCount()).isEqualTo(indexed.roundCount());
+    assertThat(streamed.modelCallCount()).isEqualTo(indexed.modelCallCount());
+    assertThat(streamed.llmCallCount()).isEqualTo(indexed.llmCallCount());
+  }
+
+  @Test
   void logicalRoundsAreIndependentOfCallsAndAssistantMessages() {
     NormalizedCall first =
         createCall(1, CallScope.MAIN, new NormalizedCallUsage(0, 0, 0, 0, 0), List.of());

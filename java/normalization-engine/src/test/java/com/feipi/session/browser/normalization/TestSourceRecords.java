@@ -49,9 +49,7 @@ final class TestSourceRecords {
           : "agent_message".equals(subtype) ? Optional.of("assistant") : Optional.empty();
     }
     String id = firstText(node, "id", "uuid").orElse("");
-    if (id.startsWith("token_count:")
-        || id.startsWith("token_usage_record:")
-        || id.startsWith("tc:")) {
+    if (TokenAccountant.isUsageClosingFrame(id) || id.startsWith("tc:")) {
       return Optional.empty();
     }
     return "user".equals(type) || "assistant".equals(type) ? Optional.of(type) : Optional.empty();

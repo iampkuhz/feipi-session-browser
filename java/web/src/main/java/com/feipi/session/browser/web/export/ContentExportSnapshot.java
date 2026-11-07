@@ -4,6 +4,7 @@ import com.feipi.session.browser.application.sessiondetail.SessionContentReader;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionContent;
 import com.feipi.session.browser.domain.normalized.TokenProvenance;
+import com.feipi.session.browser.index.api.query.ContentRoundIndex;
 import com.feipi.session.browser.query.api.PayloadVisibility;
 import com.feipi.session.browser.query.api.SensitiveFieldPolicy;
 import java.io.FilterOutputStream;
@@ -75,6 +76,7 @@ public final class ContentExportSnapshot implements AutoCloseable {
       throws IOException {
     var reader = new SessionContentReader(content, observedUsers);
     var payloads = reader.exportPayloads();
+    var agent = content.header().agent();
     return createClosing(
         null,
         maxBytes,
@@ -89,9 +91,13 @@ public final class ContentExportSnapshot implements AutoCloseable {
                   + " solid #888;padding:.5em;margin:.5em}</style></head><body><h1>Session"
                   + " export</h1><p>");
           text(writer, sessionKey);
-          writer.write("</p><p>Rounds: ");
+          writer.write("</p><p>Trace rows: ");
           writer.write(Integer.toString(reader.roundIndex().roundCount()));
-          writer.write(" · Calls: " + content.header().totals().get("calls") + "</p>");
+          writer.write(
+              " · Call records: "
+                  + content.header().totals().get("calls")
+                  + "</p><p>R = confirmed model call; G = logical record group without a confirmed"
+                  + " model-call boundary. Record and row totals are not model API call counts.</p>");
           long tokens = 0;
           var provenance = TokenProvenance.empty();
           try (var cursor = content.openCursor()) {
@@ -101,8 +107,11 @@ public final class ContentExportSnapshot implements AutoCloseable {
                 tokens = Math.addExact(tokens, call.usage().total());
                 var precision = callPrecision(call);
                 provenance = provenance.plus(precision);
+                String rowType =
+                    ContentRoundIndex.modelCallEvidence(agent, call).isEmpty() ? "G" : "R";
                 writer.write(
-                    "<details><summary>Round "
+                    "<details><summary>"
+                        + rowType
                         + reader.roundIndex().roundIndexForCall(call.callId()).orElseThrow()
                         + " · ");
                 text(writer, call.callId());

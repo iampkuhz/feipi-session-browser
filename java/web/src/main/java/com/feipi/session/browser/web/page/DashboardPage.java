@@ -223,15 +223,15 @@ public final class DashboardPage {
                     secondary(
                         "Active 24h",
                         formatDashboardInteger(supplement.activeProjects24h()),
-                        "最近 24 小时内有 session event 的 project 去重数。"),
+                        "会话最后活动时间（ended_at）落在过去 24 小时内的去重项目数。"),
                     secondary(
                         "Active 7d",
                         formatDashboardInteger(supplement.activeProjects7d()),
-                        "最近 7 个自然日内有 session event 的 project 去重数。"),
+                        "会话最后活动时间（ended_at）落在最近 7 个 UTC 自然日内的去重项目数。"),
                     secondary(
                         "New 7d",
                         formatDashboardInteger(supplement.newProjects7d()),
-                        "first seen timestamp 落在最近 7 个自然日内的 project 去重数。")))),
+                        "首次会话开始时间落在最近 7 个 UTC 自然日内的去重项目数。")))),
         kpi(
             new KpiCard(
                 "Sessions",
@@ -245,11 +245,11 @@ public final class DashboardPage {
                     secondary(
                         "Today",
                         formatDashboardInteger(supplement.todaySessions()),
-                        "first user message timestamp 落在当前自然日内的 session 数。"),
+                        "当前 UTC 自然日按会话开始时间（started_at）统计，不按第一条用户消息。"),
                     secondary(
                         "7d Avg",
                         formatDashboardCompact(supplement.avgDailySessions7d()),
-                        "最近 7 个自然日每日 session 数的算术平均值。"),
+                        "最近 7 个 UTC 自然日内的会话开始数除以 7，包含当前未结束的日桶。"),
                     secondary(
                         "Median Duration",
                         supplement.durationSampleCount() > 0
@@ -616,27 +616,11 @@ public final class DashboardPage {
             + ("all".equals(agentScope) ? "按 agent 堆叠。" : "仅包含当前 agent。")
             + "未知开始日期不计入。");
     notes.put(
-        "prompts",
-        cohort
-            + "归组：该批 "
-            + scope
-            + " 会话的整段累计 user prompts；"
-            + "平均 prompts 的分母为同一批开始会话中的 user 消息实测样本，保留实测 0，不是事件实际发生日或完整真人提问量。");
-    notes.put(
-        "tokens",
-        cohort
-            + "归组：该批 "
-            + scope
-            + " 会话的整段累计 tokens"
-            + "（Fresh、Cache Read、Cache Write、Output），不是逐次真实消费日；Estimated/Unknown 等来源仍按披露。");
+        "prompts", cohort + "归组：该批 " + scope + " 会话的整段累计 user prompts；" + "均值仅用消息数实测的会话（含实测 0）。");
+    notes.put("tokens", cohort + "归组：该批 " + scope + " 会话的整段累计 tokens" + "；缺测不画成零。");
     notes.put(
         "cache_health",
-        cohort
-            + "归组 "
-            + scope
-            + " 的 Cache Read Ratio；使用该批会话整段 input，"
-            + "不是逐次真实消费日。Latest 为当前未完成桶，Lowest 仅比较可见窗口同粒度可计算桶；"
-            + "Average 为同桶全局 token 加权比率，缺测/未知为 N/A。");
+        cohort + "归组 " + scope + " 的 Cache Read Ratio；仅用来源可确认且大于零的输入分母，按 token 加权。");
     notes.put("model_mix", "当前 Java index 暂未暴露完整模型占比图数据时显示明细表或空态。");
     notes.put("tool_dist", "当前 index 保存聚合工具调用数，不保存工具名称分布。");
     return notes;

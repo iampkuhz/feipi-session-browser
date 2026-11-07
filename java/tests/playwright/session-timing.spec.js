@@ -7,8 +7,8 @@ const resourceRoot = path.join(__dirname, '../../web/src/main/resources');
 const detailPath = '/sessions/claude_code/hifi-viz-session-001';
 const timing = {
   wallSeconds: 90000, wallPrecision: 'measured', activeTaskSeconds: 120, activeTaskPrecision: 'measured',
-  activeTaskBasis: 'main_task_window_union', agentTurnSeconds: 45, agentTurnPrecision: 'measured',
-  agentTurnBasis: 'main_agent_turn_workload', modelExecutionSeconds: null, modelExecutionPrecision: 'unknown',
+  activeTaskBasis: 'main_task_windows', agentTurnSeconds: 45, agentTurnPrecision: 'measured',
+  agentTurnBasis: 'main_agent_turn_duration', modelExecutionSeconds: null, modelExecutionPrecision: 'unknown',
   toolExecutionSeconds: null, toolExecutionPrecision: 'unknown', completedTaskCount: 2, incompleteTaskCount: 0, abortedTaskCount: 0,
 };
 const provenance = { freshInput: 'provider_reported', cacheRead: 'provider_reported', cacheWrite: 'provider_reported', output: 'provider_reported' };
@@ -47,7 +47,9 @@ async function syntheticPage(page, { timingValue = timing, statistics, injectSou
     if (pathname.endsWith('/rows')) data = { rows: [{ title: 'Synthetic overnight task', sessionId: 'synthetic-timing',
       tokens, timing: timingValue, durationSeconds: 90000, processSeconds: 89880, detailUrl: detailPath }], pagination, filters: {} };
     if (pathname.endsWith('/options')) data = { agents: [], models: [], projects: [], statuses: [] };
-    await route.fulfill({ json: data });
+    // Keep the live SSR snapshot identity while replacing synthetic timing data.
+    const response = await route.fetch();
+    await route.fulfill({ response, status: 200, json: data });
   });
 }
 
@@ -69,7 +71,7 @@ test('timing helper distinguishes measured zero, partial task windows, unknown a
 
 for (const [label, sample] of [['measured', timing], ['unknown', undefined],
   ['partial', { ...timing, activeTaskSeconds: 25, activeTaskPrecision: 'partial', incompleteTaskCount: 1 }]]) {
-  test(`detail shows ${label} source timing without legacy execution/wait fallback`, async ({ page }, testInfo) => {
+  test(`detail shows ${label} source timing without legacy execution/wait fallback`, async ({ page }) => {
     await syntheticPage(page, { timingValue: sample === undefined ? null : sample });
     await page.goto(detailPath);
     await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
@@ -79,17 +81,29 @@ for (const [label, sample] of [['measured', timing], ['unknown', undefined],
     await expect(card).toContainText(sample ? 'Agent Turn 45s' : 'Agent Turn N/A');
     await expect(card).toContainText('Model Execution N/A');
     await expect(card).toContainText('Tool Execution N/A');
+    const disclosure = card.locator('[data-session-timing-note]');
+    const toggle = disclosure.locator('summary');
+    await expect(toggle).toHaveText('Timing details');
+    await expect(disclosure.locator('p')).toBeHidden();
+    await page.setViewportSize({ width: 390, height: 900 });
+    await toggle.focus();
+    await toggle.press('Enter');
+    await expect(disclosure.locator('p')).toBeVisible();
+    if (sample) {
+      await expect(disclosure).toContainText('Completed: 2');
+      await expect(disclosure).toContainText('recorded main-agent turn durations');
+      await expect(disclosure).not.toContainText(/main_task_windows|main_agent_turn_duration/);
+    }
     await expect(card).toContainText('Non-task Wall Time');
     await expect(card).not.toContainText('Waiting Time');
     await expect(card).toContainText('not model inference');
-    await expect(page.locator('.sd-kpi[aria-label="Cache Health"]')).toContainText('Low-cache Rounds N/A');
+    await expect(page.locator('.sd-kpi[aria-label="Cache Health"]')).toContainText('Low-cache rows N/A');
     await expect(card).toContainText('Non-task Wall Time: ' + (label === 'measured' ? '24h 58m' : 'N/A'));
-    for (const width of [1440, 800]) {
+    for (const width of [1440, 390]) {
       await page.setViewportSize({ width, height: 1100 });
       const overflow = await card.evaluate((element) => Array.from(element.querySelectorAll('.session-timing-note, .session-timing-value'))
         .some((part) => part.scrollWidth > part.clientWidth + 1));
       expect(overflow).toBe(false);
-      await page.screenshot({ path: testInfo.outputPath(`timing-${width}.png`), fullPage: true });
     }
   });
 }
@@ -116,6 +130,11 @@ for (const statistics of [
     await expect(card.locator('.metric-card__secondary-value')).toHaveText([
       String(statistics.eligibleSessions), statistics.eligibleSessions ? '0.0%' : 'N/A', String(statistics.lowReadSessions),
     ]);
+    const toggle = card.locator('[data-token-provenance] summary');
+    await expect(toggle).toHaveText('Measurement details');
+    await expect(card.locator('[data-cache-measurement]')).toBeHidden();
+    await toggle.click();
+    await expect(card.locator('[data-cache-measurement]')).toBeVisible();
     await expect(card.locator('[data-cache-measurement]')).toContainText(`Excluded: ${statistics.excludedSessions} sessions`);
     await expect(card.locator('[data-cache-measurement]')).toContainText('provider-reported input');
   });

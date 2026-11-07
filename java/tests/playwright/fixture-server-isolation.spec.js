@@ -25,4 +25,10 @@ test('[HOOK-HARNESS-016] Java fixture server only exposes synthetic Claude sessi
     'test-hifi-project',
     'synthetic/workspace/projects/feipi-session-browser',
   ]));
+  const scanResponse = await request.get('/api/scan-status');
+  expect(scanResponse.ok()).toBe(true);
+  const scan = await scanResponse.json();
+  expect(scan.status).toBe('success');
+  expect(scan.errorCount).toBe(0);
+  expect(scan.publishedDataAvailable).toBe(true);
 });

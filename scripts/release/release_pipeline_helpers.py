@@ -46,7 +46,7 @@ class Provenance:
 
     def validate(self):
         """拒绝非法身份，防止身份字段改变路径。"""
-        if not VERSION_PATTERN.fullmatch(self.version):
+        if not VERSION_PATTERN.fullmatch(self.version) or '..' in self.version:
             raise ValueError('invalid version')
         if not re.fullmatch(r'[0-9a-f]{40}', self.source_sha):
             raise ValueError('source SHA must be 40 lowercase hexadecimal characters')
@@ -124,6 +124,11 @@ def verify_manifest_against_files(manifest_path: Path, dist_dir: Path):
     entries, error = parse_manifest(manifest_path)
     if error:
         return False, [error]
+    errors = _manifest_errors(entries, dist_dir)
+    return not errors, errors
+
+
+def _manifest_errors(entries, dist_dir):
     errors = []
     if {p.name for p in _archives(dist_dir)} != {e.filename for e in entries}:
         errors.append('manifest/archive membership mismatch')
@@ -135,7 +140,7 @@ def verify_manifest_against_files(manifest_path: Path, dist_dir: Path):
             errors.append(f'size mismatch: {entry.filename}')
         elif compute_sha256(asset) != entry.sha256:
             errors.append(f'hash mismatch: {entry.filename}')
-    return not errors, errors
+    return errors
 
 
 def generate_manifest(directory: Path):
@@ -145,10 +150,33 @@ def generate_manifest(directory: Path):
         not _regular(p) or not ASSET_PATTERN.fullmatch(p.name) or '..' in p.name for p in assets
     ):
         raise ValueError('empty or unsafe archive set')
+    _write_manifest(directory, [_measure(asset) for asset in assets])
+
+
+def _measure(archive):
+    return ManifestEntry(compute_sha256(archive), archive.stat().st_size, archive.name)
+
+
+def _write_manifest(directory, entries):
     (directory / 'MANIFEST.SHA256').write_text(
-        ''.join(f'{compute_sha256(p)}  {p.stat().st_size}  {p.name}\n' for p in assets),
+        ''.join(
+            f'{entry.sha256}  {entry.size}  {entry.filename}\n'
+            for entry in sorted(entries, key=lambda entry: entry.filename)
+        ),
         encoding='utf-8',
     )
+
+
+def _copy_and_measure(source, target):
+    """散列实际写入私有 staging 的字节；不信任输入声明或文件时间。"""
+    digest = hashlib.sha256()
+    size = 0
+    with source.open('rb') as stream, target.open('xb') as output:
+        while chunk := stream.read(1024 * 1024):
+            output.write(chunk)
+            digest.update(chunk)
+            size += len(chunk)
+    return ManifestEntry(digest.hexdigest(), size, target.name)
 
 
 def _safe_path(name):
@@ -416,31 +444,40 @@ def sidecar(archive: Path, suffix: str):
     return archive.with_name(archive.name + suffix)
 
 
-def _identity(archive, provenance, platform):
+def _identity(entry, provenance, platform):
     return {
         **provenance.to_dict(),
         'platform': platform,
         'producer_platform': 'linux-x64' if platform == 'generic' else platform,
-        'filename': archive.name,
-        'sha256': compute_sha256(archive),
-        'size': archive.stat().st_size,
+        'filename': entry.filename,
+        'sha256': entry.sha256,
+        'size': entry.size,
     }
 
 
-def write_provenance(archive: Path, provenance: Provenance, platform: str):
+def write_provenance(
+    archive: Path, provenance: Provenance, platform: str, *, entry: ManifestEntry | None = None
+):
     """为准备后的资产写入来源与内容身份。"""
     sidecar(archive, '.provenance.json').write_text(
-        json.dumps(_identity(archive, provenance, platform), sort_keys=True) + '\n',
+        json.dumps(_identity(entry or _measure(archive), provenance, platform), sort_keys=True)
+        + '\n',
         encoding='utf-8',
     )
 
 
 def write_smoke_receipt(
-    archive: Path, provenance: Provenance, platform: str, version_output: str, help_output: str
+    archive: Path,
+    provenance: Provenance,
+    platform: str,
+    version_output: str,
+    help_output: str,
+    *,
+    entry: ManifestEntry | None = None,
 ):
     """记录已执行的原生验证输出；调用方必须先完成真实启动。"""
     data = {
-        **_identity(archive, provenance, platform),
+        **_identity(entry or _measure(archive), provenance, platform),
         'host_platform': platform,
         'version_output': version_output,
         'help_output': help_output,
@@ -469,10 +506,10 @@ def _read_json(path):
     return data
 
 
-def _check_metadata(archive, provenance, platform, smoke=False):
+def _check_metadata(archive, entry, provenance, platform, smoke=False):
     suffix = '.smoke.json' if smoke else '.provenance.json'
     data = _read_json(sidecar(archive, suffix))
-    expected = _identity(archive, provenance, platform)
+    expected = _identity(entry, provenance, platform)
     if smoke:
         expected.update(
             host_platform=platform,
@@ -491,7 +528,7 @@ def _check_metadata(archive, provenance, platform, smoke=False):
         raise ValueError(f'provenance/receipt mismatch: {archive.name}')
 
 
-def _inspect(archive, platform, version):
+def _inspect(archive, platform, version, *, smoke=False):
     with tempfile.TemporaryDirectory(prefix='release-inspect-') as temporary:
         destination = Path(temporary) / 'package'
         success, error = (safe_extract_zip if archive.name.endswith('.zip') else safe_extract_tar)(
@@ -499,16 +536,24 @@ def _inspect(archive, platform, version):
         )
         if not success:
             raise ValueError(error)
+        if smoke:
+            result = run_launcher_smoke_test(destination, platform, version)
+            if not result.success:
+                raise ValueError(result.error)
+            return result
         _structure(destination, platform, version)
+        return None
 
 
 def prepare_platform_artifact(
-    dist_dir: Path, output_dir: Path, platform: str, provenance: Provenance
+    dist_dir: Path, output_dir: Path, platform: str, provenance: Provenance, *, smoke=False
 ):
-    """从明确的构建目录选唯一资产，安全检查后输出独立平台目录。"""
-    provenance.validate()
+    """私有 staging 内一次散列、检查；原生可在同次解包执行真实 smoke。"""
+    filename = archive_name(provenance, platform)
     if platform == 'generic' and host_platform() != 'linux-x64':
         raise ValueError('generic must be prepared on linux-x64')
+    if smoke and (platform not in NATIVE_PLATFORMS or platform != host_platform()):
+        raise ValueError('native smoke requires matching host')
     source_name = (
         f'app-cli-{provenance.version}.zip'
         if platform == 'generic'
@@ -518,18 +563,38 @@ def prepare_platform_artifact(
     source = dist_dir / source_name
     if not _regular(source):
         raise ValueError(f'expected build archive missing: {source_name}')
-    if output_dir.exists():
+    if output_dir.exists() or output_dir.is_symlink():
         raise ValueError('output directory already exists')
-    _inspect(source, platform, provenance.version)
-    output_dir.mkdir(parents=True)
-    target = output_dir / archive_name(provenance, platform)
-    shutil.copyfile(source, target)
-    write_provenance(target, provenance, platform)
-    generate_manifest(output_dir)
-    return target
+    output_dir.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix='release-prepare-', dir=output_dir.parent) as temporary:
+        staging = Path(temporary) / 'candidate'
+        staging.mkdir()
+        target = staging / filename
+        entry = _copy_and_measure(source, target)
+        result = _inspect(target, platform, provenance.version, smoke=smoke)
+        write_provenance(target, provenance, platform, entry=entry)
+        if result is not None:
+            write_smoke_receipt(
+                target,
+                provenance,
+                platform,
+                result.launcher_version_output,
+                result.launcher_help_output,
+                entry=entry,
+            )
+        _write_manifest(staging, [entry])
+        staging.rename(output_dir)
+    return output_dir / filename
 
 
-def _candidate_assets(candidate, provenance):
+def _check_asset_metadata(archive, entry, provenance, platform):
+    _check_metadata(archive, entry, provenance, platform)
+    if platform != 'generic':
+        _check_metadata(archive, entry, provenance, platform, smoke=True)
+
+
+def _candidate_plan(candidate, provenance):
+    """先拒绝缺包、身份和元数据错误，再读取大归档。"""
     provenance.validate()
     if not candidate.is_dir() or candidate.is_symlink():
         raise ValueError('candidate directory missing or symlink')
@@ -538,28 +603,27 @@ def _candidate_assets(candidate, provenance):
     )
     if not groups or any(not p.is_dir() or p.is_symlink() for p in groups):
         raise ValueError('candidate requires flat manifest or one level of platform directories')
+    platforms = {
+        archive_name(provenance, platform): platform for platform in NATIVE_PLATFORMS | {'generic'}
+    }
     assets = {}
     for group in groups:
-        valid, errors = verify_manifest_against_files(group / 'MANIFEST.SHA256', group)
-        if not valid:
-            raise ValueError('; '.join(errors))
+        entries, error = parse_manifest(group / 'MANIFEST.SHA256')
+        if error:
+            raise ValueError(error)
         allowed = {'MANIFEST.SHA256'}
-        for archive in _archives(group):
-            platforms = [
-                p
-                for p in NATIVE_PLATFORMS | {'generic'}
-                if archive.name == archive_name(provenance, p)
-            ]
-            if len(platforms) != 1 or platforms[0] in assets:
+        for entry in entries:
+            archive = group / entry.filename
+            platform = platforms.get(entry.filename)
+            if platform is None or platform in assets:
                 raise ValueError(f'duplicate or unexpected package: {archive.name}')
-            platform = platforms[0]
-            _check_metadata(archive, provenance, platform)
-            _inspect(archive, platform, provenance.version)
+            if not _regular(archive) or archive.stat().st_size != entry.size:
+                raise ValueError(f'missing, nonregular or wrong-size archive: {archive.name}')
+            _check_asset_metadata(archive, entry, provenance, platform)
             allowed.update({archive.name, archive.name + '.provenance.json'})
             if platform != 'generic':
-                _check_metadata(archive, provenance, platform, smoke=True)
                 allowed.add(archive.name + '.smoke.json')
-            assets[platform] = archive
+            assets[platform] = archive, entry
         if {p.name for p in group.iterdir()} != allowed:
             raise ValueError('unexpected or missing candidate metadata')
     if set(assets) != NATIVE_PLATFORMS | {'generic'}:
@@ -570,7 +634,10 @@ def _candidate_assets(candidate, provenance):
 def verify_candidate_set(candidate_dir: Path, expected: Provenance):
     """在汇总边界复核输入清单、归档及四个原生验证凭据。"""
     try:
-        assets = _candidate_assets(candidate_dir, expected)
+        assets = _candidate_plan(candidate_dir, expected)
+        for platform, (archive, entry) in assets.items():
+            _require_matching_bytes(entry, _measure(archive))
+            _inspect(archive, platform, expected.version)
         return (
             True,
             [],
@@ -584,29 +651,35 @@ def verify_candidate_set(candidate_dir: Path, expected: Provenance):
         return False, [str(error)], {}
 
 
+def _require_matching_bytes(expected, actual):
+    if actual != expected:
+        raise ValueError(f'size or hash mismatch: {expected.filename}')
+
+
 def create_verified_candidate(
     candidate_dir: Path, expected: Provenance, output_dir: Path | None = None
 ):
-    """先验输入再复制五包，最后重验输出；失败不留下可发布目录。"""
+    """在复制到私有 staging 时核验输入字节，随后只检查 staging 归档。"""
     output_dir = output_dir or candidate_dir.parent / 'verified-candidate'
     try:
-        assets = _candidate_assets(candidate_dir, expected)
         if output_dir.exists() or output_dir.is_symlink():
             raise ValueError('output already exists')
+        assets = _candidate_plan(candidate_dir, expected)
         with tempfile.TemporaryDirectory(
             prefix='release-verified-', dir=output_dir.parent
         ) as temporary:
             staging = Path(temporary) / 'candidate'
             staging.mkdir()
-            for platform, archive in assets.items():
-                for source in [
-                    archive,
-                    sidecar(archive, '.provenance.json'),
-                    *([sidecar(archive, '.smoke.json')] if platform != 'generic' else []),
-                ]:
-                    shutil.copyfile(source, staging / source.name)
-            generate_manifest(staging)
-            _candidate_assets(staging, expected)
+            for platform, (archive, entry) in assets.items():
+                target = staging / archive.name
+                _require_matching_bytes(entry, _copy_and_measure(archive, target))
+                for suffix in ('.provenance.json', '.smoke.json'):
+                    if suffix == '.smoke.json' and platform == 'generic':
+                        continue
+                    shutil.copyfile(sidecar(archive, suffix), sidecar(target, suffix))
+                _check_asset_metadata(target, entry, expected, platform)
+                _inspect(target, platform, expected.version)
+            _write_manifest(staging, [entry for _, entry in assets.values()])
             staging.rename(output_dir)
         return True, [], output_dir
     except (ValueError, OSError, UnicodeError, TypeError) as error:
@@ -633,6 +706,7 @@ def main():
         if name == 'prepare':
             command.add_argument('--dist-dir', type=Path, required=True)
             command.add_argument('--output-dir', type=Path, required=True)
+            command.add_argument('--smoke', action='store_true')
         elif name == 'verify-archive':
             command.add_argument('--archive', type=Path, required=True)
         else:
@@ -655,7 +729,9 @@ def main():
         provenance.validate()
         if args.command == 'prepare':
             print(
-                prepare_platform_artifact(args.dist_dir, args.output_dir, args.platform, provenance)
+                prepare_platform_artifact(
+                    args.dist_dir, args.output_dir, args.platform, provenance, smoke=args.smoke
+                )
             )
         elif args.command == 'verify-archive':
             if not _regular(args.archive):
@@ -664,12 +740,16 @@ def main():
             sidecar(archive, '.smoke.json').unlink(missing_ok=True)
             if archive.name != archive_name(provenance, args.platform):
                 raise ValueError('archive name mismatch')
-            valid, errors = verify_manifest_against_files(
-                archive.parent / 'MANIFEST.SHA256', archive.parent
-            )
-            if not valid:
+            entries, error = parse_manifest(archive.parent / 'MANIFEST.SHA256')
+            if error:
+                raise ValueError(error)
+            entry = next((entry for entry in entries if entry.filename == archive.name), None)
+            if entry is None:
+                raise ValueError('archive absent from manifest')
+            _check_metadata(archive, entry, provenance, args.platform)
+            errors = _manifest_errors(entries, archive.parent)
+            if errors:
                 raise ValueError('; '.join(errors))
-            _check_metadata(archive, provenance, args.platform)
             with tempfile.TemporaryDirectory(prefix='release-smoke-') as temporary:
                 destination = Path(temporary) / 'package'
                 valid, error = (
@@ -688,6 +768,7 @@ def main():
                     args.platform,
                     result.launcher_version_output,
                     result.launcher_help_output,
+                    entry=entry,
                 )
                 print(json.dumps(asdict(result)))
         elif args.command == 'verify-candidate':

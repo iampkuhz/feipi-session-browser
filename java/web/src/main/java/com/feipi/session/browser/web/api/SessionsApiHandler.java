@@ -137,6 +137,7 @@ public final class SessionsApiHandler {
             row.outputTokens(),
             row.tokenProvenance()),
         row.roundCount(),
+        row.modelCallCount(),
         row.llmCallCount(),
         row.assistantMessageMeasured() ? row.assistantMessageCount() : null,
         row.contentMeasured() ? row.toolCallCount() : null,

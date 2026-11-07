@@ -37,14 +37,15 @@ Stop、SessionEnd、post-tool 或其他自动事件 SHALL NOT stage、commit、m
 
 ### Requirement: 显式且按范围的质量验证
 
-仓库 SHALL 通过 `python3 scripts/gates/cli.py` 提供统一 Gate 入口；本地工具不得在每次命令或 Stop 时隐式运行全量模式。
+仓库 SHALL 通过 `python3 scripts/gates/cli.py` 提供统一 Gate 入口。普通局部变更 SHALL 用最邻近的原生检查获得反馈，不强制 OpenSpec、委派或先跑整套 Gate。内部命名和非 Java 维护文字的语言偏好由评审处理，不作为启发式门禁；版本契约及现有 Java、隐私、安全和测试规则 SHALL 保留。
 
-#### Scenario: 代码变更准备交接
+#### Scenario: 当前 checkout 准备提交或交接
 
-- **Given** 变更已完成实现
+- **Given** checkout 有待交付差异
 - **When** Agent 准备提交或交接
-- **Then** Agent SHALL 使用 Gate Trigger 按变更范围选择检查
-- **And** Stop/handoff 前唯一交付命令 SHALL 为 `python3 scripts/gates/cli.py run --mode incremental`
+- **Then** Agent SHALL 显式运行 `python3 scripts/gates/cli.py run --mode incremental`，由默认 Git 快照对整个待交付工作区按 Trigger 选择检查
+- **And** 局部反馈、人工路径或旧 receipt SHALL NOT 替代交付验证，工具复用 SHALL 与实际测试执行区分
+- **And** 完整的根 `check` 已承接全模块测试与零跳过时，不重复执行相同产品测试
 
 ### Requirement: 真实验证状态
 

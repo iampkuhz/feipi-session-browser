@@ -17,6 +17,25 @@
 
   var DataTable = {};
 
+  /** Sessions and Project Detail use the same indexed count and evidence wording. */
+  DataTable.sessionRounds = function (row) {
+    var codex = row.agent === 'codex';
+    var count = row.modelCallCount;
+    if (!codex || count == null) {
+      return {
+        value: row.rounds == null ? '—' : Number(row.rounds).toLocaleString('en-US') + (codex ? ' groups' : ''),
+        note: codex ? 'Legacy index: model call boundaries need a rescan'
+          : 'Logical record groups, not a model API call count'
+      };
+    }
+    var partial = Number(row.llmCalls) > count;
+    return {
+      value: count > 0 ? Number(count).toLocaleString('en-US') + (partial ? '+' : '') : '—',
+      note: count > 0 ? 'Observed model call boundaries' + (partial ? '; other records have unconfirmed boundaries' : '')
+        : 'Model call boundaries unknown'
+    };
+  };
+
   /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`────────────────────────────────────────────── 排序 ──────────────────────────────────────────────` */
   DataTable.sort = function (table, colIndex, direction) {
     var tbody = table.querySelector('tbody');

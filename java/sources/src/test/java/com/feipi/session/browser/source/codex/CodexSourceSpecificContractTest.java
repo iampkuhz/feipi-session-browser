@@ -812,6 +812,25 @@ class CodexSourceSpecificContractTest {
   }
 
   @Test
+  void explicitNumericResponseIdsDoNotCollideWithUnidentifiedUsageOrdinals() throws IOException {
+    var records =
+        parseContentFixture(
+                """
+                {"type":"token_usage_record","payload":{"response_id":"1","turn_id":"same","usage":{"input_tokens":11}}}
+                {"type":"token_usage_record","payload":{"turn_id":"same","usage":{"input_tokens":13}}}
+                {"type":"token_usage_record","payload":{"response_id":"42","turn_id":"same","usage":{"input_tokens":17}}}
+                {"type":"token_usage_record","payload":{"response_id":"42","turn_id":"same","usage":{"input_tokens":99}}}
+                """)
+            .records();
+    var calls = records.stream().filter(r -> "assistant".equals(r.eventType())).toList();
+    assertThat(calls)
+        .extracting(r -> r.callId().orElseThrow())
+        .containsExactly("token_usage_record:1", "token_usage_ordinal:1", "token_usage_record:42");
+    assertThat(calls.stream().map(SourceRecord::locator).distinct()).hasSize(3);
+    assertThat(calls).extracting(r -> r.usage().inputTokens()).containsExactly(11L, 13L, 17L);
+  }
+
+  @Test
   @DisplayName("仅现代 usage 时不把 reasoning 或 assistant 文本重复建成调用")
   void modernOnlyUsageDefinesCallsInsteadOfResponseItems() throws IOException {
     SourceResult.Success success =

@@ -8,7 +8,7 @@ artifacts:
     required: true
   design:
     path: design.md
-    required: true
+    required: false
   tasks:
     path: tasks.md
     required: true

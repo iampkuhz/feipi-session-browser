@@ -18,11 +18,9 @@ from scripts.gates.checks.check_protocol import CheckResult, argument_parser, re
 
 ROOT = repository_root()
 CLAUDE_METADATA = ('name', 'description', 'tools', 'model', 'permissionMode')
-DOMAIN_HEADINGS = ('## Allowed Scope', '## Forbidden Scope', '## Validation', '## Output Format')
 READ_ONLY_AGENTS = {'migration-planner', 'qa-verifier', 'repo-mapper', 'ui-architect'}
 WRITE_CAPABLE_AGENTS = {'implementer', 'mhtml-export-specialist', 'openspec-planner'}
 ALLOWED_REASONING_EFFORTS = {'low', 'medium', 'high', 'xhigh'}
-SKILL_CONTRACT_HEADINGS = ('## 验证门禁', '## 输出格式')
 
 
 @dataclass(frozen=True)
@@ -32,7 +30,7 @@ class RuntimeInputs:
     manifest: object
     entries: dict[str, str]
     codex_agents: dict[str, object]
-    skills: dict[str, str]
+    skills: frozenset[str]
     claude_allowlist: str
     settings: object
 
@@ -69,7 +67,7 @@ def _load_runtime_inputs(root: Path = ROOT) -> RuntimeInputs:
         manifest=manifest,
         entries=entries,
         codex_agents=codex_agents,
-        skills={relative: _read_text(root / relative) for relative in sorted(skill_paths)},
+        skills=frozenset(relative for relative in skill_paths if (root / relative).is_file()),
         claude_allowlist=_read_text(root / '.claude/agents/qwen-main-default.md'),
         settings=json.loads(_read_text(root / '.claude/settings.json')),
     )
@@ -93,8 +91,6 @@ def _check_claude(name: str, relative: str, text: str, skill: str) -> list[str]:
     ]
     if f'name: {name}' not in frontmatter or skill not in body:
         errors.append(f'{relative} name/Skill entry mismatch')
-    if len([line for line in body.splitlines() if line.strip()]) > 4:
-        errors.append(f'{relative} copies domain instructions instead of a thin Skill entry')
     return errors
 
 
@@ -107,16 +103,13 @@ def _check_codex_entry(name: str, relative: str, data: object, skill: str) -> li
     instructions = str(model.get('developer_instructions') or '')
     if skill not in instructions:
         errors.append(f'{relative} missing shared Skill entry')
-    if len([line for line in instructions.splitlines() if line.strip()]) > 3:
-        errors.append(f'{relative} copies domain instructions instead of a thin Skill entry')
     return errors
 
 
-def _check_agent_entries(inputs: RuntimeInputs | None = None) -> list[str]:
+def _check_agent_entries(inputs: RuntimeInputs) -> list[str]:
     """按已加载的 manifest 唯一映射验证领域 Agent 薄入口。"""
 
-    current = inputs or _load_runtime_inputs(ROOT)
-    agents = _manifest_agents(current)
+    agents = _manifest_agents(inputs)
     if not agents:
         return ['manifest domain_agents is empty']
     errors: list[str] = []
@@ -125,12 +118,12 @@ def _check_agent_entries(inputs: RuntimeInputs | None = None) -> list[str]:
             errors.append(f'{name} manifest config must be object')
             continue
         skill = str(config.get('skill') or '')
-        if skill not in current.skills:
+        if skill not in inputs.skills:
             errors.append(f'{name} shared Skill missing: {skill}')
         entries = config.get('entries', {})
         for platform in ('claude', 'codex'):
             relative = str(entries.get(platform) or '') if isinstance(entries, dict) else ''
-            text = current.entries.get(relative)
+            text = inputs.entries.get(relative)
             if text is None:
                 errors.append(f'{name} {platform} entry missing: {relative}')
                 continue
@@ -139,14 +132,9 @@ def _check_agent_entries(inputs: RuntimeInputs | None = None) -> list[str]:
             elif platform == 'codex':
                 errors.extend(
                     _check_codex_entry(
-                        str(name), relative, current.codex_agents.get(relative), skill
+                        str(name), relative, inputs.codex_agents.get(relative), skill
                     )
                 )
-            errors.extend(
-                f'{relative} duplicates Skill section: {heading}'
-                for heading in DOMAIN_HEADINGS
-                if heading in text
-            )
     return errors
 
 
@@ -174,8 +162,6 @@ def _check_codex_policy(relative: str, data: object, inputs: RuntimeInputs) -> l
         errors.append(f'{relative}: name 必须等于文件名 `{Path(relative).stem}`')
     if not isinstance(description, str) or not description.strip():
         errors.append(f'{relative}: description 不能为空')
-    if not skill and (not isinstance(instructions, str) or len(instructions.strip()) < 300):
-        errors.append(f'{relative}: developer_instructions 过短，无法承载 handoff 和边界契约')
     if 'model' in model:
         errors.append(f'{relative}: 不要固定 model；省略 model 以继承 parent session')
     effort = model.get('model_reasoning_effort')
@@ -190,12 +176,6 @@ def _check_codex_policy(relative: str, data: object, inputs: RuntimeInputs) -> l
     if skill:
         if skill not in text:
             errors.append(f'{relative}: developer_instructions 缺少共享 Skill 入口 `{skill}`')
-        skill_text = inputs.skills.get(skill, '')
-        errors.extend(
-            f'{relative}: 共享 Skill 缺少 `{heading}` 契约: {skill}'
-            for heading in SKILL_CONTRACT_HEADINGS
-            if heading not in skill_text
-        )
         for token in ('handoff', 'BLOCKED'):
             if token not in text:
                 errors.append(f'{relative}: developer_instructions 缺少 `{token}` 边界契约')

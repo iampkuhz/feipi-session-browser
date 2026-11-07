@@ -186,7 +186,156 @@ async function closeRealPayload(modal) {
   await expect(modal).toBeHidden();
 }
 
-test('真实上传独立分析，重复同名/同来源 ID 不影响个人或已有导入', async ({ page, request }, testInfo) => {
+test('renders local Markdown as readable content with a separate verbatim view', async ({ page }) => {
+  const markdown = [
+    '[$fixture](/synthetic/skills/fixture/SKILL.md)',
+    '',
+    '| Metric | Value |', '| --- | --- |', '| Fresh | 7 |', '',
+    '- Measured', '', '```json', '{"literal":"[syntax](https://example.invalid)"}', '```', '',
+    '[related](http://127.0.0.1:18999/sessions/claude_code/hifi-viz-session-001)',
+    '[unsafe](javascript:alert(1))',
+    '![figure](https://example.invalid/pixel.png)',
+    '<img src=x onerror=alert(1)>',
+  ].join('\n');
+  const external = [];
+  const { import_id: importId } = await uploadAndOpen(page, 'claude_code', claudeJsonl(markdown));
+  await page.route('https://example.invalid/**', (route) => {
+    external.push(route.request().url());
+    return route.abort();
+  });
+  const button = page.locator('[data-trace-round-row]').first().getByRole('button', { name: 'Response', exact: true });
+  const response = page.waitForResponse((r) => new URL(r.url()).pathname.startsWith(`/api/imports/${importId}/payload/`));
+  await button.click();
+  expect((await response).ok()).toBe(true);
+  const modal = page.locator('dialog.payload-modal');
+  await expect(modal.getByRole('cell', { name: '7', exact: true })).toBeVisible({ timeout: 2500 });
+  await expect(modal.getByRole('columnheader').first()).toHaveCSS('border-bottom-width', '1px');
+  await expect(modal.locator('[data-payload-subtitle]')).toBeHidden();
+  await expect(modal.getByRole('listitem')).toHaveText('Measured');
+  await expect(modal.locator('pre code')).toContainText('[syntax]');
+  await expect(modal.getByRole('link', { name: 'related' })).toHaveAttribute('href', '/sessions/claude_code/hifi-viz-session-001');
+  await expect(modal.locator('img, [href^="javascript:"], [href*="SKILL.md"]')).toHaveCount(0);
+  expect(external).toEqual([]);
+  const raw = modal.locator('details[data-payload-raw]');
+  await expect(raw.locator('pre')).toBeHidden();
+  await raw.locator('summary').click();
+  await expect(raw.locator('pre')).toContainText('| Fresh | 7 |');
+  await expect(raw.locator('pre')).toContainText('<img src=x onerror=alert(1)>');
+});
+
+test('request reading view excludes typed injected context and tool results but preserves the raw record', async ({ page }) => {
+  const records = claudeJsonl('synthetic-reader').trim().split('\n').map(JSON.parse);
+  const injected = { ...records[0], uuid: 'synthetic-injection', isMeta: true,
+    message: { role: 'user', content: 'SYNTHETIC INJECTED CONTEXT' } };
+  const tool = { ...records[0], uuid: 'synthetic-tool-result',
+    message: { role: 'user', content: [
+      { type: 'tool_result', tool_use_id: 'synthetic-tool', content: 'SYNTHETIC TOOL RESULT' },
+    ] } };
+  const jsonl = [records[0], injected, tool, records[1]].map(JSON.stringify).join('\n') + '\n';
+  await uploadAndOpen(page, 'claude_code', jsonl);
+  await page.locator('[data-trace-round-row]').first().getByRole('button', { name: 'Request', exact: true }).click();
+  const modal = page.locator('dialog.payload-modal');
+  const reading = modal.locator('.sd-content-block');
+  await expect(reading).toContainText('Synthetic import request: synthetic-reader', { timeout: 2500 });
+  await expect(reading).not.toContainText(/SYNTHETIC INJECTED CONTEXT|SYNTHETIC TOOL RESULT/);
+  await modal.locator('details[data-payload-raw] summary').click();
+  await expect(modal.locator('details[data-payload-raw] pre')).toContainText('SYNTHETIC INJECTED CONTEXT');
+  await expect(modal.locator('details[data-payload-raw] pre')).toContainText('SYNTHETIC TOOL RESULT');
+});
+
+test('Codex request keeps quoted context tags and separates a standalone environment envelope with unconfirmed origin', async ({ page }) => {
+  const records = codexJsonl().trim().split('\n').map(JSON.parse);
+  const message = (text) => ({ type: 'response_item', payload: { type: 'message', role: 'user',
+    content: [{ type: 'input_text', text }] } });
+  const envelope = '<environment_context>\nSYNTHETIC ENVIRONMENT ONLY\n</environment_context>';
+  const userText = [
+    'Synthetic user discussion of <environment_context>.',
+    '', '```xml', '<environment_context>', 'SYNTHETIC FENCED EXAMPLE', '</environment_context>', '```',
+    '', '<environment_context>', 'SYNTHETIC QUOTED EXAMPLE', '</environment_context>', 'Synthetic user text outside the tag.',
+  ].join('\n');
+  records.splice(2, 1, message(envelope), message(userText));
+  await uploadAndOpen(page, 'codex', records.map(JSON.stringify).join('\n') + '\n');
+  await page.locator('[data-trace-round-row]').first().getByRole('button', { name: 'Request', exact: true }).click();
+  const modal = page.locator('dialog.payload-modal');
+  const reading = modal.locator('.sd-content-block');
+  await expect(reading).toContainText('Synthetic user discussion');
+  await expect(reading).toContainText('SYNTHETIC FENCED EXAMPLE');
+  await expect(reading).toContainText('SYNTHETIC QUOTED EXAMPLE');
+  await expect(reading).toContainText('Synthetic user text outside the tag.');
+  await expect(reading).not.toContainText('SYNTHETIC ENVIRONMENT ONLY');
+  const raw = modal.locator('details[data-payload-raw]');
+  await expect(raw.locator('summary')).toContainText('归属无法确认');
+  await expect(raw.locator('pre')).toBeHidden();
+  await raw.locator('summary').click();
+  await expect(raw.locator('pre')).toContainText(envelope);
+});
+
+test('Codex unclosed project wrapper keeps the fence and user question in reading view', async ({ page }) => {
+  const records = codexJsonl().trim().split('\n').map(JSON.parse);
+  const text = '# AGENTS.md instructions for synthetic\n<INSTRUCTIONS>\n```xml\n</INSTRUCTIONS>\n```\n请解释上面的标签。';
+  records[2].payload.content[0].text = text;
+  await uploadAndOpen(page, 'codex', records.map(JSON.stringify).join('\n') + '\n');
+  await page.locator('[data-trace-round-row]').first().getByRole('button', { name: 'Request', exact: true }).click();
+  const body = page.locator('dialog.payload-modal .sd-reading-markdown');
+  await expect(body.locator('h1')).toHaveText('AGENTS.md instructions for synthetic');
+  await expect(body.locator('pre code')).toHaveText('</INSTRUCTIONS>');
+  await expect(body.locator('p').last()).toHaveText('请解释上面的标签。');
+});
+
+test('Codex mixed project instructions preserve user text and use local Markdown typography', async ({ page }) => {
+  const records = codexJsonl().trim().split('\n').map(JSON.parse);
+  const project = '# AGENTS.md instructions for /synthetic/project\n\n<INSTRUCTIONS>\n## Synthetic project rules\n- Synthetic context, not a task.\n\n```xml\n</INSTRUCTIONS>\n```\n</INSTRUCTIONS>';
+  const user = '# Synthetic request\n\nPlease review the fixture below.\n\n- Keep this item\n- Keep this long inline path: `/synthetic/' + 'pathsegment'.repeat(16) + '`';
+  const environment = '<environment_context>\nSynthetic environment\n</environment_context>';
+  records[2].payload.content[0].text = project + environment + '\n\n' + user;
+  await page.setViewportSize({ width: 390, height: 850 });
+  await uploadAndOpen(page, 'codex', records.map(JSON.stringify).join('\n') + '\n');
+  await page.locator('[data-trace-round-row]').first().getByRole('button', { name: 'Request', exact: true }).click();
+  const modal = page.locator('dialog.payload-modal');
+  const body = modal.locator('.sd-reading-markdown');
+  await expect(body.locator('h1')).toHaveText('Synthetic request');
+  await expect(body.locator('li')).toHaveCount(2);
+  await expect(body).not.toContainText(/Synthetic project rules|Synthetic environment/);
+  expect(await body.locator('h1').evaluate(e => parseFloat(getComputedStyle(e).fontSize))).toBeLessThanOrEqual(21);
+  expect(await body.evaluate(e => e.scrollWidth <= e.clientWidth + 1 && parseFloat(getComputedStyle(e.querySelector('ul')).paddingInlineStart) >= 18)).toBe(true);
+  const raw = modal.locator('[data-payload-raw]');
+  await expect(raw.locator('summary')).toContainText('项目说明');
+  await raw.locator('summary').click();
+  await expect(raw.locator('pre')).toContainText(project + environment);
+  await expect(raw.locator('pre')).toContainText(user);
+});
+
+test('Codex page-open marker and attachment path do not compete with the request heading', async ({ page }) => {
+  const records = codexJsonl().trim().split('\n').map(JSON.parse);
+  const input = (text) => ({ type: 'input_text', text });
+  const marker = '<external_codex_apps_open_page>{"page_id":null}</external_codex_apps_open_page>';
+  const path = '/synthetic/' + 'pathsegment/'.repeat(12) + 'synthetic-notes.md';
+  const record = (text) => ({ ...records[2], payload: { ...records[2].payload, content: [input(text)] } });
+  records.splice(2, 1, record(marker), record([
+    '', '# Synthetic attachments', '', '## synthetic-notes.md: ' + path, '',
+    '## Actual request', '', 'Read only this text.', '',
+    'I am quoting ' + marker + ' in prose.',
+  ].join('\n')));
+  await page.setViewportSize({ width: 390, height: 850 });
+  await uploadAndOpen(page, 'codex', records.map(JSON.stringify).join('\n') + '\n');
+  await page.locator('[data-trace-round-row]').first().getByRole('button', { name: 'Request', exact: true }).click();
+  const body = page.locator('dialog.payload-modal .sd-reading-markdown');
+  const details = body.locator('details.sd-reading-page-marker');
+  await expect(details.locator('summary')).toContainText('来源未确认');
+  await expect(details.locator('pre')).toBeHidden();
+  await details.locator('summary').press('Enter');
+  await expect(details.locator('pre')).toHaveText(marker);
+  await expect(body.locator('p').last()).toContainText(marker);
+  const file = body.locator('.sd-reading-file-heading');
+  const filename = file.locator('.sd-reading-file-name');
+  const localPath = file.locator('.sd-reading-file-path');
+  await expect(filename).toHaveText('synthetic-notes.md:');
+  await expect(localPath).toHaveText(path);
+  expect(await localPath.evaluate(e => e.scrollWidth > e.clientWidth && e.getBoundingClientRect().height <= 22)).toBe(true);
+  await expect(body.getByRole('heading', { name: 'Actual request' })).toBeVisible();
+});
+
+test('真实上传独立分析，重复同名/同来源 ID 不影响个人或已有导入', async ({ page, request }) => {
   const before = await personalSnapshot(request);
   const requested = [];
   page.on('request', (req) => {
@@ -196,44 +345,36 @@ test('真实上传独立分析，重复同名/同来源 ID 不影响个人或已
 
   await page.goto('/imports');
   await expect(page.getByRole('heading', { name: '导入单个会话文件', exact: true })).toBeVisible();
-  await page.screenshot({ path: testInfo.outputPath('import-upload-desktop.png'), fullPage: true });
   const first = await uploadAndOpen(page, 'claude_code', claudeJsonl('first'), 'shared-synthetic.jsonl');
   const firstPath = new URL(page.url()).pathname;
   await expect(page.locator('[aria-label="Total Tokens"] .sd-kpi__value')).toHaveText('23');
   await expect(page.locator('[data-import-scope]')).toContainText('仅本文件分析');
-  await page.screenshot({ path: testInfo.outputPath('import-detail-desktop.png'), fullPage: true });
   await expandFirstRound(page);
-
-  const modal = page.locator('dialog.payload-modal');
-  for (const kind of ['request', 'response']) {
-    const attribution = page.locator(
-      `button[data-action="open-payload"][data-payload-kind="llm.${kind}_attribution"]:visible`,
-    ).first();
-    await expect(attribution).toBeVisible();
-    const attributionResponse = page.waitForResponse((response) => {
-      const path = new URL(response.url()).pathname;
-      return path.startsWith(`/api/imports/${first.import_id}/attribution/`) && path.endsWith(`/${kind}`);
-    });
-    await attribution.click();
-    expect((await attributionResponse).ok()).toBe(true);
-    await expect(modal).toHaveAttribute('data-attribution-state', 'success');
-    await expect(modal.locator('[data-attribution-card="advanced"]')).toContainText(
-      'Timing、coverage、bucket 分布与 credit 归因在当前数据源中未记录。',
-    );
-    await page.keyboard.press('Escape');
-  }
 
   const round = page.locator('[data-trace-round-row]').first();
   for (const sample of [
-    { title: 'Request', kind: 'llm_request', text: 'Synthetic import request: first' },
-    { title: 'Response', kind: 'llm_response', text: 'Synthetic import response: first' },
+    { title: 'Request', side: 'request', kind: 'llm_request', text: 'Synthetic import request: first' },
+    { title: 'Response', side: 'response', kind: 'llm_response', text: 'Synthetic import response: first' },
   ]) {
-    const opened = await openRealPayload(
-      page, round.getByRole('button', { name: sample.title, exact: true }), first.import_id, sample.title,
-    );
+    const button = round.getByRole('button', { name: sample.title, exact: true });
+    const path = await button.getAttribute('data-attribution-path');
+    expect(path).toBeTruthy();
+    const attributionResponse = page.waitForResponse((response) =>
+      response.url().endsWith(`/api/imports/${first.import_id}${path}`));
+    const opened = await openRealPayload(page, button, first.import_id, sample.title);
     expect(opened.payload.kind).toBe(sample.kind);
     expect(opened.payload.text || opened.payload.content).toContain(sample.text);
     await expect(opened.block.locator('pre')).toContainText(sample.text);
+    const response = await attributionResponse;
+    expect(response.ok()).toBe(true);
+    const attribution = await response.json();
+    expect(attribution.kind).toBe(`llm.${sample.side}_attribution`);
+    expect(attribution.data.callId).toBe('synthetic-import-assistant');
+    const disclosure = opened.modal.locator(`[data-payload-attribution="${sample.side}"]`);
+    await expect(disclosure).toHaveAttribute('data-attribution-call', attribution.data.callId);
+    await disclosure.locator('summary').press('Enter');
+    await expect(disclosure.locator('.sd-kv').first()).toBeVisible();
+    await expect(disclosure).toContainText(sample.side === 'request' ? '新鲜输入' : '输出');
     await closeRealPayload(opened.modal);
   }
 
@@ -329,11 +470,10 @@ test('解析失败可以重试，换成有效文件后恢复真实分析', async
   await readImportedPage(page, 'claude_code', new URL(response.url()).origin);
 });
 
-test('恶意文件名和正文保持文本显示，窄宽范围提示不溢出', async ({ page }, testInfo) => {
+test('恶意文件名和正文保持文本显示，窄宽范围提示不溢出', async ({ page }) => {
   await page.setViewportSize({ width: 850, height: 900 });
   await page.goto('/imports');
   await expect(page.getByRole('heading', { name: '导入单个会话文件', exact: true })).toBeVisible();
-  await page.screenshot({ path: testInfo.outputPath('import-upload-narrow.png'), fullPage: true });
   const filename = 'synthetic-<img src=x onerror=window.importXss=true>.jsonl';
   const attack = '<img src=x onerror=window.importBodyXss=true><script>window.importBodyXss=true</script>';
   const imported = await uploadAndOpen(page, 'claude_code', claudeJsonl(attack), filename);
@@ -346,7 +486,6 @@ test('恶意文件名和正文保持文本显示，窄宽范围提示不溢出',
   });
   expect(geometry.left).toBeGreaterThanOrEqual(0);
   expect(geometry.right).toBeLessThanOrEqual(geometry.viewport);
-  await page.screenshot({ path: testInfo.outputPath('import-detail-narrow.png'), fullPage: true });
   await expandFirstRound(page);
   const round = page.locator('[data-trace-round-row]').first();
   for (const title of ['Request', 'Response']) {

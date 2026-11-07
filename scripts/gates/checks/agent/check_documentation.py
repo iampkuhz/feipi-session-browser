@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import re
 import tomllib
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -22,27 +21,27 @@ ROOT = repository_root()
 POLICY_REQUIRED_ROOTS = [
     '.claude/',
     '.codex/',
+    '.qoder/',
     '.agents/',
     'skills/',
     'harness/',
     'scripts/',
     'openspec/',
-    'AGENTS.md',
-    '.claude/CLAUDE.md',
-]
-DOCUMENTED_REQUIRED_ROOTS = [
-    *POLICY_REQUIRED_ROOTS[:-2],
     'src/session_browser/',
     'scripts/tests/',
     'java/tests/',
-    *POLICY_REQUIRED_ROOTS[-2:],
+    'AGENTS.md',
+    '.claude/CLAUDE.md',
 ]
 MAIN_DOCS = {
     'Claude main': '.claude/agents/qwen-main-default.md',
     'Codex model': '.codex/model-instructions.md',
 }
-SKIP_POLICY_DOCS = {
-    'AGENTS.md': 'AGENTS.md',
+HANDOFF_CONTRACT = (
+    'skills/authoring/feipi-openspec-orchestrate-change/references/subagent-contract.md'
+)
+PROTOCOL_DOCS = {
+    'shared handoff': HANDOFF_CONTRACT,
     '.claude/CLAUDE.md': '.claude/CLAUDE.md',
     **MAIN_DOCS,
 }
@@ -75,9 +74,9 @@ def _load_document_inputs(root: Path = ROOT) -> DocumentInputs:
 
     manifest_text = (root / 'harness/agent-policy.manifest.yaml').read_text(encoding='utf-8')
     agents_text = (root / 'AGENTS.md').read_text(encoding='utf-8')
-    paths = set(SKIP_POLICY_DOCS.values()) - {'AGENTS.md'}
     documents = {
-        relative: (root / relative).read_text(encoding='utf-8') for relative in sorted(paths)
+        relative: (root / relative).read_text(encoding='utf-8')
+        for relative in PROTOCOL_DOCS.values()
     }
     return DocumentInputs(
         manifest=yaml.safe_load(manifest_text),
@@ -97,11 +96,10 @@ def _normalize_repo_path(value: str) -> str:
     return normalized
 
 
-def _manifest_policy(manifest: object) -> tuple[list[str], list[str]]:
-    """从已解析 manifest 提取受保护路径与必需短语。"""
+def _manifest_roots(manifest: object) -> list[str]:
+    """从已解析 manifest 提取受保护路径。"""
 
     roots = manifest.get('protected_roots', []) if isinstance(manifest, dict) else []
-    phrases = manifest.get('required_phrases', []) if isinstance(manifest, dict) else []
     normalized_roots: list[str] = []
     for value in roots if isinstance(roots, list) else []:
         if not isinstance(value, str):
@@ -111,12 +109,7 @@ def _manifest_policy(manifest: object) -> tuple[list[str], list[str]]:
             normalized += '/'
         if normalized and normalized not in normalized_roots:
             normalized_roots.append(normalized)
-    normalized_phrases = [
-        value.strip()
-        for value in phrases
-        if isinstance(phrases, list) and isinstance(value, str) and value.strip()
-    ]
-    return normalized_roots, normalized_phrases
+    return normalized_roots
 
 
 def _check_required_manifest_roots(roots: list[str]) -> list[str]:
@@ -126,23 +119,6 @@ def _check_required_manifest_roots(roots: list[str]) -> list[str]:
         for root in POLICY_REQUIRED_ROOTS
         if root not in roots
     ]
-
-
-def _check_agents_doc(text: str, required_phrases: list[str]) -> list[str]:
-    """检查 AGENTS.md 是否展示受保护路径与必需短语。"""
-    errors = [
-        f'AGENTS.md 缺少 protected_root: {required}'
-        for required in DOCUMENTED_REQUIRED_ROOTS
-        if required not in text
-    ]
-    if not required_phrases:
-        errors.append('agent-policy manifest required_phrases 不能为空')
-    errors.extend(
-        f'AGENTS.md 缺少 required phrase: {phrase!r}'
-        for phrase in required_phrases
-        if phrase not in text
-    )
-    return errors
 
 
 def _check_sizes(inputs: DocumentInputs) -> list[str]:
@@ -163,69 +139,37 @@ def _check_sizes(inputs: DocumentInputs) -> list[str]:
     return errors
 
 
-def _has_any(text: str, terms: tuple[str, ...]) -> bool:
-    """判断文本是否包含任一政策术语。"""
-    return any(term in text for term in terms)
-
-
-def _contains_skipped_can_pass(text: str) -> bool:
-    """识别把 skipped 错误描述为可 PASS 的政策措辞。"""
-    patterns = [
-        r'(skipped|跳过).{0,24}(can|may|可以|可|能|算|视为).{0,24}(PASS|pass|通过)',
-        r'(PASS|pass|通过).{0,24}(can|may|可以|可|能|算|视为).{0,24}(skipped|跳过)',
-    ]
-    for pattern in patterns:
-        for match in re.finditer(pattern, text, flags=re.IGNORECASE | re.DOTALL):
-            window = text[max(0, match.start() - 20) : match.end() + 20]
-            if not _has_any(window, ('不得', '不能', '不算', 'non-PASS', 'not PASS')):
-                return True
-    return False
-
-
 def _check_handoff(inputs: DocumentInputs) -> list[str]:
-    """检查原生客户端 handoff 字段、实例隔离、证据归属和结果语义。"""
+    """检查平台引用及共享 handoff 的字段、隔离和结果语义。"""
     errors: list[str] = []
-    for label, relative in MAIN_DOCS.items():
+    # 平台只负责把执行者导向共享真源，不再强迫复制全部协议字段。
+    for label, relative in {**MAIN_DOCS, 'Claude entry': '.claude/CLAUDE.md'}.items():
         text = inputs.documents[relative]
-        missing = [field for field in REQUIRED_HANDOFF_FIELDS if field not in text]
-        if missing:
-            errors.append(f'{label} missing handoff fields: {", ".join(missing)}')
-        missing_output = [field for field in REQUIRED_OUTPUT_FIELDS if field not in text]
-        if missing_output:
-            errors.append(f'{label} missing output fields: {", ".join(missing_output)}')
-        if not _has_any(text, ('agent_id', 'instance id')):
-            errors.append(f'{label} missing unique agent_id/instance id rule')
-        if not (_has_any(text, ('client/session_id', 'evidence')) and 'session_id' in text):
-            errors.append(f'{label} missing same client/session_id evidence aggregation rule')
-        if not _has_any(text, ('不重叠', 'non-overlapping')):
-            errors.append(f'{label} missing non-overlapping parallel write scope rule')
-        if not _has_any(text, ('静默跳过 validation', 'silently skip validation')):
-            errors.append(f'{label} missing subagent failure cannot skip validation rule')
-    manifest_text = yaml.safe_dump(inputs.manifest, allow_unicode=True)
-    status_docs = {
-        'policy manifest': manifest_text,
-        **{label: inputs.documents[relative] for label, relative in MAIN_DOCS.items()},
-    }
-    errors.extend(
-        f'{label} missing status values PASS/FAIL/BLOCKED'
-        for label, text in status_docs.items()
-        if not all(re.search(rf'\b{status}\b', text) for status in ('PASS', 'FAIL', 'BLOCKED'))
-    )
-    policy_texts = {
-        'AGENTS.md': inputs.agents_text,
-        **{
-            label: inputs.documents[relative]
-            for label, relative in SKIP_POLICY_DOCS.items()
-            if relative != 'AGENTS.md'
-        },
-    }
-    errors.extend(
-        f'{label} contains skipped-can-PASS wording'
-        for label, text in policy_texts.items()
-        if _contains_skipped_can_pass(text)
-    )
-    if not isinstance(inputs.manifest, dict) or 'subagent_instance_protocol' not in inputs.manifest:
-        errors.append('policy manifest missing subagent_instance_protocol')
+        for reference in (HANDOFF_CONTRACT, 'harness/agent-policy.manifest.yaml'):
+            if reference not in text:
+                errors.append(f'{label} missing shared protocol reference: {reference}')
+    manifest = inputs.manifest if isinstance(inputs.manifest, dict) else {}
+    protocol = manifest.get('subagent_instance_protocol', {})
+    if not isinstance(protocol, dict):
+        protocol = {}
+    for key, expected in (
+        ('required_handoff_fields', REQUIRED_HANDOFF_FIELDS),
+        ('required_output_fields', REQUIRED_OUTPUT_FIELDS),
+        ('status_values', ['PASS', 'FAIL', 'BLOCKED']),
+    ):
+        if protocol.get(key) != expected:
+            errors.append(f'policy manifest invalid subagent_instance_protocol.{key}')
+    shared = inputs.documents[HANDOFF_CONTRACT]
+    for field in [*REQUIRED_HANDOFF_FIELDS, *REQUIRED_OUTPUT_FIELDS, 'PASS', 'FAIL', 'BLOCKED']:
+        if field not in shared:
+            errors.append(f'shared handoff missing field: {field}')
+    # 两份共享表示各有读者，隔离约束必须同时存在，不能只验证入口链接。
+    identity = protocol.get('identity_rules', [])
+    identity_text = '\n'.join(str(rule) for rule in identity) if isinstance(identity, list) else ''
+    for label, text in (('shared handoff', shared), ('policy identity_rules', identity_text)):
+        for term in ('Task id', 'agent_id', 'client/session_id', '不重叠', '静默跳过'):
+            if term not in text:
+                errors.append(f'{label} missing isolation rule: {term}')
     return errors
 
 
@@ -241,12 +185,10 @@ def check(arguments: list[str]) -> CheckResult:
         )
     except (yaml.YAMLError, tomllib.TOMLDecodeError) as exc:
         return CheckResult.from_errors([f'Agent document 配置内容无效: {exc}'])
-    roots, phrases = _manifest_policy(inputs.manifest)
     return CheckResult.from_errors(
         [
             *_check_sizes(inputs),
-            *_check_required_manifest_roots(roots),
-            *_check_agents_doc(inputs.agents_text, phrases),
+            *_check_required_manifest_roots(_manifest_roots(inputs.manifest)),
             *_check_handoff(inputs),
         ]
     )

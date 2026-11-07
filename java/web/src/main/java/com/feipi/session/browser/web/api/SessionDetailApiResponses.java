@@ -1,9 +1,11 @@
 package com.feipi.session.browser.web.api;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.feipi.session.browser.domain.normalized.SessionTiming;
 import com.feipi.session.browser.query.api.PayloadSource;
 import com.feipi.session.browser.web.api.PageApiDtos.PageStateDto;
 import com.feipi.session.browser.web.api.PageApiDtos.TokenSegments;
+import com.feipi.session.browser.web.template.SafeMarkdownRenderer;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -117,6 +119,12 @@ public final class SessionDetailApiResponses {
       String cacheKey,
       Map<String, Object> parity,
       PageStateDto state) {
+
+    /** 返回适合详情页阅读的安全标题，不覆盖原字段。 */
+    @JsonProperty("displayTitle")
+    public SafeMarkdownRenderer.Title displayTitle() {
+      return SafeMarkdownRenderer.title(title);
+    }
 
     /** 校验字段和业务不变量。 */
     public SessionMetaResponse {
@@ -261,6 +269,8 @@ public final class SessionDetailApiResponses {
    * @param schemaVersion 响应 schema 版本号。
    * @param filters 规范化后的过滤条件。
    * @param roundCount round 数量。
+   * @param modelCallCount 具备模型调用边界证据的数量。
+   * @param recordGroupCount 未确定为独立模型调用的记录组数量。
    * @param rounds round 列表。
    * @param state 页面或 API 状态描述。
    */
@@ -268,6 +278,8 @@ public final class SessionDetailApiResponses {
       String schemaVersion,
       SessionDetailFilterEcho filters,
       long roundCount,
+      long modelCallCount,
+      long recordGroupCount,
       List<RoundIndexDto> rounds,
       PageStateDto state) {
 

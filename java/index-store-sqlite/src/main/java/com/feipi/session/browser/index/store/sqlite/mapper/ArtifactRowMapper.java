@@ -1,11 +1,15 @@
 package com.feipi.session.browser.index.store.sqlite.mapper;
 
+import com.feipi.session.browser.domain.normalized.NormalizedAgent;
+import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
 import com.feipi.session.browser.domain.normalized.SessionTiming;
 import com.feipi.session.browser.domain.normalized.TokenProvenance;
+import com.feipi.session.browser.index.api.query.ContentRoundIndex;
 import com.feipi.session.browser.index.api.query.RoundAssembler;
 import com.feipi.session.browser.index.store.sqlite.row.SessionArtifactRow;
 import com.feipi.session.browser.index.store.sqlite.row.SessionRow;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -64,6 +68,9 @@ public final class ArtifactRowMapper {
         artifact.agent().getValue(),
         aggregate,
         RoundAssembler.buildRounds(artifact, users).size(),
+        artifact.agent() == NormalizedAgent.CODEX
+            ? modelCalls(artifact.agent(), artifact.calls())
+            : null,
         fileMtime,
         filePath);
   }
@@ -76,10 +83,14 @@ public final class ArtifactRowMapper {
       throws java.io.IOException {
     Objects.requireNonNull(content, "content");
     var aggregate = new ContentSessionAggregate();
+    var agent = content.header().agent();
+    boolean codex = agent == NormalizedAgent.CODEX;
+    long modelCalls = 0;
     try (var cursor = content.openCursor()) {
       while (cursor.hasNext()) {
         var unit = cursor.next();
         unit.calls().forEach(aggregate::add);
+        if (codex) modelCalls += modelCalls(agent, unit.calls());
         unit.toolExecutions().forEach(aggregate::add);
         aggregate.sequenceObserved |=
             unit.sourceUnitSequences().stream().anyMatch(v -> !v.keys().isEmpty());
@@ -87,11 +98,20 @@ public final class ArtifactRowMapper {
     }
     Map<String, Object> session = content.header().session();
     long users = count(session, "userMessageCount", aggregate.mainCalls);
-    int rounds =
-        com.feipi.session.browser.index.api.query.ContentRoundIndex.build(content, users)
-            .roundCount();
     return toRow(
-        session, content.header().agent().getValue(), aggregate, rounds, fileMtime, filePath);
+        session,
+        agent.getValue(),
+        aggregate,
+        ContentRoundIndex.build(content, users).roundCount(),
+        codex ? modelCalls : null,
+        fileMtime,
+        filePath);
+  }
+
+  private static long modelCalls(NormalizedAgent agent, List<NormalizedCall> calls) {
+    return calls.stream()
+        .filter(call -> !ContentRoundIndex.modelCallEvidence(agent, call).isEmpty())
+        .count();
   }
 
   private static SessionRow toRow(
@@ -99,6 +119,7 @@ public final class ArtifactRowMapper {
       String agent,
       ContentSessionAggregate aggregate,
       long rounds,
+      Long modelCalls,
       double fileMtime,
       String filePath) {
     long users = count(session, "userMessageCount", aggregate.mainCalls);
@@ -152,7 +173,8 @@ public final class ArtifactRowMapper {
         measured ? aggregate.calls : null,
         measured,
         Boolean.TRUE.equals(session.get("userMessageCountMeasured")),
-        Boolean.TRUE.equals(session.get("assistantMessageCountMeasured")));
+        Boolean.TRUE.equals(session.get("assistantMessageCountMeasured")),
+        modelCalls);
   }
 
   private static long count(Map<String, Object> session, String key, long fallback) {

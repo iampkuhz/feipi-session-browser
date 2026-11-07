@@ -1,5 +1,6 @@
 """RecipeStep 到 CommandInvocation 的 typed adapter contract。"""
 
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -16,12 +17,26 @@ def _write_wrapper(root: Path, platform: str | None = None) -> Path:
     return wrapper
 
 
+def test_non_python_arguments_do_not_probe_python(tmp_path: Path, monkeypatch) -> None:
+    def unexpected_python(*args, **kwargs):
+        raise AssertionError('Unrelated Python discovery')
+
+    monkeypatch.setattr(command_adapter, '_project_python', unexpected_python)
+    assert command_adapter._expand('--parallel', tmp_path) == '--parallel'
+    assert command_adapter._expand('--workers={playwright_workers}', tmp_path).startswith(
+        '--workers='
+    )
+
+
 def _adapt(gate_name: str, root: Path, monkeypatch):
     monkeypatch.setattr(command_adapter, '_project_python', lambda _root, dev=False: '/tmp/python')
     gate = gate_by_name(gate_name)
+    step = gate.recipe.steps[0]
+    if gate_name == 'scanCommandSmoke':
+        step = replace(step, prerequisite_tasks=(':java:app:installDist',))
     return command_adapter.adapt_recipe_step(
         gate,
-        gate.recipe.steps[0],
+        step,
         root,
         mode=ExecutionMode.INCREMENTAL,
         changed_files=('scripts/a.py',),
@@ -66,7 +81,7 @@ def test_scan_step_freezes_two_real_processes(tmp_path: Path, monkeypatch) -> No
 
 def test_playwright_adapter_freezes_base_url(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(command_adapter, '_project_python', lambda _root, dev=False: '/tmp/python')
-    gate = gate_by_name('browserVisualTests')
+    gate = gate_by_name('browserTests')
     (invocation,) = command_adapter.adapt_recipe_step(
         gate,
         gate.recipe.steps[0],
@@ -143,3 +158,68 @@ def test_other_platform_wrapper_is_not_a_fallback(
     _write_wrapper(tmp_path, 'linux' if platform == 'win32' else 'win32')
     monkeypatch.setattr(command_adapter.sys, 'platform', platform)
     assert _adapt('webResourceContracts', tmp_path, monkeypatch) == ()
+
+
+def test_web_rules_are_one_gradle_invocation_with_all_rules(tmp_path: Path, monkeypatch) -> None:
+    _write_wrapper(tmp_path)
+    gate = gate_by_name('webStaticRules')
+    invocations = tuple(
+        invocation
+        for step in gate.recipe.steps
+        for invocation in command_adapter.adapt_recipe_step(gate, step, tmp_path, mode='full')
+    )
+    assert len(invocations) == 1
+    assert (
+        '-PfeipiJavaQualityRules=raw-innerhtml,layout-inline-style,template-contract,static-resource-contract,css-ownership'
+        in invocations[0].argv
+    )
+
+
+def test_scan_without_prerequisite_is_one_pytest_process(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(command_adapter, '_project_python', lambda _root, dev=False: '/tmp/python')
+    gate = gate_by_name('scanCommandSmoke')
+    step = replace(gate.recipe.steps[0], prerequisite_tasks=())
+    (invocation,) = command_adapter.adapt_recipe_step(gate, step, tmp_path, mode='full')
+    assert invocation.kind == 'scan-smoke'
+    assert invocation.argv[:3] == ('/tmp/python', '-m', 'pytest')
+
+
+@pytest.mark.parametrize(
+    ('mode', 'changes', 'expected'),
+    (
+        ('incremental', ('scripts/tests/checks/test_removed.py',), ('checks',)),
+        ('incremental', ('scripts/tests/future/test_new.py',), ('.',)),
+        ('incremental', ('scripts/tests/conftest.py',), ('.',)),
+        ('incremental', ('scripts/gates/execution/new_consumer.py',), ('.',)),
+        ('incremental', ('scripts/uv.lock',), ('.',)),
+        (
+            'incremental',
+            ('scripts/tests/quality/test_added.py', 'scripts/gates/presentation/new_report.py'),
+            ('gates', 'quality', 'test_added.py'),
+        ),
+        (
+            'incremental',
+            ('scripts/gates/checks/agent/new_check.py',),
+            ('checks', 'gates', 'test_added.py'),
+        ),
+        ('full', (), ('.',)),
+    ),
+)
+def test_framework_uses_native_discovery_for_leaf_and_shared_inputs(
+    tmp_path, monkeypatch, mode, changes, expected
+):
+    monkeypatch.setattr(command_adapter, '_project_python', lambda _root, dev=False: '/tmp/python')
+    tests = tmp_path / 'scripts/tests'
+    for name in ('checks', 'gates', 'quality'):
+        (tests / name).mkdir(parents=True)
+    (tests / 'test_added.py').touch()
+    gate = gate_by_name('gateFrameworkTests')
+    (invocation,) = command_adapter.adapt_recipe_step(
+        gate, gate.recipe.steps[0], tmp_path, mode=mode, changed_files=changes
+    )
+    args = invocation.argv[invocation.argv.index('error') + 1 :]
+    assert (
+        tuple(Path(path).relative_to('scripts/tests').as_posix() for path in args[2:]) == expected
+    )
+    smoke = gate_by_name('scanCommandSmoke').recipe.steps[0].tests
+    assert args[:2] == tuple(f'--ignore={path}' for path in smoke)

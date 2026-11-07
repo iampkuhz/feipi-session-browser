@@ -171,9 +171,23 @@
   margin: 0;
   font-size: 17px;
   font-weight: 860;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.sd-hero h1 a {
+  text-decoration: underline;
+}
+.sd-title-original {
+  margin-block: 4px;
+  font-size: 12px;
+  color: var(--sd-muted);
+}
+.sd-title-original summary {
+  cursor: pointer;
+}
+.sd-title-original pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .sd-hero__meta {
   display: flex;

@@ -50,6 +50,11 @@ public interface SessionRecord {
   /** 返回会话的运行时来源标识。 */
   String source();
 
+  /** 返回确认的调用边界数；旧索引或不支持的来源为未知。 */
+  default Long modelCallCount() {
+    return null;
+  }
+
   /** 返回实测逻辑轮数，旧索引或缺内容为未知。 */
   default Long roundCount() {
     return null;

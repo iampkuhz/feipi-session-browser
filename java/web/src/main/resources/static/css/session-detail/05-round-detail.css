@@ -670,3 +670,16 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+.sd-tool-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  margin: 0 0 8px;
+  color: var(--text-subtle);
+  font-size: 12px;
+}
+
+[data-tool-execution-kind][hidden] {
+  display: none;
+}

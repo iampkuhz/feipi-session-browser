@@ -230,8 +230,16 @@ class WebStaticResourceContractTest {
         .contains(
             "class=\"agents-cell\"",
             "class=\"agents-cell__inner\"",
-            "tokenbar-seg fresh",
-            "Token Breakdown");
+            "class=\"token-cell\"",
+            "TokenProvenance.renderCell(");
+    assertThat(resource("static/js/token-provenance.js"))
+        .contains(
+            "tokenbar-seg",
+            "Share of shown total",
+            "Fresh input",
+            "Cache read",
+            "Cache write",
+            "Output");
     assertThat(cssBlock(css, ".p-projects .agents-cell"))
         .contains("vertical-align: middle;")
         .doesNotContain("display: flex");
@@ -309,8 +317,8 @@ class WebStaticResourceContractTest {
     assertThat(cssBlock(headerCss, ".sd-hero__top"))
         .contains("flex-direction: column;", "min-width: 0;", "max-width: 100%;");
     assertThat(cssBlock(headerCss, ".sd-hero h1"))
-        .contains("white-space: nowrap;", "overflow: hidden;", "text-overflow: ellipsis;")
-        .doesNotContain("overflow-wrap: anywhere", "word-break: break-all");
+        .contains("min-width: 0;", "overflow-wrap: anywhere;")
+        .doesNotContain("white-space: nowrap", "word-break: break-all");
   }
 
   /** 从测试 classpath 读取生产资源；缺失资源直接形成可读断言。 */

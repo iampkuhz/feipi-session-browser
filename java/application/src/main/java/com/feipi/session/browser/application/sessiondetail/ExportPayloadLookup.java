@@ -99,7 +99,13 @@ final class ExportPayloadLookup implements AutoCloseable {
             catalog.put(
                 item.getKey(),
                 new CatalogText(
-                    request, visible, write(PayloadCallContentExtractor.catalogEntryText(entry))));
+                    request,
+                    visible,
+                    PayloadCallContentExtractor.isReadingEntry(
+                        entry, java.util.Optional.empty(), request),
+                    PayloadCallContentExtractor.isReadingEntry(
+                        entry, java.util.Optional.of(request ? "user" : "assistant"), request),
+                    write(PayloadCallContentExtractor.catalogEntryText(entry))));
           }
           Map<?, ?> payload = entry.payload() instanceof Map<?, ?> map ? map : Map.of();
           if ("response".equals(entry.direction().getValue())) collectInputs(payload);
@@ -134,6 +140,11 @@ final class ExportPayloadLookup implements AutoCloseable {
   String catalogText(String key, boolean request) throws IOException {
     var value = catalog.get(key);
     return value != null && value.request() == request && value.visible() ? read(value.text()) : "";
+  }
+
+  boolean isReadingText(String key, boolean hasRole) {
+    var value = catalog.get(key);
+    return value != null && (hasRole ? value.readingWithRole() : value.reading());
   }
 
   void forEachRef(SourceUnitRefRange range, RefConsumer action) throws IOException {
@@ -204,10 +215,13 @@ final class ExportPayloadLookup implements AutoCloseable {
    * 目录首次出现的方向和正文偏移。
    *
    * @param request 是否属于请求方向
-   * @param visible 是否允许作为调用正文显示
+   * @param visible 是否包含在原始调用记录中
+   * @param reading 没有区间角色时是否属于对话正文
+   * @param readingWithRole 有匹配区间角色时是否属于对话正文
    * @param text 正文的磁盘位置
    */
-  private record CatalogText(boolean request, boolean visible, Offset text) {}
+  private record CatalogText(
+      boolean request, boolean visible, boolean reading, boolean readingWithRole, Offset text) {}
 
   /**
    * 工具参数的名称及正文偏移，不在内存保留正文。

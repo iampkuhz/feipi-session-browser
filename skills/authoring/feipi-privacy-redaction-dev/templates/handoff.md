@@ -36,7 +36,7 @@
 - `python3 scripts/gates/cli.py run --mode incremental --gate testDataPrivacy`
 - `python3 scripts/gates/cli.py run --mode incremental --gate credentialLeakScan`
 - `python3 scripts/gates/cli.py run --mode incremental --gate governanceLayoutValidation`
-- `python3 scripts/harness/validate_harness_structure.py`
+- `python3 scripts/openspec/validate_layout.py`
 - `bash scripts/harness/doctor.sh`
 
 ## Expected output

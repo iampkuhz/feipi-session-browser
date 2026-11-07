@@ -114,7 +114,13 @@ def test_stall_exit_zero_fails_all_layers_despite_later_pass(tmp_path: Path) -> 
     assert gate_payload['recipeSteps'][1]['status'] == 'PASS'
 
 
-def test_stalled_prerequisite_preserves_reason_and_skips_dependent_command(tmp_path: Path) -> None:
+def test_stalled_prerequisite_preserves_reason_and_skips_dependent_command(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        'scripts.gates.execution.run_orchestrator.resolve_java_environment',
+        lambda root, overrides: dict(overrides),
+    )
     steps = tuple(
         RecipeStep(name, RecipeStepKind.COMMAND, argv=('tool',))
         for name in ('dependent', 'independent')
@@ -215,3 +221,73 @@ def test_reserved_frozen_environment_cannot_be_overridden(tmp_path: Path) -> Non
         assert 'cannot override frozen GatePlan' in str(exc)
     else:
         raise AssertionError('reserved environment override should fail')
+
+
+def test_java_environment_is_resolved_once_and_forwarded(tmp_path: Path, monkeypatch) -> None:
+    step = RecipeStep('java', RecipeStepKind.COMMAND, argv=('tool',))
+    invocation = replace(_invocation('java'), kind='gradle-prerequisite')
+    calls = []
+    frozen = {'JAVA_HOME': '/jdk25', 'PATH': '/jdk25/bin:/bin'}
+
+    def resolve(root, overrides):
+        calls.append((root, overrides))
+        return frozen
+
+    observed = []
+    fake = _supervisor(iter((0, 0)), [])
+
+    def supervise(invocation, **kwargs):
+        observed.append(kwargs['environment_overrides'])
+        return fake(invocation, **kwargs)
+
+    monkeypatch.setattr(
+        'scripts.gates.execution.run_orchestrator.resolve_java_environment', resolve
+    )
+    plan = _plan(_gate(step), (invocation, replace(invocation, invocation_id='second')))
+    orchestrate_gate_run(plan, tmp_path, supervisor=supervise)
+    assert len(calls) == 1
+    assert observed == [frozen, frozen]
+
+
+def test_python_plan_never_resolves_java(tmp_path: Path, monkeypatch) -> None:
+    def unexpected(*args):
+        raise AssertionError('Python-only plan must not discover Java')
+
+    monkeypatch.setattr(
+        'scripts.gates.execution.run_orchestrator.resolve_java_environment', unexpected
+    )
+    step = RecipeStep('python', RecipeStepKind.COMMAND, argv=('tool',))
+    orchestrate_gate_run(
+        _plan(_gate(step), (_invocation('python'),)),
+        tmp_path,
+        supervisor=_supervisor(iter((0,)), []),
+    )
+
+
+def test_failed_prerequisite_preserves_owner_reason(tmp_path: Path, monkeypatch) -> None:
+    from scripts.gates.execution.outcome_classifier import classify_owner_outcome
+
+    monkeypatch.setattr(
+        'scripts.gates.execution.run_orchestrator.classify_owner_outcome',
+        lambda invocation, observation: replace(
+            classify_owner_outcome(invocation, observation), reason='owner-failure'
+        ),
+    )
+    monkeypatch.setattr(
+        'scripts.gates.execution.run_orchestrator.resolve_java_environment',
+        lambda root, overrides: dict(overrides),
+    )
+    step = RecipeStep('dependent', RecipeStepKind.COMMAND, argv=('tool',))
+    prerequisite = replace(_invocation('dependent'), kind='gradle-prerequisite')
+    observed = []
+    result = orchestrate_gate_run(
+        _plan(_gate(step), (prerequisite, _invocation('dependent'))),
+        tmp_path,
+        supervisor=_supervisor(iter((1,)), observed),
+    )[0]
+    dependent = result.step_results[0]
+    owner = dependent.invocation_results[0]
+    assert owner.reason
+    assert dependent.reason == owner.reason
+    assert dependent.reason != 'dependency-unavailable'
+    assert observed == ['dependent']

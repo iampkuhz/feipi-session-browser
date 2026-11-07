@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.feipi.session.browser.domain.enums.CallScope;
 import com.feipi.session.browser.domain.normalized.NormalizedAgent;
 import com.feipi.session.browser.domain.normalized.NormalizedConstants;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
@@ -586,8 +587,10 @@ class NormalizationEngineTest {
         MAPPER
             .createObjectNode()
             .put("type", "assistant")
-            .put("id", "token_usage_record:synthetic-child")
+            .put("id", "token_usage_record:42")
             .put("locator", "main/subagents/agent-worker.jsonl#event[0]");
+    ObjectNode unidentified =
+        MAPPER.createObjectNode().put("type", "assistant").put("id", "token_usage_ordinal:42");
     ObjectNode childUser =
         MAPPER
             .createObjectNode()
@@ -598,13 +601,26 @@ class NormalizationEngineTest {
     NormalizedSessionArtifact artifact =
         ENGINE.normalize(
             NormalizedAgent.CODEX,
-            TestSourceRecords.records(legacy, modern, message, child, childUser),
+            TestSourceRecords.records(legacy, modern, unidentified, message, child, childUser),
             List.of(),
             List.of());
 
     assertThat(artifact.session()).containsEntry("assistantMessageCount", 1L);
     assertThat(artifact.session()).containsEntry("userMessageCount", 0L);
-    assertThat(artifact.calls()).hasSize(3);
+    assertThat(artifact.calls()).hasSize(4);
+    assertThat(artifact.calls())
+        .filteredOn(call -> call.scope() == CallScope.SUBAGENT)
+        .singleElement()
+        .satisfies(
+            call ->
+                assertThat(call.attributionCandidates())
+                    .containsEntry("modelCallEvidence", "response_usage"));
+    assertThat(artifact.calls())
+        .filteredOn(call -> call.callId().equals("token_usage_ordinal:42"))
+        .singleElement()
+        .satisfies(
+            call ->
+                assertThat(call.attributionCandidates()).doesNotContainKey("modelCallEvidence"));
   }
 
   @Nested

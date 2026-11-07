@@ -54,9 +54,6 @@
         <div class="metric-card__body">
             <div class="metric-card__label-row"><span class="metric-card__label">Sessions</span></div>
             <div class="metric-card__value mono">Loading…</div>
-            <div class="metric-card__secondary">
-                <div class="metric-card__secondary-row"><span class="metric-card__secondary-label">Source</span><span class="metric-card__secondary-value">API</span></div>
-            </div>
         </div>
     </div>
     <div class="metric-card">
@@ -64,9 +61,6 @@
         <div class="metric-card__body">
             <div class="metric-card__label-row"><span class="metric-card__label">Agents</span></div>
             <div class="metric-card__value mono">Loading…</div>
-            <div class="metric-card__secondary">
-                <div class="metric-card__secondary-row"><span class="metric-card__secondary-label">Source</span><span class="metric-card__secondary-value">API</span></div>
-            </div>
         </div>
     </div>
     <div class="metric-card">
@@ -74,9 +68,6 @@
         <div class="metric-card__body">
             <div class="metric-card__label-row"><span class="metric-card__label">Total Tokens</span></div>
             <div class="metric-card__value mono">Loading…</div>
-            <div class="metric-card__secondary">
-                <div class="metric-card__secondary-row"><span class="metric-card__secondary-label">Source</span><span class="metric-card__secondary-value">API</span></div>
-            </div>
         </div>
     </div>
     <div class="metric-card">
@@ -84,9 +75,6 @@
         <div class="metric-card__body">
             <div class="metric-card__label-row"><span class="metric-card__label">Cache Read Ratio</span></div>
             <div class="metric-card__value mono">Loading…</div>
-            <div class="metric-card__secondary">
-                <div class="metric-card__secondary-row"><span class="metric-card__secondary-label">Source</span><span class="metric-card__secondary-value">API</span></div>
-            </div>
         </div>
     </div>
     <div class="metric-card">
@@ -94,9 +82,6 @@
         <div class="metric-card__body">
             <div class="metric-card__label-row"><span class="metric-card__label">Failed Tools</span></div>
             <div class="metric-card__value mono">Loading…</div>
-            <div class="metric-card__secondary">
-                <div class="metric-card__secondary-row"><span class="metric-card__secondary-label">Source</span><span class="metric-card__secondary-value">API</span></div>
-            </div>
         </div>
     </div>
 </div>
@@ -114,23 +99,23 @@
         <svg class="project-token-area-chart" viewBox="0 0 100 100" role="img" aria-label="Project token trend stacked area chart" preserveAspectRatio="none" data-api-source="/api/projects/{projectKey}/token-trend"></svg>
         <div class="project-chart-legend" aria-label="Token trend legend"><span><i class="legend-dot legend-dot--fresh"></i>Fresh</span><span><i class="legend-dot legend-dot--read"></i>Cache Read</span><span><i class="legend-dot legend-dot--write"></i>Cache Write</span><span><i class="legend-dot legend-dot--out"></i>Output</span></div>
         <div class="project-trend-points" aria-live="polite">
-            <span class="muted">Loading token trend from API…</span>
+            <span class="muted">Loading token trend…</span>
         </div>
     </article>
 
     <article class="project-analysis-card">
         <header class="project-analysis-card__header"><h2>Agent Mix</h2></header>
         <div class="agent-mix-bar" role="img" aria-label="Agent mix by sessions">
-            <span class="muted">Loading agent mix from API…</span>
+            <span class="muted">Loading agent mix…</span>
         </div>
         <div class="agent-mix-list" aria-live="polite">
-            <div class="state-strip" role="status"><div class="state-icon" aria-hidden="true">⏳</div><div><div class="state-title">Loading agent mix</div><div class="muted">Agent mix rows are loaded from /api/projects/{projectKey}/agent-mix.</div></div></div>
+            <div class="state-strip" role="status"><div class="state-icon" aria-hidden="true">⏳</div><div><div class="state-title">Loading agent mix</div></div></div>
         </div>
     </article>
 
     <article class="project-analysis-card">
         <header class="project-analysis-card__header"><h2>Tool Hotspots</h2></header>
-        <div class="state-strip" data-project-tool-hotspots role="status" aria-live="polite"><div class="state-icon" aria-hidden="true">🧰</div><div><div class="state-title">Tool hotspot data unavailable</div><div class="muted">Loaded from /api/projects/{projectKey}/tool-hotspots.</div></div></div>
+        <div class="state-strip" data-project-tool-hotspots role="status" aria-live="polite"><div class="state-icon" aria-hidden="true">🧰</div><div><div class="state-title">Loading tool hotspots</div></div></div>
     </article>
 </section>
 
@@ -148,7 +133,7 @@
         </div>
         <div class="table-wrap">
             <table id="project-sessions-table" class="data-table project-sessions-table" data-table-enhanced role="table" aria-label="Project sessions table">
-                <thead><tr><th>Session</th><th>Agent</th><th>Model</th><th class="numeric sortable" data-action="sort" data-sort="tokens">Tokens <span class="c-data-table__sort-icon" aria-hidden="true"></span></th><th class="numeric sortable" data-action="sort" data-sort="rounds">Rounds <span class="c-data-table__sort-icon" aria-hidden="true"></span></th><th class="numeric sortable" data-action="sort" data-sort="tools">Tools <span class="c-data-table__sort-icon" aria-hidden="true"></span></th><th class="numeric sortable" data-action="sort" data-sort="subagents">Subagents <span class="c-data-table__sort-icon" aria-hidden="true"></span></th><th class="numeric sortable" data-action="sort" data-sort="duration">Wall Duration <span class="c-data-table__sort-icon" aria-hidden="true"></span></th><th class="numeric sortable" data-action="sort" data-sort="process-time">Task Active <span class="c-data-table__sort-icon" aria-hidden="true"></span></th><th class="numeric sortable" data-action="sort" data-sort="failure">Failure <span class="c-data-table__sort-icon" aria-hidden="true"></span></th><th class="sortable" data-action="sort" data-sort="created">Created <span class="c-data-table__sort-icon" aria-hidden="true"></span></th><th class="sortable" data-action="sort" data-sort="updated">Updated <span class="c-data-table__sort-icon" aria-hidden="true"></span></th></tr></thead>
+                <thead><tr><th>Session</th><th>Agent</th><th>Model</th><th class="numeric sortable" data-action="sort" data-sort="tokens">Tokens <span class="c-data-table__sort-icon" aria-hidden="true"></span></th><th class="numeric sortable" data-action="sort" data-sort="rounds">Rounds / groups <span class="c-data-table__sort-icon" aria-hidden="true"></span></th><th class="numeric sortable" data-action="sort" data-sort="tools">Tools <span class="c-data-table__sort-icon" aria-hidden="true"></span></th><th class="numeric sortable" data-action="sort" data-sort="subagents">Subagents <span class="c-data-table__sort-icon" aria-hidden="true"></span></th><th class="numeric sortable" data-action="sort" data-sort="duration">Wall Duration <span class="c-data-table__sort-icon" aria-hidden="true"></span></th><th class="numeric sortable" data-action="sort" data-sort="process-time">Task Active <span class="c-data-table__sort-icon" aria-hidden="true"></span></th><th class="numeric sortable" data-action="sort" data-sort="failure">Failure <span class="c-data-table__sort-icon" aria-hidden="true"></span></th><th class="sortable" data-action="sort" data-sort="created">Created <span class="c-data-table__sort-icon" aria-hidden="true"></span></th><th class="sortable" data-action="sort" data-sort="updated">Updated <span class="c-data-table__sort-icon" aria-hidden="true"></span></th></tr></thead>
                 <tbody>
                     <tr><td colspan="12">
                         <div class="empty-state" role="status" aria-live="polite">

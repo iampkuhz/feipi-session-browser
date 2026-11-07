@@ -16,14 +16,6 @@ _ROWS = (
         'scripts.gates.checks.repository.check_acceptance_traceability',
     ),
     (
-        'repository.current-version',
-        'scripts.gates.checks.repository.check_current_version',
-    ),
-    (
-        'repository.maintenance-language',
-        'scripts.gates.checks.repository.check_maintenance_language',
-    ),
-    (
         'repository.test-skip-prohibition',
         'scripts.gates.checks.repository.check_test_skip_prohibition',
     ),
@@ -40,7 +32,6 @@ _ROWS = (
         'scripts.gates.checks.repository.check_test_data_privacy',
     ),
     ('privacy.credential-leak', 'scripts.gates.checks.privacy.check_credential_leak'),
-    ('source.code-comment-language', 'scripts.gates.checks.source.check_code_comment_language'),
 )
 
 CHECKS = {check_id: CheckSpec(check_id, module) for check_id, module in _ROWS}

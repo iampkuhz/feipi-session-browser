@@ -19,7 +19,7 @@
 | Gate | Result |
 |---|---|
 | `webResourceContracts` | <PASS/BLOCKED/FAIL/NOT_RUN> |
-| `browserBehaviorTests` | <PASS/BLOCKED/FAIL/NOT_RUN> |
+| `browserTests` | <PASS/BLOCKED/FAIL/NOT_RUN> |
 | fixture-based 导出测试 | <PASS/BLOCKED/FAIL/NOT_RUN> |
 | `agentConfigurationPolicy` | <PASS/BLOCKED/FAIL/NOT_RUN> |
 

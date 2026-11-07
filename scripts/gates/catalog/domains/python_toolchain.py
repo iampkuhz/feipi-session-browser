@@ -2,6 +2,7 @@
 
 由 Catalog registry 调用并汇总这些声明。"""
 
+from scripts.gates.catalog.domains.session_pipeline import SCAN_SMOKE_TESTS
 from scripts.gates.catalog.gate_contracts import Gate
 from scripts.gates.catalog.recipe_dsl import (
     changed,
@@ -10,15 +11,15 @@ from scripts.gates.catalog.recipe_dsl import (
     recipe,
 )
 
+PYTHON_ENVIRONMENT_PATHS = ('scripts/pyproject.toml', 'scripts/uv.lock', 'scripts/.python-version')
+
 GATES = (
     Gate(
         name='scriptToolchainQuality',
-        description='统一检查 Python 格式、静态问题、依赖声明、安全与死代码，以及 Shell 语法。',
+        description='检查 Python 格式、静态问题、依赖声明、安全与死代码。',
         trigger=changed(
-            'scripts/pyproject.toml',
+            *PYTHON_ENVIRONMENT_PATHS,
             'scripts/**/*.py',
-            'scripts/tests/**/*.py',
-            'scripts/**/*.sh',
         ),
         target_presets=('gate-infrastructure',),
         recipe=recipe(
@@ -44,12 +45,6 @@ GATES = (
                 '--config',
                 '{tool_config}',
                 '.',
-            ),
-            command(
-                'bashSyntax',
-                'bash',
-                '-n',
-                append_globs=('scripts/**/*.sh',),
             ),
             command(
                 'pythonDependencyDeclarations',
@@ -84,20 +79,33 @@ GATES = (
         ),
     ),
     Gate(
+        name='bashSyntax',
+        description='逐一解析 Shell 脚本，不执行脚本内容。',
+        trigger=changed('scripts/**/*.sh'),
+        target_presets=('gate-infrastructure',),
+        recipe=recipe(
+            10,
+            20,
+            command(
+                'bashSyntax',
+                'bash',
+                '-ec',
+                'for script; do bash -n -- "$script"; done',
+                'bashSyntax',
+                append_globs=('scripts/**/*.sh',),
+            ),
+        ),
+    ),
+    Gate(
         name='gateFrameworkTests',
-        description='运行 Harness、Gate 与质量契约的固定 Pytest 单测集合。',
+        description='运行受影响的 Pytest 契约；共享或未知输入使用完整发现。',
         trigger=changed(
-            'scripts/pyproject.toml',
+            *PYTHON_ENVIRONMENT_PATHS,
             'scripts/gates/**/*.py',
-            'scripts/gates/checks/**/*.py',
             'scripts/harness/**/*.py',
+            'scripts/harness/java_env.sh',
             'scripts/openspec/**/*.py',
-            'scripts/tests/gates/**/*.py',
-            'scripts/tests/checks/**/*.py',
-            'scripts/tests/harness/**/*.py',
-            'scripts/tests/misc/**/*.py',
-            'scripts/tests/quality/**/*.py',
-            'scripts/tests/*.py',
+            'scripts/tests/**/*.py',
         ),
         target_presets=('gate-infrastructure',),
         recipe=recipe(
@@ -114,19 +122,9 @@ GATES = (
                 '{repo_root}',
                 '-W',
                 'error',
-                'scripts/tests/harness',
-                'scripts/tests/gates',
-                'scripts/tests/checks',
-                'scripts/tests/quality',
-                'scripts/tests/misc',
-                required_paths=(
-                    'scripts/tests/harness',
-                    'scripts/tests/gates',
-                    'scripts/tests/checks',
-                    'scripts/tests/quality',
-                    'scripts/tests/misc',
-                ),
-                append_globs=('scripts/tests/test_*.py',),
+                *(f'--ignore={path}' for path in SCAN_SMOKE_TESTS),
+                'scripts/tests',
+                required_paths=('scripts/tests',),
             ),
         ),
     ),

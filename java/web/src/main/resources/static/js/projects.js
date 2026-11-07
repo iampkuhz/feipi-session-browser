@@ -147,12 +147,6 @@
         return date.toLocaleString([], { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' });
     }
 
-    function segmentPct(tokens, key) {
-        var total = Number(tokens && tokens.total || 0);
-        if (!total) return 0;
-        return Math.round(Number(tokens[key] || 0) * 1000 / total) / 10;
-    }
-
     function normalizeProjectParams(params) {
         var cleaned = new URLSearchParams();
         params.forEach(function(value, key) {
@@ -308,13 +302,13 @@
             escapeHtml(row.projectKey || ''), '</span><button class="path-copy-btn" data-action="copy" data-copy-text="', escapeHtml(row.projectKey), '" title="Copy full path" aria-label="Copy project path">Copy</button></div></td>',
             '<td class="agents-cell"><span class="agents-cell__inner">', agentBadges(row), '</span></td>',
             '<td class="numeric mono"><strong>', formatNumber(row.totalSessions), '</strong></td>',
-            projectTokenCell(tokens),
+            '<td class="token-cell"></td>',
             '<td class="numeric mono" data-tooltip="', escapeHtml(contentCoverageDescription(row.contentSampleCount, row.totalSessions)), '">', escapeHtml(observedContentCount(row.toolCalls, row.contentSampleCount, row.totalSessions)), row.contentSampleCount > 0 && Number(row.failedTools || 0) > 0 ? '<span class="badge err tools-failed" data-tooltip="' + escapeHtml(row.failedTools) + ' failed tool results">' + escapeHtml(row.failedTools) + ' failed</span>' : '', '</td>',
             '<td class="numeric mono" data-tooltip="', escapeHtml(contentCoverageDescription(row.contentSampleCount, row.totalSessions)), '">', escapeHtml(observedContentCount(row.failedTools, row.contentSampleCount, row.totalSessions)), '</td>',
             '<td class="text-xs text-muted" title="', escapeHtml(row.firstSeen), '">', escapeHtml(formatDate(row.firstSeen)), '</td>',
             '<td class="text-xs text-muted">', escapeHtml(formatDate(row.lastSeen)), '</td>'
         ].join(''));
-        TokenProvenance.attach(tr.querySelector('.token-cell'), tokens);
+        TokenProvenance.renderCell(tr.querySelector('.token-cell'), tokens, formatCompact);
         return tr;
     }
 
@@ -339,30 +333,28 @@
         return { cls: 'qd', dot: 'qoder', shortLabel: 'QD' };
     }
 
-    function projectTokenCell(tokens) {
-        var freshPct = segmentPct(tokens, 'fresh');
-        var readPct = segmentPct(tokens, 'cacheRead');
-        var writePct = segmentPct(tokens, 'cacheWrite');
-        var outPct = segmentPct(tokens, 'output');
-        return '<td class="token-cell"><div class="token-total"><span class="token-total__value">' + escapeHtml(TokenProvenance.total(tokens, formatCompact))
-            + '</span><span class="tokenbar" aria-label="Token Breakdown" title="Token Breakdown"><span class="tokenbar-seg fresh" style="--segment-width:' + freshPct
-            + '%"></span><span class="tokenbar-seg read" style="--segment-width:' + readPct
-            + '%"></span><span class="tokenbar-seg write" style="--segment-width:' + writePct
-            + '%"></span><span class="tokenbar-seg out" style="--segment-width:' + outPct + '%"></span></span></div></td>';
-    }
-
     function renderProjectPagination(pagination) {
         var nav = document.querySelector('#projects-table').closest('.table-card').querySelector('.pagination');
+        renderPagination(nav, pagination, 'projects');
+    }
+
+    function renderPagination(nav, pagination, itemLabel) {
         if (!nav || !pagination) return;
+        var selected = Number(pagination.pageSize);
+        var sizes = [25, 50, 100];
+        if (Number.isInteger(selected) && selected > 0 && sizes.indexOf(selected) === -1) {
+            sizes.push(selected);
+            sizes.sort(function(a, b) { return a - b; });
+        }
         var disabled = (pagination.totalPages || 0) <= 1;
         setMarkup(nav, '<button class="btn sm" data-action="prev-page" aria-label="Previous page"'
             + (!pagination.hasPrevious || disabled ? ' disabled' : '') + '>&lsaquo; prev</button><span class="page-status">Page</span>'
             + '<input class="page-input mono" data-action="page-input" value="' + escapeHtml(pagination.page) + '" aria-label="Page number"'
             + (disabled ? ' disabled' : '') + ' data-total-pages="' + escapeHtml(pagination.totalPages || 1) + '"/>'
             + '<span class="page-status" id="page-status-text">of ' + escapeHtml(pagination.totalPages || 0)
-            + (pagination.totalItems > 0 ? ' of ' + escapeHtml(pagination.totalItems) : '') + '</span><span class="spacer"></span>'
+            + ' · ' + formatNumber(pagination.totalItems) + ' ' + itemLabel + '</span><span class="spacer"></span>'
             + '<label class="page-size-label" aria-label="每页条数"><span class="page-status">每页</span><select class="page-size-select" data-action="page-size">'
-            + pageSizeOption(25, pagination.pageSize) + pageSizeOption(50, pagination.pageSize) + pageSizeOption(100, pagination.pageSize)
+            + sizes.map(function(size) { return pageSizeOption(size, selected); }).join('')
             + '</select></label><button class="btn sm" data-action="next-page" aria-label="Next page"'
             + (!pagination.hasNext || disabled ? ' disabled' : '') + '>next &rsaquo;</button>');
     }
@@ -730,12 +722,11 @@
         var wrap = document.querySelector('.project-trend-points');
         if (!wrap) return;
         wrap.replaceChildren.apply(wrap, points.map(function(point) {
-            var span = document.createElement('span');
-            span.className = 'project-trend-point';
-            span.setAttribute('data-tooltip', 'Range point: ' + point.label + ' · Total Tokens ' + TokenProvenance.total(point.tokens, formatCompact));
-            span.textContent = point.label + ' · ' + TokenProvenance.total(point.tokens, formatCompact);
-            TokenProvenance.attach(span, point.tokens);
-            return span;
+            var item = document.createElement('div');
+            item.className = 'project-trend-point';
+            item.textContent = point.label + ' · ' + TokenProvenance.total(point.tokens, formatCompact);
+            TokenProvenance.attach(item, point.tokens);
+            return item;
         }));
     }
 
@@ -774,7 +765,9 @@
         if (!response || response.available) return;
         var hotspot = document.querySelector('[data-project-tool-hotspots], .tool-hotspots, .project-tool-hotspots');
         if (!hotspot) return;
-        hotspot.textContent = 'Tool hotspots unavailable: ' + (response.reason || 'not indexed');
+        hotspot.textContent = response.reason === 'tool_name_breakdown_not_indexed'
+            ? 'Tool hotspots unavailable: this project has no indexed per-tool breakdown.'
+            : 'Tool hotspots unavailable for this project.';
     }
 
     function renderProjectSessions(response, table) {
@@ -801,7 +794,8 @@
     function projectSessionRow(row) {
         var tr = document.createElement('tr');
         var tokens = row.tokens || {};
-        var title = row.title || 'Untitled';
+        var rounds = DataTable.sessionRounds(row);
+        var title = (row.displayTitle == null ? row.title : row.displayTitle) || row.sessionId || 'Untitled';
         tr.setAttribute('data-action', 'open-session');
         tr.dataset.href = row.detailUrl || '';
         tr.dataset.title = title;
@@ -811,31 +805,19 @@
             '<div class="title-sub mono">', escapeHtml((row.sessionId || '').slice(-8)), '<button class="btn sm session-copy-btn" data-action="copy" data-copy-text="', escapeHtml(row.sessionId || ''), '" aria-label="Copy session ID" title="Copy session ID">Copy</button></div></td>',
             '<td><span class="badge ', row.agent === 'claude_code' ? 'cc' : (row.agent === 'codex' ? 'cx' : 'qd'), '">', row.agent === 'claude_code' ? 'CC' : (row.agent === 'codex' ? 'CX' : 'QD'), '</span></td>',
             '<td class="mono" title="', escapeHtml(row.model || ''), '">', escapeHtml(row.model || 'Unknown model'), '</td>',
-            projectTokenCell(tokens),
-            '<td class="num mono" aria-description="', escapeHtml((row.llmCalls == null ? 'Unknown' : formatNumber(row.llmCalls)) + ' LLM calls · ' + (row.assistantMessages == null ? 'Unknown' : formatNumber(row.assistantMessages)) + ' assistant messages'), '">', (row.rounds == null ? "—" : formatNumber(row.rounds)), '</td><td class="num mono">', (row.tools == null ? "—" : formatNumber(row.tools)), '</td><td class="num mono">', (row.subagents == null ? "—" : formatNumber(row.subagents)), '</td>',
+            '<td class="token-cell"></td>',
+            '<td class="num mono" title="', escapeHtml(rounds.note), '">', escapeHtml(rounds.value), '</td><td class="num mono">', (row.tools == null ? "—" : formatNumber(row.tools)), '</td><td class="num mono">', (row.subagents == null ? "—" : formatNumber(row.subagents)), '</td>',
             '<td class="num mono" data-wall-duration>', escapeHtml(SessionTiming.value(row.timing, 'wallSeconds')), '</td>',
             '<td class="num mono" data-task-active>', escapeHtml(SessionTiming.value(row.timing, 'activeTaskSeconds')), '</td>',
             '<td class="', Number(row.failedTools || 0) === 0 ? 'muted' : '', '">', row.failedTools == null ? 'Unknown' : Number(row.failedTools) > 0 ? '<span class="badge err">' + escapeHtml(row.failedTools) + ' failed</span>' : 'No failures', '</td>',
             '<td class="mono" title="', escapeHtml(row.createdAt || ''), '">', escapeHtml(formatDate(row.createdAt)), '</td><td class="muted">', escapeHtml(formatDate(row.updatedAt)), '</td>'
         ].join(''));
-        TokenProvenance.attach(tr.querySelector('.token-cell'), tokens);
+        TokenProvenance.renderCell(tr.querySelector('.token-cell'), tokens, formatCompact);
         return tr;
     }
 
     function renderDetailPagination(pagination, table) {
-        var nav = table.closest('.card').querySelector('.pagination');
-        if (!nav || !pagination) return;
-        var disabled = (pagination.totalPages || 0) <= 1;
-        setMarkup(nav, '<button class="btn sm" data-action="prev-page" aria-label="Previous page"'
-            + (!pagination.hasPrevious || disabled ? ' disabled' : '') + '>&lsaquo; prev</button><span class="page-status">Page</span>'
-            + '<input class="page-input mono" data-action="page-input" value="' + escapeHtml(pagination.page) + '" aria-label="Page number"'
-            + (disabled ? ' disabled' : '') + ' data-total-pages="' + escapeHtml(pagination.totalPages || 1) + '"/>'
-            + '<span class="page-status">of ' + escapeHtml(pagination.totalPages || 0)
-            + (pagination.totalItems > 0 ? ' of ' + escapeHtml(pagination.totalItems) : '') + '</span><span class="spacer"></span>'
-            + '<label class="page-size-label" aria-label="每页条数"><span class="page-status">每页</span><select class="page-size-select" data-action="page-size">'
-            + pageSizeOption(25, pagination.pageSize) + pageSizeOption(50, pagination.pageSize) + pageSizeOption(100, pagination.pageSize)
-            + '</select></label><button class="btn sm" data-action="next-page" aria-label="Next page"'
-            + (!pagination.hasNext || disabled ? ' disabled' : '') + '>next &rsaquo;</button>');
+        renderPagination(table.closest('.card').querySelector('.pagination'), pagination, 'sessions');
     }
 
     /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Server-side pagination (both list and detail pages) ──` */

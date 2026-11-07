@@ -40,6 +40,34 @@ class ContentRoundIndexTest {
   }
 
   @Test
+  void codexResponseBoundariesAreIndependentOfTaskAndParent() throws Exception {
+    var calls =
+        List.of(
+            call(1, "token_usage_record:response-a", "same-task", null, ""),
+            call(2, "token_usage_record:response-b", "same-task", null, ""),
+            call(3, "child-SR1", "child-task", "token_usage_record:response-a", "response_usage"),
+            call(4, "child-SR2", "child-task", "token_usage_record:response-a", "closing_counter"),
+            call(5, "child-SR3", "child-task", "token_usage_record:response-a", ""),
+            call(6, "token_usage_record:42", "unconfirmed-task", null, ""));
+    var artifact = artifact(calls, NormalizedAgent.CODEX);
+    var index = ContentRoundIndex.build(NormalizedSessionContent.fromArtifact(artifact), 0);
+    assertThat(index.roundCount()).isEqualTo(6);
+    var rounds = RoundAssembler.buildRounds(artifact, 0);
+    assertThat(rounds).hasSize(6);
+    for (var call : calls) {
+      assertThat(index.roundIndexForCall(call.callId())).hasValue(call.callIndex());
+      assertThat(rounds.get(call.callIndex() - 1).calls()).containsExactly(call.callId());
+    }
+    assertThat(rounds.get(2).parentCallId()).isEqualTo("token_usage_record:response-a");
+    assertThat(rounds.get(4).parentCallId()).isEqualTo("token_usage_record:response-a");
+    assertThat(
+            calls.stream()
+                .filter(
+                    call -> !ContentRoundIndex.modelCallEvidence(artifact.agent(), call).isEmpty()))
+        .containsExactlyElementsOf(calls.subList(0, 4));
+  }
+
+  @Test
   void retainsIndependentCallsPastLegacyBoundaryWithoutFlattening() throws Exception {
     for (int size : new int[] {10000, 10001, 10234}) {
       var calls = IntStream.rangeClosed(1, size).mapToObj(i -> call(i, "t" + i, null)).toList();
@@ -79,9 +107,14 @@ class ContentRoundIndexTest {
   }
 
   private static NormalizedSessionArtifact artifact(List<NormalizedCall> calls) {
+    return artifact(calls, NormalizedAgent.CLAUDE_CODE);
+  }
+
+  private static NormalizedSessionArtifact artifact(
+      List<NormalizedCall> calls, NormalizedAgent agent) {
     return new NormalizedSessionArtifact(
         NormalizedConstants.SCHEMA_VERSION,
-        NormalizedAgent.CLAUDE_CODE,
+        agent,
         List.of(),
         Map.of(),
         calls,
@@ -92,8 +125,13 @@ class ContentRoundIndexTest {
   }
 
   private static NormalizedCall call(int index, String turn, String parent) {
+    return call(index, "c" + index, turn, parent, "");
+  }
+
+  private static NormalizedCall call(
+      int index, String id, String turn, String parent, String evidence) {
     return new NormalizedCall(
-        "c" + index,
+        id,
         index,
         "C" + index,
         parent == null ? CallScope.MAIN : CallScope.SUBAGENT,
@@ -107,7 +145,7 @@ class ContentRoundIndexTest {
         NormalizedCallResponse.empty(),
         List.of(),
         List.of(),
-        Map.of(),
+        evidence.isEmpty() ? Map.of() : Map.of("modelCallEvidence", evidence),
         Map.of());
   }
 }

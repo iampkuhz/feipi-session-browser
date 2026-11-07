@@ -17,6 +17,18 @@ class ToolInputPreviewTest {
     assertThat(ToolInputPreview.from(null)).isEmpty();
   }
 
+  @Test
+  void classifiesOnlyTheRecordedTopLevelExecutionSurface() {
+    assertThat(ToolInputPreview.executionKind("exec", "const r = await tools.exec_command(...)"))
+        .isEqualTo("javascript");
+    assertThat(ToolInputPreview.executionKind("functions__exec_command", "printf x"))
+        .isEqualTo("shell");
+    assertThat(ToolInputPreview.executionKind("Bash", "/usr/bin/python3 -c 'print(1)'"))
+        .isEqualTo("python");
+    assertThat(ToolInputPreview.executionKind("Read", "/synthetic/example.py")).isEqualTo("tool");
+    assertThat(ToolInputPreview.executionKind("exec", "")).isEqualTo("tool");
+  }
+
   private static String preview(String name, String input) {
     return ToolInputPreview.from(new ToolInputContents.Input("synthetic-tool", name, input));
   }

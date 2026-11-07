@@ -294,6 +294,18 @@
   font-size: 12px;
   line-height: 1.45;
 }
+.trend-grid .chart-card__note {
+  min-height: 2.9em;
+}
+.trend-coverage {
+  margin: 0 0 8px;
+  color: var(--text-subtle);
+  font-size: 12px;
+}
+.trend-coverage summary {
+  width: fit-content;
+  cursor: pointer;
+}
 .chart-card__subtitle {
   display: none;
 }
@@ -313,13 +325,13 @@
 /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Chart layout =========================================================` */
 .chart {
   display: grid;
-  grid-template-columns: minmax(44px, auto) minmax(0, 1fr);
+  grid-template-columns: 53px minmax(0, 1fr) 32px;
   grid-template-rows: auto auto;
   gap: 0 8px;
 }
 
 .chart--dual-axis {
-  grid-template-columns: minmax(44px, auto) minmax(0, 1fr) minmax(36px, auto);
+  grid-template-columns: 53px minmax(0, 1fr) 32px;
 }
 
 .chart--dual-axis .x-axis,
@@ -347,14 +359,16 @@
   grid-column: 1;
   grid-row: 1;
   height: 240px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding-top: 10px;
-  padding-bottom: 22px;
+  position: relative;
   font-size: 12px;
   color: var(--text-subtle);
   text-align: right;
+}
+.y-axis > span {
+  position: absolute;
+  inset-inline: 0;
+  top: var(--tick-position);
+  transform: translateY(-50%);
 }
 
 .chart--dual-axis .y-axis--right {
@@ -369,9 +383,7 @@
   --plot-x-padding: 6px;
   border-bottom: 2px solid #dbe5f1;
   background:
-    linear-gradient(to bottom, transparent 0, transparent 24%, #edf2f7 24.5%, transparent 25%),
-    linear-gradient(to bottom, transparent 0, transparent 49%, #edf2f7 49.5%, transparent 50%),
-    linear-gradient(to bottom, transparent 0, transparent 74%, #edf2f7 74.5%, transparent 75%);
+    linear-gradient(to bottom, transparent calc(100% - 1px), #edf2f7 0) top / 100% 33.333% repeat-y;
   display: grid;
   grid-template-columns: repeat(var(--n, 27), 1fr);
   gap: 0;
@@ -388,8 +400,8 @@
   background: none;
 }
 .chart--cache-health .y-axis {
-  padding-top: 12px;
-  padding-bottom: 12px;
+  inset-block: 12px;
+  height: 216px;
 }
 .plot-grid {
   position: absolute;
@@ -455,6 +467,8 @@
   text-align: center;
   display: block;
   min-width: 0;
+  white-space: nowrap;
+  font-size: clamp(8px, .85vw, 12px);
 }
 .chart-empty {
   padding: 12px;
@@ -1497,8 +1511,8 @@
     flex-wrap: wrap;
     gap: 6px 10px;
   }
-  .chart {
-    grid-template-columns: 18px minmax(0, 1fr);
+  .chart, .chart--dual-axis {
+    grid-template-columns: 39px minmax(0, 1fr) 26px;
   }
   .y-axis-label {
     font-size: 10px;
@@ -1520,17 +1534,77 @@
 .event-activity-section p {
   overflow-wrap: anywhere;
 }
-.event-activity-scroll {
-  max-width: 100%;
-  overflow-x: auto;
-}
-.event-activity-table {
-  width: 100%;
-  border-collapse: collapse;
-}
 .event-activity-table th,
 .event-activity-table td {
   padding: 8px;
   text-align: left;
   white-space: nowrap;
+}
+
+.event-activity-heading,
+.event-activity-table-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+.event-activity-heading p,
+.event-activity-summary {
+  margin: 4px 0 10px;
+  color: var(--text-subtle);
+}
+.event-activity-status {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 650;
+}
+.event-activity-table-head {
+  padding-block: 8px;
+  font-size: 12px;
+  color: var(--text-subtle);
+}
+.event-activity-scroll {
+  max-width: 100%;
+  max-height: 310px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.event-activity-table {
+  width: 100%;
+  min-width: 650px;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.event-activity-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface);
+}
+.event-activity-table :is(th, td):not(:first-child) {
+  text-align: right;
+}
+.event-activity-table tbody tr {
+  border-top: 1px solid var(--border);
+}
+.event-activity-table tbody tr:nth-child(even) {
+  background: var(--surface-soft);
+}
+.event-activity-evidence {
+  margin-top: 10px;
+  max-width: 76ch;
+  font-size: 12px;
+}
+.event-activity-evidence summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+.event-activity-evidence dt {
+  font-weight: 650;
+  margin-top: 8px;
+}
+.event-activity-evidence dd {
+  margin: 2px 0 0;
 }

@@ -50,7 +50,7 @@ final class EventActivityAccumulator {
     SourceRecordUsage usage = record.usage();
     boolean modern =
         agent == NormalizedAgent.CODEX
-            && record.callId().orElse("").startsWith("token_usage_record:");
+            && TokenAccountant.isResponseUsageFrame(record.callId().orElse(""));
     if (modern) {
       supportedUsageEvents++;
       if (timestamp.isPresent()) day(timestamp.get()).tokens.accept(usage);

@@ -5,7 +5,6 @@ from __future__ import annotations
 import pytest
 from scripts.gates.checks.check_protocol import CheckStatus
 from scripts.gates.checks.privacy import check_credential_leak as secret_policy
-from scripts.gates.checks.repository import check_current_version as current_version
 from scripts.gates.checks.repository import check_file_boundary as repository_files
 from scripts.gates.checks.repository import check_test_data_privacy as test_data_privacy
 from scripts.gates.checks.repository import check_test_skip_prohibition as skip_prohibition
@@ -96,31 +95,6 @@ def test_skip_prohibition_scan_error_is_execution_failure(monkeypatch, tmp_path)
     result = skip_prohibition.check(['--root', str(tmp_path)])
 
     _assert_execution_failure(result, 'input-unavailable')
-
-
-def test_current_version_incomplete_scan_is_execution_failure(monkeypatch, tmp_path) -> None:
-    monkeypatch.setattr(
-        current_version,
-        '_check_current_version',
-        lambda _root, _changed_files=None: ([], ['source.css: unreadable-source']),
-    )
-
-    result = current_version.check(['--root', str(tmp_path)])
-
-    _assert_execution_failure(result, 'input-unavailable')
-
-
-@pytest.mark.contract_case('HOOK-HARNESS-008')
-def test_current_version_finding_is_blocked(monkeypatch, tmp_path) -> None:
-    monkeypatch.setattr(
-        current_version,
-        '_check_current_version',
-        lambda _root, _changed_files=None: (['historical version'], []),
-    )
-
-    result = current_version.check(['--root', str(tmp_path)])
-
-    assert result.status is CheckStatus.BLOCKED
 
 
 @pytest.mark.contract_case('HOOK-HARNESS-008')

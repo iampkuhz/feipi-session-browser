@@ -133,11 +133,13 @@ def _bash_regex_matches(pattern: str, value: str) -> bool:
     return result.returncode == 0
 
 
-def test_release_workflow_defaults_to_two_part_v04():
+def test_release_dispatch_requires_explicit_version_and_defaults_to_no_publish():
     workflow = RELEASE_WORKFLOW.read_text(encoding='utf-8')
+    dispatch = yaml.safe_load(workflow)[True]['workflow_dispatch']['inputs']
 
-    assert 'default: "0.4"' in workflow
-    assert 'default: "0.3.0"' not in workflow
+    assert dispatch['version']['required'] is True
+    assert 'default' not in dispatch['version']
+    assert dispatch['publish']['default'] is False
     assert '请使用发布 tag vX.Y 或 vX.Y.Z，例如 v0.4 或 v0.4.1-rc.1' in workflow
     assert '请使用发布版本 X.Y 或 X.Y.Z，例如 0.4 或 0.4.1-rc.1' in workflow
 
@@ -159,13 +161,28 @@ def test_release_workflow_accepts_two_part_and_patch_versions():
 
 def test_runtime_archives_define_precise_executable_permissions():
     source = CLI_BUILD.read_text(encoding='utf-8')
-    assert source.count('filePermissions { unix("0644") }') == 2
-    assert source.count('dirPermissions { unix("0755") }') == 2
+    archive_config = source.split('fun AbstractArchiveTask.configureRuntimeArchive() {', 1)[1]
+    archive_config, archives = archive_config.split('tasks.register<Zip>("runtimeDistZip")', 1)
+    assert 'filePermissions { unix("0644") }' in archive_config
+    assert 'dirPermissions { unix("0755") }' in archive_config
+    assert 'with(runtimeContents)' in archive_config
+    assert archives.count('configureRuntimeArchive()') == 2
+    assert 'tasks.register<Tar>("runtimeDistTar")' in archives
+    contents = source.split('val runtimeContents = copySpec {', 1)[1]
+    contents = contents.split('fun AbstractArchiveTask.configureRuntimeArchive()', 1)[0]
+    assert 'filesMatching("run") { permissions { unix("0755") } }' in contents
+    app = source.split('val runtimeAppContents = copySpec {', 1)[1]
+    app = app.split('val prepareRuntimeDist', 1)[0]
+    assert 'filesMatching("app-cli") { permissions { unix("0755") } }' in app
+    assert 'into("app") { with(runtimeAppContents) }' in contents
+    preparation = source.split('val prepareRuntimeDist', 1)[1].split('val runtimeContents', 1)[0]
+    assert 'with(runtimeAppContents)' in preparation
+    assert 'into(runtimeLayout.map { it.dir("app") })' in preparation
+    assert 'from(jlinkImage)' not in preparation
     assert (
-        source.count('"app-cli/bin/run", "app-cli/app/bin/app-cli", "app-cli/runtime/bin/*",') == 2
+        'filesMatching(listOf("bin/*", "lib/jspawnhelper")) { permissions { unix("0755") } }'
+        in contents
     )
-    assert source.count('"app-cli/runtime/lib/jspawnhelper",') == 2
-    assert source.count('permissions { unix("0755") }') == 2
 
 
 def test_release_pipeline_is_an_exact_public_executable():

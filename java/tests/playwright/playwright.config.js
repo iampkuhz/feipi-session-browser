@@ -84,5 +84,6 @@ module.exports = defineConfig({
     url: `${baseURL}/sessions/claude_code/hifi-viz-session-001`,
     reuseExistingServer: reuseFixtureServer || inheritedManagedServer,
     timeout: 120_000,
+    stdout: 'pipe',
   },
 });

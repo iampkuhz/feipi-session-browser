@@ -59,6 +59,7 @@ import jakarta.validation.constraints.PositiveOrZero;
  * @param contentMeasured 是否存在内容指标观测依据，不代表原文完整
  * @param userMessageMeasured 用户消息数是否有明确角色观测依据
  * @param assistantMessageMeasured 助手消息数是否有明确角色观测依据
+ * @param modelCallCount 确认边界数；旧索引或不支持的来源为 null
  */
 public record SessionRow(
     /* 会话主键，格式 agent:session_id。 */ @NotBlank String sessionKey,
@@ -95,7 +96,8 @@ public record SessionRow(
     @PositiveOrZero Long llmCallCount,
     boolean contentMeasured,
     boolean userMessageMeasured,
-    boolean assistantMessageMeasured)
+    boolean assistantMessageMeasured,
+    @PositiveOrZero Long modelCallCount)
     implements SessionRecord {
 
   /** 兼容旧内容指标调用点；消息测量覆盖默认未知，不从计数推断。 */
@@ -168,7 +170,8 @@ public record SessionRow(
         llmCallCount,
         contentMeasured,
         false,
-        false);
+        false,
+        null);
   }
 
   /** 兼容旧索引写入点，内容指标保持未知。 */
@@ -286,7 +289,8 @@ public record SessionRow(
         llmCallCount,
         contentMeasured,
         userMessageMeasured,
-        assistantMessageMeasured);
+        assistantMessageMeasured,
+        modelCallCount);
 
     // 字符串 null → 空字符串
     title = defaultEmpty(title);

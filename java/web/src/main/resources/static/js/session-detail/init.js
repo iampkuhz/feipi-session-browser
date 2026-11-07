@@ -113,8 +113,7 @@
       meta: applySessionMeta,
       metrics: applySessionMetrics,
       diagnostics: applySessionDiagnostics,
-      rounds: applySessionRounds,
-      payloads: applySessionPayloads
+      rounds: applySessionRounds
     };
     Object.keys(resources).forEach(function (name) {
       document.body.setAttribute('data-session-api-' + name + '-state', 'loading');
@@ -160,7 +159,6 @@
               pendingDeepLink = { root: root, params: params, rounds: sessionDetailState.rounds };
             }
           }
-          if (name === 'payloads') document.body.setAttribute('data-session-payload-count', String(part.payloadCount || 0));
           if (name === 'diagnostics') document.body.setAttribute('data-session-anomaly-count', String(part.anomalyCount || 0));
           document.body.setAttribute('data-session-api-' + name + '-state', 'true');
           updateHydrated();
@@ -200,7 +198,7 @@
     pager.setAttribute('data-content-pagination', section);
     pager.replaceChildren();
     var label = document.createElement('span');
-    var sectionLabel = { rounds: 'Rounds', payloads: 'Payload index', 'round-members': 'Round records', 'round-tools': 'Tools in this member page' }[section] || section;
+    var sectionLabel = { rounds: 'Rounds', 'round-members': 'Round records', 'round-tools': 'Tools in this member page' }[section] || section;
     label.textContent = sectionLabel + ': ' + loaded + ' / ' + total + ' loaded. ';
     pager.appendChild(label);
     if (cursor) {
@@ -231,32 +229,19 @@
     return pager;
   }
 
-  function updateSessionContentPager(section, response, loaded) {
-    var previous = document.querySelector('[data-content-pagination="' + section + '"]');
-    if (!response.nextCursor && !previous) return;
-    var target;
-    if (section === 'rounds') {
-      target = qs(document, '.trace-table[data-trace-list]');
-      if (target) target = target.parentNode;
-    } else {
-      target = qs(document, '[data-content-payload-index]');
-      if (!target) {
-        target = document.createElement('section');
-        target.setAttribute('data-content-payload-index', '');
-        (qs(document, '[data-trace-page]') || document.querySelector('main') || document.body).appendChild(target);
-      }
-    }
-    if (!target) return;
-    contentPager(target, section, loaded, response.total ?? response[section === 'rounds' ? 'roundCount' : 'payloadCount'], response.nextCursor, function (cursor) {
-      var url = getApiBase().replace(/\/$/, '') + '/' + section + '?cursor=' + encodeURIComponent(cursor);
-      if (section === 'rounds' && sessionDetailState.roundFilter) url += '&trace_status=' + encodeURIComponent(sessionDetailState.roundFilter);
+  function updateRoundsPager(response, loaded) {
+    var previous = qs(document, '[data-content-pagination="rounds"]');
+    var table = qs(document, '.trace-table[data-trace-list]');
+    if (!table || (!response.nextCursor && !previous)) return;
+    var target = table.parentNode;
+    contentPager(target, 'rounds', loaded, response.total ?? response.roundCount, response.nextCursor, function (cursor) {
+      var url = getApiBase().replace(/\/$/, '') + '/rounds?cursor=' + encodeURIComponent(cursor);
+      if (sessionDetailState.roundFilter) url += '&trace_status=' + encodeURIComponent(sessionDetailState.roundFilter);
       var ticket = sessionDetailState.filterTicket;
       var epoch = sessionDetailState.roundsEpoch;
       return readSessionContentPage(url).then(function (part) {
-        if (section === 'rounds' && (ticket !== sessionDetailState.filterTicket || epoch !== sessionDetailState.roundsEpoch)) return;
-        if (!target.isConnected) return;
-        if (section === 'rounds') appendSessionRounds(part);
-        else applySessionPayloads(part, true);
+        if (ticket !== sessionDetailState.filterTicket || epoch !== sessionDetailState.roundsEpoch || !target.isConnected) return;
+        appendSessionRounds(part);
       });
     }, previous);
   }
@@ -288,7 +273,7 @@
       globalIndex += Math.max(1, Number(round.callCount || 1));
       sessionDetailState.rounds.push(round);
     });
-    updateSessionContentPager('rounds', response, sessionDetailState.rounds.length);
+    updateRoundsPager(response, sessionDetailState.rounds.length);
     var active = qs(document, '[data-action^="status-"].is-active');
     if (active) setFilter(document, active.getAttribute('data-action').replace('status-', ''));
     setupTokenTooltips();
@@ -339,9 +324,16 @@
     if (!meta) return;
     var parity = meta.parity || {};
     var title = qs(document, '[data-session-hero] h1');
-    if (title && meta.title) {
-      title.textContent = meta.title;
-      title.title = meta.title;
+    if (title) {
+      var display = meta.displayTitle || { text: meta.title };
+      title.textContent = display.text || (meta.filters && meta.filters.sessionId) || 'Untitled session';
+      title.removeAttribute('title');
+      if (display.html) appendRenderedMarkdown(title, display.html);
+      var original = qs(document, '[data-session-original-title]');
+      if (original) {
+        original.hidden = !meta.title || meta.title === display.text;
+        original.querySelector('pre').textContent = original.hidden ? '' : meta.title;
+      }
     }
     document.body.setAttribute('data-session-api-session-key', meta.sessionKey || '');
     document.body.setAttribute('data-session-api-artifact', meta.hasArtifact ? 'available' : 'missing');
@@ -367,8 +359,7 @@
       chips.replaceChildren(
         chip(meta.model || 'Unknown model', true),
         chip(meta.projectName || meta.projectKey || 'Unknown project'),
-        chip(parity.date || '—'),
-        chip(parity.updatedLocal ? 'Updated ' + parity.updatedLocal : (meta.updatedAt ? 'Updated ' + meta.updatedAt : 'Updated —'))
+        chip(parity.date || '—')
       );
     }
     setText('[data-session-updated]', parity.updatedLocal || meta.updatedAt || '—');
@@ -391,13 +382,13 @@
     var measuredInput = TokenProvenance.measuredInput(metrics.tokens);
     setKpi('Cache Health', TokenProvenance.ratio(metrics.tokens, metrics.cacheReadRatio), [
       subline('Input-side Tokens', measuredInput ? formatSessionCompact(inputSide) : 'N/A · Partial'),
-      subline('Low-cache Rounds', measuredInput && parity.lowCacheRoundsAvailable === true && typeof parity.lowCacheRounds === 'number' ? formatNumber(parity.lowCacheRounds) : 'N/A'),
-      subline('Fresh Spike Rounds', observed(parity.freshSpikeRounds))
+      subline('Low-cache rows', measuredInput && parity.lowCacheRoundsAvailable === true && typeof parity.lowCacheRounds === 'number' ? formatNumber(parity.lowCacheRounds) : 'N/A'),
+      subline('Fresh-spike rows', observed(parity.freshSpikeRounds))
     ]);
     TokenProvenance.attach(qs(document, '.sd-kpi[aria-label="Cache Health"]'), metrics.tokens);
-    setKpi('Workload', observed(parity.workloadCalls ?? (Number(metrics.userMessages || 0) + Number(metrics.assistantMessages || 0))), [
-      subline('Main Calls', observed(parity.mainCalls ?? metrics.assistantMessages)),
-      subline('Subagent Calls', observed(parity.subagentCalls)),
+    setKpi('Workload', observed(parity.workloadCalls), [
+      subline('Main records', observed(parity.mainCalls)),
+      subline('Subagent records', observed(parity.subagentCalls)),
       subline('Tool Calls', observed(parity.toolCalls ?? metrics.toolCalls)),
       subline('Subagent Runs', observed(parity.subagentRuns ?? metrics.subagents))
     ]);
@@ -426,7 +417,7 @@
     var hasContent = hasSessionContent();
     var count = Number(parity.issueRounds || diagnostics.anomalyCount || 0);
     setKpi('Run Health', !hasContent ? 'Unknown' : (count > 0 ? 'Issue signals detected' : 'No issue signals detected'), [
-      subline('Issue Rounds', hasContent ? formatNumber(count) : 'N/A'),
+      subline('Issue rows', hasContent ? formatNumber(count) : 'N/A'),
       hasContent ? rateSubline('Failed Tools', parity.failedTools || 0, parity.failedToolsTotal || parity.toolCalls || (parity.toolImpact && parity.toolImpact.allToolCalls) || 0, parity.failedToolsRate) : subline('Failed Tools', 'N/A'),
       subline('Payload Gaps', hasContent && typeof parity.payloadGaps === 'number' ? formatNumber(parity.payloadGaps) : 'N/A'),
       subline('Attribution Gaps', hasContent && (parity.attributionGapsAvailable === true || parity.attributionGaps > 0) ? formatNumber(parity.attributionGaps) : 'N/A')
@@ -463,6 +454,13 @@
   function applySessionRounds(roundsResponse) {
     var tbody = qs(document, '.trace-table[data-trace-list] tbody');
     if (!tbody || !roundsResponse) return;
+    var boundaries = qs(document, '[data-trace-boundaries]');
+    if (boundaries && roundsResponse.modelCallCount != null) {
+      boundaries.textContent = (roundsResponse.modelCallCount
+        ? formatNumber(roundsResponse.modelCallCount) + ' 次有证据的调用'
+        : '未确认独立模型调用边界')
+        + (roundsResponse.recordGroupCount ? ' · ' + formatNumber(roundsResponse.recordGroupCount) + ' 个未确认记录组。' : '。');
+    }
     sessionDetailState.roundsEpoch = (sessionDetailState.roundsEpoch || 0) + 1;
     var previousPager = document.querySelector('[data-content-pagination="rounds"]');
     if (previousPager) previousPager.remove();
@@ -496,7 +494,7 @@
       globalCallIndex += Math.max(1, Number(round.callCount || 1));
       return row;
     }));
-    updateSessionContentPager('rounds', roundsResponse, rows.length);
+    updateRoundsPager(roundsResponse, rows.length);
     setupTokenTooltips();
     if (sessionDetailState.diagnosticsParity) renderDiagnosticsCards(sessionDetailState.diagnosticsParity);
     syncToggleAllButton(document);
@@ -511,10 +509,17 @@
     var hasIssues = Boolean(parity.hasIssues) || (round.status || '') === 'failed' || Number(round.failedToolCount || 0) > 0;
     var isUserInput = Boolean(parity.isUserInput);
     var visualStatus = hasIssues ? 'failed' : (isUserInput ? 'user' : (round.status || 'ok'));
-    var firstCallIndex = 1;
-    var globalLabel = 'Round R' + round.roundIndex + ' · 首条本地记录';
-    var requestPayloadId = 'llm-R' + round.roundIndex + '-IX' + firstCallIndex + '-request-attribution';
-    var responsePayloadId = 'llm-R' + round.roundIndex + '-IX' + firstCallIndex + '-response-attribution';
+    var summary = String(parity.summary || '').trim();
+    if (summary === 'Round ' + round.roundIndex || summary === '内容未记录') summary = '';
+    var summaryRole = { user: '用户', assistant: '助手' }[parity.summaryRole] || '';
+    var label = (parity.modelCallEvidence ? 'R' : 'G') + round.roundIndex;
+    var target = round.callCount === 1 ? '/attribution/' + round.roundIndex + '/1/' : '';
+    var actions = round.callCount > 0 ? [
+      '<span class="sd-attribution-actions sd-attribution-actions--row" aria-label="内容与 Token 归因">',
+      contentPayloadButton('round:req:' + round.roundIndex, 'llm_request', label + ' · Request', 'Request', target && target + 'request'),
+      contentPayloadButton('round:resp:' + round.roundIndex, 'llm_response', label + ' · Response', 'Response', target && target + 'response'),
+      '</span>'
+    ].join('') : '<span class="muted">未记录调用</span>';
     tr.className = 'round-row sd-trace-round-row' + (isUserInput ? ' sd-user-round' : '') + (hasIssues ? ' sd-failed-round' : '');
     tr.setAttribute('data-trace-round-row', '');
     tr.setAttribute('data-round', String(round.roundIndex));
@@ -528,56 +533,17 @@
     tr.id = 'round-' + round.roundIndex;
     setMarkup(tr, [
       '<td class="round-col"><button type="button" class="sd-round-toggle round-id', hasIssues ? ' failed' : '', '" data-action="toggle-round" aria-controls="round-', round.roundIndex, '-detail" aria-expanded="false" aria-label="Toggle round ', round.roundIndex, '">',
-      'R', round.roundIndex, '</button></td>',
-      '<td><span class="summary-title">', escapeHtml(parity.summary || ('Round ' + round.roundIndex)), '</span></td>',
-      '<td class="metrics-col mono"><div class="metric-cell"><span class="metric-calls-tools">', formatNumber(round.callCount), ' records · ', formatNumber(round.toolCallCount), ' tools</span>', tokenbarHtml(tokens, maxRoundTokens), '</div></td>',
-      '<td class="attribution-col"><span class="sd-attribution-actions sd-attribution-actions--row" aria-label="Round 内容与 Token 归因">',
-      '<button type="button" class="sd-btn sd-btn--secondary sd-btn--sm" data-action="open-payload" data-payload-id="round:req:', round.roundIndex, '" data-payload-kind="llm_request" data-payload-title="Round R', round.roundIndex, ' · Request">Request</button>',
-      '<button type="button" class="sd-btn sd-btn--secondary sd-btn--sm" data-action="open-payload" data-payload-id="round:resp:', round.roundIndex, '" data-payload-kind="llm_response" data-payload-title="Round R', round.roundIndex, ' · Response">Response</button>',
-      '<button type="button" class="sd-btn sd-btn--secondary sd-btn--sm sd-attr-btn sd-attr-btn--ok" data-action="open-payload" data-payload-id="', escapeHtml(requestPayloadId), '" data-payload-kind="llm.request_attribution" data-payload-title="Request attribution · ', escapeHtml(globalLabel), '">输入归因</button> ',
-      '<button type="button" class="sd-btn sd-btn--secondary sd-btn--sm sd-attr-btn sd-attr-btn--ok" data-action="open-payload" data-payload-id="', escapeHtml(responsePayloadId), '" data-payload-kind="llm.response_attribution" data-payload-title="Response attribution · ', escapeHtml(globalLabel), '">输出归因</button></span></td>',
+      '<span class="round-chevron" aria-hidden="true">›</span>', label, '</button></td>',
+      '<td class="summary-col">', summaryRole ? '<span class="summary-role">' + summaryRole + '</span>' : '',
+      '<span class="summary-title', summary ? '' : ' summary-title--missing', '"', summary ? ' title="' + escapeHtml(summary) + '"' : '',
+      '>', escapeHtml(summary || '摘要未记录'), '</span></td>',
+      '<td class="metrics-col mono"><div class="metric-cell"><span class="metric-calls-tools"><span>', formatNumber(round.callCount), ' records</span><span>', formatNumber(round.toolCallCount), ' tools</span></span>', tokenbarHtml(tokens, maxRoundTokens), '</div></td>',
+      '<td class="attribution-col">', actions, '</td>',
       '<td class="status-col">', statusBadges(round, hasIssues, isLowCache), '</td>',
       '<td class="time-col"><span class="round-time">', escapeHtml(parity.time || '未记录'), '</span></td>'
     ].join(''));
     TokenProvenance.attach(tr.querySelector('.metric-cell'), tokens);
     return tr;
-  }
-
-  function applySessionPayloads(payloadsResponse, append) {
-    if (!payloadsResponse) return;
-    var container = qs(document, '[data-payload-sources-container]');
-    if (!container) return;
-    var payloads = payloadsResponse.payloads || [];
-    if (!append) {
-      container.replaceChildren();
-      sessionDetailState.payloadIndexCount = 0;
-      var oldIndex = qs(document, '[data-content-payload-index]');
-      if (oldIndex) oldIndex.remove();
-    }
-    payloads.forEach(function (payload) {
-      var tpl = document.createElement('template');
-      tpl.setAttribute('data-payload-source', payload.payloadId || '');
-      tpl.setAttribute('data-payload-kind', payload.kind || '');
-      tpl.setAttribute('data-payload-status', payload.status || '');
-      tpl.setAttribute('data-payload-token-estimate', '');
-      tpl.setAttribute('data-payload-index-only', 'true');
-      tpl.setAttribute('data-payload-api-url', payload.apiUrl || '');
-      tpl.setAttribute('data-payload-title', payload.title || payload.payloadId || 'Payload');
-      container.appendChild(tpl);
-    });
-    sessionDetailState.payloadIndexCount = (sessionDetailState.payloadIndexCount || 0) + payloads.length;
-    updateSessionContentPager('payloads', payloadsResponse, sessionDetailState.payloadIndexCount);
-    var index = qs(document, '[data-content-payload-index]');
-    if (index) payloads.forEach(function (payload) {
-      var button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'sd-btn sd-btn--secondary sd-btn--sm';
-      button.setAttribute('data-action', 'open-payload');
-      button.setAttribute('data-payload-id', payload.payloadId || '');
-      button.setAttribute('data-payload-kind', payload.kind || '');
-      button.textContent = payload.title || payload.payloadId;
-      index.insertBefore(button, index.querySelector('[data-content-pagination="payloads"]'));
-    });
   }
 
   function renderDiagnosticsCards(parity) {

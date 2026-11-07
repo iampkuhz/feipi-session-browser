@@ -11,6 +11,7 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from scripts.gates.execution.java_environment import requires_java, resolve_java_environment
 from scripts.gates.execution.outcome_classifier import (
     ExecutionStatus,
     GateResult,
@@ -142,11 +143,7 @@ def _run_step_invocations(
         if results and invocations[0].kind == 'gradle-prerequisite':
             prerequisite = results[0]
             if prerequisite.status is not ExecutionStatus.PASS:
-                forced_reason = (
-                    'process-stalled'
-                    if prerequisite.reason == 'process-stalled'
-                    else 'dependency-unavailable'
-                )
+                forced_reason = prerequisite.reason or 'dependency-unavailable'
                 break
         observation = supervisor(
             invocation,
@@ -185,6 +182,8 @@ def orchestrate_gate_run(
             f'cannot override frozen GatePlan environment: {", ".join(sorted(reserved))}'
         )
     root = Path(repo_root).resolve()
+    if requires_java(tuple(gate_plan.command_invocations)):
+        overrides = resolve_java_environment(root, overrides)
     selected_log_dir = (
         Path(log_dir).resolve()
         if log_dir is not None

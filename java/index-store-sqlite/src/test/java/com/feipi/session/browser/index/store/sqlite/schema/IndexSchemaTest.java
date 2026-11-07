@@ -41,7 +41,7 @@ class IndexSchemaTest {
       IndexSchema schema = IndexSchema.withDefaults();
       List<SchemaVersion> applied = schema.ensureSchema(conn);
 
-      assertThat(applied).hasSize(6);
+      assertThat(applied).hasSize(7);
       assertThat(applied.get(0).version()).isEqualTo(1);
 
       // 验证所有表存在
@@ -56,7 +56,7 @@ class IndexSchemaTest {
       schema.ensureSchema(conn);
 
       Set<String> columns = getTableColumns("sessions");
-      assertThat(columns).hasSize(42);
+      assertThat(columns).hasSize(43);
       assertThat(columns)
           .contains(
               "fresh_input_token_precision",
@@ -199,7 +199,7 @@ class IndexSchemaTest {
 
       // 验证全部列已存在
       Set<String> columns = getTableColumns("sessions");
-      assertThat(columns).hasSize(42);
+      assertThat(columns).hasSize(43);
       assertThat(columns)
           .contains(
               "fresh_input_token_precision",
@@ -233,7 +233,7 @@ class IndexSchemaTest {
 
       // V001 用 IF NOT EXISTS 不报错，repairMissingColumns 补充缺失列
       Set<String> columns = getTableColumns("sessions");
-      assertThat(columns).hasSize(42);
+      assertThat(columns).hasSize(43);
       assertThat(columns)
           .contains(
               "fresh_input_token_precision",
@@ -246,7 +246,7 @@ class IndexSchemaTest {
               "token_contains_unknown");
 
       // schema_migrations 记录 V1
-      assertThat(schema.currentVersion(conn).version()).isEqualTo(6);
+      assertThat(schema.currentVersion(conn).version()).isEqualTo(7);
     }
   }
 

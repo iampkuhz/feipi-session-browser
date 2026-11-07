@@ -60,6 +60,8 @@ class DashboardTemplateContractTest {
     assertThat(section)
         .contains(
             "data-event-activity-state",
+            "data-event-activity-disclosure",
+            "data-event-activity-exact",
             "data-event-activity-days",
             "data-event-activity-coverage",
             "data-event-activity-undated",
@@ -69,12 +71,11 @@ class DashboardTemplateContractTest {
         .containsIgnoringCase("legacy")
         .containsIgnoringCase("Claude")
         .containsIgnoringCase("Qoder")
-        .containsPattern("(?is)(observed.*user.*messages|观察.*user.*消息)")
-        .containsPattern("(?s)(不保证|不等于|不是|≠).*真人")
-        .containsPattern("(?s)(usage.*报告日|usage report day)")
-        .containsPattern("(?s)(不是|不等于|≠).*实际.*消耗")
-        .containsPattern("(?s)(缺日志|缺失日志|missing logs)")
-        .containsPattern("(?s)(缺时间|缺失时间|missing timestamps)");
+        .containsIgnoringCase("observed user messages are a lower bound")
+        .contains("not a count of human questions")
+        .contains("usage report day, not the actual consumption date")
+        .containsIgnoringCase("missing logs")
+        .containsIgnoringCase("missing timestamps");
   }
 
   private static String dashboardTemplate() {

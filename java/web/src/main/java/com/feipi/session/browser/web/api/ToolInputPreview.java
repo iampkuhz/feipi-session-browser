@@ -16,6 +16,7 @@ final class ToolInputPreview {
     if (input == null || input.input().isEmpty()) return "";
     String preview = input.input();
     try {
+      if (preview.length() > 64 * 1024) return "长参数 · 打开 Input 查看完整内容";
       JsonNode node = MAPPER.readTree(preview);
       if (node != null && node.isObject()) {
         String command = first(node, "command", "cmd");
@@ -30,6 +31,20 @@ final class ToolInputPreview {
     }
     preview = SensitiveFieldPolicy.DEFAULT.applyMasking(preview).replaceAll("\\s+", " ").trim();
     return preview.length() <= 180 ? preview : preview.substring(0, 179) + "…";
+  }
+
+  static String executionKind(String name, String preview) {
+    String tool = name.toLowerCase(java.util.Locale.ROOT);
+    if (tool.matches("(?:.*__)?(?:python|python3)")) return "python";
+    if (tool.matches("(?:.*__)?(?:exec|js|javascript|node_repl)") && !preview.isEmpty()) {
+      return "javascript";
+    }
+    if (tool.matches("(?:.*__)?(?:exec_command|shell|bash|terminal|local_shell)")) {
+      if (preview.matches("(?:[^ ]*/)?python(?:[23](?:\\.\\d+)?)?(?:\\s.*)?")) return "python";
+      if (preview.matches("(?:[^ ]*/)?(?:node|deno)(?:\\s.*)?")) return "javascript";
+      return "shell";
+    }
+    return "tool";
   }
 
   private static String first(JsonNode node, String... names) {

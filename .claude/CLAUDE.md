@@ -18,11 +18,10 @@
   `python3 scripts/gates/cli.py run --mode incremental`。
 - `BLOCKED` 表示检查完成后发现阻断问题；`FAIL` 表示 Gate 未能完成；两者都不得描述为 `PASS`。
 
-## Subagent 协议索引
+## Subagent 协议入口
 
-- 长规则以 `harness/agent-policy.manifest.yaml` 的 `subagent_instance_protocol` 为准。
-- Main handoff 必须包含 `Goal`、`Task id`、`Task source`、`Allowed files/directories`、`Forbidden files/directories`、`Required context files`、`Expected output`、`Validation command`、`Failure policy`，并为同一 agent 的不同实例提供唯一 `agent_id` 或等价 instance id。
-- Main 只能聚合同一 `client/session_id` 的 subagent evidence；并行修改型 subagent 写范围不得重叠；subagent `FAIL`/`BLOCKED` 不得让 main 静默跳过 validation。
+委派前读取并遵守 `skills/authoring/feipi-openspec-orchestrate-change/references/subagent-contract.md`；
+共享协议以 `harness/agent-policy.manifest.yaml` 为准，不在平台入口复制字段和隔离规则。
 
 ## 红线
 

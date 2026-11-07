@@ -42,7 +42,7 @@ class MigrationRunnerTest {
       MigrationRunner runner = MigrationRunner.withAllMigrations();
       List<SchemaVersion> applied = runner.applyAll(conn);
 
-      assertThat(applied).hasSize(6);
+      assertThat(applied).hasSize(7);
       assertThat(applied.get(0).version()).isEqualTo(1);
 
       // 验证所有表已创建
@@ -54,14 +54,14 @@ class MigrationRunnerTest {
     }
 
     @Test
-    @DisplayName("空数据库上 currentVersion 返回 V2")
+    @DisplayName("空数据库上 currentVersion 返回最新版本")
     void currentVersionAfterApply() throws SQLException {
       MigrationRunner runner = MigrationRunner.withAllMigrations();
       runner.applyAll(conn);
 
       SchemaVersion version = runner.currentVersion(conn);
       assertThat(version).isNotNull();
-      assertThat(version.version()).isEqualTo(6);
+      assertThat(version.version()).isEqualTo(7);
     }
   }
 
@@ -97,7 +97,7 @@ class MigrationRunnerTest {
       runner.applyAll(conn);
 
       Set<Integer> versions = runner.appliedVersions(conn);
-      assertThat(versions).containsExactly(1, 2, 3, 4, 5, 6);
+      assertThat(versions).containsExactly(1, 2, 3, 4, 5, 6, 7);
     }
   }
 
@@ -115,7 +115,7 @@ class MigrationRunnerTest {
       List<SchemaVersion> applied = runner.applyAll(conn);
 
       // V001 使用 CREATE TABLE IF NOT EXISTS，不会报错
-      assertThat(applied).hasSize(6);
+      assertThat(applied).hasSize(7);
     }
   }
 
@@ -161,7 +161,7 @@ class MigrationRunnerTest {
       // 使用正确的 migration 重试
       MigrationRunner correctRunner = MigrationRunner.withAllMigrations();
       List<SchemaVersion> applied = correctRunner.applyAll(conn);
-      assertThat(applied).hasSize(6);
+      assertThat(applied).hasSize(7);
       assertThat(tableExists("sessions")).isTrue();
     }
   }
@@ -182,7 +182,7 @@ class MigrationRunnerTest {
     void pendingMigrationsReturnsUnapplied() throws SQLException {
       MigrationRunner runner = MigrationRunner.withAllMigrations();
       List<Migration> pending = runner.pendingMigrations(conn);
-      assertThat(pending).hasSize(6);
+      assertThat(pending).hasSize(7);
 
       runner.applyAll(conn);
       List<Migration> afterApply = runner.pendingMigrations(conn);

@@ -4,6 +4,53 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('会话列表页', () => {
+  test('retains a valid URL page size outside the presets and uses compact billion units', async ({ page }) => {
+    await page.route('**/api/sessions/summary?*', async (route) => {
+      const response = await route.fetch();
+      const data = await response.json();
+      const provenance = Object.fromEntries(['freshInput', 'cacheRead', 'cacheWrite', 'output']
+        .map((key) => [key, 'provider_reported']));
+      data.tokens = { fresh: 4_200_000_000, cacheRead: 0, cacheWrite: 0, output: 0,
+        total: 4_200_000_000, provenance };
+      await route.fulfill({ response, json: data });
+    });
+    await page.goto('/sessions?page_size=1&sort=tokens&dir=desc');
+    const first = page.locator('.sessions-row').first();
+    await expect(first).toBeVisible();
+    const firstId = await first.getAttribute('data-session-id');
+    await expect(page.locator('[data-action="page-size"]')).toHaveValue('1', { timeout: 2000 });
+    await page.getByRole('button', { name: 'Next page' }).click();
+    await expect(page).toHaveURL(/page_size=1/);
+    await expect(first).not.toHaveAttribute('data-session-id', firstId);
+    await expect(page.locator('.page-head__stats')).toContainText('4.2B');
+    await expect(page.locator('.pagination')).toContainText(/of \d+ · \d+ sessions/);
+  });
+
+  test('rounds separate legacy groups, observed calls, partial and unknown boundaries', async ({ page }) => {
+    const cases = [
+      ['legacy', 2, 70, null, '2 groups', /Legacy index/],
+      ['observed', 70, 70, 70, '70', /^Observed model call boundaries$/],
+      ['partial', 7, 9, 5, '5+', /unconfirmed boundaries/],
+      ['unknown', 4, 4, 0, '—', /boundaries unknown/],
+    ];
+    await page.route('**/api/sessions/rows**', async route => {
+      const response = await route.fetch();
+      const body = await response.json();
+      const sample = body.rows[0];
+      body.rows = cases.map(([name, rounds, llmCalls, modelCallCount]) => ({
+        ...sample, sessionKey: 'codex:' + name, sessionId: name, agent: 'codex',
+        rounds, llmCalls, modelCallCount,
+      }));
+      await route.fulfill({ response, json: body });
+    });
+    await page.goto('/sessions');
+    for (const [name, , , , value, evidence] of cases) {
+      const cell = page.locator(`.sessions-row[data-session-id="${name}"] .col-rounds`);
+      await expect(cell).toHaveText(value);
+      await expect(cell).toHaveAttribute('title', evidence);
+    }
+  });
+
   test('[UI-SESSIONS-001] 核心页面加载与结构', async ({ page }) => {
     await page.goto('/sessions');
     await expect(page.locator('body')).toBeVisible();
@@ -39,14 +86,14 @@ test.describe('会话列表页', () => {
     const firstDataRow = page.locator('.data-table tbody tr[data-action="row"]').first();
     await expect(firstDataRow).toBeVisible({ timeout: 10000 });
     await expect(firstDataRow.locator(':scope > td')).toHaveCount(13);
-    const disclosure = firstDataRow.locator('[data-token-provenance]');
+    const disclosure = firstDataRow.locator('.token-total__status');
     await expect(disclosure).toBeVisible();
     await expect(disclosure).toContainText(/Partial|Unknown/);
     const clipping = await firstDataRow.evaluate((row) => {
       const cell = row.querySelector('.token-cell');
       const inside = (inner, outer) => inner.top >= outer.top - 1 && inner.bottom <= outer.bottom + 1
         && inner.left >= outer.left - 1 && inner.right <= outer.right + 1;
-      return Array.from(cell.querySelectorAll('.token-total__value, [data-token-provenance]')).some((element) => {
+      return Array.from(cell.querySelectorAll('.token-total__value, .token-total__status')).some((element) => {
         const range = document.createRange();
         range.selectNodeContents(element);
         return element.scrollWidth > element.clientWidth + 1 || element.scrollHeight > element.clientHeight + 1
@@ -132,15 +179,24 @@ test.describe('会话列表页', () => {
     }
   });
 
-  test('[UI-SESSIONS-003][UI-SESSIONS-016][DATA-PRESENTER-013] token 条包含四段', async ({ page }) => {
+  test('[UI-SESSIONS-003][UI-SESSIONS-016][DATA-PRESENTER-013] Token 分项可查，色条不伪造缺失分项', async ({ page }) => {
     await page.goto('/sessions');
-    const tokenbars = page.locator('.tokenbar');
-    const count = await tokenbars.count();
-    if (count > 0) {
-      const segments = tokenbars.first().locator('.tokenbar-seg');
-      const segCount = await segments.count();
-      expect(segCount).toBe(4);
-    }
+    const cell = page.locator('.sessions-row .token-cell').first();
+    await expect(cell.locator('.token-total__value')).toBeVisible();
+    await expect(cell.locator('details')).toHaveCount(0);
+    const trigger = cell.getByRole('button', { name: 'Token breakdown' });
+    const panel = page.locator('#token-bar-popover');
+    await trigger.hover();
+    await expect(panel.locator('.token-composition dt')).toHaveText(['Shown total', 'Fresh input', 'Cache read', 'Cache write', 'Output']);
+    await page.keyboard.press('Escape');
+    await expect(panel).toBeHidden();
+    await trigger.press('Enter');
+    await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    await expect(panel.locator('.token-composition')).toContainText('Share of shown total');
+    await page.keyboard.press('Escape');
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    expect(await cell.locator('.tokenbar-seg').evaluateAll(nodes =>
+      nodes.every(node => parseFloat(node.style.getPropertyValue('--segment-width')) > 0))).toBe(true);
   });
 
   test('[UI-SESSIONS-007][UI-SESSIONS-011][UI-INTERACTION-002] next 一次到 page 2 且使用 JSON rows API', async ({ page }) => {
@@ -224,6 +280,7 @@ test.describe('会话列表页', () => {
         await expect(rows.nth(index)).toHaveAttribute('data-session-id', expectedIds[index]);
       }
       await expect(hiddenSize).toHaveValue(String(expectedSize));
+      await expect(page.locator('.pagination [data-action="page-size"]')).toHaveValue(String(expectedSize));
       await expect(pageInput).toHaveValue(String(expectedPage));
       await expect.poll(() => {
         const current = new URL(page.url()).searchParams;
@@ -239,8 +296,6 @@ test.describe('会话列表页', () => {
     let responsePromise = rowsResponse();
     await page.goto(`/sessions?${new URLSearchParams({ ...filters, page_size: '1' })}`);
     await assertPage(await responsePromise, 1, 1);
-    // 1 不在常用选项中：下拉默认25不能覆盖实际 hidden/URL 状态。
-    await expect(page.locator('.pagination [data-action="page-size"]')).toHaveValue('25');
 
     responsePromise = rowsResponse();
     await page.locator('.pagination [data-action="next-page"]').click();

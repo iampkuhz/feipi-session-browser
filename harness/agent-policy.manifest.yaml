@@ -2,26 +2,26 @@ version: 1
 size_limits:
   AGENTS.md: 2800
   .claude/CLAUDE.md: 12000
-required_phrases:
-  - "增量 Gate"
-  - "不纳入真实 session"
-  - "先搜索定位"
-  - "OpenSpec"
 protected_roots:
   - .claude/
   - .codex/
+  - .qoder/
   - .qoder/
   - .agents/
   - skills/
   - harness/
   - scripts/
   - openspec/
+  - src/session_browser/
+  - scripts/tests/
+  - java/tests/
   - AGENTS.md
   - .claude/CLAUDE.md
 gate_semantics:
   - "失败、未运行、跳过不得描述为 PASS"
   - "不得新增 skip"
   - "required gate 由维护者显式运行"
+  - "最终 javaBuildVerification 的根 check 已覆盖全模块测试与零跳过检查时，承接产品 test 证明，不重复执行；缓存命中不得称测试重跑"
 privacy:
   forbidden_inputs:
     - real-session-data

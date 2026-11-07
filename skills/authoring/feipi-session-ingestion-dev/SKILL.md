@@ -72,14 +72,14 @@ description: 用于本仓库 session ingestion / token attribution 专项开发�
 
 以下门禁不是每次都全部运行，但触发时 required gate 不能 skipped：
 
-- `./scripts/session-browser.sh test` — Java 编译和测试。
-- `./java/gradlew -p java check` — 模块边界检查。
+- `./scripts/session-browser.sh test` — 开发时独立产品反馈；最终 Gate 根 `check` 已承接全模块测试与零跳过检查时无需重复。
+- `./java/gradlew -p java check` — 全模块测试、零跳过、模块边界与标准源码规则；最终 `javaBuildVerification` 已运行时不额外重跑。
 - `python3 scripts/gates/cli.py run --mode incremental` — 收口前增量 quality gates。
 
 选择策略：
 
-- 只改 parser 或数据模型 → 至少运行 `test` + `Gradle check`。
-- 改 schema 契约 → 运行 `test` + `Gradle check`，由 Java 测试验证真实 schema 语义。
+- 只改 parser 或数据模型 → 最终由 `javaBuildVerification` 根 `check` 承接，或独立运行 `Gradle check`（包含产品测试）。
+- 改 schema 契约 → 由根 `check` 中的 Java 测试验证真实 schema 语义，不重复独立产品测试。
 - 收口前 → 运行 `python3 scripts/gates/cli.py run --mode incremental`。
 
 ## 输出格式

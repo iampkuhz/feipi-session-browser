@@ -119,7 +119,6 @@ check_file scripts/uv.lock
 check_file scripts/session-browser.sh
 check_file harness/agent-policy.manifest.yaml
 check_file harness/skill-registry.yaml
-check_file scripts/harness/validate_harness_structure.py
 check_file scripts/openspec/validate_layout.py
 check_dir scripts/tests
 check_dir java/tests/playwright
@@ -144,7 +143,6 @@ fi
 run_check "valid shell syntax: scripts/session-browser.sh" bash -n scripts/session-browser.sh
 
 if [[ -n "$PYTHON" ]]; then
-  run_check "harness structure" "$PYTHON" scripts/harness/validate_harness_structure.py
   run_check "OpenSpec layout" "$PYTHON" scripts/openspec/validate_layout.py
 fi
 

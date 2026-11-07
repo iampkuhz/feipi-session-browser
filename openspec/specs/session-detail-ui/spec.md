@@ -4,7 +4,7 @@
 
 ### Requirement: 单页 trace-first 调试体验
 
-Session Detail 页面必须提供稳定、可离线使用的 run analysis 调试体验。首屏必须概览运行健康度、token 成本、缓存健康度、工作量和活跃耗时；Trace 与 Payload 作为下钻工作区保留。
+Session Detail 由本地服务提供在线运行分析；下载的 HTML/MHTML 是另行打开的静态离线档案。首屏必须概览运行健康度、token 成本、缓存健康度、工作量和活跃耗时；Trace 与 Payload 作为下钻工作区保留。
 
 #### Scenario: 会话摘要展示
 
@@ -15,7 +15,7 @@ Session Detail 页面必须提供稳定、可离线使用的 run analysis 调试
 - Run Health 二级指标：Issue Rounds、Failed Tools、Payload Gaps、Attribution Gaps。
 - Total Tokens 二级指标：Fresh、Cache Read、Cache Write、Output。
 - Cache Health 二级指标：Input-side Tokens、Low-cache Rounds、Fresh Spike Rounds。
-- Workload 二级指标：Main Calls、Subagent Calls、Tool Calls、Subagent Runs。
+- Workload 二级指标：Main records、Subagent records、Tool Calls、Subagent Runs；记录数不是可证明的模型调用数。
 - Active Time 二级指标：Duration、Waiting Time、Model Time、Tool Time。
 
 每个主 KPI 卡最多渲染 4 个二级指标。Hero 区在索引或 parser 已解析 JSONL 源路径时，必须以 `Session file` 行展示本地路径，并提供 `data-action="copy"` 与 `data-copy-text` 复制按钮；没有路径时省略该行。
@@ -29,7 +29,7 @@ Token 指标必须只使用 5 个当前组件字段：
 - Output：provider 上报的可见输出 token。
 - Total：`Fresh + Cache Read + Cache Write + Output`。
 
-当 provider 的 Cache Read 是 input tokens 子集时，例如 OpenAI/Codex `cached_input_tokens`，Fresh 必须按 `input_tokens - cached_input_tokens` 计算，并用于 tokenbar、Total、Fresh spike、round tooltip。Provider Request Input 可在 attribution 摘要或 provider 计量元数据中单独展示，但不得和它的缓存子集并列叠加为 Fresh。Codex 中每个有效的 `event_msg.token_count` 累计快照必须生成一个 LLM-call round；重复快照如果 `total_token_usage` 没有组件增量，不得生成 round 或贡献 token，并应记录 token diagnostics。
+当 provider 的 Cache Read 是 input tokens 子集时，例如 OpenAI/Codex `cached_input_tokens`，Fresh 必须按 `input_tokens - cached_input_tokens` 计算，并用于 tokenbar、Total、Fresh spike、round tooltip。Provider Request Input 可在 attribution 摘要或 provider 计量元数据中单独展示，但不得和它的缓存子集并列叠加为 Fresh。Codex 中，带明确响应身份的 `token_usage_record` 形成独立模型调用行；仅有旧版累计计数时，有正向组件增量且能闭合的 `event_msg.token_count` 可作为边界。重复计数或与响应计量互为镜像的快照不得重复生成调用或累计 token。缺少可靠边界的记录保留为逻辑分组，不计作已验证模型调用。
 
 #### Scenario: Analysis cards 展示
 
@@ -65,7 +65,7 @@ round 展开后必须展示：
 - Failed tool error 摘要。
 - 仅在存在 payload data 时展示 payload 按钮。
 
-Expanded timeline 不渲染独立的 LLM summary card 或 LLM call card。LLM usage、request/response payload action、request/response attribution action 必须从 round summary 行、Payload tab 或 payload modal 进入，不在 expanded details 中重复展示。
+Expanded timeline 不渲染独立的 LLM summary card 或 LLM call card。单调用行的 Request/Response 不在展开内容中重复；多记录分组在展开后提供各成员的 Request/Response，正文及归因沿用同一弹框。
 
 Assistant thinking、assistant text 和不可用处理事件行必须使用与 tool call 行一致的紧凑单行高度。Assistant text row payload 只包含 assistant text/thinking 内容；同一 model response 中的 tool_use commands 必须由独立 tool call 行展示，不得在 assistant text row payload 中重复。展开 detail 面板必须和展开 round 行、下一条 round 行保持可见间距。
 
@@ -73,9 +73,9 @@ Codex rollouts 中，同一 assistant 文案如果同时出现在 `event_msg.age
 
 Codex rollouts 中，父线程通过 `spawn_agent` tool 创建子线程且 child rollout 暴露 `session_meta.source.subagent.thread_spawn.parent_thread_id` 等稳定证据时，Session Detail 必须把 child LLM calls 和 child tools 归属为 `scope="subagent"`，设置稳定 `subagent_id` 和 `parent_tool_call_id`，并用父 `spawn_agent` tool output 填充 `subagent_summary`。父 main agent 的 token、tool 和 attribution totals 不得吞并 child 内部 LLM calls 或 tools；缺少稳定可见证据时不得从隐藏 runtime 推断 subagent。
 
-Round rows 与 subagent round summary rows 必须直接暴露 request attribution 和 response attribution 状态/action。每个 subagent round summary row 必须可独立点击并支持键盘展开/折叠。可见 attribution action label 固定为 `request` 和 `response`；用户不得为了访问 attribution 再打开内部 LLM call card。
+单调用的 round row 与 subagent call row 分别提供 `Request` 和 `Response`，在同一正文弹框内按需展开对应的输入或输出归因。多记录分组须展开后按调用查看，不把某个成员的归因当作整组归因。每个 subagent round summary row 必须可独立点击并支持键盘展开/折叠。
 
-主 round attribution action title 必须使用 session-global LLM call 编号；attribution API payload id 可继续使用 `/attribution/{round}/{call}` 所需的 round-local `IX` index。后续 rounds 不得把全局第 2、第 3 个 call 显示成重复的 `LLM Call #1`。
+Trace 按会话内分页顺序标记 R/G 行；该行号不是全局调用序号。正文和归因须使用当前行及稳定调用身份定位；兼容接口保留 round-local 索引，不将其显示为全局调用编号。
 
 Expanded round row 状态线必须绘制在该 row 边界内，不得覆盖相邻 row 边框。
 
@@ -101,7 +101,7 @@ Request attribution buckets 返回 UI 前必须经过全局 token attribution ta
 
 没有 raw request body 的 Codex session，request attribution 必须从 rollout 数据重建可见 request sources。`session_meta.base_instructions` 和首个 user 前 role 为 `developer` 或 `system` 的 `response_item` message 必须进入 raw `instructions`，并在 canonical `系统/开发者指令` 分类下展示可见 source text 和结构化 bucket details。`function_call_output` 与 `custom_tool_call_output` 事件必须带入下一次 assistant request 并归入 raw `tool_outputs`，序列化后显示为 canonical `工具结果上下文`，本地可见输出文本可通过 detail expansion 查看。Provider reported `cached_input_tokens` / Cache Read 只在 request summary 中作为 `Cache Read` 和 provider accounting metadata 展示；不得创建 raw `provider_cached_context` bucket，不得参与本地重建 coverage，不得和 conversation messages、tool outputs 或 tool definitions 并列渲染。raw request `tools` 不可用时，Codex request attribution 必须使用 Codex builtin tool catalog 作为当前缺省来源，并补充 observed extra tools；不得只按 observed invoked-tool count 估算工具定义。工具定义 bucket 必须以 canonical key `tool_definitions` 输出，并展示 tool count、每个工具的 token estimate、schema/parameter preview 和本地可见完整 detail。
 
-Trace request/response attribution actions 必须在点击时通过后端 attribution API 按需加载 payload。初始 slim page render 必须保留 attribution actions 和 payload IDs，但不得嵌入完整 request/response attribution payload data。
+打开 Trace 正文时按当前调用和方向从后端 attribution API 加载归因，默认折叠在同一弹框内；初始页面不嵌入完整归因。
 
 Qoder session 的 request attribution 可用时必须优先使用 call-scoped `full_messages_array` 重建 Claude-like API messages。该 bucket 必须包含当前 call 边界前 request 侧 user、assistant、tool_use 和 tool_result items，并汇总每个 item 的完整 `content_token_estimate`。Provider reported `cache_read_input_tokens` 只在 request summary 中作为 `Cache Read` 和 provider accounting metadata 展示；不得创建 raw `provider_cached_context` bucket，不得参与本地重建 coverage。`cache_creation_input_tokens` / Cache Write 保留在 usage summary，但不得作为额外 request-source bucket 或 request bucket denominator。Qoder 未持久化完整 available tools schema 时，attribution 必须使用 Claude-Code-like SDK 默认工具定义作为当前缺省来源，并补充 observed Qoder-only tools，而不是只按 invoked tools 估算；工具定义 bucket 必须以 canonical key `tool_definitions` 输出。
 
@@ -109,7 +109,7 @@ Qoder session 的 request attribution 可用时必须优先使用 call-scoped `f
 
 #### Scenario: MHTML 自包含导出
 
-MHTML export 必须生成内联 CSS 与 JS 的自包含 HTML。离线打开导出页面时必须保留所有交互，不需要外部网络请求。
+HTML 和 MHTML 离线导出遵循 MHTML Export Spec：保留当前会话已发布的完整记录和原生展开，不复制在线交互界面。
 
 ### Requirement: Trace rows 的 ARIA 可访问性
 

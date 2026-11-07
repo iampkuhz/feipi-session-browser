@@ -23,21 +23,19 @@ from scripts.gates.catalog.validation import validate_gate_catalog
 
 GATE_IDS = (
     'scriptToolchainQuality',
+    'bashSyntax',
     'gateFrameworkTests',
     'pythonDependencyAudit',
     'repositoryBoundaryAudit',
     'testSkipProhibition',
-    'currentVersionPolicy',
     'acceptanceTraceability',
     'testDataPrivacy',
     'credentialLeakScan',
-    'maintenanceLanguagePolicy',
     'agentConfigurationPolicy',
     'governanceLayoutValidation',
     'webStaticRules',
     'webResourceContracts',
-    'browserVisualTests',
-    'browserBehaviorTests',
+    'browserTests',
     'javaBuildVerification',
     'javaDuplicationAudit',
     'scanCommandSmoke',
@@ -73,7 +71,7 @@ def test_each_gate_has_one_recipe_and_two_non_blocking_duration_expectations() -
             if step.kind is RecipeStepKind.GRADLE_TASK:
                 assert len(step.tasks) == 1
             elif step.kind is RecipeStepKind.JAVA_RULE:
-                assert len(step.rules) == 1
+                assert step.rules and len(set(step.rules)) == len(step.rules)
         for mode in ExecutionMode:
             assert gate.recipe.duration_for(mode) > 0
 
@@ -82,7 +80,6 @@ def test_composite_gate_steps_keep_explicit_owner_names() -> None:
     assert tuple(step.name for step in gate_by_name('scriptToolchainQuality').recipe.steps) == (
         'pythonFormat',
         'pythonLint',
-        'bashSyntax',
         'pythonDependencyDeclarations',
         'pythonSourceSecurity',
         'pythonDeadCode',
@@ -91,36 +88,34 @@ def test_composite_gate_steps_keep_explicit_owner_names() -> None:
         'agentEntrypoints',
         'agentDocumentation',
     )
-    assert tuple(
-        step.check_id for step in gate_by_name('maintenanceLanguagePolicy').recipe.steps
-    ) == (
-        'repository.maintenance-language',
-        'source.code-comment-language',
-    )
     web_steps = gate_by_name('webStaticRules').recipe.steps
     assert tuple((step.name, step.kind, step.rules) for step in web_steps) == (
-        ('rawInnerhtml', RecipeStepKind.JAVA_RULE, ('raw-innerhtml',)),
-        ('layoutInlineStyle', RecipeStepKind.JAVA_RULE, ('layout-inline-style',)),
-        ('templateContract', RecipeStepKind.JAVA_RULE, ('template-contract',)),
-        ('staticCssContract', RecipeStepKind.JAVA_RULE, ('static-resource-contract',)),
-        ('cssOwnership', RecipeStepKind.JAVA_RULE, ('css-ownership',)),
+        (
+            'webSourceRules',
+            RecipeStepKind.JAVA_RULE,
+            (
+                'raw-innerhtml',
+                'layout-inline-style',
+                'template-contract',
+                'static-resource-contract',
+                'css-ownership',
+            ),
+        ),
     )
 
 
 def test_repaired_triggers_use_current_paths_and_exclude_unrelated_gate_core() -> None:
-    scan_paths = gate_by_name('scanCommandSmoke').trigger.paths
     sample_paths = gate_by_name('sessionSampleContracts').trigger.paths
     agent_paths = gate_by_name('agentConfigurationPolicy').trigger.paths
     web_paths = gate_by_name('webStaticRules').trigger.paths
 
-    assert 'java/index-store-sqlite/**' in scan_paths
-    assert 'java/index-sqlite/**' not in scan_paths
     assert (
         'java/scan-engine/src/main/java/com/feipi/session/browser/scan/artifact/**' in sample_paths
     )
     assert 'java/artifact-normalized/**' not in sample_paths
     assert 'scripts/gates/**/*.py' not in agent_paths
-    assert all('scripts/gates/execution/' not in pattern for pattern in web_paths)
+    assert 'scripts/gates/execution/command_adapter.py' in web_paths
+    assert 'scripts/gates/execution/**' not in web_paths
 
 
 def test_java_build_verification_runs_complete_root_check() -> None:
@@ -128,6 +123,16 @@ def test_java_build_verification_runs_complete_root_check() -> None:
     assert step.tasks == ('check',)
     assert step.args == ('--parallel', '--build-cache')
     assert '-x' not in step.args
+
+
+def test_scan_smoke_keeps_scan_coverage_and_normal_serve_delivery() -> None:
+    step = gate_by_name('scanCommandSmoke').recipe.steps[0]
+    assert step.tests == (
+        'scripts/tests/script_commands/test_session_browser_serve_smoke.py',
+        'scripts/tests/script_commands/test_session_browser_scan_smoke.py',
+    )
+    assert step.prerequisite_tasks == ()
+    assert step.args[:2] == ('-n', '0')
 
 
 def test_lookup_is_strict_frozen_and_has_no_old_aliases() -> None:
@@ -216,4 +221,16 @@ def test_recipe_step_names_and_owner_fields_fail_closed() -> None:
             _catalog_with_gate(
                 replace(web, recipe=replace(web.recipe, steps=(*web.recipe.steps, duplicate_rule)))
             )
+        )
+
+
+@pytest.mark.parametrize(
+    'rules', ((), ('raw-innerhtml', 'raw-innerhtml'), ('',), (' raw-innerhtml',))
+)
+def test_java_rule_batches_reject_empty_duplicate_or_untrimmed_rules(rules) -> None:
+    web = gate_by_name('webStaticRules')
+    step = replace(web.recipe.steps[0], rules=rules)
+    with pytest.raises(ValueError, match='rules'):
+        validate_gate_catalog(
+            _catalog_with_gate(replace(web, recipe=replace(web.recipe, steps=(step,))))
         )

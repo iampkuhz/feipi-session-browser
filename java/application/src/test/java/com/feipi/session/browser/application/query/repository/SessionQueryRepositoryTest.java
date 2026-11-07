@@ -67,7 +67,7 @@ class SessionQueryRepositoryTest {
   }
 
   @Test
-  void roundsSortUsesPersistedLogicalRoundsAndPlacesUnknownLast() throws Exception {
+  void roundsSortUsesPerRowEvidenceOrLegacyGroupsAndPlacesUnknownLast() throws Exception {
     indexConnection
         .writeQueue()
         .submit(
@@ -76,7 +76,12 @@ class SessionQueryRepositoryTest {
                 statement.executeUpdate(
                     "UPDATE sessions SET round_count = 2, llm_call_count = 5, content_measured = 1 WHERE session_key = 'claude_code:sess-001'");
                 statement.executeUpdate(
-                    "UPDATE sessions SET round_count = 1, llm_call_count = 8, content_measured = 1 WHERE session_key = 'codex:sess-002'");
+                    "UPDATE sessions SET round_count = 2, llm_call_count = 70, content_measured = 1 WHERE session_key = 'codex:sess-002'");
+                statement.executeUpdate(
+                    "INSERT INTO sessions (session_key, agent, session_id, project_key, ended_at, round_count, llm_call_count, model_call_count)"
+                        + " VALUES ('codex:known','codex','known','','',1,70,70),"
+                        + "('codex:partial','codex','partial','','',3,70,1),"
+                        + "('codex:unknown','codex','unknown','','',80,80,0)");
               }
             })
         .join();
@@ -85,18 +90,34 @@ class SessionQueryRepositoryTest {
         SessionListFilter.defaults()
             .withSort(Sort.ofSession(SessionSortField.ROUND_COUNT, SortOrder.ASC));
     var rows = repository.listSessions(filter).items();
-    assertThat(rows.get(0).sessionKey()).isEqualTo("codex:sess-002");
-    assertThat(rows.get(0).roundCount()).isEqualTo(1L);
-    assertThat(rows.get(0).llmCallCount()).isEqualTo(8L);
-    assertThat(rows.get(1).sessionKey()).isEqualTo("claude_code:sess-001");
-    assertThat(rows.get(2).roundCount()).isNull();
+    assertThat(rows)
+        .extracting(SessionRecord::sessionKey)
+        .containsExactly(
+            "codex:partial",
+            "claude_code:sess-001",
+            "codex:sess-002",
+            "codex:known",
+            "claude_code:sess-003",
+            "codex:unknown");
+    assertThat(rows.get(2).roundCount()).isEqualTo(2);
+    assertThat(rows.get(2).llmCallCount()).isEqualTo(70);
+    assertThat(rows.get(2).modelCallCount()).isNull();
+    assertThat(rows.get(3).modelCallCount()).isEqualTo(70);
+    assertThat(rows.get(5).modelCallCount()).isZero();
     var descending =
         repository
             .listSessions(
                 filter.withSort(Sort.ofSession(SessionSortField.ROUND_COUNT, SortOrder.DESC)))
             .items();
-    assertThat(descending.get(0).sessionKey()).isEqualTo("claude_code:sess-001");
-    assertThat(descending.get(2).roundCount()).isNull();
+    assertThat(descending)
+        .extracting(SessionRecord::sessionKey)
+        .containsExactly(
+            "codex:known",
+            "claude_code:sess-001",
+            "codex:sess-002",
+            "codex:partial",
+            "claude_code:sess-003",
+            "codex:unknown");
   }
 
   @Test

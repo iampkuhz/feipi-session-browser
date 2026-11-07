@@ -18,4 +18,4 @@ def test_session_detail_is_not_silently_excluded() -> None:
     path = 'java/web/src/main/resources/templates/session-detail.html'
     plan = compile_gate_plan(ChangeSnapshot('test', 'head', None, (path,), 'fingerprint'))
     names = {gate.name for gate in plan.gates}
-    assert {'webResourceContracts', 'browserVisualTests', 'browserBehaviorTests'} <= names
+    assert {'webResourceContracts', 'browserTests'} <= names

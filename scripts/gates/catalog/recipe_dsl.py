@@ -13,6 +13,31 @@ from scripts.gates.catalog.gate_contracts import (
     TriggerMode,
 )
 
+# 这些入口直接决定 Java/Playwright 命令和环境；领域审计、报告和 doctor 不是其输入。
+PRODUCT_EXECUTION_PATHS = (
+    'scripts/session-browser.sh',
+    'scripts/harness/java_env.sh',
+    'scripts/harness/python_env.py',
+    'scripts/gates/*.py',
+    'scripts/gates/catalog/**',
+    'scripts/gates/config/**',
+    'scripts/gates/execution/**',
+    'scripts/gates/planning/**',
+)
+
+
+# settings.gradle.kts 将 installDist 的应用模块放在 java 的一级子目录。
+# 深层测试项目的构建不进入运行分发；根构建和 build-logic 仍共享。
+JAVA_RUNTIME_BUILD_INPUTS = (
+    'java/*/build.gradle.kts',
+    'java/build.gradle.kts',
+    'java/settings.gradle.kts',
+    'java/gradle.properties',
+    'java/gradle/**',
+    'java/gradlew*',
+    'java/*.lockfile',
+)
+
 
 def changed(*paths: str) -> GateTrigger:
     """声明只在 changed path 命中时自动选择的 Gate。"""
@@ -61,14 +86,14 @@ def gradle_task(name: str, task: str, *args: str) -> RecipeStep:
     return RecipeStep(name, RecipeStepKind.GRADLE_TASK, tasks=(task,), args=args)
 
 
-def java_rule(name: str, rule: str) -> RecipeStep:
-    """声明只拥有一个 Java 源码规则的步骤。"""
+def java_rule(name: str, *rules: str) -> RecipeStep:
+    """声明由同一 Java runner 执行的源码规则集合。"""
 
-    return RecipeStep(name, RecipeStepKind.JAVA_RULE, rules=(rule,))
+    return RecipeStep(name, RecipeStepKind.JAVA_RULE, rules=rules)
 
 
-def playwright(name: str, tests: tuple[str, ...], *args: str) -> RecipeStep:
-    """声明固定 Playwright suite 的步骤。"""
+def playwright(name: str, tests: tuple[str, ...] = (), *args: str) -> RecipeStep:
+    """声明 Playwright suite；空 tests 使用原生完整发现。"""
 
     return RecipeStep(name, RecipeStepKind.PLAYWRIGHT, tests=tests, args=args)
 

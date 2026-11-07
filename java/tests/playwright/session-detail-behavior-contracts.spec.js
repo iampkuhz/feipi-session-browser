@@ -6,14 +6,6 @@ const ATTRIBUTION_VIEWPORTS = [
   { width: 1440, height: 900 },
   { width: 2560, height: 1440 },
 ];
-const FORBIDDEN_ATTRIBUTION_COPY = [
-  'raw request',
-  'raw response',
-  'raw http request',
-  'raw http response',
-  '(no rendered content)',
-  '(no raw content)',
-];
 const BROWSER_WARNINGS = new WeakMap();
 
 // Mock the payload, not its index identity: all sibling resources retain the live snapshot stamp.
@@ -119,7 +111,7 @@ test.describe('unbound legacy generation consistency regressions', () => {
     { path: '/projects', prefix: '/api/projects/', primary: '/summary', delayed: '/active-filters', field: 'projectCount' },
     { path: '/projects/test-hifi-project', prefix: '/api/projects/test-hifi-project/', primary: '/summary', delayed: '/sessions/rows', field: 'totalSessions' },
     { path: '/sessions', prefix: '/api/sessions/', primary: '/summary', delayed: '/options', field: 'totalCount' },
-    { path: SESSION_PATH, prefix: '/api/sessions/claude_code/hifi-viz-session-001/', primary: '/meta', delayed: '/payloads', field: 'title' },
+    { path: SESSION_PATH, prefix: '/api/sessions/claude_code/hifi-viz-session-001/', primary: '/meta', delayed: '/diagnostics', field: 'title' },
   ];
   for (const item of cases) {
     test(`stages and retries a mixed generation batch on ${item.path}`, async ({ page }) => {
@@ -163,13 +155,13 @@ test.describe('unbound legacy generation consistency regressions', () => {
     });
     await page.goto(SESSION_PATH);
     await expect(page.locator('[data-resource-error]').first()).toBeVisible();
-    expect(calls).toBe(15);
+    expect(calls).toBe(12);
     await expect(page.locator('body')).not.toHaveAttribute('data-session-api-hydrated', 'true');
     stable = true;
     await page.locator('[data-resource-error] button').first().click();
     await expect(page.locator('body')).toHaveAttribute('data-index-generation', 'stable');
     await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
-    expect(calls).toBe(20);
+    expect(calls).toBe(16);
   });
 
   test('project pagination refreshes all six resources when the index changes', async ({ page }) => {
@@ -292,14 +284,14 @@ for (const scenario of ['subagent-only', 'mixed', 'unowned-fallback']) {
     if (scenario === 'unowned-fallback') {
       tools.push({ toolCallId: 'fixture-unowned-tool', name: 'Read', inputPreview: 'synthetic ownerless fallback' });
     }
+    await openHydratedSession(page);
+    const generation = await page.locator('body').getAttribute('data-index-generation');
+    expect(generation).toBeTruthy();
     await page.route('**/api/sessions/*/*/round/*', async (route) => {
       const url = new URL(route.request().url());
       const next = url.searchParams.get('cursor') === 'fixture-members';
-      // The synthetic cursor is not a server cursor; fetch the valid first page for snapshot headers.
-      url.search = '';
-      const response = await route.fetch({ url: url.toString() });
-      expect(response.ok()).toBe(true);
-      await route.fulfill({ response, json: {
+      // The body and cursor are synthetic; only the current document's generation is inherited.
+      await route.fulfill({ headers: { 'x-session-index-generation': generation }, json: {
         round: next
           ? { calls, tools, toolCallIds: tools.map((tool) => tool.toolCallId) }
           : { calls: [{ callId: 'fixture-first-page', scope: 'main' }], tools: [], toolCallIds: [] },
@@ -307,7 +299,6 @@ for (const scenario of ['subagent-only', 'mixed', 'unowned-fallback']) {
         nextCursor: next ? null : 'fixture-members', toolsComplete: true,
       } });
     });
-    await openHydratedSession(page);
     const row = page.locator('[data-trace-round-row]').first();
     await row.locator('[data-action="toggle-round"]').click();
     await expect(row).toHaveAttribute('data-detail-loaded', 'true');
@@ -328,148 +319,106 @@ for (const scenario of ['subagent-only', 'mixed', 'unowned-fallback']) {
 }
 
 async function openAttribution(page, kind) {
-  const button = page
-    .locator(`button[data-action="open-payload"][data-payload-kind="llm.${kind}_attribution"]:visible`)
-    .first();
-  await expect(button, `${kind} attribution trigger must be visible`).toBeVisible({ timeout: 10_000 });
+  const button = page.locator(`[data-attribution-path*="/${kind}"]:visible`).first();
+  await expect(button).toHaveText(kind === 'request' ? 'Request' : 'Response');
+  const path = await button.getAttribute('data-attribution-path');
+  const pending = page.waitForResponse((response) => response.url().endsWith(path));
   await button.click();
+  const response = await pending;
+  expect(response.ok()).toBe(true);
+  const payload = await response.json();
+  const explicitId = new URL(response.url()).searchParams.get('call_id');
+  const callId = payload.data.callId;
+  expect(callId).toBeTruthy();
+  if (explicitId) expect(callId).toBe(explicitId);
+  expect(payload.kind).toBe(`llm.${kind}_attribution`);
   const modal = page.locator('dialog.payload-modal');
-  await expect.poll(
-    () => modal.evaluate((dialog) => dialog.open).catch(() => false),
-    { message: `${kind} attribution modal must open`, timeout: 5_000 },
-  ).toBe(true);
-  await expect(modal, `${kind} attribution API must complete successfully`).toHaveAttribute(
-    'data-attribution-state',
-    'success',
-    { timeout: 10_000 },
-  );
-  return modal;
-}
-
-function detailedAttributionPayload(kind) {
-  return {
-    kind: `llm.${kind}_attribution`,
-    data: {
-      callId: 'fixture-call-id-001',
-      callKey: 'C1',
-      model: 'fixture-detailed-model',
-      scope: 'main',
-      timestamp: '2026-09-21T10:00:00Z',
-      totalTokens: 210,
-      freshInputTokens: 120,
-      outputTokens: 90,
-      cacheReadTokens: 30,
-      cacheWriteTokens: 10,
-      requestToolResultCount: 3,
-      responseToolCallCount: 2,
-    },
-  };
+  await expect(modal).toBeVisible();
+  const disclosure = modal.locator(`[data-payload-attribution="${kind}"]`);
+  await expect(disclosure).toHaveAttribute('data-attribution-call', callId);
+  await expect(disclosure.locator('summary')).toHaveText(kind === 'request' ? '输入归因' : '输出归因');
+  await expect(disclosure.locator('.sd-kv').first()).toBeHidden();
+  await disclosure.locator('summary').press('Enter');
+  await expect(disclosure.locator('.sd-kv').first()).toBeVisible();
+  return { modal, disclosure, payload };
 }
 
 async function installDetailedAttributionRoute(page) {
-  await page.route(/\/api\/sessions\/[^/]+\/[^/]+\/attribution\/\d+\/\d+\/(request|response)$/, async (route) => {
-    const kind = route.request().url().endsWith('/request') ? 'request' : 'response';
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(detailedAttributionPayload(kind)),
-    });
-  });
-}
-
-async function assertDetailedAttributionContract(page, modal, kind) {
-  const visibleText = await modal.innerText();
-  const requiredCopy = [
-    '基于本地日志重建',
-    '不等同于真实提供方',
-    '调用身份',
-    // h3 使用 text-transform: uppercase，innerText 返回大写形式
-    kind === 'request' ? '请求 TOKEN' : '响应 TOKEN',
-    '工具计数',
-    'Request Tool Results',
-    'Response Tool Calls',
-  ];
-  for (const copy of requiredCopy) {
-    expect(visibleText, `${kind} attribution modal must contain ${copy}`).toContain(copy);
-  }
-  const lowerText = visibleText.toLowerCase();
-  for (const copy of FORBIDDEN_ATTRIBUTION_COPY) {
-    expect(lowerText, `${kind} attribution modal must not expose ${copy}`).not.toContain(copy);
-  }
-
-  // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Verify identity and token cards are present`
-  await expect(modal.locator('[data-attribution-card="identity"]')).toBeVisible();
-  await expect(modal.locator('[data-attribution-card="tokens"]')).toBeVisible();
-  await expect(modal.locator('[data-attribution-card="tool-counts"]')).toBeVisible();
-
-  const geometry = await page.evaluate(() => {
-    const dialog = document.querySelector('dialog.payload-modal');
-    const rect = (selector) => {
-      const element = document.querySelector(selector);
-      if (!element) return null;
-      const bounds = element.getBoundingClientRect();
-      return { left: bounds.left, right: bounds.right, width: bounds.width, height: bounds.height };
-    };
-    const bounds = dialog.getBoundingClientRect();
-    return {
-      viewportWidth: window.innerWidth,
-      scrollWidth: document.documentElement.scrollWidth,
-      modal: { left: bounds.left, right: bounds.right },
-      identityGrid: rect('.sd-attribution-identity-grid'),
-      summaryGrid: rect('.sd-attribution-summary-grid'),
-      toolCountsCard: rect('[data-attribution-card="tool-counts"]'),
-    };
-  });
-  expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.viewportWidth + 2);
-  expect(geometry.modal.left).toBeGreaterThanOrEqual(-2);
-  expect(geometry.modal.right).toBeLessThanOrEqual(geometry.viewportWidth + 2);
-  for (const key of ['identityGrid', 'summaryGrid', 'toolCountsCard']) {
-    expect(geometry[key], `${key} must exist in the current attribution renderer`).not.toBeNull();
-    expect(geometry[key].right, `${key} must stay inside the modal`).toBeLessThanOrEqual(geometry.modal.right + 2);
-  }
-}
-
-test('[UI-SD-036] real Java attribution API summary hydrates the modal', async ({ page }) => {
-  await openHydratedSession(page);
-  for (const kind of ['request', 'response']) {
-    const apiResponse = page.waitForResponse((response) =>
-      response.url().includes('/attribution/') && response.url().endsWith(`/${kind}`),
-    );
-    const modal = await openAttribution(page, kind);
-    const response = await apiResponse;
+  await page.route(/\/api\/sessions\/[^/]+\/[^/]+\/attribution\/\d+\/\d+\/(request|response)(?:\?|$)/, async (route) => {
+    const url = new URL(route.request().url());
+    const kind = url.pathname.split('/').at(-1);
+    const response = await route.fetch();
     expect(response.ok()).toBe(true);
-    const payload = await response.json();
-    expect(payload.kind).toBe(`llm.${kind}_attribution`);
+    const actual = await response.json();
+    await route.fulfill({ response, json: {
+      kind: `llm.${kind}_attribution`,
+      data: {
+        callId: actual.data.callId,
+        callKey: 'fixture-attribution-key',
+        scope: 'main',
+        freshInputTokens: 120,
+        outputTokens: 90,
+        cacheReadTokens: 30,
+        cacheWriteTokens: 0,
+        requestToolResultCount: 3,
+        responseToolCallCount: 2,
+        provenance: {
+          freshInput: 'provider_reported', output: 'provider_reported',
+          cacheRead: 'provider_reported', cacheWrite: 'provider_reported',
+        },
+      },
+    } });
+  });
+}
+
+test('[UI-SD-036] real Java attribution API returns the current call identity and usage', async ({ page }) => {
+  await openHydratedSession(page);
+  const callIds = [];
+  for (const kind of ['request', 'response']) {
+    const { modal, disclosure, payload } = await openAttribution(page, kind);
+    callIds.push(payload.data.callId);
     expect(payload.data.model).toBeTruthy();
     for (const field of [
-      'totalTokens',
-      'freshInputTokens',
-      'outputTokens',
-      'cacheReadTokens',
-      'cacheWriteTokens',
-      'requestToolResultCount',
-      'responseToolCallCount',
+      'totalTokens', 'freshInputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens',
+      'requestToolResultCount', 'responseToolCallCount',
     ]) {
       expect(typeof payload.data[field], `Java API field ${field} must be numeric`).toBe('number');
     }
-    await expect(modal).toContainText(payload.data.model);
-    await expect(modal.locator('.sd-payload-error')).toHaveCount(0);
-    await page.locator('[data-action="close-payload"], [data-action="close-modal"]').first().click();
-    await expect(modal).toBeHidden({ timeout: 5_000 });
+    await expect(disclosure).toHaveAttribute('data-attribution-scope', payload.data.scope);
+    await expect(disclosure.locator('.sd-kv').first()).toContainText(payload.data.callKey || payload.data.callId);
+    await expect(modal.locator('[data-payload-attribution]')).toHaveCount(1);
+    await page.keyboard.press('Escape');
+    await expect(modal).toBeHidden();
   }
+  expect(callIds[0]).toBe(callIds[1]);
 });
 
 for (const viewport of ATTRIBUTION_VIEWPORTS) {
   for (const kind of ['request', 'response']) {
     const contractId = kind === 'request' ? 'UI-SD-037' : 'UI-SD-038';
-    test(`[${contractId}] ${kind} detailed renderer semantics and geometry @ ${viewport.width}x${viewport.height}`, async ({ page }) => {
+    test(`[${contractId}] ${kind} attribution shows only its exact counters @ ${viewport.width}x${viewport.height}`, async ({ page }) => {
       await installDetailedAttributionRoute(page);
       await page.setViewportSize(viewport);
       await openHydratedSession(page);
-      const modal = await openAttribution(page, kind);
-      await assertDetailedAttributionContract(page, modal, kind);
-      await page.locator('[data-action="close-payload"], [data-action="close-modal"]').first().click();
-      await expect(modal).toBeHidden({ timeout: 5_000 });
+      const { modal, disclosure } = await openAttribution(page, kind);
+      const tokens = kind === 'request'
+        ? [['新鲜输入', '120'], ['缓存读取', '30'], ['缓存写入', '0']]
+        : [['输出', '90']];
+      await expect(disclosure.locator('.sd-kv > span:first-child')).toHaveText([
+        '调用', ...tokens.map(([label]) => label), '计量依据',
+        kind === 'request' ? '已记录工具结果' : '已记录工具指令',
+      ]);
+      await expect(disclosure.locator('.sd-kv > span:last-child')).toHaveText([
+        'fixture-attribution-key · 主会话', ...tokens.map(([, value]) => value),
+        '提供方报告', kind === 'request' ? '3' : '2',
+      ]);
+      const bounds = await modal.boundingBox();
+      const grid = await disclosure.locator('.sd-attribution-summary-grid').boundingBox();
+      expect(grid.x).toBeGreaterThanOrEqual(bounds.x - 2);
+      expect(grid.x + grid.width).toBeLessThanOrEqual(bounds.x + bounds.width + 2);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width + 2);
+      await page.keyboard.press('Escape');
+      await expect(modal).toBeHidden();
     });
   }
 }
@@ -542,9 +491,8 @@ test('[UI-SD-021][UI-SD-041] payload typed content remains accessible in the cur
   const firstToggle = page.locator('[data-action="toggle-round"]').first();
   await firstToggle.click();
   await expect(firstToggle).toHaveAttribute('aria-expanded', 'true', { timeout: 10_000 });
-  const payloadButton = page
-    .locator('button[data-action="open-payload"][data-payload-id]:not([data-payload-kind*="_attribution"]):visible')
-    .first();
+  const payloadButton = page.locator('[data-trace-round-row]').first()
+    .getByRole('button', { name: 'Request', exact: true });
   await expect(payloadButton, 'expanded round must expose a payload action').toBeVisible({ timeout: 10_000 });
   await payloadButton.click();
 
@@ -562,8 +510,9 @@ test('[UI-SD-021][UI-SD-041] payload typed content remains accessible in the cur
     { message: 'typed payload content must be non-empty', timeout: 10_000 },
   ).not.toBe('');
   expect((await rendered.innerText()).trim()).not.toBe('(No rendered content)');
-  await expect(modal.locator('.sd-payload-shell')).toBeVisible();
-  await expect(modal.locator('.sd-payload-meta')).toContainText('Metadata');
+  await expect(modal.locator('.sd-conversation-payload')).toBeVisible();
+  await expect(modal.locator('.sd-content-block .sd-card-title').first()).toContainText('Request');
+  await expect(modal.locator('.sd-payload-meta')).toHaveCount(0);
   await expect(modal.locator('.sd-payload-empty')).toHaveCount(0);
 
   await page.keyboard.press('Escape');
@@ -758,7 +707,7 @@ test.describe('会话资源独立失败与恢复', () => {
 
 // 使用真实上传解析，而非 mock round/payload；这些场景必须留在 Gate 已选择的 spec 中。
 for (const shape of ['event-only', 'event-usage', 'dual', 'anonymous-dual', 'multiturn', 'response-only']) {
-  test(`Codex ${shape} renders original request and assistant text`, async ({ page, request, baseURL }, testInfo) => {
+  test(`Codex ${shape} renders original request and assistant text`, async ({ page, request, baseURL }) => {
     const prompt = `Synthetic Codex ${shape} original request`;
     const answer = `Synthetic Codex ${shape} original assistant answer`;
     const messages = [[prompt, answer]];
@@ -826,7 +775,6 @@ for (const shape of ['event-only', 'event-usage', 'dual', 'anonymous-dual', 'mul
           const block = modal.locator('.sd-content-block').filter({ has: page.getByText(title, { exact: true }) });
           await expect(block.locator('pre')).toBeVisible();
           await expect(block.locator('pre')).toContainText(original);
-          await page.screenshot({ path: testInfo.outputPath(`codex-${shape}-${index}-${title}.png`) });
           await modal.getByRole('button', { name: 'Close', exact: true }).click();
         }
       }
@@ -1242,29 +1190,29 @@ test.describe('event dashboard:', () => {
     ['week', [['2026-W44', '2', 'N/A', '0', '11', '13'], ['2026-W45', '8', 'N/A', '0', '22', '26']]],
     ['month', [['2026-10', '2', 'N/A', '0', '11', '13'], ['2026-11', '8', 'N/A', '0', '22', '26']]],
   ]) {
-    test(`event dashboard: ${grain} aggregates only actual UTC observations with nullable precision evidence`, async ({ page }, testInfo) => {
+    test(`event dashboard: ${grain} aggregates only actual UTC observations with nullable precision evidence`, async ({ page }) => {
       const state = await interceptEvents(page);
       await page.goto('/dashboard?grain=' + grain);
       await expect(page.locator('[data-event-activity-state]')).toContainText('Partial');
       await expect(eventRows(page)).toHaveCount(expected.length);
       for (let index = 0; index < expected.length; index += 1) {
-        await expect(eventRows(page).nth(index).locator('td')).toHaveText(expected[index]);
+        await expect(eventRows(page).nth(index).locator('td')).toHaveText(expected[expected.length - index - 1]);
       }
-      const last = eventRows(page).last();
+      const latest = eventRows(page).first();
       const multiplier = grain === 'day' ? 1 : 2;
-      await expect(last.locator('td').nth(2)).toHaveAttribute('title', new RegExp(`provider reported=0, estimated=${multiplier}, unavailable=${2 * multiplier}, unknown=${3 * multiplier}, mixed=${4 * multiplier}`));
-      await expect(last.locator('td').nth(4)).toHaveAttribute('title', new RegExp(`provider reported=${2 * multiplier}, estimated=${3 * multiplier}, unavailable=${4 * multiplier}, unknown=${5 * multiplier}, mixed=${6 * multiplier}`));
-      await expect(page.locator('[data-event-activity-coverage]')).toContainText('all selected sources');
-      await expect(page.locator('[data-event-activity-coverage]')).toContainText('undatedUserMessages=7');
-      await expect(page.locator('[data-event-activity-coverage]')).toContainText('unsupportedUsageEvents=6');
-      await expect(page.locator('[data-event-activity-future]')).toContainText('day buckets=2; observed user messages=9');
+      await expect(latest.locator('td').nth(2)).toHaveAttribute('title', new RegExp(`provider reported=0, estimated=${multiplier}, unavailable=${2 * multiplier}, unknown=${3 * multiplier}, mixed=${4 * multiplier}`));
+      await expect(latest.locator('td').nth(4)).toHaveAttribute('title', new RegExp(`provider reported=${2 * multiplier}, estimated=${3 * multiplier}, unavailable=${4 * multiplier}, unknown=${5 * multiplier}, mixed=${6 * multiplier}`));
+      await expect(page.locator('[data-event-activity-summary]')).toContainText('across the selected sources');
+      await page.locator('[data-event-activity-disclosure] summary').click();
+      await expect(page.locator('[data-event-activity-coverage]')).toContainText('(7 undated)');
+      await expect(page.locator('[data-event-activity-usage]')).toContainText('6 unsupported usage events');
+      await expect(page.locator('[data-event-activity-future]')).toContainText('2 excluded day buckets · 9 observed user messages');
       await expect(page.locator('[data-event-activity-future]')).toContainText('Entire mixed day buckets');
       await expect(page.locator('[data-event-activity-undated]')).toContainText('never assigned to a date');
-      await expect(page.locator('[data-event-activity-undated]')).toContainText('fresh: N/A');
-      await expect(page.locator('[data-event-activity-undated]')).toContainText('cacheRead: 0');
+      await expect(page.locator('[data-event-activity-undated]')).toContainText('Fresh: N/A');
+      await expect(page.locator('[data-event-activity-undated]')).toContainText('Cache read: 0');
       expect(state.requests.at(-1)).toMatchObject({ agent: 'all', grain, days: grain === 'day' ? '30' : grain === 'week' ? '140' : '366' });
       await expectHealthyCohort(page);
-      if (grain === 'day') await page.screenshot({ path: testInfo.outputPath('event-day-synthetic.png'), fullPage: true });
     });
   }
 
@@ -1275,10 +1223,10 @@ test.describe('event dashboard:', () => {
     await page.locator('[data-action="grain"][data-grain="week"]').click();
     await expect(page).toHaveURL(/grain=week/);
     await expect(eventRows(page)).toHaveCount(2);
-    await expect(eventRows(page).last().locator('td').nth(1)).toHaveText('8');
+    await expect(eventRows(page).first().locator('td').nth(1)).toHaveText('8');
     await page.locator('[data-action="agent-scope"][data-scope="codex"]').click();
     await expect(page).toHaveURL(/agent=codex/);
-    await expect(eventRows(page).last().locator('td').nth(1)).toHaveText('16');
+    await expect(eventRows(page).first().locator('td').nth(1)).toHaveText('16');
     expect(state.requests.at(-1)).toMatchObject({ agent: 'codex', grain: 'week', days: '140' });
     await expectHealthyCohort(page);
   });
@@ -1287,9 +1235,11 @@ test.describe('event dashboard:', () => {
     const state = await interceptEvents(page, { empty: true });
     await page.goto('/dashboard');
     await expect(page.locator('[data-event-activity-state]')).toContainText('Unknown');
-    await expect(eventRows(page)).toHaveCount(1);
-    await expect(eventRows(page)).toContainText('no observed day buckets');
-    await expect(eventRows(page)).toContainText('not measured zero');
+    await expect(eventRows(page)).toHaveCount(0);
+    const empty = page.locator('[data-event-activity-empty]');
+    await expect(empty).toBeVisible();
+    await expect(empty).toContainText('No observed event dates');
+    await expect(empty).toContainText('not measured zero');
     await expectHealthyCohort(page);
     state.unavailable = true;
     await page.reload();
@@ -1307,7 +1257,7 @@ test.describe('event dashboard:', () => {
     await expectHealthyCohort(page);
   });
 
-  test('event dashboard: narrow viewport keeps table scrolling local without document overflow', async ({ page }, testInfo) => {
+  test('event dashboard: narrow viewport keeps table scrolling local without document overflow', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await interceptEvents(page);
     await page.goto('/dashboard');
@@ -1322,7 +1272,6 @@ test.describe('event dashboard:', () => {
     await page.locator('.event-activity-scroll').evaluate(node => { node.scrollLeft = node.scrollWidth; });
     expect(await page.locator('.event-activity-scroll').evaluate(node => node.scrollLeft)).toBeGreaterThan(0);
     await expectHealthyCohort(page);
-    await page.screenshot({ path: testInfo.outputPath('event-day-narrow-synthetic.png'), fullPage: true });
   });
 });
 
@@ -1638,9 +1587,9 @@ test.describe('fixture identity proxy transport lifecycle regressions', () => {
         upstream.listen(0, '127.0.0.1', resolve);
       });
       const proxy = await startIdentityProxy(0, upstream.address().port);
-      const request = (callback, pathname = '/synthetic-transport-probe') => {
+      const request = (callback, pathname = '/synthetic-transport-probe', agent = false) => {
         const client = http.get({ host: '127.0.0.1', port: proxy.address().port,
-          path: pathname, agent: false }, callback);
+          path: pathname, agent }, callback);
         client.on('socket', ownSocket);
         client.on('error', () => {});
         return client;
@@ -1703,14 +1652,16 @@ test.describe('fixture identity proxy transport lifecycle regressions', () => {
     });
   });
 
-  test('complete upstream body and identity route remain successful', async () => {
+  test('complete bodies and identity never pool the fixture downstream socket', async () => {
     let upstreamRequests = 0;
     await withIdentityProxy((request, response) => {
       upstreamRequests += 1;
       response.writeHead(200, { 'content-type': 'text/plain', 'content-length': '4',
+        'connection': 'keep-alive', 'keep-alive': 'timeout=30',
         'x-synthetic-passthrough': 'yes' });
       response.end('done');
     }, async request => {
+      const agent = new http.Agent({ keepAlive: true });
       function read(pathname) {
         return new Promise((resolve, reject) => {
           const client = request(response => {
@@ -1720,21 +1671,27 @@ test.describe('fixture identity proxy transport lifecycle regressions', () => {
             response.on('error', reject);
             response.on('aborted', () => reject(new Error('complete response aborted')));
             response.on('end', () => resolve({ status: response.statusCode,
-              headers: response.headers, complete: response.complete, body }));
-          }, pathname);
+              headers: response.headers, complete: response.complete, body, reused: client.reusedSocket }));
+          }, pathname, agent);
           client.on('error', reject);
         });
       }
-      const normal = await read('/synthetic-transport-probe');
-      expect(normal.status).toBe(200);
-      expect(normal.complete).toBe(true);
-      expect(normal.body).toBe('done');
-      expect(normal.headers['x-synthetic-passthrough']).toBe('yes');
-      const identity = await read('/__feipi_fixture_identity');
-      expect(identity.status).toBe(200);
-      expect(identity.complete).toBe(true);
-      expect(JSON.parse(identity.body)).toEqual({ synthetic: true });
-      expect(upstreamRequests).toBe(1);
+      try {
+        const normal = await read('/synthetic-transport-probe');
+        expect(normal).toMatchObject({ status: 200, complete: true, body: 'done' });
+        expect(normal.headers['x-synthetic-passthrough']).toBe('yes');
+        expect(normal.headers.connection).toBe('close');
+        expect(normal.headers['keep-alive']).toBeUndefined();
+        const next = await read('/synthetic-transport-probe');
+        expect(next).toMatchObject({ status: 200, complete: true, body: 'done', reused: false });
+        const identity = await read('/__feipi_fixture_identity');
+        expect(identity).toMatchObject({ status: 200, complete: true });
+        expect(identity.headers.connection).toBe('close');
+        expect(JSON.parse(identity.body)).toEqual({ synthetic: true });
+        expect(upstreamRequests).toBe(2);
+      } finally {
+        agent.destroy();
+      }
     });
   });
 
@@ -1942,4 +1899,26 @@ test.describe('zero bar mouse hover regressions:', () => {
     await expectTruePositiveColumns(chart);
     await expect(page.locator('[data-snapshot-error], [data-snapshot-batch-error]')).toHaveCount(0);
   });
+});
+test('project detail explains missing tool breakdown without internal codes or API placeholders', async ({ page }) => {
+  await page.goto('/projects/test-hifi-project');
+  const hotspots = page.locator('[data-project-tool-hotspots]');
+  await expect(hotspots).toHaveText('Tool hotspots unavailable: this project has no indexed per-tool breakdown.', { timeout: 2500 });
+  await expect(page.locator('.project-detail-kpis')).not.toContainText(/\bSource\s*API\b/);
+});
+
+test('project pages show a custom page size and distinguish page count from result count', async ({ page }) => {
+  for (const route of ['/projects', '/projects/test-hifi-project']) {
+    await page.goto(route + '?page_size=1');
+    const pagination = page.getByRole('navigation', { name: 'Pagination' });
+    await expect(pagination.locator('[data-action="page-size"]')).toHaveValue('1');
+    await expect(pagination).toContainText(route === '/projects' ? /of \d+ · [\d,]+ projects/ : /of \d+ · [\d,]+ sessions/);
+  }
+});
+
+test('projects overview keeps implementation details out of hydrated cards and the table heading', async ({ page }) => {
+  await page.goto('/projects');
+  await expect(page.locator('#projects-table a.project-name-link').first()).toBeVisible();
+  await expect(page.locator('[aria-label="Project overview metrics"]')).not.toContainText('/api/projects/');
+  await expect(page.locator('#projects-table').locator('xpath=ancestor::section[contains(@class,"table-card")]')).not.toContainText('/api/projects/');
 });

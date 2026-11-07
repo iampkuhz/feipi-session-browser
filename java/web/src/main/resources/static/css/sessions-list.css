@@ -50,9 +50,16 @@
 }
 
 .sessions-page .page-head__stats > [data-token-provenance] {
-  flex: 1 0 100%;
+  align-self: center;
   min-width: 0;
   margin: 0;
+}
+
+.sessions-page .page-head__stats > [data-token-provenance][open] {
+  flex-basis: min(100%, 31rem);
+  padding: 7px 10px;
+  border: 1px solid var(--sessions-line-soft);
+  border-radius: 8px;
 }
 
 .sessions-page .sessions-page-title {
@@ -606,7 +613,6 @@
 }
 
 /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Data Table Structure (HIFI canonical, migrated from inline style block) ──` */
-/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`* Column width system: unit = 50px, min 2x, max 10x. * Total = 35x = 1750px; table-layout:fixed scales proportionally * when container is narrower. * * Session(10x) Project(4x) Agent(2x) Model(3x) Tokens(3x) * Rounds(2x) Tools(2x) Subagents(2x) Duration(3x) * Process Time(3x) Failure(3x) Created(3x)` */
 .sessions-page .table-wrap {
   min-width: 100%;
   max-width: 1900px;
@@ -616,22 +622,22 @@
 
 .sessions-page .data-table {
   width: max-content;
-  min-width: 1780px;
+  min-width: 1510px;
   border-collapse: collapse;
   table-layout: fixed;
 }
 
 /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`per-column widths applied to both th and td` */
 .sessions-page .data-table .col-session {
-  width: 500px;
+  width: 280px;
 }
 
 .sessions-page .data-table .col-project {
-  width: 200px;
+  width: 150px;
 }
 
 .sessions-page .data-table .col-agent {
-  width: 100px;
+  width: 72px;
 }
 
 .sessions-page .data-table .col-model {
@@ -639,31 +645,31 @@
 }
 
 .sessions-page .data-table .col-tokens {
-  width: 150px;
+  width: 178px;
 }
 
 .sessions-page .data-table .col-rounds {
-  width: 100px;
+  width: 80px;
 }
 
 .sessions-page .data-table .col-tools {
-  width: 100px;
+  width: 72px;
 }
 
 .sessions-page .data-table .col-subagents {
-  width: 100px;
+  width: 90px;
 }
 
 .sessions-page .data-table .col-duration {
-  width: 150px;
+  width: 120px;
 }
 
 .sessions-page .data-table .col-process-time {
-  width: 150px;
+  width: 120px;
 }
 
 .sessions-page .data-table .col-failure {
-  width: 140px;
+  width: 100px;
 }
 
 .sessions-page .data-table .col-created {
@@ -671,7 +677,7 @@
 }
 
 .sessions-page .data-table .col-updated {
-  width: 150px;
+  width: 100px;
 }
 
 .sessions-page .data-table th {

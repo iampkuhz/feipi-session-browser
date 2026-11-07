@@ -31,7 +31,7 @@ public final class IndexSchema {
   private static final Logger log = LoggerFactory.getLogger(IndexSchema.class);
 
   /** 当前 schema 版本，与已注册 migration 数量一致。 */
-  public static final SchemaVersion CURRENT_VERSION = new SchemaVersion(6);
+  public static final SchemaVersion CURRENT_VERSION = new SchemaVersion(7);
 
   /** sessions 表期望的全部列（列名 -> 类型定义），用于验证和修复旧数据库。 */
   private static final Map<String, String> SESSIONS_COLUMNS = buildSessionsColumns();
@@ -267,6 +267,7 @@ public final class IndexSchema {
     cols.put("token_contains_unavailable", INTEGER_NOT_NULL_DEFAULT_ZERO);
     cols.put("token_contains_unknown", "INTEGER NOT NULL DEFAULT 1");
     cols.put("round_count", "INTEGER");
+    cols.put("model_call_count", "INTEGER CHECK (model_call_count >= 0)");
     cols.put("llm_call_count", "INTEGER");
     cols.put("user_message_measured", "INTEGER NOT NULL DEFAULT 0");
     cols.put("assistant_message_measured", "INTEGER NOT NULL DEFAULT 0");

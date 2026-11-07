@@ -6,7 +6,6 @@
 
 ```bash
 python3 scripts/openspec/validate_layout.py
-python3 scripts/harness/validate_harness_structure.py
 ```
 
 然后尽可能按文件和行号汇总失败项。

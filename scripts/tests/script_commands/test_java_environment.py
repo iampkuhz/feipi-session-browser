@@ -84,6 +84,9 @@ def _create_minimal_project(
     script = project / 'scripts' / 'session-browser.sh'
     script.parent.mkdir(parents=True)
     script.write_bytes(SHELL_SCRIPT.read_bytes())
+    helper = project / 'scripts/harness/java_env.sh'
+    helper.parent.mkdir(parents=True, exist_ok=True)
+    helper.write_bytes((REPO_ROOT / 'scripts/harness/java_env.sh').read_bytes())
     script.chmod(stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
     (project / 'scripts' / 'gates').mkdir(parents=True)
     (project / 'scripts' / 'gates' / 'cli.py').write_text('# fake gate\n', encoding='utf-8')
@@ -115,7 +118,7 @@ def _isolate_script(
     sdkman_default_root: Path | None = None,
 ) -> None:
     """仅改测试副本的固定路径，不给生产入口增加环境变量后门。"""
-    script = project / 'scripts' / 'session-browser.sh'
+    script = project / 'scripts/harness/java_env.sh'
     content = script.read_text(encoding='utf-8')
     content = content.replace('/opt/homebrew', str(tmp_path / 'system-homebrew'))
     content = content.replace('/usr/local', str(tmp_path / 'system-localbrew'))
@@ -474,7 +477,7 @@ def test_macos_java_home_probe_succeeds(tmp_path: Path) -> None:
     probe_script = tmp_path / 'fake-java-home-probe'
     _write_executable(probe_script, f'#!/usr/bin/env bash\necho "{macos_jdk}"\n')
     _isolate_script(project, tmp_path, disable_macos_probe=False)
-    script = project / 'scripts' / 'session-browser.sh'
+    script = project / 'scripts/harness/java_env.sh'
     script.write_text(
         script.read_text(encoding='utf-8').replace('/usr/libexec/java_home', str(probe_script)),
         encoding='utf-8',

@@ -6,6 +6,11 @@ on:
       version:
         type: string
         default: ''
+    outputs:
+      candidate-id:
+        value: ${{ jobs.verify.outputs.candidate-id }}
+      candidate-key:
+        value: ${{ jobs.verify.outputs.candidate-key }}
 permissions:
   contents: read
 jobs:
@@ -79,22 +84,20 @@ jobs:
           PYTHON_CODE
       - name: Build native runtime (POSIX)
         if: runner.os != 'Windows'
-        run: ./java/gradlew -p java check :java:app-cli:runtimeDistTar --continue --no-daemon
+        run: |
+          set -euo pipefail
+          tasks=(check :java:app-cli:runtimeDistTar)
+          if [[ "$PLATFORM" == linux-x64 ]]; then tasks+=(:java:app-cli:distZip); fi
+          ./java/gradlew -p java "${tasks[@]}" --continue --no-daemon
       - name: Build native runtime (Windows)
         if: runner.os == 'Windows'
         shell: cmd
         run: .\java\gradlew.bat -p java check :java:app-cli:runtimeDistZip --continue --no-daemon
-      - name: Build the single generic package
-        if: matrix.platform == 'linux-x64'
-        run: ./java/gradlew -p java :java:app-cli:distZip --no-daemon
       - name: Prepare and launch actual native archive without external JDK
         run: |
           set -euo pipefail
           identity=(--version "$VERSION" --source-sha "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT")
-          python scripts/release/release_pipeline_helpers.py prepare --dist-dir java/app-cli/build/distributions --output-dir prepared-native --platform "$PLATFORM" "${identity[@]}"
-          extension=tar.gz
-          if [[ "$PLATFORM" == windows-x64 ]]; then extension=zip; fi
-          python scripts/release/release_pipeline_helpers.py verify-archive --archive "prepared-native/app-cli-$VERSION-runtime-$PLATFORM.$extension" --platform "$PLATFORM" "${identity[@]}"
+          python scripts/release/release_pipeline_helpers.py prepare --dist-dir java/app-cli/build/distributions --output-dir prepared-native --platform "$PLATFORM" --smoke "${identity[@]}"
       - name: Prepare the single generic package
         if: matrix.platform == 'linux-x64'
         run: |
@@ -104,6 +107,7 @@ jobs:
         with:
           name: candidate-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}
           path: prepared-native/
+          compression-level: 0
           if-no-files-found: error
           retention-days: 14
       - name: Upload generic group once
@@ -112,11 +116,15 @@ jobs:
         with:
           name: candidate-${{ github.run_id }}-${{ github.run_attempt }}-generic
           path: prepared-generic/
+          compression-level: 0
           if-no-files-found: error
           retention-days: 14
   verify:
     needs: [quality, build]
     runs-on: ubuntu-24.04
+    outputs:
+      candidate-id: ${{ steps.seal.outputs.artifact-id }}
+      candidate-key: ${{ format('{0}:{1}:{2}', github.sha, github.run_id, github.run_attempt) }}
     steps:
       - name: Checkout exact source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -139,9 +147,11 @@ jobs:
           version="$(tr -d '[:space:]' < java/gradle/VERSION)"
           python scripts/release/release_pipeline_helpers.py create-verified --candidate-dir candidate-groups --output-dir verified-candidate --version "$version" --source-sha "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT"
       - name: Upload the sole verified candidate
+        id: seal
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: verified-candidate-${{ github.run_id }}-${{ github.run_attempt }}
           path: verified-candidate/
+          compression-level: 0
           if-no-files-found: error
           retention-days: 14

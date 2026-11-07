@@ -180,8 +180,15 @@ public final class SessionDetailApiHandler {
         roundRows(loaded, parity).stream()
             .filter(round -> statusMatches(traceStatus, round))
             .toList();
+    long modelCalls =
+        rows.stream()
+            .filter(
+                round ->
+                    round.parity().get("modelCallEvidence") instanceof String evidence
+                        && !evidence.isEmpty())
+            .count();
     if (paged(ctx, loaded)) {
-      sendWindow(ctx, loaded, rows, "rounds", traceStatus);
+      sendWindow(ctx, loaded, rows, "rounds", traceStatus, modelCalls);
       return;
     }
     ctx.json(
@@ -189,6 +196,8 @@ public final class SessionDetailApiHandler {
             ApiResponses.SCHEMA_VERSION,
             loaded.echo().withTraceStatus(traceStatus),
             rows.size(),
+            modelCalls,
+            rows.size() - modelCalls,
             rows,
             roundState(rows.size(), traceStatus)));
   }
@@ -210,7 +219,7 @@ public final class SessionDetailApiHandler {
             .filter(payload -> payloadStatusMatches(payloadStatus, payload.status()))
             .toList();
     if (paged(ctx, loaded)) {
-      sendWindow(ctx, loaded, rows, "payloads", payloadStatus);
+      sendWindow(ctx, loaded, rows, "payloads", payloadStatus, null);
       return;
     }
     ctx.json(
@@ -282,7 +291,12 @@ public final class SessionDetailApiHandler {
   }
 
   private static <T> void sendWindow(
-      Context ctx, LoadedDetail loaded, List<T> rows, String section, String filter) {
+      Context ctx,
+      LoadedDetail loaded,
+      List<T> rows,
+      String section,
+      String filter,
+      Long modelCalls) {
     int limit = windowLimit(ctx);
     String scope = cursorScope(ctx, loaded, section, filter);
     long offset = windowOffset(ctx, scope);
@@ -293,19 +307,15 @@ public final class SessionDetailApiHandler {
         loaded,
         section,
         filter,
-        rows.subList((int) offset, end),
-        rows.size(),
-        end < rows.size() ? SessionContentCursor.encode(scope, end) : null);
+        new PageWindow(
+            rows.subList((int) offset, end),
+            rows.size(),
+            end < rows.size() ? SessionContentCursor.encode(scope, end) : null,
+            modelCalls));
   }
 
   private static void sendPage(
-      Context ctx,
-      LoadedDetail loaded,
-      String section,
-      String filter,
-      List<?> rows,
-      long total,
-      String next) {
+      Context ctx, LoadedDetail loaded, String section, String filter, PageWindow window) {
     Map<String, Object> response = new LinkedHashMap<>();
     response.put("schemaVersion", ApiResponses.SCHEMA_VERSION);
     response.put(
@@ -313,13 +323,18 @@ public final class SessionDetailApiHandler {
         "rounds".equals(section)
             ? loaded.echo().withTraceStatus(filter)
             : loaded.echo().withPayloadStatus(filter));
-    response.put("rounds".equals(section) ? "roundCount" : "payloadCount", total);
-    response.put("total", total);
-    response.put(section, rows);
-    response.put("nextCursor", next);
+    boolean rounds = "rounds".equals(section);
+    response.put(rounds ? "roundCount" : "payloadCount", window.total());
+    response.put("total", window.total());
+    if (window.modelCalls() != null) {
+      response.put("modelCallCount", window.modelCalls());
+      response.put("recordGroupCount", window.total() - window.modelCalls());
+    }
+    response.put(section, window.rows());
+    response.put("nextCursor", window.next());
     response.put(
         "state",
-        "rounds".equals(section) ? roundState(total, filter) : payloadState(total, filter));
+        rounds ? roundState(window.total(), filter) : payloadState(window.total(), filter));
     ctx.json(response);
   }
 
@@ -366,9 +381,8 @@ public final class SessionDetailApiHandler {
         loaded,
         "payloads",
         filter,
-        items,
-        total,
-        end < total ? SessionContentCursor.encode(scope, end) : null);
+        new PageWindow(
+            items, total, end < total ? SessionContentCursor.encode(scope, end) : null, null));
   }
 
   private LoadedDetail load(Context ctx) {
@@ -477,4 +491,14 @@ public final class SessionDetailApiHandler {
       SessionDetailUseCase.AnnotatedDetailContext annotated,
       String apiBase,
       boolean allowSourceFiles) {}
+
+  /**
+   * 当前筛选范围内的一页记录及其全量计数。
+   *
+   * @param rows 当前页记录
+   * @param total 筛选后的全量记录数
+   * @param next 下一页游标，末页为空
+   * @param modelCalls 有独立边界的调用数，非 Trace 资源为空
+   */
+  private record PageWindow(List<?> rows, long total, String next, Long modelCalls) {}
 }

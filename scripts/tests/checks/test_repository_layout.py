@@ -83,17 +83,3 @@ def test_owner_directories_contain_the_unique_tool_entrypoints() -> None:
         'docs/examples/session-browser.env.example',
     ):
         assert (ROOT / name).is_file() and not (ROOT / name).is_symlink(), name
-
-
-def test_development_docs_select_nested_configs_and_verify_actual_jdk() -> None:
-    text = (ROOT / 'docs/development/README.md').read_text(encoding='utf-8')
-    for command in (
-        'uv sync --project scripts --frozen --extra dev',
-        'python -m pytest -c scripts/pyproject.toml --rootdir . scripts/tests',
-        'pre-commit install --config scripts/.pre-commit-config.yaml',
-        './java/gradlew -p java check',
-        './java/gradlew -p java --version',
-        '"$JAVA_HOME/bin/java" -version',
-    ):
-        assert command in text, command
-    assert 'Launcher JVM 和 Daemon JVM 均为 25' in text

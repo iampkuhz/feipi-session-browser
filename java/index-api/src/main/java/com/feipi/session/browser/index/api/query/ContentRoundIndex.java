@@ -1,5 +1,7 @@
 package com.feipi.session.browser.index.api.query;
 
+import com.feipi.session.browser.domain.normalized.NormalizedAgent;
+import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionContent;
 import java.io.IOException;
 import java.util.Map;
@@ -20,7 +22,7 @@ public final class ContentRoundIndex {
   public static ContentRoundIndex build(NormalizedSessionContent content, long observedUserMessages)
       throws IOException {
     Objects.requireNonNull(content, "content");
-    var grouping = new RoundGrouping();
+    var grouping = new RoundGrouping(content.header().agent());
     try (var cursor = content.openCursor()) {
       while (cursor.hasNext()) {
         for (var call : cursor.next().calls()) grouping.add(call);
@@ -29,6 +31,17 @@ public final class ContentRoundIndex {
     int count = grouping.count();
     return new ContentRoundIndex(
         grouping.calls(), count == 0 && observedUserMessages > 0 ? 1 : count);
+  }
+
+  /**
+   * 返回 Codex 的轮次证据类型；空值表示未确认独立请求边界。
+   *
+   * @param agent 会话来源
+   * @param call 归一化调用
+   * @return 响应用量记录、累计计量边界或空字符串
+   */
+  public static String modelCallEvidence(NormalizedAgent agent, NormalizedCall call) {
+    return RoundGrouping.evidence(agent, call);
   }
 
   /** 返回逻辑轮次总数，并兼容仅观测到用户消息的会话。 */

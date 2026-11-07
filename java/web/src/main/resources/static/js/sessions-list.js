@@ -89,12 +89,6 @@
     return formatNumber(n);
   }
 
-  function formatMillions(value) {
-    var n = Number(value || 0);
-    if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
-    return formatCompact(n);
-  }
-
   function formatDuration(seconds) {
     var n = Math.max(0, Math.round(Number(seconds || 0)));
     if (n >= 3600) return Math.floor(n / 3600) + 'h ' + Math.floor((n % 3600) / 60) + 'min';
@@ -122,16 +116,6 @@
     if (seconds < 3600) return Math.floor(seconds / 60) + 'm ago';
     if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ago';
     return Math.floor(seconds / 86400) + 'd ago';
-  }
-
-  function segmentPct(tokens, key) {
-    var total = Number(tokens && tokens.total || 0);
-    if (!total) return 0;
-    return Math.round(Number(tokens[key] || 0) * 1000 / total) / 10;
-  }
-
-  function formatPct(value) {
-    return Number(value || 0).toFixed(1);
   }
 
   function apiUrl(path, params) {
@@ -272,44 +256,17 @@
     });
   }
 
-  // ── Token tooltip dynamic positioning ──────────────────────────────
-
-  var TOOLTIP_FLIP_THRESHOLD = 180; // px from bottom of viewport to trigger flip
-
-  function positionTokenTooltip(bar) {
-    var tooltip = bar.querySelector('.token-tooltip');
-    if (!tooltip) return;
-    var rect = bar.getBoundingClientRect();
-    var vpBottom = window.innerHeight || document.documentElement.clientHeight;
-    var spaceBelow = vpBottom - rect.bottom;
-    var shouldFlip = spaceBelow < TOOLTIP_FLIP_THRESHOLD;
-    tooltip.classList.toggle('token-tooltip--flip', shouldFlip);
-  }
-
-  function setupTokenTooltips() {
-    document.querySelectorAll('.data-table .token-total, .tokenbar-wrap').forEach(function (bar) {
-      bar.addEventListener('mouseenter', function () {
-        positionTokenTooltip(bar);
-      });
-      bar.addEventListener('focusin', function () {
-        positionTokenTooltip(bar);
-      });
-    });
-  }
-
   // ── Initialization: augment DOM for data-action delegation ──────────────
 
   function init() {
     augmentSortableHeaders();
     removeInlinePageSizeHandler();
-    syncPageSizeHidden();
     bindFormSubmit();
     bindFilterClear();
     bindSortAndPaginationClicks();
     bindPagination();
     bindRealtimeSearch();
     bindSelectAutoSubmit();
-    setupTokenTooltips();
     syncFormFromLocation();
     fetchPage(paramsToObject(getFilterParams()), true);
 
@@ -516,7 +473,6 @@
     syncPageSizeHidden();
 
     // Re-bind token tooltip positioning for new rows
-    setupTokenTooltips();
     SessionTiming.prepareTable(tbody.closest('table'));
   }
 
@@ -577,14 +533,14 @@
       stats.replaceChildren(
         statPill(summary.totalCount, 'sessions'),
         statPill(summary.projectCount, 'projects'),
-        statPill(TokenProvenance.total(summary.tokens, formatMillions), 'total tokens')
+        statPill(TokenProvenance.amount(summary.tokens, 'total', formatCompact), 'total tokens')
       );
       TokenProvenance.attach(stats, summary.tokens);
     }
     var countEl = document.querySelector('.active-filters__count');
     if (countEl) {
       countEl.textContent = summary.totalCount > 0
-        ? summary.totalCount + ' matching sessions'
+        ? formatNumber(summary.totalCount) + ' matching sessions'
         : 'No matching sessions';
     }
   }
@@ -642,7 +598,6 @@
     renderPagination(rowsResponse.pagination);
     updateHiddenPaging(rowsResponse.filters, rowsResponse.pagination);
     augmentSortableHeaders();
-    setupTokenTooltips();
     SessionTiming.prepareTable(tbody.closest('table'));
   }
 
@@ -662,13 +617,14 @@
   function sessionRowElement(row) {
     var tr = document.createElement('tr');
     var tokens = row.tokens || {};
-    var title = row.title || row.sessionId;
+    var title = (row.displayTitle == null ? row.title : row.displayTitle) || row.sessionId;
     var projectLabel = row.projectName || row.projectKey || '—';
     var agentClass = row.agent === 'claude_code' ? 'cc' : (row.agent === 'codex' ? 'cx' : 'qd');
     var agentDotClass = row.agent === 'claude_code' ? 'claude' : (row.agent === 'codex' ? 'codex' : 'qoder');
     var agentText = row.agent === 'claude_code' ? 'CC' : (row.agent === 'codex' ? 'CX' : 'QD');
     var agentLabel = row.agent === 'claude_code' ? 'Claude Code' : (row.agent === 'codex' ? 'Codex' : 'Qoder');
     var branch = row.gitBranch || '';
+    var rounds = DataTable.sessionRounds(row);
     tr.className = 'sessions-row';
     tr.setAttribute('data-action', 'row');
     tr.dataset.sessionKey = row.sessionKey || '';
@@ -695,8 +651,8 @@
       escapeHtml(projectLabel), '</a></span></div></td>',
       '<td class="col-agent"><span class="badge ', agentClass, ' badge--has-dot" data-tooltip="', escapeHtml(agentLabel), '" role="status"><span class="badge-dot badge-dot--', agentDotClass, '" aria-hidden="true"></span>', agentText, '</span></td>',
       '<td class="mono col-model" title="', escapeHtml(row.model || ''), '">', escapeHtml(row.model || 'Unknown model'), '</td>',
-      tokenCellHtml(tokens),
-      '<td class="num mono col-rounds" aria-description="', escapeHtml((row.llmCalls == null ? 'Unknown' : formatNumber(row.llmCalls)) + ' LLM calls · ' + (row.assistantMessages == null ? 'Unknown' : formatNumber(row.assistantMessages)) + ' assistant messages'), '">', (row.rounds == null ? "—" : formatNumber(row.rounds)), '</td>',
+      '<td class="token-cell"></td>',
+      '<td class="num mono col-rounds" title="', escapeHtml(rounds.note), '">', escapeHtml(rounds.value), '</td>',
       '<td class="num mono col-tools">', (row.tools == null ? "—" : formatNumber(row.tools)), '</td>',
       '<td class="num mono col-subagents">', (row.subagents == null ? "—" : formatNumber(row.subagents)), '</td>',
       '<td class="mono col-duration" data-wall-duration>', escapeHtml(SessionTiming.value(row.timing, 'wallSeconds')), '</td>',
@@ -706,37 +662,8 @@
       '<td class="mono col-created" title="', escapeHtml(row.createdAt || ''), '">', escapeHtml(formatDateTime(row.createdAt)), '</td>',
       '<td class="muted col-updated">', escapeHtml(formatRelativeTime(row.updatedAt)), '</td>'
     ].join(''));
-    TokenProvenance.attach(tr.querySelector('.token-cell'), tokens);
+    TokenProvenance.renderCell(tr.querySelector('.token-cell'), tokens, formatCompact, true);
     return tr;
-  }
-
-  function tokenCellHtml(tokens) {
-    var freshPct = segmentPct(tokens, 'fresh');
-    var readPct = segmentPct(tokens, 'cacheRead');
-    var writePct = segmentPct(tokens, 'cacheWrite');
-    var outPct = segmentPct(tokens, 'output');
-    return [
-      '<td class="token-cell"><div class="token-total"><span class="token-total__value">',
-      escapeHtml(TokenProvenance.total(tokens, formatCompact)), '</span><span class="tokenbar" aria-hidden="true">',
-      '<span class="tokenbar-seg fresh" style="--segment-width:', formatPct(freshPct), '%"></span>',
-      '<span class="tokenbar-seg read" style="--segment-width:', formatPct(readPct), '%"></span>',
-      '<span class="tokenbar-seg write" style="--segment-width:', formatPct(writePct), '%"></span>',
-      '<span class="tokenbar-seg out" style="--segment-width:', formatPct(outPct), '%"></span>',
-      '<div class="token-tooltip" aria-hidden="true"><div class="token-tooltip__title">Token Breakdown</div>',
-      tooltipRowHtml('fresh', 'Fresh input', tokens, 'fresh', freshPct),
-      tooltipRowHtml('read', 'Cached Rd', tokens, 'cacheRead', readPct),
-      tooltipRowHtml('write', 'Cached Wr', tokens, 'cacheWrite', writePct),
-      tooltipRowHtml('out', 'Output', tokens, 'output', outPct),
-      '<div class="token-tooltip__sep"></div><div class="token-tooltip__row token-tooltip__total"><span>Total</span><span class="token-tooltip__value">',
-      escapeHtml(TokenProvenance.total(tokens, formatCompact)), '</span></div></div></span></div></td>'
-    ].join('');
-  }
-
-  function tooltipRowHtml(cls, label, tokens, key, pct) {
-    return '<div class="token-tooltip__row"><span class="token-tooltip__label"><span class="dot dot--'
-      + cls + '"></span><span class="token-tooltip__type-name">' + escapeHtml(label)
-      + '</span></span><span class="token-tooltip__value">' + escapeHtml(TokenProvenance.value(tokens, key, formatCompact))
-      + '</span><span class="token-tooltip__pct">' + (TokenProvenance.state(tokens) === 'provider_reported' ? formatPct(pct) + '%' : 'N/A') + '</span></div>';
   }
 
   function renderPagination(pagination) {
@@ -759,18 +686,25 @@
       + '<input class="page-input mono" data-action="page-input" aria-label="Page number" value="'
       + escapeHtml(pagination.page) + '" data-total-pages="' + escapeHtml(pagination.totalPages || 1) + '"'
       + (disabled ? ' disabled' : '') + ' title="输入页码后按 Enter，跳转到指定页">'
-      + '<span class="page-status">of ' + escapeHtml(pagination.totalPages || 0)
-      + (pagination.totalItems > 0 ? ' of ' + escapeHtml(pagination.totalItems) : '') + '</span>'
+      + '<span class="page-status">of ' + formatNumber(pagination.totalPages)
+      + (pagination.totalItems > 0 ? ' · ' + formatNumber(pagination.totalItems) + ' sessions' : '') + '</span>'
       + '<span class="spacer"></span><label class="page-size-label page-status">每页 '
       + '<select class="page-size-select sessions-footer-page-size__select" data-action="page-size" aria-label="Page size">'
-      + pageSizeOption(25, pagination.pageSize) + pageSizeOption(50, pagination.pageSize)
-      + pageSizeOption(100, pagination.pageSize) + '</select></label>'
+      + pageSizeOptions(pagination.pageSize) + '</select></label>'
       + '<button class="btn sm" data-action="next-page" aria-label="Next page"'
       + (!pagination.hasNext || disabled ? ' disabled' : '') + '>next &rsaquo;</button></nav>');
   }
 
   function pageSizeOption(value, selected) {
     return '<option value="' + value + '"' + (Number(selected) === value ? ' selected' : '') + '>' + value + '</option>';
+  }
+
+  function pageSizeOptions(selected) {
+    var sizes = [25, 50, 100];
+    if (Number.isInteger(selected) && selected > 0 && !sizes.includes(selected)) sizes.push(selected);
+    return sizes.sort(function (a, b) { return a - b; }).map(function (size) {
+      return pageSizeOption(size, selected);
+    }).join('');
   }
 
   function updateHiddenPaging(filters, pagination) {

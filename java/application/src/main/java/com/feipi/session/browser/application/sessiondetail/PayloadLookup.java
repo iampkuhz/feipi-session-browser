@@ -70,6 +70,7 @@ public final class PayloadLookup {
       String reqPayloadId = prefix + ":req:" + call.callId();
       PayloadSourceKind requestKind =
           isSubagent ? PayloadSourceKind.SUBAGENT_REQUEST : PayloadSourceKind.LLM_REQUEST;
+      var requestReading = PayloadCallContentExtractor.readingText(call, artifact, true);
       map.put(
           reqPayloadId,
           new PayloadEntry(
@@ -77,7 +78,9 @@ public final class PayloadLookup {
               requestKind,
               call.callId(),
               policy.applyMasking(reqContent),
-              truncated));
+              truncated,
+              readingBlock(policy, requestReading.text()),
+              requestReading.unconfirmedContext()));
 
       String respContent = PayloadCallContentExtractor.extractResponseContent(call, artifact);
       String respPayloadId = prefix + ":resp:" + call.callId();
@@ -90,7 +93,10 @@ public final class PayloadLookup {
               responseKind,
               call.callId(),
               policy.applyMasking(respContent),
-              truncated));
+              truncated,
+              readingBlock(
+                  policy, PayloadCallContentExtractor.readingText(call, artifact, false).text()),
+              false));
     }
 
     for (var input : toolInputs.values()) {
@@ -128,7 +134,7 @@ public final class PayloadLookup {
     }
 
     for (var round :
-        SessionDetailAssembler.buildRounds(artifact.calls(), artifact.toolExecutions())) {
+        com.feipi.session.browser.index.api.query.RoundAssembler.buildRounds(artifact, 0)) {
       List<NormalizedCall> calls =
           artifact.calls().stream().filter(call -> round.calls().contains(call.callId())).toList();
       List<NormalizedCall> mainCalls =
@@ -160,10 +166,48 @@ public final class PayloadLookup {
             .filter(content -> !content.isEmpty())
             .toList();
     String id = "round:" + side + ":" + roundIndex;
+    List<ReadingBlock> reading =
+        calls.stream()
+            .flatMap(
+                call -> {
+                  String prefix = call.scope() == CallScope.SUBAGENT ? "sa" : "main";
+                  PayloadEntry entry = entries.get(prefix + ":" + side + ":" + call.callId());
+                  return entry == null
+                      ? java.util.stream.Stream.<ReadingBlock>empty()
+                      : entry.reading().stream()
+                          .map(block -> new ReadingBlock(call.callKey(), block.text()));
+                })
+            .toList();
     entries.put(
         id,
-        new PayloadEntry(id, kind, "round:" + roundIndex, String.join("\n\n", contents), false));
+        new PayloadEntry(
+            id,
+            kind,
+            "round:" + roundIndex,
+            String.join("\n\n", contents),
+            false,
+            reading,
+            side.equals("req")
+                && calls.stream()
+                    .anyMatch(
+                        call -> {
+                          String prefix = call.scope() == CallScope.SUBAGENT ? "sa" : "main";
+                          var entry = entries.get(prefix + ":req:" + call.callId());
+                          return entry != null && entry.unconfirmedContext();
+                        })));
   }
+
+  static List<ReadingBlock> readingBlock(SensitiveFieldPolicy policy, String text) {
+    return text.isBlank() ? List.of() : List.of(new ReadingBlock("", policy.applyMasking(text)));
+  }
+
+  /**
+   * 有角色依据的阅读正文；工具和系统上下文仍在原文中。
+   *
+   * @param label 多个调用并列时显示的简短标识
+   * @param text 按可见性规则遮盖后的对话文本
+   */
+  public record ReadingBlock(String label, String text) {}
 
   /**
    * 查找指定 payload_id 的内容。
@@ -205,6 +249,8 @@ public final class PayloadLookup {
    * @param callId 关联的归一化调用 ID
    * @param content payload 内容（可能已被 masking）
    * @param truncated 内容是否确实被裁剪（字段遮盖不算截断）
+   * @param reading 可与原文分开展示的对话片段
+   * @param unconfirmedContext 原始请求中是否含无法确认归属的独立上下文样式段落
    */
   public record PayloadEntry(
       /* 全局唯一的 payload 标识符。 */
@@ -220,7 +266,19 @@ public final class PayloadLookup {
       String content,
 
       /* 内容是否被截断。 */
-      boolean truncated) {
+      boolean truncated,
+      List<ReadingBlock> reading,
+      boolean unconfirmedContext) {
+
+    /** 构造无需单独对话正文的工具或诊断记录。 */
+    public PayloadEntry(
+        String payloadId,
+        PayloadSourceKind kind,
+        String callId,
+        String content,
+        boolean truncated) {
+      this(payloadId, kind, callId, content, truncated, List.of(), false);
+    }
 
     /**
      * 紧凑构造器，验证条目不变量。
@@ -229,8 +287,16 @@ public final class PayloadLookup {
      */
     public PayloadEntry {
       ValidationSupport.validateCanonicalConstructor(
-          PayloadEntry.class, payloadId, kind, callId, content, truncated);
+          PayloadEntry.class,
+          payloadId,
+          kind,
+          callId,
+          content,
+          truncated,
+          reading,
+          unconfirmedContext);
       content = content == null ? "" : content;
+      reading = List.copyOf(reading);
     }
   }
 }

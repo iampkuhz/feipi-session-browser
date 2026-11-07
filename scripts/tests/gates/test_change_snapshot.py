@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 from scripts.gates.planning.change_snapshot import capture_change_snapshot
+from scripts.gates.planning.plan_compiler import compile_gate_plan
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -60,6 +61,25 @@ def test_base_input_only_compares_committed_head_and_records_resolved_base(tmp_p
     assert snapshot.files == ('stable.txt',)
 
 
+def test_git_deleted_and_added_browser_contracts_select_native_discovery(tmp_path: Path) -> None:
+    repo = _repository(tmp_path)
+    browser = repo / 'java/tests/playwright'
+    browser.mkdir(parents=True)
+    removed = browser / 'removed-contract.spec.js'
+    removed.write_text('synthetic old contract\n')
+    _git(repo, 'add', '.')
+    _git(repo, 'commit', '-qm', 'synthetic browser contract')
+    removed.unlink()
+    (browser / 'new-critical.spec.ts').write_text('synthetic new contract\n')
+    snapshot = capture_change_snapshot(repo)
+    assert snapshot.files == (
+        'java/tests/playwright/new-critical.spec.ts',
+        'java/tests/playwright/removed-contract.spec.js',
+    )
+    gate = next(gate for gate in compile_gate_plan(snapshot).gates if gate.name == 'browserTests')
+    assert gate.recipe.steps[0].tests == ()  # 原生发现，无旧清单掩盖新文件。
+
+
 def test_explicit_files_are_normalized_deduplicated_and_content_sensitive(
     tmp_path: Path,
 ) -> None:
@@ -111,3 +131,39 @@ def test_explicit_changed_files_rejects_scalar_string(tmp_path: Path) -> None:
     repo = _repository(tmp_path)
     with pytest.raises(TypeError, match='iterable of paths'):
         capture_change_snapshot(repo, changed_files='one.py')
+
+
+def test_staged_rename_out_of_browser_keeps_old_consumers(tmp_path: Path) -> None:
+    repo = _repository(tmp_path)
+    old = 'java/tests/playwright/old.spec.js'
+    (repo / old).parent.mkdir(parents=True)
+    (repo / old).write_text('synthetic contract\n')
+    _git(repo, 'add', old)
+    _git(repo, 'commit', '-qm', 'add browser test')
+    _git(repo, 'mv', old, 'outside.txt')
+
+    snapshot = capture_change_snapshot(repo)
+    assert snapshot.files == (old, 'outside.txt')
+    assert 'browserTests' in {gate.name for gate in compile_gate_plan(snapshot).gates}
+
+
+def test_worktree_type_change_is_not_dropped(tmp_path: Path) -> None:
+    repo = _repository(tmp_path)
+    path = repo / 'stable.txt'
+    path.unlink()
+    path.symlink_to('working.txt')
+    assert capture_change_snapshot(repo).files == ('stable.txt',)
+
+
+def test_unmerged_index_cannot_produce_a_plan(tmp_path: Path) -> None:
+    repo = _repository(tmp_path)
+    digest = _git(repo, 'rev-parse', 'HEAD:staged.txt')
+    subprocess.run(
+        ('git', 'update-index', '--index-info'),
+        cwd=repo,
+        input=f'0 {"0" * len(digest)}\tstaged.txt\n100644 {digest} 2\tstaged.txt\n',
+        text=True,
+        check=True,
+    )
+    with pytest.raises(RuntimeError, match='unresolved Git conflicts'):
+        capture_change_snapshot(repo)

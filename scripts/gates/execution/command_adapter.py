@@ -109,15 +109,17 @@ def _playwright_workers() -> int:
 
 
 def _expand(argument: str, repo_root: Path) -> str:
-    return argument.format_map(
-        {
-            'python': _project_python(repo_root),
-            'dev_python': _project_python(repo_root, dev=True),
-            'repo_root': str(repo_root),
-            'tool_config': str(tool_config_path(repo_root)),
-            'playwright_workers': str(_playwright_workers()),
-        }
-    )
+    values = {
+        'repo_root': str(repo_root),
+        'tool_config': str(tool_config_path(repo_root)),
+        'playwright_workers': str(_playwright_workers()),
+    }
+    # Gradle 参数与 browser workers 不消费 Python；不要为无关占位符探测环境。
+    if '{python}' in argument:
+        values['python'] = _project_python(repo_root)
+    if '{dev_python}' in argument:
+        values['dev_python'] = _project_python(repo_root, dev=True)
+    return argument.format_map(values)
 
 
 def _repository_files(repo_root: Path, patterns: tuple[str, ...]) -> tuple[str, ...]:
@@ -129,6 +131,39 @@ def _repository_files(repo_root: Path, patterns: tuple[str, ...]) -> tuple[str, 
             if path.is_file()
         )
     return tuple(dict.fromkeys(files))
+
+
+def _framework_test_paths(repo_root: Path, changed_files: tuple[str, ...]) -> tuple[str, ...]:
+    """空结果保留完整发现；目录选择同时包含新增和同组回归。"""
+    suites: set[str] = set()
+    for path in changed_files:
+        parts = Path(path).parts
+        if (
+            parts[:2] == ('scripts', 'tests')
+            and len(parts) >= 4
+            and parts[2] in {'checks', 'gates', 'harness', 'misc', 'quality'}
+            and parts[-1].startswith('test_')
+            and path.endswith('.py')
+        ):
+            suites.add(f'scripts/tests/{parts[2]}')
+        elif parts[:3] == ('scripts', 'gates', 'presentation') and path.endswith('.py'):
+            suites.update(('scripts/tests/gates', 'root'))
+        elif (
+            parts[:3] == ('scripts', 'gates', 'checks')
+            and len(parts) >= 5
+            and parts[3] in {'agent', 'privacy', 'repository', 'source'}
+            and path.endswith('.py')
+        ):
+            suites.update(('scripts/tests/checks', 'scripts/tests/gates', 'root'))
+        else:
+            return ()
+    root_tests = (
+        _repository_files(repo_root, ('scripts/tests/test_*.py',)) if 'root' in suites else ()
+    )
+    suites.discard('root')
+    if not all((repo_root / suite).is_dir() for suite in suites):
+        return ()
+    return (*sorted(suites), *root_tests)
 
 
 def _gradle_command_prefix(repo_root: Path) -> tuple[str, ...]:
@@ -234,7 +269,10 @@ def adapt_recipe_step(
     )
     prefix = f'{gate.name}:{step.name}'
     command = _step_command(step, root)
-    if step.kind is RecipeStepKind.SCAN_SMOKE:
+    if command and gate.name == 'gateFrameworkTests' and mode == ExecutionMode.INCREMENTAL:
+        if paths := _framework_test_paths(root, changed_files):
+            command = (*command[:-1], *paths)
+    if step.kind is RecipeStepKind.SCAN_SMOKE and step.prerequisite_tasks:
         gradle_prefix = _gradle_command_prefix(root)
         prerequisite = (
             (*gradle_prefix, *step.prerequisite_tasks, '--console=plain')

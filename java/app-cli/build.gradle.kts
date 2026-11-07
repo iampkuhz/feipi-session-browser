@@ -1,4 +1,5 @@
 import java.time.Instant
+import java.util.zip.ZipFile
 import org.gradle.jvm.application.scripts.TemplateBasedScriptGenerator
 import org.gradle.jvm.application.tasks.CreateStartScripts
 
@@ -12,6 +13,7 @@ val sourceVersionFile = rootProject.layout.projectDirectory.file("gradle/VERSION
 // 发行工具跟随实际 Gradle JVM，不再各自从 PATH/JAVA_HOME 选择另一套 JDK。
 val distributionJdk = File(System.getProperty("java.home"))
 val jdkExecutableSuffix = if (System.getProperty("os.name").startsWith("Windows")) ".exe" else ""
+val runtimeLayout = layout.buildDirectory.dir("runtime-layout")
 
 // 产品 launcher 是 JVM profile 的唯一 owner；full scan 需要更大的有界堆。
 val standardLauncherJvmArgs = listOf(
@@ -108,11 +110,11 @@ dependencies {
 tasks.named<Test>("test") {
     // 发行目录契约必须消费本轮准备完成的产物，不能依赖上次构建留下的目录。
     dependsOn(tasks.named("installDist"))
-    dependsOn("generateRuntimeLauncher")
+    dependsOn("prepareRuntimeDist")
     val installDir = layout.buildDirectory.dir("install/app-cli")
     inputs.dir(installDir).withPropertyName("cliInstallDistribution")
     systemProperty("cli.install.dir", installDir.get().asFile.absolutePath)
-    val runtimeDir = layout.buildDirectory.dir("distributions/runtime-base/app-cli")
+    val runtimeDir = runtimeLayout
     inputs.dir(runtimeDir).withPropertyName("cliRuntimeDistribution")
     systemProperty("cli.runtime.dir", runtimeDir.get().asFile.absolutePath)
 }
@@ -136,17 +138,18 @@ val generateBuildInfo = tasks.register("generateBuildInfo") {
                 .orElse(providers.provider { "unknown" })
         )
     val buildTimestampProvider = providers.environmentVariable("BUILD_TIMESTAMP")
-        .orElse(providers.provider { Instant.now().toString() })
 
     inputs.file(versionFile)
     inputs.property("gitCommit", gitCommitProvider)
-    inputs.property("buildTimestamp", buildTimestampProvider)
+    // 只有显式时间属于输入；默认当前时间在任务执行时生成，不能让时钟使候选持续失效。
+    inputs.property("buildTimestamp", buildTimestampProvider).optional(true)
     outputs.dir(outputDir)
 
     val gitCommitValue = gitCommitProvider.get()
-    val buildTimestampValue = buildTimestampProvider.get()
+    val explicitBuildTimestamp = buildTimestampProvider.orNull
 
     doLast {
+        val buildTimestampValue = explicitBuildTimestamp ?: Instant.now().toString()
         val version = versionFile.readText().trim()
         val propsDir = outputDir.get().asFile.resolve("com/feipi/session/browser/cli")
         propsDir.mkdirs()
@@ -275,6 +278,61 @@ distributions {
     }
 }
 
+// generic 保留原始全平台 JDBC；只有宿主 runtime 包使用裁剪后的同名 JAR。
+// Linux 同时保留 glibc/musl，不能以构建机 libc 推断使用者的环境。
+fun sqliteNativePaths(os: String, arch: String): List<String> = when (os) {
+    "Mac OS X" -> when (arch) {
+        "aarch64", "arm64" -> listOf("Mac/aarch64")
+        "x86_64", "amd64" -> listOf("Mac/x86_64")
+        else -> emptyList()
+    }
+    "Linux" -> when (arch) {
+        "x86_64", "amd64" -> listOf("Linux/x86_64", "Linux-Musl/x86_64")
+        else -> emptyList()
+    }
+    else -> if (os.startsWith("Windows") &&
+        arch in listOf("amd64", "x86_64")) {
+        listOf("Windows/x86_64")
+    } else {
+        // 未声明的宿主不猜测 SQLite 的平台映射，安全保留全部 native。
+        emptyList()
+    }
+}
+val nativeSqlitePaths = sqliteNativePaths(System.getProperty("os.name"), System.getProperty("os.arch"))
+val sqliteJdbcJar = configurations.runtimeClasspath.map { classpath ->
+    classpath.single { it.name.startsWith("sqlite-jdbc-") && it.extension == "jar" }
+}
+val nativeSqliteJar = tasks.register<Zip>("nativeSqliteJar") {
+    group = "distribution"
+    description = "仅为宿主 runtime 发行包保留目标 SQLite native，保留类、SPI、许可与来源。"
+    archiveFileName.set(sqliteJdbcJar.map { it.name })
+    destinationDirectory.set(layout.buildDirectory.dir("native-libs"))
+    inputs.property("nativePaths", nativeSqlitePaths)
+    val requiredPaths = nativeSqlitePaths
+    from(zipTree(sqliteJdbcJar)) {
+        exclude { entry ->
+            entry.path.startsWith("org/sqlite/native/") && requiredPaths.isNotEmpty() &&
+                requiredPaths.none { entry.path.startsWith("org/sqlite/native/$it/") }
+        }
+    }
+    includeEmptyDirs = false
+    val sourceJar = sqliteJdbcJar
+    doFirst {
+        ZipFile(sourceJar.get()).use { jar ->
+            val names = jar.entries().asSequence().filter { !it.isDirectory }.map { it.name }.toList()
+            require(names.none { it.matches(Regex("META-INF/[^/]+\\.(SF|RSA|DSA|EC)", RegexOption.IGNORE_CASE)) }) {
+                "不能裁剪已签名的 SQLite JAR"
+            }
+            requiredPaths.forEach { path ->
+                require(names.any { it.startsWith("org/sqlite/native/$path/") }) {
+                    "SQLite JAR 缺少目标 native: $path"
+                }
+            }
+        }
+    }
+}
+val runtimeJars = files(tasks.named("jar"), configurations.runtimeClasspath)
+
 // ============================================================
 // jdeps 模块依赖分析 —— 确定应用需要的最小 JDK 模块集合
 // ============================================================
@@ -282,11 +340,10 @@ val jdepsModuleList = tasks.register("jdepsModuleList") {
     group = "distribution"
     description = "使用 jdeps 分析运行时 classpath JAR 所需的 JDK 模块清单。"
 
-    dependsOn(tasks.named("installDist"))
+    dependsOn(tasks.named("jar"))
 
-    // 预解析 installDist 输出路径为字符串，避免在 doLast 中捕获 Task 引用。
-    val installDistLibPath = layout.buildDirectory.dir("install/app-cli/lib")
-        .get().asFile.absolutePath
+    // 直接分析原始 JAR，不为 jdeps 复制完整 installDist。
+    val jars = runtimeJars
     val outputDir = layout.buildDirectory.dir("reports/jdeps")
     val outputFile = outputDir.map { it.file("module-deps.txt") }
     val jdepsExecutable = distributionJdk.resolve("bin/jdeps$jdkExecutableSuffix")
@@ -294,16 +351,14 @@ val jdepsModuleList = tasks.register("jdepsModuleList") {
     inputs.property("jdkHome", distributionJdk.absolutePath)
     inputs.file(distributionJdk.resolve("release")).withPropertyName("jdkRelease")
     inputs.file(jdepsExecutable).withPropertyName("jdepsExecutable")
-    inputs.dir(layout.buildDirectory.dir("install/app-cli/lib"))
-        .withPropertyName("distLibDir")
+    inputs.files(jars).withPropertyName("runtimeJars")
     outputs.file(outputFile).withPropertyName("moduleDepsFile")
 
     doLast {
-        val distLibDir = File(installDistLibPath)
-        val allJars = distLibDir.listFiles()?.filter { it.name.endsWith(".jar") } ?: emptyList()
+        val allJars = jars.files.filter { it.name.endsWith(".jar") }
 
         if (allJars.isEmpty()) {
-            throw org.gradle.api.GradleException("jdepsModuleList: dist lib 目录为空，请先运行 installDist")
+            throw org.gradle.api.GradleException("jdepsModuleList: runtime classpath 为空")
         }
 
         val jdepsCmd = listOf(jdepsExecutable.absolutePath, "--multi-release", "base", "--print-module-deps",
@@ -354,9 +409,9 @@ val jlinkImage = tasks.register("jlinkImage") {
     group = "distribution"
     description = "使用 jlink 创建包含最小必要 JDK 模块的自包含 runtime image。"
 
-    dependsOn(jdepsModuleList, tasks.named("installDist"))
+    dependsOn(jdepsModuleList)
 
-    val imageDir = layout.buildDirectory.dir("jlink-image")
+    val imageDir = runtimeLayout.map { it.dir("runtime") }
     val moduleDepsFile = layout.buildDirectory.file("reports/jdeps/module-deps.txt")
     val jlinkExecutable = distributionJdk.resolve("bin/jlink$jdkExecutableSuffix")
 
@@ -411,44 +466,17 @@ val jlinkImage = tasks.register("jlinkImage") {
 // ============================================================
 // Runtime distribution —— 包含自包含 runtime 的发行包
 // ============================================================
-val runtimeDistBase = layout.buildDirectory.dir("distributions/runtime-base")
-val runtimeAppDirectory = layout.buildDirectory.dir("distributions/runtime-base/${project.name}")
+// jlink、launcher 与测试应用各自拥有独立输出，测试直接使用原始 runtime。
+val runtimeLauncherDirectory = runtimeLayout.map { it.dir("bin") }
+val runtimeVersionFile = runtimeLayout.map { it.file("VERSION") }
 
-val prepareRuntimeDist = tasks.register<Sync>("prepareRuntimeDist") {
-    group = "distribution"
-    description = "准备包含自包含 runtime 的发行目录。"
-
-    dependsOn(jlinkImage, tasks.named("installDist"))
-
-    // 使用预解析路径，避免 configuration cache 序列化 Task 引用。
-    val installDistDirPath = layout.buildDirectory.dir("install/app-cli").get().asFile.absolutePath
-    val runtimeCopy = runtimeAppDirectory.get().dir("runtime").asFile
-
-    // jlink 的 legal 文件只读；重建前仅清理生成的 runtime 副本，避免覆盖失败。
-    doFirst {
-        if (runtimeCopy.exists()) {
-            runtimeCopy.walkTopDown().filter { it.isFile && !it.canWrite() }.forEach {
-                check(it.setWritable(true)) { "无法清理生成的 runtime 文件: $it" }
-            }
-            check(runtimeCopy.deleteRecursively()) { "无法清理生成的 runtime 目录: $runtimeCopy" }
-        }
-    }
-
-    from(installDistDirPath) { into("app") }
-    from(jlinkImage) { into("runtime") }
-    from(sourceVersionFile) { into("") }
-
-    into(runtimeAppDirectory)
-}
-
-// runtime launcher 脚本生成
 val generateRuntimeLauncher = tasks.register("generateRuntimeLauncher") {
     group = "distribution"
     description = "为 runtime distribution 生成跨平台 launcher 脚本。"
 
-    dependsOn(prepareRuntimeDist)
-
-    val distRoot = runtimeAppDirectory
+    val launcherDir = runtimeLauncherDirectory
+    val versionOutput = runtimeVersionFile
+    val versionSource = sourceVersionFile.asFile
     val mainClassName = application.mainClass.get()
     // 配置期冻结共享 JVM 参数，执行期不再捕获 Gradle script 对象。
     val standardJvmArgs = standardLauncherJvmArgs.joinToString(" ")
@@ -456,12 +484,14 @@ val generateRuntimeLauncher = tasks.register("generateRuntimeLauncher") {
 
     // 内联 launcher 模板变化必须使已有发行目录失效并重新生成。
     inputs.file(layout.projectDirectory.file("build.gradle.kts"))
-    outputs.dir(distRoot)
+    inputs.file(versionSource)
+    outputs.dir(launcherDir)
+    outputs.file(versionOutput)
 
     doLast {
-        val root = distRoot.get().asFile
-        val binDir = root.resolve("bin")
+        val binDir = launcherDir.get().asFile
         binDir.mkdirs()
+        versionSource.copyTo(versionOutput.get().asFile, overwrite = true)
 
         // Unix launcher —— 使用自包含 runtime java，无需系统 JDK。
         val unixScript = binDir.resolve("run")
@@ -526,53 +556,61 @@ val generateRuntimeLauncher = tasks.register("generateRuntimeLauncher") {
     }
 }
 
-tasks.register<Zip>("runtimeDistZip") {
-    group = "distribution"
-    description = "打包包含自包含 runtime 的 ZIP 发行包。"
-
-    dependsOn(generateRuntimeLauncher)
-
-    archiveBaseName.set("${project.name}-runtime")
-    isPreserveFileTimestamps = false
-    isReproducibleFileOrder = true
-
-    filePermissions { unix("0644") }
-    dirPermissions { unix("0755") }
-    from(runtimeDistBase) {
-        filesMatching(
-            listOf(
-                "app-cli/bin/run", "app-cli/app/bin/app-cli", "app-cli/runtime/bin/*",
-                "app-cli/runtime/lib/jspawnhelper",
-            ),
-        ) {
-            permissions { unix("0755") }
-        }
+// 测试只准备应用文件，直接复用 jlink image 和 launcher，不复制整个 runtime。
+val runtimeAppContents = copySpec {
+    from(tasks.named("startScripts")) {
+        into("bin")
+        filesMatching("app-cli") { permissions { unix("0755") } }
     }
-    destinationDirectory.set(layout.buildDirectory.dir("distributions"))
+    from(sourceVersionFile)
+    from(runtimeJars) {
+        into("lib")
+        exclude("sqlite-jdbc-*.jar")
+    }
+    from(nativeSqliteJar) { into("lib") }
 }
 
-tasks.register<Tar>("runtimeDistTar") {
-    group = "distribution"
-    description = "打包包含自包含 runtime 的 tar.gz 发行包。"
+val prepareRuntimeDist = tasks.register<Sync>("prepareRuntimeDist") {
+    group = "verification"
+    description = "只为真实 runtime 测试准备应用文件，不复制 jlink image。"
+    dependsOn(generateRuntimeLauncher, jlinkImage)
+    with(runtimeAppContents)
+    into(runtimeLayout.map { it.dir("app") })
+}
 
-    dependsOn(generateRuntimeLauncher)
-
-    archiveBaseName.set("${project.name}-runtime")
-    compression = Compression.GZIP
-    isPreserveFileTimestamps = false
-    isReproducibleFileOrder = true
-
-    filePermissions { unix("0644") }
-    dirPermissions { unix("0755") }
-    from(runtimeDistBase) {
-        filesMatching(
-            listOf(
-                "app-cli/bin/run", "app-cli/app/bin/app-cli", "app-cli/runtime/bin/*",
-                "app-cli/runtime/lib/jspawnhelper",
-            ),
-        ) {
-            permissions { unix("0755") }
+val runtimeContents = copySpec {
+    into("app-cli") {
+        from(runtimeLauncherDirectory) {
+            into("bin")
+            filesMatching("run") { permissions { unix("0755") } }
+        }
+        from(runtimeVersionFile)
+        into("app") { with(runtimeAppContents) }
+        from(jlinkImage) {
+            into("runtime")
+            filesMatching(listOf("bin/*", "lib/jspawnhelper")) { permissions { unix("0755") } }
         }
     }
+}
+
+fun AbstractArchiveTask.configureRuntimeArchive() {
+    dependsOn(generateRuntimeLauncher)
+    archiveBaseName.set("${project.name}-runtime")
+    isPreserveFileTimestamps = false
+    isReproducibleFileOrder = true
+    filePermissions { unix("0644") }
+    dirPermissions { unix("0755") }
+    with(runtimeContents)
     destinationDirectory.set(layout.buildDirectory.dir("distributions"))
+}
+tasks.register<Zip>("runtimeDistZip") {
+    group = "distribution"
+    description = "直接打包包含自包含 runtime 的 ZIP 发行包。"
+    configureRuntimeArchive()
+}
+tasks.register<Tar>("runtimeDistTar") {
+    group = "distribution"
+    description = "直接打包包含自包含 runtime 的 tar.gz 发行包。"
+    compression = Compression.GZIP
+    configureRuntimeArchive()
 }

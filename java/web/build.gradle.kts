@@ -9,6 +9,7 @@ dependencies {
     implementation(project(":java:core-domain"))
     implementation(libs.slf4j.api)
     implementation(libs.bundles.web)
+    implementation("org.commonmark:commonmark-ext-gfm-tables:${libs.versions.commonmark.get()}")
     implementation(libs.bundles.jackson)
 
     testImplementation(libs.junit.jupiter)

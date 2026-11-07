@@ -126,7 +126,18 @@ public final class SessionApiHandler {
                   entry.truncated(),
                   ApiResponses.SCHEMA_VERSION,
                   entry.content(),
-                  entry.content().isEmpty() ? "missing" : "available"));
+                  entry.content().isEmpty() ? "missing" : "available",
+                  entry.reading().stream()
+                      .map(
+                          block -> {
+                            String html =
+                                com.feipi.session.browser.web.template.SafeMarkdownRenderer
+                                    .readingHtml(block.text());
+                            return new ApiResponses.PayloadReadingBlock(
+                                block.label(), html.isEmpty() ? block.text() : "", html);
+                          })
+                      .toList(),
+                  entry.unconfirmedContext()));
         });
   }
 
@@ -217,7 +228,24 @@ public final class SessionApiHandler {
                 ctx, HttpStatus.NOT_FOUND, ERROR_NOT_FOUND, "round out of range");
             return;
           }
-          var window = reader.calls(roundIndex, offset, limit, SessionApiHandler::callSummary);
+          var inputPreviews = new LinkedHashMap<String, String>();
+          var assistantTexts = new LinkedHashMap<String, String>();
+          var policy = SensitiveFieldPolicy.fromVisibility(session.detail().visibility());
+          var window =
+              reader.calls(
+                  roundIndex,
+                  offset,
+                  limit,
+                  call -> {
+                    ToolInputContents.inline(call)
+                        .forEach(
+                            (id, input) ->
+                                inputPreviews.putIfAbsent(id, ToolInputPreview.from(input)));
+                    String preview = PayloadCallContentExtractor.inlinePreview(call, false, false);
+                    if (!preview.isEmpty())
+                      assistantTexts.put(call.callId(), policy.applyMasking(preview));
+                    return callSummary(call);
+                  });
           if (offset > window.total())
             throw new io.javalin.http.BadRequestResponse("cursor exceeds round total");
           var calls = window.items();
@@ -240,12 +268,11 @@ public final class SessionApiHandler {
               for (var tool : units.next().toolExecutions()) {
                 if (!memberIds.contains(tool.declaredByCallId())) continue;
                 if (toolTotal >= toolOffset && tools.size() < limit)
-                  tools.add(toolSummary(tool, null));
+                  tools.add(toolSummary(tool, inputPreviews.getOrDefault(tool.toolCallId(), "")));
                 toolTotal++;
               }
             }
           }
-          var assistantTexts = new LinkedHashMap<String, String>();
           var summary =
               new RoundSummary(
                   calls.stream().map(CallSummary::callId).toList(),
@@ -253,8 +280,9 @@ public final class SessionApiHandler {
                   tools,
                   calls,
                   calls.stream().mapToLong(call -> call.usage().total()).sum(),
-                  false,
-                  "",
+                  !calls.isEmpty()
+                      && calls.stream().allMatch(call -> "subagent".equals(call.scope())),
+                  calls.size() == 1 ? calls.getFirst().parentCallId() : "",
                   assistantTexts);
           var response = new LinkedHashMap<String, Object>();
           response.put("roundId", roundIndex);
@@ -272,7 +300,7 @@ public final class SessionApiHandler {
                   ? SessionContentCursor.encode(toolScope, toolOffset + tools.size())
                   : null);
           response.put("assistantTextsArePreviews", true);
-          response.put("assistantTextPreviewsAvailable", false);
+          response.put("assistantTextPreviewsAvailable", true);
           response.put(
               "nextCursor",
               window.nextCursor() == null
@@ -549,12 +577,19 @@ public final class SessionApiHandler {
         call.callKey(),
         call.model(),
         new CallUsage(
-            usage.fresh(), usage.cacheRead(), usage.cacheWrite(), usage.output(), usage.total()),
+            usage.fresh(),
+            usage.cacheRead(),
+            usage.cacheWrite(),
+            usage.output(),
+            usage.total(),
+            com.feipi.session.browser.domain.normalized.TokenProvenance.fromMetadata(
+                call.usageSource())),
         call.scope().name().toLowerCase(),
         call.request().toolResultIds(),
         call.response().toolCallIds(),
         call.timestamp().orElse(""),
         call.subagentId().orElse(""),
+        call.parentCallId().orElse(""),
         call.parentToolCallId().orElse(""),
         call.parentToolName().orElse(""));
   }
@@ -578,7 +613,7 @@ public final class SessionApiHandler {
         sessionCtx.artifact() == null ? Map.of() : ToolInputContents.all(sessionCtx.artifact());
     List<ToolExecutionSummary> toolSummaries =
         toolExecutions.stream()
-            .map(exec -> toolSummary(exec, inputs.get(exec.toolCallId())))
+            .map(exec -> toolSummary(exec, ToolInputPreview.from(inputs.get(exec.toolCallId()))))
             .toList();
 
     boolean isSubagent = !round.parentCallId().isEmpty();
@@ -626,8 +661,7 @@ public final class SessionApiHandler {
   }
 
   /** 构建工具执行摘要。 */
-  private static ToolExecutionSummary toolSummary(
-      NormalizedToolExecution exec, ToolInputContents.Input input) {
+  private static ToolExecutionSummary toolSummary(NormalizedToolExecution exec, String preview) {
     return new ToolExecutionSummary(
         exec.toolCallId(),
         exec.name(),
@@ -637,7 +671,9 @@ public final class SessionApiHandler {
         exec.exitCode().orElse(null),
         exec.durationMs() > 0 ? exec.durationMs() : null,
         exec.subagentId().orElse(""),
-        ToolInputPreview.from(input));
+        preview,
+        ToolInputPreview.executionKind(exec.name(), preview),
+        exec.resultConsumedByCallId().isPresent());
   }
 
   /** 构建 attribution 响应。 */
@@ -645,6 +681,20 @@ public final class SessionApiHandler {
       AttributionRequest request, NormalizedCall call) {
     NormalizedCallUsage usage = call.usage();
     String attributionKind = "llm." + request.kind() + "_attribution";
+    var inputs = ToolInputContents.inline(call);
+    var ids = new java.util.LinkedHashSet<>(call.response().toolCallIds());
+    ids.addAll(inputs.keySet());
+    var responseTools =
+        "response".equals(request.kind())
+            ? ids.stream()
+                .map(
+                    id -> {
+                      var input = inputs.get(id);
+                      return new ApiResponses.AttributionTool(
+                          id, input == null ? "" : input.name(), ToolInputPreview.from(input));
+                    })
+                .toList()
+            : List.<ApiResponses.AttributionTool>of();
 
     AttributionData data =
         new AttributionData(
@@ -659,7 +709,10 @@ public final class SessionApiHandler {
             usage.cacheRead(),
             usage.cacheWrite(),
             call.request().toolResultIds().size(),
-            call.response().toolCallIds().size());
+            ids.size(),
+            com.feipi.session.browser.domain.normalized.TokenProvenance.fromMetadata(
+                call.usageSource()),
+            responseTools);
 
     return new AttributionResponse(
         attributionKind,

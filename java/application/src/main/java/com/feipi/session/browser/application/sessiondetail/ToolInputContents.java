@@ -13,12 +13,7 @@ public final class ToolInputContents {
   /** 输入来自调用自己的 response units 或匹配声明 ID 的 catalog。 */
   public static Map<String, Input> forCall(
       NormalizedCall call, NormalizedSessionArtifact artifact) {
-    Map<String, Input> inputs = new LinkedHashMap<>();
-    for (Map<String, Object> unit : call.sourceUnits()) {
-      if (!"user".equals(unit.get("role"))) {
-        collect(unit, inputs);
-      }
-    }
+    Map<String, Input> inputs = inline(call);
     for (var entry : artifact.sourceUnitCatalog().values()) {
       if ("response".equals(entry.direction().getValue())
           && entry.payload() instanceof Map<?, ?> payload) {
@@ -35,6 +30,20 @@ public final class ToolInputContents {
     // 历史制品可能只有声明 ID；明确提示重建，而非空 response。
     for (String id : call.response().toolCallIds()) {
       inputs.computeIfAbsent(id, key -> new Input(key, toolName(key, artifact), ""));
+    }
+    return inputs;
+  }
+
+  /**
+   * 只取调用内联的工具声明，不读取目录或把请求侧工具结果误当成参数。
+   *
+   * @param call 归一化调用
+   * @return 按源顺序排列的工具输入
+   */
+  public static Map<String, Input> inline(NormalizedCall call) {
+    Map<String, Input> inputs = new LinkedHashMap<>();
+    for (Map<String, Object> unit : call.sourceUnits()) {
+      if (!"user".equals(unit.get("role"))) collect(unit, inputs);
     }
     return inputs;
   }

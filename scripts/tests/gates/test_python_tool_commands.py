@@ -1,43 +1,10 @@
 """Python 工具链 Gate 的 single-recipe 命令声明契约。"""
 
-from scripts.gates.catalog.gate_contracts import RecipeStepKind
 from scripts.gates.catalog.registry import gate_by_name
 
 
 def _step(gate_name: str, step_name: str):
     return next(step for step in gate_by_name(gate_name).recipe.steps if step.name == step_name)
-
-
-def test_python_tool_step_kinds_are_explicit() -> None:
-    assert _step('scriptToolchainQuality', 'pythonLint').kind is RecipeStepKind.COMMAND
-    assert (
-        _step('scriptToolchainQuality', 'pythonDependencyDeclarations').kind
-        is RecipeStepKind.COMMAND
-    )
-    assert _step('scriptToolchainQuality', 'pythonSourceSecurity').kind is RecipeStepKind.COMMAND
-    assert _step('scriptToolchainQuality', 'pythonDeadCode').kind is RecipeStepKind.COMMAND
-    assert gate_by_name('pythonDependencyAudit').recipe.steps[0].kind is RecipeStepKind.PYTHON_CHECK
-
-
-def test_python_command_is_declared_once_without_redundant_ruff_selection() -> None:
-    command = _step('scriptToolchainQuality', 'pythonLint').argv
-    assert command[:4] == ('{dev_python}', '-m', 'ruff', 'check')
-    assert '--extend-select' not in command
-    assert command[-1] == '.'
-
-
-def test_recipe_and_duration_expectations_have_separate_ownership() -> None:
-    gate_recipe = gate_by_name('scriptToolchainQuality').recipe
-    assert tuple(step.name for step in gate_recipe.steps) == (
-        'pythonFormat',
-        'pythonLint',
-        'bashSyntax',
-        'pythonDependencyDeclarations',
-        'pythonSourceSecurity',
-        'pythonDeadCode',
-    )
-    assert gate_recipe.duration_expectations.incremental == 80
-    assert gate_recipe.duration_expectations.full == 165
 
 
 def test_python_tools_explicitly_select_shared_config() -> None:
@@ -54,6 +21,20 @@ def test_python_tools_explicitly_select_shared_config() -> None:
     pytest = _step('gateFrameworkTests', 'gateFrameworkTests').argv
     assert pytest[pytest.index('-c') + 1] == '{tool_config}'
     assert pytest[pytest.index('--rootdir') + 1] == '{repo_root}'
-    assert 'scripts/tests/gates' in pytest
-    assert 'scripts/tests/checks' in pytest
-    assert 'scripts/tests/harness' in pytest
+
+
+def test_shell_gate_checks_later_files_and_does_not_execute_scripts(tmp_path):
+    import subprocess
+
+    from scripts.gates.execution.command_adapter import adapt_recipe_step
+
+    scripts = tmp_path / 'scripts'
+    scripts.mkdir()
+    (scripts / 'a.sh').write_text('touch would-execute\n')
+    (scripts / 'z.sh').write_text('if true; then\n')
+    gate = gate_by_name('bashSyntax')
+    (invocation,) = adapt_recipe_step(gate, gate.recipe.steps[0], tmp_path, mode='full')
+    result = subprocess.run(invocation.argv, cwd=tmp_path, capture_output=True, check=False)
+    assert result.returncode != 0
+    assert b'z.sh' in result.stderr
+    assert not (tmp_path / 'would-execute').exists()

@@ -173,6 +173,51 @@ class PayloadCallContentExtractorTest {
     }
   }
 
+  @Test
+  void codexUnclosedProjectInstructionsKeepFencedExampleAndRequest() {
+    String request =
+        "# AGENTS.md instructions for synthetic\n<INSTRUCTIONS>\n"
+            + "```xml\n</INSTRUCTIONS>\n```\n请解释上面的标签。";
+    var reading = codexReading(request);
+    assertThat(reading.text()).isEqualTo(request);
+    assertThat(reading.unconfirmedContext()).isFalse();
+  }
+
+  @Test
+  void codexIndentedPseudoFenceClosingDoesNotEndProjectInstructions() {
+    String request =
+        "# AGENTS.md instructions for synthetic\n<INSTRUCTIONS>\n"
+            + "```xml\n    ```\n</INSTRUCTIONS>\n请解释上面的标签。";
+    for (String text : List.of(request, request.replace("    ```", "\t```"))) {
+      var reading = codexReading(text);
+      assertThat(reading.text()).isEqualTo(text);
+      assertThat(reading.unconfirmedContext()).isFalse();
+    }
+  }
+
+  @Test
+  void codexProjectInstructionsCloseAfterFenceOfMatchingKindAndLength() {
+    String prefix = "# AGENTS.md instructions for synthetic\n<INSTRUCTIONS>\n";
+    String tail = "</INSTRUCTIONS>\n\n请解释上面的标签。";
+    for (String example :
+        List.of(
+            "```xml\n</INSTRUCTIONS>\n```\n",
+            "   ```xml\n~~~\n</INSTRUCTIONS>\n   ````\n",
+            "  ~~~~xml\n</INSTRUCTIONS>\n~~~\n</INSTRUCTIONS>\n~~~~\n",
+            "    ```xml\n",
+            "```not-a-`-fence\n")) {
+      var reading = codexReading(prefix + example + tail);
+      assertThat(reading.text()).isEqualTo("请解释上面的标签。");
+      assertThat(reading.unconfirmedContext()).isTrue();
+    }
+  }
+
+  private static PayloadCallContentExtractor.ReadingText codexReading(String request) {
+    var call =
+        makeCallWithSourceUnits("synthetic", List.of(Map.of("role", "user", "text", request)));
+    return PayloadCallContentExtractor.readingInline(call, true, true);
+  }
+
   private static NormalizedCall makeCallWithSourceUnits(
       String callId, List<Map<String, Object>> sourceUnits) {
     return new NormalizedCall(

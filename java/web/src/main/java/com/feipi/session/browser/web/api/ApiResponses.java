@@ -30,6 +30,8 @@ public final class ApiResponses {
    * @param schemaVersion 响应 schema 版本
    * @param text payload 文本内容，与 content 一致，供前端 payloadNodeFromJson 读取
    * @param status 内容可用状态，区分已记录内容与缺失内容
+   * @param reading 按来源角色投影的阅读正文，不含工具结果或系统上下文
+   * @param unconfirmedContext 原始请求含归属无法确认的独立上下文样式段落
    */
   public record PayloadResponse(
       String payloadId,
@@ -39,7 +41,9 @@ public final class ApiResponses {
       boolean truncated,
       String schemaVersion,
       String text,
-      String status) {
+      String status,
+      List<PayloadReadingBlock> reading,
+      boolean unconfirmedContext) {
 
     /**
      * 紧凑构造器，验证不变量。
@@ -53,8 +57,18 @@ public final class ApiResponses {
       content = content == null ? "" : content;
       schemaVersion = schemaVersion == null ? "" : schemaVersion;
       text = text == null ? content : text;
+      reading = List.copyOf(reading);
     }
   }
+
+  /**
+   * 阅读区片段；纯文本和安全 HTML 二选一。
+   *
+   * @param label 多个调用并列时显示的简短标识
+   * @param text 无需 Markdown 渲染的纯文本
+   * @param html presentation 层生成并净化的结构化内容
+   */
+  public record PayloadReadingBlock(String label, String text, String html) {}
 
   /**
    * round lazy-load API 响应。
@@ -131,6 +145,8 @@ public final class ApiResponses {
    * @param durationMs 执行耗时毫秒
    * @param subagentId 子 agent 标识，主会话为空
    * @param inputPreview 安全输入预览（路径、查询或命令）
+   * @param executionKind 依据工具名与参数识别的类别
+   * @param resultObserved 源中是否存在该工具结果边
    */
   public record ToolExecutionSummary(
       String toolCallId,
@@ -141,7 +157,9 @@ public final class ApiResponses {
       Integer exitCode,
       Long durationMs,
       String subagentId,
-      String inputPreview) {
+      String inputPreview,
+      String executionKind,
+      boolean resultObserved) {
 
     /** 校验字段和业务不变量。 */
     public ToolExecutionSummary {
@@ -170,6 +188,7 @@ public final class ApiResponses {
    * @param responseToolCallIds 响应侧工具调用 ID 列表
    * @param timestamp provider 时间戳
    * @param subagentId 子 agent 标识，主会话为空
+   * @param parentCallId 启动子代理的父调用
    * @param parentToolCallId 触发子 agent 的父工具调用 ID
    * @param parentToolName 触发子 agent 的父工具名
    */
@@ -183,6 +202,7 @@ public final class ApiResponses {
       List<String> responseToolCallIds,
       String timestamp,
       String subagentId,
+      String parentCallId,
       String parentToolCallId,
       String parentToolName) {
 
@@ -203,6 +223,7 @@ public final class ApiResponses {
       responseToolCallIds = List.copyOf(responseToolCallIds);
       timestamp = timestamp == null ? "" : timestamp;
       subagentId = subagentId == null ? "" : subagentId;
+      parentCallId = parentCallId == null ? "" : parentCallId;
       parentToolCallId = parentToolCallId == null ? "" : parentToolCallId;
       parentToolName = parentToolName == null ? "" : parentToolName;
     }
@@ -216,8 +237,15 @@ public final class ApiResponses {
    * @param cacheWrite 缓存写入 token
    * @param output 输出 token
    * @param total 总 token
+   * @param provenance 分量计量依据
    */
-  public record CallUsage(long fresh, long cacheRead, long cacheWrite, long output, long total) {}
+  public record CallUsage(
+      long fresh,
+      long cacheRead,
+      long cacheWrite,
+      long output,
+      long total,
+      com.feipi.session.browser.domain.normalized.TokenProvenance provenance) {}
 
   /**
    * attribution API 响应。
@@ -267,6 +295,8 @@ public final class ApiResponses {
    * @param cacheWriteTokens 缓存写入 token
    * @param requestToolResultCount 请求侧工具结果数量
    * @param responseToolCallCount 响应侧工具调用数量
+   * @param provenance 分量计量依据
+   * @param responseTools 响应侧已记录工具指令的轻量链接
    */
   public record AttributionData(
       String callId,
@@ -280,7 +310,9 @@ public final class ApiResponses {
       long cacheReadTokens,
       long cacheWriteTokens,
       int requestToolResultCount,
-      int responseToolCallCount) {
+      int responseToolCallCount,
+      com.feipi.session.browser.domain.normalized.TokenProvenance provenance,
+      List<AttributionTool> responseTools) {
 
     /**
      * 紧凑构造器，验证不变量。
@@ -293,8 +325,18 @@ public final class ApiResponses {
       Objects.requireNonNull(model, "model 不得为 null");
       Objects.requireNonNull(scope, "scope 不得为 null");
       timestamp = timestamp == null ? "" : timestamp;
+      responseTools = List.copyOf(responseTools);
     }
   }
+
+  /**
+   * 单次响应中记录的工具声明；完整参数通过已存在的工具载荷接口读取。
+   *
+   * @param id 工具调用身份
+   * @param name 工具名称
+   * @param preview 工具输入的短预览
+   */
+  public record AttributionTool(String id, String name, String preview) {}
 
   /**
    * bucket-detail API 响应。

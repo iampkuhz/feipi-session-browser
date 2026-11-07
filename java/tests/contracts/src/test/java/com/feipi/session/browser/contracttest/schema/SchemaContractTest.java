@@ -49,13 +49,13 @@ class SchemaContractTest {
   }
 
   @Test
-  @DisplayName("sessions 表精确包含 42 列，含 provenance 与 typed timing")
+  @DisplayName("sessions 表精确包含 43 列，含 provenance、typed timing 和调用边界计数")
   void sessionsTableMatchesCurrentJavaDefinition() throws SQLException {
     IndexSchema schema = IndexSchema.withDefaults();
     schema.ensureSchema(conn);
 
     Set<String> columns = getTableColumns("sessions");
-    assertThat(columns).as("sessions 表应包含原37列及5个内容与消息计量列").hasSize(42);
+    assertThat(columns).as("sessions 表应包含原37列及6个内容与消息计量列").hasSize(43);
 
     // 全列精确比对，不允许静默缺失或添加字段。
     assertThat(columns)
@@ -98,6 +98,7 @@ class SchemaContractTest {
             "token_contains_unknown",
             "timing_json",
             "round_count",
+            "model_call_count",
             "llm_call_count",
             "content_measured",
             "user_message_measured",

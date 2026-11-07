@@ -110,23 +110,46 @@
 </section>
 
 <section class="chart-card event-activity-section" data-chart-card="event-activity" aria-label="UTC Event Activity">
-    <div class="chart-card__head"><h2>UTC Event Activity — 事件日观察</h2></div>
-    <p class="chart-card__note">Observed user messages 是显式主 user 消息观察下界，不等于完整真人问题。
-        Tokens 仅为现代 Codex usage 报告日，不是实际消耗发生日；legacy、Claude、Qoder tokens、缺日志、缺时间均未恢复。
-        与下方 session-start cohort 会话整段累计图独立；无观察日期不补实测零。</p>
-    <p data-event-activity-state role="status">Unknown — Loading…</p>
-    <p data-event-activity-coverage>覆盖计数针对当前 agent 全部来源集合，不限日窗口。</p>
-    <p data-event-activity-future>未来事件所在日桶保守排除，混有已发生事件的同日桶也暂不计入；这是观察下界。</p>
-    <div class="event-activity-scroll"><table class="event-activity-table">
-        <thead><tr><th scope="col">UTC bucket</th><th scope="col">Observed user messages</th><th scope="col">Fresh</th><th scope="col">Cache read</th><th scope="col">Cache write</th><th scope="col">Output</th></tr></thead>
-        <tbody data-event-activity-days></tbody>
-    </table></div>
-    <p data-event-activity-undated>Undated usage 不分配到任何日期；金额无实测样本为 N/A，实测零保留 0。</p>
+    <div class="event-activity-heading">
+        <div><h2>UTC Event Activity</h2><p data-event-activity-window>Loading UTC window…</p></div>
+        <span class="event-activity-status" data-event-activity-state role="status">Loading…</span>
+    </div>
+    <p data-event-activity-summary class="event-activity-summary" hidden></p>
+    <div data-event-activity-table-wrap hidden>
+        <div class="event-activity-table-head">
+            <span>Reported tokens by event date, not daily consumption</span>
+            <label><input type="checkbox" data-event-activity-exact> Exact token counts</label>
+        </div>
+        <div class="event-activity-scroll" tabindex="0" role="region" aria-label="UTC event table, scroll for older rows and more columns">
+            <table class="event-activity-table">
+                <thead><tr><th scope="col">UTC bucket</th><th scope="col">User messages</th><th scope="col">Fresh input</th><th scope="col">Cache read</th><th scope="col">Cache write</th><th scope="col">Output</th></tr></thead>
+                <tbody data-event-activity-days></tbody>
+            </table>
+        </div>
+    </div>
+    <p data-event-activity-empty class="event-activity-summary" hidden></p>
+    <details data-event-activity-disclosure class="event-activity-evidence" hidden>
+        <summary>Coverage and measurement notes</summary>
+        <dl>
+            <dt>Sessions and messages</dt><dd data-event-activity-coverage></dd>
+            <dt>Usage evidence</dt><dd data-event-activity-usage></dd>
+            <dt>Future events</dt><dd data-event-activity-future></dd>
+            <dt>Undated tokens</dt><dd data-event-activity-undated></dd>
+        </dl>
+        <p>Counts above describe all selected sources, not just the window. Observed user messages are a lower bound, not a count of human questions.</p>
+        <p>Tokens use the modern Codex provider usage report day, not the actual consumption date. Legacy Codex, Claude Code and Qoder token usage is not reconstructed. Missing logs and missing timestamps leave coverage unknown.</p>
+        <p>These event-date observations are separate from the session-start charts.</p>
+    </details>
 </section>
 
 {# ── Trend 总览区：趋势图表与缓存健康图同级展示 ── #}
 
 <section class="trend-section">
+    <details class="trend-coverage">
+        <summary>为什么四张图的可见起点不同？</summary>
+        <p>四图使用同一 UTC 会话开始日期、范围和粒度。会话有开始日期就计数；Prompt、Token 和缓存比率还需要相应的记录或计量，缺测处留空。累计值属于整段会话，不是当天的事件量；事件日期见 UTC Event Activity。</p>
+        <p data-trend-first-evidence></p>
+    </details>
     <div class="trend-grid">
         <section class="chart-card" data-chart-card="sessions">
             <div class="chart-card__head">
@@ -148,10 +171,7 @@
                     <span class="chart-stat" data-stat="range-total-prompts">Range total: Loading…</span>
                 </div>
             </div>
-            <p class="chart-card__note">{{ chart_notes.prompts }}
-                折线均值仅使用 user 消息数已测量的会话；Day/Week/Month 按实测消息和 / 样本数加权，包含实测 0，未知不参与。
-                tooltip 披露测量样本 / cohort 会话数；是开始会话的累计观察消息，不是事件当日提问量或完整真人历史。
-            </p>
+            <p class="chart-card__note">{{ chart_notes.prompts }}</p>
             <div class="chart-container" id="prompt-activity-chart" data-dashboard-chart="prompts"></div>
         </section>
 

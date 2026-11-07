@@ -16,9 +16,6 @@
  *   1. java/tests/playwright/playwright.config.js 自动启动真实 Java fixture server。
  *   2. 运行测试：npm --prefix java/tests/playwright test -- session-detail.spec.js
  *
- * 更新截图基线：
- *   npm --prefix java/tests/playwright test -- --update-snapshots
- *
  * 带可见浏览器运行：
  *   npm --prefix java/tests/playwright test -- --headed
  *
@@ -28,13 +25,62 @@
  *   - 回退到 /dashboard（部分覆盖）
  */
 const { test, expect } = require('@playwright/test');
-const fs = require('fs');
-const path = require('path');
-const { runPlaywrightRoot } = require('./runtime-paths');
 
-const SCREENSHOT_DIR = process.env.SESSION_BROWSER_SCREENSHOT_DIR
-  ? path.resolve(process.env.SESSION_BROWSER_SCREENSHOT_DIR)
-  : path.join(runPlaywrightRoot, 'screenshots');
+test('a round without local calls does not offer dead payload or attribution actions', async ({ page }) => {
+  await page.route('**/api/sessions/*/*/rounds', async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    const first = body.rounds[0];
+    body.rounds[0] = { ...first, callCount: 0, calls: [], toolCallCount: 0, toolCallIds: [] };
+    await route.fulfill({ response, json: body });
+  });
+  await page.goto(process.env.PW_SESSION_URL);
+  const first = page.locator('[data-trace-round-row]').first();
+  await expect(first.locator('.attribution-col')).toHaveText('未记录调用', { timeout: 2500 });
+  await expect(first.locator('.attribution-col button')).toHaveCount(0);
+});
+
+test('long token provenance does not overlap the neighboring trace columns', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 960 });
+  await page.goto(process.env.PW_SESSION_URL);
+  const row = page.locator('[data-trace-round-row]').first();
+  const toggle = row.locator('[data-action="toggle-round"]');
+  await expect(toggle).toBeVisible();
+  if (await toggle.getAttribute('aria-expanded') === 'false') await toggle.click();
+  const amount = page.locator('.sd-event-row--assistant_text .sd-tool-tokens:visible').first();
+  await expect(amount).toBeVisible();
+  const fits = await amount.evaluate((el) => {
+    el.textContent = '≈1,234,567 · Partial tokens';
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const text = range.getBoundingClientRect();
+    const area = el.getBoundingClientRect();
+    const previous = el.previousElementSibling.getBoundingClientRect();
+    return text.left >= previous.right && text.left >= area.left - 1 && text.right <= area.right + 1;
+  });
+  expect(fits).toBe(true);
+});
+
+test('request attribution fits narrow screens without borrowing response tokens', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route('**/api/sessions/*/*/attribution/*/*/request*', async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    const data = body.data || body;
+    data.tokens = { total: 1_500_000, fresh: 1_000_000, cacheRead: 0, cacheWrite: 0, output: 500_000,
+      provenance: { freshInput: 'provider_reported', cacheRead: 'provider_reported',
+        cacheWrite: 'provider_reported', output: 'provider_reported' } };
+    await route.fulfill({ response, json: body });
+  });
+  await page.goto(process.env.PW_SESSION_URL);
+  const action = page.locator('[data-attribution-path*="/request"]:visible').first();
+  await action.click();
+  const card = page.locator('[data-payload-attribution="request"]');
+  await card.locator('summary').press('Enter');
+  await expect(card).toContainText('1,000,000');
+  await expect(card).not.toContainText('500,000');
+  expect(await card.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+});
 
 /**
  * 解析会话详情 URL。优先级：PW_SESSION_URL 环境变量 > fixture server URL。
@@ -58,15 +104,6 @@ function sessionUrlWithParams(baseUrl, params) {
     }
   }
   return url.toString();
-}
-
-/**
- * 确保截图目录存在。
- */
-function ensureScreenshotDir() {
-  if (!fs.existsSync(SCREENSHOT_DIR)) {
-    fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
-  }
 }
 
 function isBrowserResourceConsoleNoise(text) {
@@ -107,7 +144,6 @@ test.describe('会话详情 — Phase 1', () => {
   let sessionUrl;
 
   test.beforeAll(() => {
-    ensureScreenshotDir();
     sessionUrl = resolveSessionUrl();
   });
 
@@ -133,12 +169,6 @@ test.describe('会话详情 — Phase 1', () => {
 
     // 断言无控制台错误
     expect(consoleErrors, '页面不应有控制台错误').toEqual([]);
-
-    // 截图：顶部视口
-    await page.screenshot({
-      path: path.join(SCREENSHOT_DIR, 'session-detail-overview.png'),
-      fullPage: false,
-    });
   });
 
   test('[UI-SD-002] 无可见的禁用占位按钮', async ({ page }) => {
@@ -222,39 +252,33 @@ test.describe('会话详情 — Phase 1', () => {
 
     // 全部筛选：不应有被过滤的行
     await allChip.first().click();
-    await page.waitForTimeout(100);
-    const filteredOutAll = await page.locator('.round-row.is-filtered-out').count();
-    expect(filteredOutAll).toBe(0);
+    await expect(page.locator('.round-row.is-filtered-out')).toHaveCount(0);
 
     // 失败筛选：只有失败行可见
     const totalFailed = await page.locator('.round-row[data-status="failed"], .round-row[data-has-issues="true"]').count();
     const failedChip = page.locator('.trace-panel__chip[data-status="failed"], [data-action="status-failed"]');
     await failedChip.first().click();
-    await page.waitForTimeout(100);
-
-    const visibleRows = await page.locator('.round-row:not(.is-filtered-out)').count();
+    const visibleRows = page.locator('.round-row:not(.is-filtered-out)');
     if (totalFailed > 0) {
-      expect(visibleRows).toBe(totalFailed);
-      const filteredOutFailed = await page.locator('.round-row.is-filtered-out').count();
-      expect(filteredOutFailed).toBe(totalRows - totalFailed);
+      await expect(visibleRows).toHaveCount(totalFailed);
+      await expect(page.locator('.round-row.is-filtered-out')).toHaveCount(totalRows - totalFailed);
     } else {
-      expect(visibleRows).toBe(0);
+      await expect(visibleRows).toHaveCount(0);
     }
 
     const nonFailedRow = page.locator('.round-row:not([data-status="failed"]):not([data-has-issues="true"])').first();
     if (totalFailed > 0 && await nonFailedRow.count() > 0) {
       await allChip.first().click();
-      await page.waitForTimeout(100);
+      await expect(page.locator('.round-row.is-filtered-out')).toHaveCount(0);
       const nonFailedRound = await nonFailedRow.getAttribute('data-round');
       await nonFailedRow.click();
       await expect(page.locator(`#round-${nonFailedRound}-detail`)).toBeVisible({ timeout: 5000 });
 
       await failedChip.first().click();
-      await page.waitForTimeout(100);
       await expect(page.locator(`#round-${nonFailedRound}-detail`)).toBeHidden({ timeout: 3000 });
 
       await allChip.first().click();
-      await page.waitForTimeout(100);
+      await expect(page.locator('.round-row.is-filtered-out')).toHaveCount(0);
       await expect(page.locator(`#round-${nonFailedRound}-detail`)).toBeVisible({ timeout: 3000 });
     }
   });
@@ -278,7 +302,7 @@ test.describe('会话详情 — Phase 1', () => {
     const btnText = await toggleBtn.first().innerText();
     if (btnText.includes('Collapse')) {
       await toggleBtn.first().click();
-      await page.waitForTimeout(200);
+      await expect.poll(() => visibleTraceDetailCount(page)).toBe(0);
     }
 
     const visibleCountAfterCollapse = await page.locator('[data-trace-detail]').evaluateAll(els =>
@@ -288,13 +312,12 @@ test.describe('会话详情 — Phase 1', () => {
 
     // 展开全部：所有详情应可见
     // 等待按钮文本更新后再次点击
-    await page.waitForTimeout(100);
     const btnTextAfterCollapse = await toggleBtn.first().innerText();
 
     // 如果按钮文本未更新（某些实现不更新文本），直接调用 expandAll
     if (btnTextAfterCollapse.includes('Expand') || btnTextAfterCollapse.includes('Collapse')) {
       await toggleBtn.first().click();
-      await page.waitForTimeout(300);
+      await expect.poll(() => visibleTraceDetailCount(page)).toBeGreaterThan(0);
     }
 
     const visibleCountAfterExpand = await page.locator('[data-trace-detail]').evaluateAll(els =>
@@ -317,7 +340,7 @@ test.describe('会话详情 — Phase 1', () => {
       if (text.includes('Collapse')) {
         await collapseBtn.first().click();
       }
-      await page.waitForTimeout(100);
+      await expect.poll(() => openTraceRoundCount(page)).toBe(0);
     }
 
     // 选中首个 trace 行
@@ -684,34 +707,22 @@ test.describe('会话详情 — Phase 1', () => {
     }
   });
 
-  test('[UI-SD-020] trace 输入归因 / 输出归因点击打开 attribution modal', async ({ page }) => {
-    expect(sessionUrl, 'sessionUrl must be configured by playwright.config.js').toBeTruthy();
-
+  test('[UI-SD-020] Request / Response load matching side attribution in one dialog', async ({ page }) => {
     await gotoSessionDetail(page, sessionUrl);
     await waitForSessionApiHydrated(page);
-
     const modal = page.locator('dialog.payload-modal');
     for (const kind of ['request', 'response']) {
-      const button = page
-        .locator(`button[data-action="open-payload"][data-payload-kind="llm.${kind}_attribution"]:visible`)
-        .first();
-      await expect(button, `trace row must expose visible ${kind} attribution action`).toBeVisible({ timeout: 10000 });
-      const payloadId = await button.getAttribute('data-payload-id');
-      expect(payloadId, `${kind} attribution action must carry payload id`).toMatch(/^llm-R\d+-IX\d+-/);
-
-      await button.click({ force: true });
-      await expect
-        .poll(
-          async () => modal.evaluate((dialog) => dialog.open).catch(() => false),
-          { message: `${kind} attribution modal should open`, timeout: 5000 },
-        )
-        .toBe(true);
-      await expect(modal).toHaveAttribute('data-attribution-state', /^(success|error)$/, { timeout: 10000 });
-      await expect(modal).toHaveAttribute('data-attribution-url', new RegExp(`/attribution/\\d+/\\d+/${kind}$`));
-      await expect(modal.locator('[data-payload-body]')).not.toContainText('Payload source', { timeout: 10000 });
-
-      await page.locator('[data-action="close-payload"]').first().click();
-      await expect(modal).toBeHidden({ timeout: 5000 });
+      const button = page.locator(`[data-attribution-path*="/${kind}"]:visible`).first();
+      await expect(button).toHaveText(kind === 'request' ? 'Request' : 'Response');
+      const path = await button.getAttribute('data-attribution-path');
+      const response = page.waitForResponse(r => r.url().endsWith(path));
+      await button.click();
+      const body = await (await response).json();
+      expect(body.kind).toBe('llm.' + kind + '_attribution');
+      const card = modal.locator(`[data-payload-attribution="${kind}"]`);
+      await expect(card).toHaveAttribute('data-attribution-call', body.data.callId);
+      await expect(modal.locator('[data-payload-attribution]')).toHaveCount(1);
+      await page.keyboard.press('Escape');
     }
   });
 
@@ -844,47 +855,9 @@ test.describe('长会话 — 100 轮性能', () => {
 
     // 8 workers full run 会共享 fixture server，预算覆盖并发资源竞争但仍防止超时级退化。
     expect(loadTime).toBeLessThan(15000);
-
-    // 截图用于视觉回归
-    await page.screenshot({
-      path: path.join(SCREENSHOT_DIR, 'long-session-trace.png'),
-      fullPage: false,
-    });
   });
 
-  test('[UI-SD-028] 100 轮下 DOM 节点数保持合理', async ({ page }) => {
-    const longUrl = resolveLongSessionUrl();
-    expect(longUrl, 'long session URL must be configured by playwright.config.js').toBeTruthy();
-
-    await gotoSessionDetail(page, longUrl);
-    await expect(page.locator('.sd-hero').first()).toBeVisible({ timeout: 10000 });
-    await waitForSessionApiHydrated(page);
-
-    // 折叠所有轮次后统计 DOM 节点 — 应低于 20k
-    const toggleBtn = page.locator('[data-action="toggle-all"]');
-    await toggleBtn.click();
-    await page.waitForTimeout(200);
-
-    const nodeCount = await page.evaluate(() => document.querySelectorAll('*').length);
-    console.log(`长会话：${nodeCount} 总 DOM 节点（折叠）`);
-
-    expect(nodeCount).toBeLessThan(20000);
-
-    // 展开所有轮次后复查
-    const expandAllBtn = page.locator('[data-action="toggle-all"]');
-    if (await expandAllBtn.count() > 0) {
-      await expandAllBtn.click();
-      await page.waitForTimeout(500);
-
-      const expandedNodeCount = await page.evaluate(() => document.querySelectorAll('*').length);
-      console.log(`长会话：${expandedNodeCount} 总 DOM 节点（展开）`);
-
-      // 全部展开后不应超过 50k 节点
-      expect(expandedNodeCount).toBeLessThan(50000);
-    }
-  });
-
-  test('[UI-SD-005] 100 轮下展开全部行为正常', async ({ page }) => {
+  test('[UI-SD-005][UI-SD-028] 100 轮展开/折叠和 DOM 节点预算', async ({ page }) => {
     test.setTimeout(60000);
 
     const longUrl = resolveLongSessionUrl();
@@ -913,6 +886,9 @@ test.describe('长会话 — 100 轮性能', () => {
       { message: 'initial collapse-all should clear open round DOM state', timeout: 5000 },
     ).toBe(0);
 
+    const domNodes = () => page.evaluate(() => document.querySelectorAll('*').length);
+    expect(await domNodes(), '折叠时的 DOM 节点预算').toBeLessThan(20000);
+
     // 展开全部
     await toggleAllTraceRounds(page);
     await expect.poll(
@@ -931,6 +907,8 @@ test.describe('长会话 — 100 轮性能', () => {
       () => page.locator('[data-loading-for] .sd-loading-indicator').count(),
       { message: 'expand-all lazy-load batch should settle before collapse assertion', timeout: 30000 },
     ).toBe(0);
+
+    expect(await domNodes(), '首批展开详情加载后的 DOM 节点预算').toBeLessThan(50000);
 
     // 再次折叠
     await toggleAllTraceRounds(page);

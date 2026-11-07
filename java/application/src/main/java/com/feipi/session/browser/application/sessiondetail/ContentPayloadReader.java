@@ -1,6 +1,7 @@
 package com.feipi.session.browser.application.sessiondetail;
 
 import com.feipi.session.browser.domain.enums.CallScope;
+import com.feipi.session.browser.domain.normalized.NormalizedAgent;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionContent;
 import com.feipi.session.browser.domain.normalized.SourceUnitCatalogEntry;
@@ -42,6 +43,9 @@ final class ContentPayloadReader {
     if ("round".equals(parts[0])) return round(id, parts[1], parts[2], visibility);
     String text;
     PayloadSourceKind kind;
+    List<PayloadLookup.ReadingBlock> reading = List.of();
+    boolean unconfirmedContext = false;
+    var policy = SensitiveFieldPolicy.fromVisibility(visibility);
     if ("tool".equals(parts[0])) {
       if (!List.of("input", "result").contains(parts[1])) return Optional.empty();
       var input =
@@ -65,7 +69,10 @@ final class ContentPayloadReader {
       boolean subagent = call.scope() == CallScope.SUBAGENT;
       if (subagent != "sa".equals(parts[0])) return Optional.empty();
       boolean request = "req".equals(parts[1]);
-      text = callText(call, request);
+      var view = callText(call, request);
+      text = view.raw();
+      reading = PayloadLookup.readingBlock(policy, view.reading().text());
+      unconfirmedContext = view.reading().unconfirmedContext();
       kind =
           request
               ? subagent ? PayloadSourceKind.SUBAGENT_REQUEST : PayloadSourceKind.LLM_REQUEST
@@ -73,11 +80,7 @@ final class ContentPayloadReader {
     }
     return Optional.of(
         new PayloadLookup.PayloadEntry(
-            id,
-            kind,
-            parts[2],
-            SensitiveFieldPolicy.fromVisibility(visibility).applyMasking(text),
-            false));
+            id, kind, parts[2], policy.applyMasking(text), false, reading, unconfirmedContext));
   }
 
   PayloadLookup.PayloadEntry read(
@@ -90,12 +93,16 @@ final class ContentPayloadReader {
         request
             ? subagent ? PayloadSourceKind.SUBAGENT_REQUEST : PayloadSourceKind.LLM_REQUEST
             : subagent ? PayloadSourceKind.SUBAGENT_RESPONSE : PayloadSourceKind.LLM_RESPONSE;
+    var view = callText(call, request);
+    var policy = SensitiveFieldPolicy.fromVisibility(visibility);
     return new PayloadLookup.PayloadEntry(
         id,
         kind,
         call.callId(),
-        SensitiveFieldPolicy.fromVisibility(visibility).applyMasking(callText(call, request)),
-        false);
+        policy.applyMasking(view.raw()),
+        false,
+        PayloadLookup.readingBlock(policy, view.reading().text()),
+        view.reading().unconfirmedContext());
   }
 
   private Optional<PayloadLookup.PayloadEntry> round(
@@ -111,6 +118,7 @@ final class ContentPayloadReader {
         || round > reader.roundIndex().roundCount()
         || !Integer.toString(round).equals(number)) return Optional.empty();
     boolean request = "req".equals(side);
+    boolean codexRequest = codexRequest(request);
     boolean main = roundHasMain(round);
     var texts = new ArrayList<RoundText>();
     var sequences = new LinkedHashMap<String, TreeMap<Integer, Integer>>();
@@ -146,8 +154,10 @@ final class ContentPayloadReader {
           texts.add(
               new RoundText(
                   call.callKey() + " · " + call.callId(),
+                  call.callKey(),
                   PayloadCallContentExtractor.resolveInline(
                       call.sourceUnits(), request ? "user" : "assistant", null, null),
+                  PayloadCallContentExtractor.readingInline(call, request, codexRequest),
                   ranges,
                   inputs,
                   request ? List.of() : call.response().toolCallIds()));
@@ -157,30 +167,42 @@ final class ContentPayloadReader {
     if (texts.isEmpty()) return Optional.empty();
     var sequenceKeys = roundSequenceKeys(sequences);
     var catalogTexts = new LinkedHashMap<String, String>();
-    var refs = new ArrayList<List<String>>();
+    var readingRequiresRole = new LinkedHashMap<String, Boolean>();
+    var refs = new ArrayList<List<RoundRef>>();
     for (var text : texts) {
-      var keys = new ArrayList<String>();
+      var keys = new ArrayList<RoundRef>();
       for (var range : text.ranges()) {
-        if (!range.refs().isEmpty() || range.sequence().isEmpty()) keys.addAll(range.refs());
-        else
-          keys.addAll(
-              sequenceKeys
-                  .get(range.sequence().get())
-                  .subMap(range.start(), true, range.end(), false)
-                  .values());
+        var rangeKeys =
+            !range.refs().isEmpty() || range.sequence().isEmpty()
+                ? range.refs()
+                : sequenceKeys
+                    .get(range.sequence().get())
+                    .subMap(range.start(), true, range.end(), false)
+                    .values();
+        for (String key : rangeKeys) {
+          keys.add(new RoundRef(key, range.role().isPresent()));
+          catalogTexts.putIfAbsent(key, "");
+        }
       }
-      keys.forEach(key -> catalogTexts.putIfAbsent(key, ""));
       refs.add(keys);
     }
-    var toolOrder = resolveRoundCatalog(catalogTexts, tools, request);
+    var toolOrder = resolveRoundCatalog(catalogTexts, readingRequiresRole, tools, request);
     var result = new StringBuilder();
     var policy = SensitiveFieldPolicy.fromVisibility(visibility);
+    var reading = new ArrayList<PayloadLookup.ReadingBlock>();
+    boolean unconfirmedContext = false;
     for (int i = 0; i < texts.size(); i++) {
-      String body = texts.get(i).body(refs.get(i), catalogTexts, tools, toolOrder);
+      RoundText call = texts.get(i);
+      var visible = call.reading(refs.get(i), catalogTexts, readingRequiresRole, codexRequest);
+      unconfirmedContext |= visible.unconfirmedContext();
+      if (!visible.text().isEmpty())
+        reading.add(
+            new PayloadLookup.ReadingBlock(call.label(), policy.applyMasking(visible.text())));
+      String body = call.body(refs.get(i), catalogTexts, tools, toolOrder);
       body = policy.applyMasking(body);
       if (body.isEmpty()) continue;
       if (!result.isEmpty()) result.append("\n\n");
-      result.append(texts.get(i).header()).append('\n').append(body);
+      result.append(call.header()).append('\n').append(body);
     }
     return Optional.of(
         new PayloadLookup.PayloadEntry(
@@ -188,7 +210,9 @@ final class ContentPayloadReader {
             request ? PayloadSourceKind.LLM_REQUEST : PayloadSourceKind.LLM_RESPONSE,
             "round:" + round,
             result.toString(),
-            false));
+            false,
+            reading,
+            unconfirmedContext));
   }
 
   private boolean inRound(NormalizedCall call, int round) {
@@ -244,7 +268,10 @@ final class ContentPayloadReader {
   }
 
   private Map<String, Integer> resolveRoundCatalog(
-      Map<String, String> texts, Map<String, ToolInputContents.Input> tools, boolean request)
+      Map<String, String> texts,
+      Map<String, Boolean> readingRequiresRole,
+      Map<String, ToolInputContents.Input> tools,
+      boolean request)
       throws IOException {
     var names = new LinkedHashMap<String, String>();
     var order = new LinkedHashMap<String, Integer>();
@@ -262,7 +289,16 @@ final class ContentPayloadReader {
               && ("request".equals(value.direction().getValue()) == request)
               && !List.of("tool_use", "function_call", "custom_tool_call")
                   .contains(value.unitType())) {
-            texts.put(entry.getKey(), PayloadCallContentExtractor.catalogEntryText(value));
+            String text = PayloadCallContentExtractor.catalogEntryText(value);
+            texts.put(entry.getKey(), text);
+            if (PayloadCallContentExtractor.isReadingEntry(value, Optional.empty(), request)) {
+              readingRequiresRole.put(entry.getKey(), false);
+            } else if (PayloadCallContentExtractor.isReadingEntry(
+                value, Optional.of(request ? "user" : "assistant"), request)) {
+              readingRequiresRole.put(entry.getKey(), true);
+            } else {
+              readingRequiresRole.remove(entry.getKey());
+            }
           }
           if (!tools.isEmpty()
               && "response".equals(value.direction().getValue())
@@ -289,27 +325,52 @@ final class ContentPayloadReader {
   }
 
   /**
+   * 已过滤到当前正文侧的目录引用；角色证据不在调用之间共享。
+   *
+   * @param key 共享目录文本的索引键
+   * @param hasRole 当前引用是否明确给出正文侧角色
+   */
+  private record RoundRef(String key, boolean hasRole) {}
+
+  /**
    * 仅请求轮次的输出文本和引用元数据，不持有调用或源单元正文对象。
    *
    * @param header 调用的显示键和稳定身份
+   * @param label 阅读区区分不同调用的简短标识
    * @param inline 目录正文缺失时使用的内联正文
+   * @param inlineReading 目录无可读消息时采用的内联对话
    * @param ranges 所选正文侧的目录引用区间
    * @param inputs 已提取的内联工具输入，保留声明顺序
    * @param toolIds 响应侧声明的工具身份
    */
   private record RoundText(
       String header,
+      String label,
       String inline,
+      PayloadCallContentExtractor.ReadingText inlineReading,
       List<SourceUnitRefRange> ranges,
       Map<String, ToolInputContents.Input> inputs,
       List<String> toolIds) {
+    PayloadCallContentExtractor.ReadingText reading(
+        List<RoundRef> refs,
+        Map<String, String> catalog,
+        Map<String, Boolean> requiresRole,
+        boolean codexRequest) {
+      var text = new PayloadCallContentExtractor.ReadingText(codexRequest);
+      for (var ref : refs) {
+        Boolean required = requiresRole.get(ref.key());
+        if (required != null && (!required || ref.hasRole())) text.add(catalog.get(ref.key()));
+      }
+      return text.orElse(inlineReading);
+    }
+
     String body(
-        List<String> refs,
+        List<RoundRef> refs,
         Map<String, String> catalog,
         Map<String, ToolInputContents.Input> tools,
         Map<String, Integer> order) {
       var text = new StringBuilder();
-      for (String ref : refs) append(text, catalog.get(ref));
+      for (var ref : refs) append(text, catalog.get(ref.key()));
       if (text.isEmpty()) text.append(inline);
       toolIds.stream()
           .sorted(
@@ -326,8 +387,18 @@ final class ContentPayloadReader {
     }
   }
 
-  private String callText(NormalizedCall call, boolean request) throws IOException {
+  /**
+   * 同一个调用的两种正文视图。
+   *
+   * @param raw 包含原有上下文和工具记录的文本
+   * @param reading 按消息角色筛选后的对话正文
+   */
+  private record CallText(String raw, PayloadCallContentExtractor.ReadingText reading) {}
+
+  private CallText callText(NormalizedCall call, boolean request) throws IOException {
     var text = new StringBuilder();
+    boolean codexRequest = codexRequest(request);
+    var reading = new PayloadCallContentExtractor.ReadingText(codexRequest);
     for (var range : call.sourceUnitRefRanges()) {
       if (range.role().isPresent()
           && !range.role().get().equalsIgnoreCase(request ? "user" : "assistant")) continue;
@@ -335,7 +406,9 @@ final class ContentPayloadReader {
           range,
           ref -> {
             if (bulk != null) {
-              append(text, bulk.catalogText(ref, request));
+              String value = bulk.catalogText(ref, request);
+              append(text, value);
+              if (bulk.isReadingText(ref, range.role().isPresent())) reading.add(value);
               return;
             }
             var entry = catalog(ref);
@@ -343,7 +416,11 @@ final class ContentPayloadReader {
                 && ("request".equals(entry.get().direction().getValue()) == request)
                 && !List.of("tool_use", "function_call", "custom_tool_call")
                     .contains(entry.get().unitType())) {
-              append(text, PayloadCallContentExtractor.catalogEntryText(entry.get()));
+              String value = PayloadCallContentExtractor.catalogEntryText(entry.get());
+              append(text, value);
+              if (PayloadCallContentExtractor.isReadingEntry(entry.get(), range.role(), request)) {
+                reading.add(value);
+              }
             }
           });
     }
@@ -372,7 +449,13 @@ final class ContentPayloadReader {
                 "\n\n", inputs.values().stream().map(ToolInputContents.Input::display).toList()));
       }
     }
-    return text.toString();
+    return new CallText(
+        text.toString(),
+        reading.orElse(PayloadCallContentExtractor.readingInline(call, request, codexRequest)));
+  }
+
+  private boolean codexRequest(boolean request) {
+    return request && content.header().agent() == NormalizedAgent.CODEX;
   }
 
   private Optional<SourceUnitCatalogEntry> catalog(String key) throws IOException {

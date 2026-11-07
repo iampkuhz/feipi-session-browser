@@ -103,7 +103,10 @@
     var body = qs(modal, "[data-payload-body]") || qs(modal, ".sd-modal-body");
 
     if (titleEl) titleEl.textContent = title;
-    if (subtitleEl) subtitleEl.textContent = (payloadId || "diagnostic") + (sourceTokenSummary ? " · " + sourceTokenSummary : "");
+    modal.removeAttribute('data-bucket-detail-round');
+    modal.removeAttribute('data-attribution-state');
+    if (subtitleEl) subtitleEl.textContent = conversationPayloadTitle(kind)
+      ? "" : [payloadId || "diagnostic", sourceTokenSummary].filter(Boolean).join(" · ");
 
     if (body) {
       if (source && !sourceIsIndexOnly) {
@@ -123,7 +126,15 @@
             if (subtitleEl && payload) {
               subtitleEl.textContent = payloadSubtitle(payloadId, payload);
             }
-            if (body) body.replaceChildren(payloadNodeFromJson(payload));
+            if (body) {
+              var rendered = payloadNodeFromJson(payload);
+              body.replaceChildren(rendered);
+              var path = button.getAttribute('data-attribution-path');
+              if (path) appendInlineAttribution(rendered, path, payload);
+              else if (/^round:(?:req|resp):/.test(payloadId)) {
+                rendered.append(makeEl('p', 'sd-payload-warning', '多条记录的归因请在展开后按调用查看。'));
+              }
+            }
           })
           .catch(function (err) {
             if (modal.getAttribute('data-loading-payload-id') !== payloadId) return;
@@ -148,8 +159,81 @@
       }
     }
 
-    if (typeof modal.showModal === "function") modal.showModal();
+    if (typeof modal.showModal === "function" && !modal.open) modal.showModal();
     else modal.setAttribute("open", "");
+  }
+
+  function appendInlineAttribution(parent, path, payload) {
+    var request = path.split('?')[0].endsWith('/request');
+    var details = makeEl('details', 'sd-payload-original');
+    details.setAttribute('data-payload-attribution', request ? 'request' : 'response');
+    var label = request ? '输入归因' : '输出归因';
+    details.append(makeEl('summary', '', label));
+    var state = makeEl('div', 'sd-attribution-summary-grid');
+    details.append(state);
+    var notice = parent.querySelector(".sd-payload-warning");
+    if (notice) notice.after(details);
+    else parent.prepend(details);
+    var status = makeEl('p', 'sd-payload-warning', '正在读取' + label + '…');
+    status.setAttribute('role', 'status');
+    state.append(status);
+    var url = getApiBase().replace(/\/$/, '') + path;
+    function load() {
+      status.textContent = '正在读取' + label + '…';
+      state.replaceChildren(status);
+      return readSessionContentPage(url).then(function (response) {
+        var data = response.data || {};
+        if (response.kind !== 'llm.' + (request ? 'request' : 'response') + '_attribution' || !data.callId) {
+          throw new Error('归因未记录');
+        }
+        var tokens = {fresh: data.freshInputTokens, cacheRead: data.cacheReadTokens,
+          cacheWrite: data.cacheWriteTokens, output: data.outputTokens, provenance: data.provenance};
+        if (data.tokens && typeof data.tokens === 'object') tokens = data.tokens;
+        details.setAttribute('data-attribution-call', data.callId);
+        details.setAttribute('data-attribution-scope', data.scope || '');
+        state.replaceChildren();
+        appendKv(state, '调用', (data.callKey || data.callId) + (data.scope === 'subagent' ? ' · 子 agent' : ' · 主会话'));
+        var parts = request ? [['fresh', '新鲜输入'], ['cacheRead', '缓存读取'], ['cacheWrite', '缓存写入']]
+          : [['output', '输出']];
+        parts.forEach(function (part) {
+          appendKv(state, part[1], TokenProvenance.value(tokens, part[0], function (n) { return Number(n).toLocaleString(); }));
+        });
+        var measured = parts.every(function (part) { return TokenProvenance.state(tokens, part[0]) === 'provider_reported'; });
+        appendKv(state, '计量依据', measured ? '提供方报告' : '含估算、缺测或来源未知，见各分项');
+        var count = request ? data.requestToolResultCount : data.responseToolCallCount;
+        if (count != null) appendKv(state, request ? '已记录工具结果' : '已记录工具指令', String(count));
+        if (!request && Array.isArray(data.responseTools) && data.responseTools.length) {
+          var tools = makeEl('section', 'sd-payload-section');
+          tools.append(makeEl('h3', '', '工具指令'));
+          data.responseTools.forEach(function (tool) {
+            var item = makeEl('div', 'sd-payload-tool-link');
+            item.append(makeEl('span', '', (tool.name || '工具') + (tool.preview ? ' · ' + tool.preview : '')));
+            var button = makeEl('button', 'sd-btn sd-btn--secondary sd-btn--sm', 'Input');
+            button.type = 'button';
+            button.setAttribute('data-action', 'open-payload');
+            button.setAttribute('data-payload-kind', 'tool_input');
+            button.setAttribute('data-payload-id', 'tool:input:' + tool.id);
+            button.setAttribute('data-payload-title', (tool.name || '工具') + ' · Input');
+            item.append(button);
+            tools.append(item);
+          });
+          var empty = parent.querySelector('.sd-payload-empty');
+          if (empty && !(payload.reading || []).length) empty.replaceWith(tools);
+          else details.after(tools);
+        }
+      }).catch(function (error) {
+        status.textContent = /refresh/i.test(error.message) ? '索引已变化；刷新页面后重试。' : label + '暂不可用。';
+        var retry = makeEl('button', 'sd-btn sd-btn--secondary sd-btn--sm', 'Retry');
+        retry.type = 'button';
+        retry.addEventListener('click', function () {
+          if (/refresh/i.test(error.message)) window.location.reload();
+          else load();
+        });
+        state.append(retry);
+        details.open = true;
+      });
+    }
+    load();
   }
 
   function openPayload(button) {
@@ -186,6 +270,37 @@
   }
 
   function appendPreBlock(parent, title, text, type) {
+    appendReadingBlock(parent, title, { text: text }, type);
+  }
+
+  function appendRenderedMarkdown(target, html) {
+    var rendered = new DOMParser().parseFromString(html, "text/html");
+    target.replaceChildren.apply(target, Array.from(rendered.body.childNodes));
+  }
+
+  function organizeRequestMarkdown(markdown) {
+    var first = markdown.firstElementChild;
+    // 只单列已知的完整页面打开标记；普通引用、围栏和混合段落不变。
+    if (first && first.matches("p") && !first.childElementCount
+        && /^<external_codex_apps_open_page>\s*\{\s*"page_id"\s*:\s*null\s*\}\s*<\/external_codex_apps_open_page>$/.test(first.textContent.trim())) {
+      var details = makeEl("details", "sd-reading-page-marker");
+      details.appendChild(makeEl("summary", "", "页面打开标记（来源未确认）"));
+      details.appendChild(makeEl("pre", "", first.textContent));
+      first.replaceWith(details);
+    }
+    markdown.querySelectorAll("h1, h2, h3, h4, h5, h6").forEach(function (heading) {
+      if (heading.childElementCount) return;
+      var match = /^([^:\n]{1,160}\.[a-z\d]{1,12}:)([ \t]+)((?:\/|[a-z]:[\\/])[^\n]+)$/i.exec(heading.textContent);
+      if (!match) return;
+      heading.classList.add("sd-reading-file-heading");
+      var filename = makeEl("span", "sd-reading-file-name", match[1]);
+      var location = makeEl("code", "sd-reading-file-path", match[2] + match[3]);
+      location.tabIndex = 0;
+      heading.replaceChildren(filename, location);
+    });
+  }
+
+  function appendReadingBlock(parent, title, block, type, request) {
     var section = makeEl("section", "sd-content-block content-block");
     if (type === "tool") {
       section.classList.add("content-block--tool", "sd-response-block--tool");
@@ -195,7 +310,22 @@
     var head = makeEl("div", "sd-response-block-head block-head");
     head.appendChild(makeEl("span", "sd-card-title", title));
     var blockBody = makeEl("div", "sd-response-block-body block-body");
-    blockBody.appendChild(makeEl("pre", "", text));
+    if (block.html) {
+      var markdown = makeEl("article", "sd-reading-markdown");
+      appendRenderedMarkdown(markdown, block.html);
+      if (request) organizeRequestMarkdown(markdown);
+      markdown.querySelectorAll("table").forEach(function (table) {
+        var scroll = makeEl("div", "sd-reading-table-scroll");
+        scroll.tabIndex = 0;
+        scroll.setAttribute("role", "region");
+        scroll.setAttribute("aria-label", "Scrollable Markdown table");
+        table.replaceWith(scroll);
+        scroll.appendChild(table);
+      });
+      blockBody.appendChild(markdown);
+    } else {
+      blockBody.appendChild(makeEl("pre", "", block.text));
+    }
     section.appendChild(head);
     section.appendChild(blockBody);
     parent.appendChild(section);
@@ -218,6 +348,7 @@
   }
 
   function payloadSubtitle(payloadId, payload) {
+    if (payload && conversationPayloadTitle(payload.kind)) return "";
     var parts = [payloadId || "diagnostic"];
     if (payload && payload.size) parts.push(payload.size);
     var tokenSummary = formatPayloadTokenEstimate(payload && payload.token_estimate);
@@ -225,22 +356,31 @@
     return parts.filter(Boolean).join(" · ");
   }
 
+  function conversationPayloadTitle(kind) {
+    return {
+      llm_request: "Request", subagent_request: "Request",
+      llm_response: "Response", subagent_response: "Response"
+    }[kind];
+  }
+
   function payloadNodeFromJson(payload) {
     payload = payload || {};
     var kind = payload.kind || "unknown";
     var status = payload.status || (payload.truncated ? "truncated" : "available");
-    var size = payload.size || "—";
+    var size = payload.size || "";
     var text = payload.text || payload.content || "";
     var toolName = payload.tool_name || "";
     var toolStatus = payload.tool_status || "";
     var toolCommand = payload.tool_command || "";
     var tokenSummary = formatPayloadTokenEstimate(payload.token_estimate);
+    var conversationTitle = conversationPayloadTitle(kind);
+    if (conversationTitle) return conversationPayload(payload, conversationTitle, text);
     var shell = makeEl("div", "sd-payload-shell payload-shell");
     var meta = makeEl("aside", "sd-payload-meta payload-meta");
     meta.appendChild(makeEl("h3", "", "Metadata"));
     appendKv(meta, "kind", kind);
     appendKv(meta, "status", status);
-    appendKv(meta, "size", size);
+    if (size) appendKv(meta, "size", size);
     if (tokenSummary) appendKv(meta, "tokens", tokenSummary);
     if (toolName) appendKv(meta, "tool", toolName);
     if (toolStatus) appendKv(meta, "tool status", toolStatus);
@@ -248,20 +388,51 @@
     var main = makeEl("main", "sd-payload-main payload-main");
     if (toolCommand) appendPreBlock(main, "Command", toolCommand, "tool");
     var contentTitle = {
-      llm_request: "Request", subagent_request: "Request",
-      llm_response: "Response", subagent_response: "Response",
       tool_input: "Input", tool_result: "Result"
     }[kind] || "Content";
-    if (contentTitle === "Request" || contentTitle === "Response") {
-      main.appendChild(makeEl("p", "sd-payload-warning", "仅展示本地可见记录，不代表完整 provider context。"));
-    }
     if (payload.truncated) main.appendChild(makeEl("p", "sd-payload-warning", "内容已截断。"));
-    if (text) appendPreBlock(main, contentTitle, text, "text");
+    if (text) {
+      appendPreBlock(main, contentTitle, text, "text");
+      if (navigator.clipboard && (kind === 'tool_input' || kind === 'tool_result')) {
+        var copy = makeEl('button', 'sd-btn sd-btn--secondary sd-btn--sm', 'Copy');
+        copy.type = 'button';
+        copy.addEventListener('click', function () {
+          navigator.clipboard.writeText(text).then(function () { copy.textContent = 'Copied'; })
+            .catch(function () { copy.textContent = 'Copy unavailable'; });
+        });
+        main.append(copy);
+      }
+    }
     else main.appendChild(makeEl("div", "sd-payload-empty", contentTitle + " 内容未记录"));
 
     shell.appendChild(meta);
     shell.appendChild(main);
     return shell;
+  }
+
+  function conversationPayload(payload, title, raw) {
+    var main = makeEl("div", "sd-payload-main sd-conversation-payload");
+    main.appendChild(makeEl("p", "sd-payload-warning", "仅展示本地可见记录，不代表完整 provider context。"));
+    if (payload.truncated) main.appendChild(makeEl("p", "sd-payload-warning", "内容已截断。"));
+    var reading = Array.isArray(payload.reading) ? payload.reading : (raw ? [{ text: raw }] : []);
+    if (raw && (payload.unconfirmedContext || reading.length !== 1 || reading[0].text !== raw)) {
+      var details = makeEl("details", "sd-payload-original");
+      details.setAttribute("data-payload-raw", "");
+      var summary = payload.unconfirmedContext ? "原始记录（含项目说明或上下文，归属无法确认）"
+        : "原始记录（可能包含工具和上下文）";
+      details.appendChild(makeEl("summary", "", summary));
+      details.appendChild(makeEl("pre", "", raw));
+      main.appendChild(details);
+    }
+    if (!reading.length) {
+      main.appendChild(makeEl("p", "sd-payload-empty", payload.unconfirmedContext ? "未确认可单列的正文，请查看原始记录。" : title + " 正文未记录"));
+    } else {
+      reading.forEach(function (block) {
+        var label = reading.length > 1 && block.label ? title + " · " + block.label : title;
+        appendReadingBlock(main, label, block, "text", title === "Request");
+      });
+    }
+    return main;
   }
 
   function fullPayloadApiUrl(payloadId) {

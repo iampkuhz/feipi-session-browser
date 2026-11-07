@@ -69,6 +69,9 @@ def _create_fake_project(
     script = project / 'scripts' / 'session-browser.sh'
     script.parent.mkdir(parents=True)
     script.write_bytes(SHELL_SCRIPT.read_bytes())
+    helper = project / 'scripts/harness/java_env.sh'
+    helper.parent.mkdir(parents=True)
+    helper.write_bytes((REPO_ROOT / 'scripts/harness/java_env.sh').read_bytes())
     script.chmod(stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
     (project / 'scripts' / 'gates').mkdir(parents=True)
     (project / 'scripts' / 'gates' / 'cli.py').write_text('# fake gate entry\n', encoding='utf-8')
@@ -102,7 +105,7 @@ def _create_fake_project(
 
 def _isolate_script(project: Path, tmp_path: Path) -> None:
     """仅修改测试副本的固定系统路径。"""
-    script = project / 'scripts' / 'session-browser.sh'
+    script = project / 'scripts/harness/java_env.sh'
     content = script.read_text(encoding='utf-8')
     content = content.replace('/usr/libexec/java_home', str(tmp_path / 'absent-java-home'))
     content = content.replace('/opt/homebrew', str(tmp_path / 'absent-homebrew'))
@@ -165,6 +168,7 @@ def test_no_args_routes_to_java_help_from_arbitrary_cwd(tmp_path: Path) -> None:
         (('serve', '--port', '19000'), ('serve', '--port', '19000')),
         (('stop', '--force'), ('stop', '--force')),
         (('status',), ('status',)),
+        (('scan',), ('scan',)),
         (('doctor',), ('doctor',)),
         (('diagnose', 'session', 'fixture.json'), ('diagnose', 'session', 'fixture.json')),
     ],
@@ -482,12 +486,3 @@ def test_generated_launcher_keeps_user_heap_override_last(tmp_path: Path) -> Non
     assert result.returncode == 0, result.stderr
     args = result.stdout.splitlines()
     assert args.index('JVM_ARG=<-Xmx512m>') < args.index('JVM_ARG=<-Xmx2g>')
-
-
-def test_shell_entrypoint_has_three_owned_commands_and_java_forwarding() -> None:
-    source = SHELL_SCRIPT.read_text(encoding='utf-8')
-
-    assert source.count('run_deps()') == 1
-    assert source.count('run_test()') == 1
-    assert source.count('run_quality()') == 1
-    assert 'run_java_command "$COMMAND" "$@"' in source

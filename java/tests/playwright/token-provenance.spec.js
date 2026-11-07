@@ -2,6 +2,12 @@ const { test, expect } = require('@playwright/test');
 const path = require('path');
 const fs = require('fs');
 
+// Keep the live SSR snapshot identity while replacing only synthetic renderer data.
+async function fulfillIndexedJson(route, json) {
+  const response = await route.fetch();
+  return route.fulfill({ response, status: 200, json });
+}
+
 // All values below are synthetic. API interception tests renderer semantics, not API parity.
 const helperPath = path.join(__dirname, '../../web/src/main/resources/static/js/token-provenance.js');
 test.beforeEach(async ({ page }) => {
@@ -20,7 +26,7 @@ const detailPath = '/sessions/claude_code/hifi-viz-session-001';
 const projectKey = 'test-hifi-project';
 const provenance = {
   freshInput: 'estimated', cacheRead: 'unavailable', cacheWrite: 'unavailable', output: 'estimated',
-  estimationMethod: 'synthetic_visible_context', estimatedSessionCount: 1,
+  estimationMethod: 'visible_context_v1,cache_transcript_v1', estimatedSessionCount: 1,
   unavailableSessionCount: 1, unknownSessionCount: 0,
 };
 const tokens = { fresh: 9000000, cacheRead: 0, cacheWrite: 0, output: 500000, total: 9500000, provenance };
@@ -59,11 +65,11 @@ async function syntheticApis(page, agents = [{ agent: 'Synthetic agent', scope: 
     if (pathname.endsWith('/rounds')) data = { roundCount: 1, rounds: [round] };
     if (pathname.endsWith('/payloads')) data = { payloadCount: 0, payloads: [] };
     if (pathname.endsWith('/round/1')) data = { round: { calls: [{ callId: 'synthetic-call', scope: 'main', usage: { total: 0 }, timestamp: '2026-01-01T00:00:00Z' }] } };
-    await route.fulfill({ json: data });
+    await fulfillIndexedJson(route, data);
   });
 }
 
-async function assertMeasurementLayout(page, testInfo) {
+async function assertMeasurementLayout(page) {
   for (const width of [1440, 800]) {
     await page.setViewportSize({ width, height: 1100 });
     const layout = await page.evaluate(() => {
@@ -72,7 +78,7 @@ async function assertMeasurementLayout(page, testInfo) {
         const box = element.getBoundingClientRect();
         const style = getComputedStyle(element);
         if (!box.width || !box.height) issues.push('Hidden measurement disclosure');
-        if (style.whiteSpace === 'nowrap') issues.push('Measurement disclosure cannot wrap');
+        if (style.whiteSpace === 'nowrap' && !element.matches('.token-total__value')) issues.push('Measurement disclosure cannot wrap');
         if (element.scrollWidth > element.clientWidth + 1) issues.push('Measurement disclosure text overflows');
         if (element.hasAttribute('data-token-provenance') && element.closest('.metric-cell') && box.width < 60) issues.push('Trace disclosure is squeezed');
       });
@@ -88,7 +94,6 @@ async function assertMeasurementLayout(page, testInfo) {
       return issues;
     });
     expect(layout, `measurement layout at ${width}px`).toEqual([]);
-    await page.screenshot({ path: testInfo.outputPath(`measurement-${width}.png`), fullPage: true });
   }
 }
 
@@ -118,7 +123,9 @@ test('measurement helper distinguishes reported zero, unavailable, unknown and o
   expect(result).toEqual({ reportedZero: '0', reportedRatio: '0.0%', unavailable: 'Not reported',
     unavailableRatio: 'N/A · Not reported', unknown: '53 · Unknown', unknownZero: 'N/A · Unknown',
     mixed: '≈9000000 · Partial', mixedRatio: 'N/A · Partial' });
-  await expect(page.locator('[data-token-provenance]')).toContainText('Estimated: 2 sessions · Not reported: 2 sessions · Unknown source: 1 session');
+  const evidence = page.locator('.token-evidence');
+  await expect(evidence.locator('dt')).toHaveText(['Estimated', 'Not reported', 'Unknown source', 'Estimate basis']);
+  await expect(evidence.locator('dd')).toHaveText(['2 sessions', '2 sessions', '1 session', 'method not documented in this view']);
   await expect(page.locator('#measurement img')).toHaveCount(0);
 });
 
@@ -128,14 +135,29 @@ for (const [name, url, selector] of [
   ['Projects', '/projects', '.metric-grid'],
   ['Project Detail', '/projects/' + projectKey, '.project-detail-kpis'],
 ]) {
-  test(`${name} uses the same synthetic estimated/partial semantics`, async ({ page }, testInfo) => {
+  test(`${name} uses the same synthetic estimated/partial semantics`, async ({ page }) => {
     const errors = [];
     page.on('pageerror', (error) => errors.push(error.message));
     await syntheticApis(page);
     await page.goto(url);
     const measurement = page.locator(selector).filter({ has: page.locator('[data-token-provenance]') }).first();
     await expect(measurement).toContainText('≈9.5M');
-    await expect(page.locator('[data-token-provenance]').first()).toContainText('Estimated');
+    const disclosure = measurement.locator('[data-token-provenance]').first();
+    const toggle = disclosure.locator('summary');
+    const evidence = disclosure.locator('.token-evidence').first();
+    await expect(toggle).toHaveText('Partial coverage');
+    await expect(evidence).toBeHidden();
+    await page.setViewportSize({ width: 390, height: 900 });
+    await toggle.focus();
+    await toggle.press('Enter');
+    await expect(evidence).toBeVisible();
+    await expect(evidence.locator('dt')).toHaveText(['Estimated', 'Not reported', 'Estimate basis']);
+    await expect(evidence.locator('dd').nth(0)).toHaveText('1 session');
+    await expect(evidence).toContainText('visible conversation context');
+    await expect(evidence).toContainText('local transcript cache');
+    await expect(evidence).not.toContainText(/visible_context_v1|cache_transcript_v1/);
+    await toggle.click();
+    await expect(evidence).toBeHidden();
     if (name === 'Dashboard') {
       const cache = page.locator('.metric-card--kpi').filter({ has: page.locator('.metric-card__label', { hasText: 'Cache Read Ratio' }) });
       await expect(cache).toContainText('N/A · Partial');
@@ -148,16 +170,24 @@ for (const [name, url, selector] of [
     }
     if (name === 'Sessions' || name === 'Projects' || name === 'Project Detail') {
       await expect(page.locator('td.token-cell').first()).toContainText('≈9.5M');
-      await expect(page.locator('td.token-cell [data-token-provenance]').first()).toContainText('Not reported');
+      if (name !== 'Sessions') {
+        const rowDisclosure = page.locator('td.token-cell [data-token-provenance]').first();
+        await expect(rowDisclosure).toContainText('Not reported');
+        const listUrl = page.url();
+        await rowDisclosure.locator('summary').click();
+        await expect(rowDisclosure.locator('.token-composition')).toBeVisible();
+        await expect(page).toHaveURL(listUrl);
+        await rowDisclosure.locator('summary').click();
+      }
       const expectedCells = name === 'Sessions' ? 13 : name === 'Projects' ? 8 : 12;
       await expect(page.locator('td.token-cell').first().locator('..').locator(':scope > td')).toHaveCount(expectedCells);
     }
-    await assertMeasurementLayout(page, testInfo);
+    await assertMeasurementLayout(page);
     expect(errors).toEqual([]);
   });
 }
 
-test('session estimate stays at session scope; round/call missing usage remains Unknown and is not low cache', async ({ page }, testInfo) => {
+test('session estimate stays at session scope; round/call missing usage remains Unknown and is not low cache', async ({ page }) => {
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await syntheticApis(page);
@@ -170,9 +200,10 @@ test('session estimate stays at session scope; round/call missing usage remains 
   await expect(row).toHaveAttribute('data-is-low-cache', 'false');
   await expect(row.locator('.metric-token')).toHaveText('N/A · Unknown');
   await row.locator('[data-action="toggle-round"]').click();
-  await expect(page.locator('[data-trace-detail] .sd-tool-tokens')).toHaveText('N/A · Unknown tokens');
+  await expect(page.locator('[data-trace-detail] .sd-tool-tokens')).toHaveText('N/A');
+  await expect(page.locator('[data-trace-detail] .sd-tool-tokens')).toHaveAttribute('title', /Unknown source/);
   await expect(page.locator('[data-trace-detail]')).not.toContainText('9.5M');
-  await assertMeasurementLayout(page, testInfo);
+  await assertMeasurementLayout(page);
   await page.locator('[data-action="status-low-cache"]').click();
   await expect(row).toBeHidden();
   expect(errors).toEqual([]);
@@ -229,12 +260,12 @@ test('Trace child calls without lifecycle evidence stay Unknown and retain tool 
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await syntheticApis(page);
-  await page.route('**/round/1', async (route) => route.fulfill({ json: { round: {
+  await page.route('**/round/1', async (route) => fulfillIndexedJson(route, { round: {
     calls: [{ callId: 'synthetic-child-call', scope: 'subagent', subagentId: 'synthetic-child',
       usage: { total: 0 }, responseToolCallIds: ['synthetic-child-tool'] }],
     tools: [{ toolCallId: 'synthetic-child-tool', declaredByCallId: 'synthetic-child-call',
       name: 'shell', inputPreview: 'echo synthetic-child', status: 'ok', exitCode: 0 }],
-  } } }));
+  } }));
   await page.goto(detailPath);
   await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
   await page.locator('[data-trace-round-row]').first().locator('[data-action="toggle-round"]').click();
@@ -260,7 +291,7 @@ test('Trace child calls without lifecycle evidence stay Unknown and retain tool 
   expect(errors).toEqual([]);
 });
 
-test('Context precision marks partial shares and excludes huge tool estimates from usage composition', async ({ page }, testInfo) => {
+test('Context precision marks partial shares and excludes huge tool estimates from usage composition', async ({ page }) => {
   const segments = [
     { label: 'System', tokens: -1, tokensLabel: 'N/A', precision: 'unavailable', includedInUsage: false, shareStatus: 'unavailable' },
     ...[['Provider Cached Input', 924, 92.4], ['Fresh Input', 50, 5], ['Cache Write', 20, 2], ['Output', 6, 0.6]]
@@ -286,7 +317,6 @@ test('Context precision marks partial shares and excludes huge tool estimates fr
     await page.setViewportSize({ width, height: 1100 });
     expect(await context.locator('.sd-context-budget__item span, .sd-context-budget__item b').evaluateAll((elements) =>
       elements.some((element) => element.scrollWidth > element.clientWidth + 1)), `Context legend at ${width}px`).toBe(false);
-    await page.screenshot({ path: testInfo.outputPath(`context-partial-${width}.png`), fullPage: true });
   }
 });
 
@@ -324,9 +354,9 @@ for (const state of ['mixed', 'unknown', 'provider_reported']) {
       (card.querySelector('.metric-card__primary-row') || card).appendChild(badge);
     }));
     await syntheticApis(page);
-    await page.route(/\/api\/dashboard\/summary(?:\?|$)/, async (route) => route.fulfill({ json: {
+    await page.route(/\/api\/dashboard\/summary(?:\?|$)/, async (route) => fulfillIndexedJson(route, {
       ...summary, tokens: agentSegments(100, state), cacheReadRatio: { value: state === 'provider_reported' ? 0 : null },
-    } }));
+    }));
     await page.goto('/dashboard');
     const card = page.locator('.metric-card--kpi').filter({ has: page.locator('.metric-card__label', { hasText: 'Cache Read Ratio' }) });
     await expect(card.locator('.metric-card__value')).toHaveText(state === 'provider_reported' ? '0.0%' : 'N/A · ' + (state === 'mixed' ? 'Partial' : 'Unknown'));
@@ -337,7 +367,7 @@ for (const state of ['mixed', 'unknown', 'provider_reported']) {
 }
 
 for (const state of ['provider_reported', 'estimated', 'mixed']) {
-  test(`Sessions summary keeps ${state} token pills and provenance within header bounds`, async ({ page }, testInfo) => {
+  test(`Sessions summary keeps ${state} token pills and provenance within header bounds`, async ({ page }) => {
     const measured = agentSegments(40100000, state);
     if (state !== 'provider_reported') Object.assign(measured.provenance, {
       estimatedSessionCount: 3, unavailableSessionCount: state === 'mixed' ? 2 : 0,
@@ -345,9 +375,9 @@ for (const state of ['provider_reported', 'estimated', 'mixed']) {
       estimationMethod: 'synthetic_visible_context_and_output_length_without_provider_usage',
     });
     await syntheticApis(page);
-    await page.route(/\/api\/sessions\/summary(?:\?|$)/, async (route) => route.fulfill({ json: {
+    await page.route(/\/api\/sessions\/summary(?:\?|$)/, async (route) => fulfillIndexedJson(route, {
       ...summary, totalCount: 5, projectCount: 4, tokens: measured,
-    } }));
+    }));
     await page.goto('/sessions');
     const header = page.locator('.sessions-page .page-head');
     await expect(header.locator('.ui-stat-pill')).toHaveCount(3);
@@ -385,7 +415,35 @@ for (const state of ['provider_reported', 'estimated', 'mixed']) {
         return result;
       });
       expect(issues, `Sessions ${state} summary at ${width}px`).toEqual([]);
-      await page.screenshot({ path: testInfo.outputPath(`summary-${width}.png`), fullPage: true });
     }
   });
 }
+
+test.describe('compact Sessions Token bar', () => {
+  test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
+  test('touch opens full composition without navigating the row', async ({ page }) => {
+    await syntheticApis(page);
+    await page.goto('/sessions');
+    const cell = page.locator('.sessions-row .token-cell').first();
+    await expect(cell.locator('.token-total__value')).toHaveText('≈9.5M');
+    await expect(cell.locator('.token-total__status')).toHaveText('Partial');
+    await expect(cell.locator('details')).toHaveCount(0);
+    const listUrl = page.url();
+    await cell.getByRole('button', { name: 'Token breakdown' }).tap();
+    const panel = page.locator('#token-bar-popover');
+    await expect(panel.locator('.tokenbar-seg')).toHaveCount(2);
+    await expect(panel.locator('.token-composition dd')).toHaveText([
+      '≈9,500,000', /≈9,000,000.*94.7%/, 'Not reported', 'Not reported', /≈500,000.*5.3%/,
+    ]);
+    expect(await panel.evaluate(node => {
+      const b = node.getBoundingClientRect();
+      return b.left >= 0 && b.right <= innerWidth && b.top >= 0 && b.bottom <= innerHeight;
+    })).toBe(true);
+    await expect(page).toHaveURL(listUrl);
+    await page.keyboard.press('Escape');
+    const header = page.locator('.page-head__stats [data-token-provenance]');
+    await header.locator('summary').press('Enter');
+    await expect(header.locator('.token-evidence dt')).toHaveText(['Estimated', 'Not reported', 'Estimate basis']);
+    await expect(header).toContainText('can overlap');
+  });
+});

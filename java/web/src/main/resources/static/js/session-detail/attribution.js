@@ -313,8 +313,7 @@
         if (payload && payload.kind === "llm.attribution_error") {
           renderAttributionError(body, payload, url);
         } else if (payload) {
-          var kind = url.indexOf("/request") !== -1 ? "request" : "response";
-          renderAttributionSuccess(body, payload, kind, url);
+          renderAttributionSuccess(body, payload);
         }
       })
       .catch(function (err) {
@@ -328,7 +327,7 @@
       });
   }
 
-  function renderAttributionSuccess(body, payload, kind, cacheKey) {
+  function renderAttributionSuccess(body, payload) {
     var data = payload.data || payload;
     var measuredTokens = data.tokens && typeof data.tokens === 'object' ? data.tokens : {
       total: data.totalTokens, fresh: data.freshInputTokens, cacheRead: data.cacheReadTokens,
@@ -354,9 +353,9 @@
 
     // ── Token 分段卡片 ──
     html += '<section class="sd-attribution-topcard" data-attribution-card="tokens">';
-    html += '<h3>' + (kind === "request" ? "请求 Token" : "响应 Token") + '</h3>';
+    html += '<h3>调用 Token（输入与输出）</h3>';
     html += '<div class="sd-attribution-summary-grid">';
-    html += '<div class="sd-kv"><span>Total</span><span>' + escapeHtml(TokenProvenance.total(measuredTokens, formatCompactToken)) + ' tokens</span></div>';
+    html += '<div class="sd-kv"><span>Total</span><span>' + escapeHtml(TokenProvenance.total(measuredTokens, formatCompactToken)) + '</span></div>';
     html += '<div class="sd-kv"><span>Fresh Input</span><span>' + escapeHtml(TokenProvenance.value(measuredTokens, 'fresh', formatCompactToken)) + '</span></div>';
     html += '<div class="sd-kv"><span>Cache Read</span><span>' + escapeHtml(TokenProvenance.value(measuredTokens, 'cacheRead', formatCompactToken)) + '</span></div>';
     html += '<div class="sd-kv"><span>Cache Write</span><span>' + escapeHtml(TokenProvenance.value(measuredTokens, 'cacheWrite', formatCompactToken)) + '</span></div>';
@@ -510,11 +509,7 @@
 
   function formatTokenValue(v) {
     if (!v || v.value == null) return "—";
-    var val = v.value;
-    var formatted = typeof val === "number" && val >= 1000 ? (val / 1000).toFixed(1) + "K" : String(val);
-    var prec = v.precision || "";
-    if (prec === "estimated" || prec === "heuristic" || prec === "residual") return "~" + formatted;
-    return formatted;
+    return formatCompactToken(v.value, v.precision);
   }
 
   function formatRatioValue(v) {
@@ -533,7 +528,7 @@
 
   function formatCompactToken(val, precision) {
     if (val == null) return "—";
-    var formatted = typeof val === "number" && val >= 1000 ? (val / 1000).toFixed(1) + "K" : String(val);
+    var formatted = typeof val === "number" ? formatSessionCompact(val) : String(val);
     if (precision === "estimated" || precision === "heuristic" || precision === "residual") return "~" + formatted;
     return formatted;
   }
@@ -650,7 +645,7 @@
         modal.setAttribute("data-attribution-state", "error");
         if (subtitleEl) subtitleEl.textContent = "error";
       } else {
-        renderAttributionSuccess(body, payload, apiKind, cacheKey);
+        renderAttributionSuccess(body, payload);
         modal.setAttribute("data-attribution-state", "success");
         if (subtitleEl) subtitleEl.textContent = payload.data.call_id || payload.data.request_id || "";
       }

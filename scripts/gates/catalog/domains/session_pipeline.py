@@ -4,24 +4,34 @@
 
 from scripts.gates.catalog.gate_contracts import Gate
 from scripts.gates.catalog.recipe_dsl import (
+    JAVA_RUNTIME_BUILD_INPUTS,
+    PRODUCT_EXECUTION_PATHS,
     changed,
     gradle_task,
     recipe,
     scan_smoke,
 )
 
+SCAN_SMOKE_TESTS = (
+    'scripts/tests/script_commands/test_session_browser_serve_smoke.py',
+    'scripts/tests/script_commands/test_session_browser_scan_smoke.py',
+)
+
 GATES = (
     Gate(
         name='scanCommandSmoke',
-        description='验证 session-browser scan 命令与发行 CLI 的进程级契约。',
+        description='验证 scan 命令及正常 serve 的进程归属、自动扫描与内容交付契约。',
         trigger=changed(
-            'scripts/session-browser.sh',
-            'java/app-cli/**',
-            'java/scan-engine/**',
-            'java/sources/**',
-            'java/index-store-sqlite/**',
-            'scripts/gates/checks/**',
-            'scripts/tests/script_commands/**',
+            *JAVA_RUNTIME_BUILD_INPUTS,
+            'java/*/src/main/java/**',
+            'java/*/src/main/kotlin/**',
+            'java/app-cli/src/main/resources/**',
+            'java/index-store-sqlite/src/main/resources/**',
+            'java/validation/src/main/resources/**',
+            'java/web/src/main/resources/templates/**',
+            *SCAN_SMOKE_TESTS,
+            'scripts/tests/conftest.py',
+            *PRODUCT_EXECUTION_PATHS,
         ),
         target_presets=('session-pipeline',),
         recipe=recipe(
@@ -29,8 +39,10 @@ GATES = (
             180,
             scan_smoke(
                 'scanCommandSmoke',
-                ('scripts/tests/script_commands/test_session_browser_scan_smoke.py',),
-                (':java:app-cli:installDist',),
+                SCAN_SMOKE_TESTS,
+                (),
+                '-n',
+                '0',
                 '-q',
                 '-W',
                 'error',
