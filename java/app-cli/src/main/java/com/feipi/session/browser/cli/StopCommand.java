@@ -30,8 +30,7 @@ import picocli.CommandLine.Option;
  *   <li>清理 PID 文件
  * </ol>
  *
- * <p>跨平台兼容：使用 {@link ProcessHandle} API，不依赖 {@code lsof}、{@code /proc} 等 Unix 特定路径。 Windows 下
- * {@code destroy()} 调用 TerminateProcess，行为等同 force kill。
+ * <p>使用 {@link ProcessHandle} API 发送信号，不依赖外部命令。
  *
  * <p>退出码：
  *
@@ -65,9 +64,6 @@ final class StopCommand implements Callable<Integer> {
 
   /** serve 子命令 token，用于避免误匹配其他 Java 进程。 */
   private static final Pattern SERVE_COMMAND_TOKEN = Pattern.compile("(^|\\s)serve(\\s|$)");
-
-  /** 默认索引目录环境变量名。 */
-  private static final String INDEX_DIR_ENV = "INDEX_DIR";
 
   @Option(
       names = {"--port", "-p"},
@@ -400,11 +396,11 @@ final class StopCommand implements Callable<Integer> {
   /**
    * 解析索引目录。
    *
-   * <p>优先级：CLI 选项 > INDEX_DIR 环境变量 > XDG 平台默认值。
+   * <p>优先级：CLI 选项 > INDEX_DIR 环境变量 > 当前版本默认路径。
    *
    * @return 解析后的索引目录路径
    */
   private Path resolveIndexDir() {
-    return PathResolver.resolveDataDir(indexDirOption, INDEX_DIR_ENV);
+    return PathResolver.resolveDataDir(indexDirOption);
   }
 }

@@ -105,15 +105,4 @@ public record StoredSessionFingerprint(
     this(
         sessionKey, filePath, fileMtime, agent, endedAt, title, projectKey, cwd, "", "", "", agent);
   }
-
-  /**
-   * 向后兼容构造器，不含元数据字段。
-   *
-   * @deprecated 使用包含元数据字段的完整构造器
-   */
-  @Deprecated
-  public StoredSessionFingerprint(
-      String sessionKey, String filePath, double fileMtime, String agent, String endedAt) {
-    this(sessionKey, filePath, fileMtime, agent, endedAt, "", "", "");
-  }
 }

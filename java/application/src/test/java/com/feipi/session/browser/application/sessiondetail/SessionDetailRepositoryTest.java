@@ -43,7 +43,7 @@ class SessionDetailRepositoryTest {
     writerConnection = DriverManager.getConnection(jdbcUrl);
     PragmaConfig.DEFAULTS.apply(writerConnection);
     indexConnection = IndexConnection.create(writerConnection, PragmaConfig.DEFAULTS, jdbcUrl);
-    IndexSchema.withDefaults().ensureSchema(indexConnection.writerConnection());
+    IndexSchema.ensureSchema(indexConnection.writerConnection());
     insertTestData();
     SqliteSessionQueryRepository sessionQueryRepo =
         new SqliteSessionQueryRepository(indexConnection);
@@ -203,31 +203,6 @@ class SessionDetailRepositoryTest {
     void missingArtifact() throws Exception {
       Optional<SessionArtifactRecord> result = repository.findNormalizedArtifact("cc:notexist");
       assertThat(result).isEmpty();
-    }
-
-    @Test
-    @DisplayName("兼容 main/Python-era normalized_session_json 制品类型")
-    void legacyNormalizedSessionJsonArtifact() throws Exception {
-      String sql =
-          "INSERT INTO session_artifacts"
-              + " (session_key, artifact_type, path, schema_version, source_path,"
-              + " source_mtime, size_bytes, created_at, updated_at)"
-              + " VALUES"
-              + " ('cc:s1', 'normalized_session_json', '/artifacts/legacy_cc_s1.json',"
-              + " 'session-detail.normalized.v3', '/source.jsonl',"
-              + " 1704067200, 8192, 1704067200, 1704067200)";
-      indexConnection.writerConnection().createStatement().execute(sql);
-      indexConnection
-          .writerConnection()
-          .createStatement()
-          .execute(
-              "DELETE FROM session_artifacts WHERE session_key = 'cc:s1' AND artifact_type = 'normalized'");
-
-      Optional<SessionArtifactRecord> result = repository.findNormalizedArtifact("cc:s1");
-
-      assertThat(result).isPresent();
-      assertThat(result.get().artifactType()).isEqualTo("normalized_session_json");
-      assertThat(result.get().path()).isEqualTo("/artifacts/legacy_cc_s1.json");
     }
   }
 

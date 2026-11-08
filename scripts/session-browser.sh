@@ -33,28 +33,10 @@ build_java_launcher() {
 
 # deps 构建 launcher，随后交给 Java deps 执行运行时 preflight。
 run_deps() {
-    case "${1:-}" in
-        "")
-            ;;
-        plan)
-            if [[ $# -ne 1 ]]; then
-                echo "错误：deps plan 不接受额外参数。" >&2
-                return 2
-            fi
-            echo "PLAN ./java/gradlew -p java :java:app-cli:installDist"
-            echo "PLAN $JAVA_LAUNCHER deps"
-            return 0
-            ;;
-        -h|--help)
-            echo "用法：./scripts/session-browser.sh deps [plan]"
-            return 0
-            ;;
-        *)
-            echo "错误：deps 参数无效：$*" >&2
-            echo "用法：./scripts/session-browser.sh deps [plan]" >&2
-            return 2
-            ;;
-    esac
+    if [[ $# -ne 0 ]]; then
+        echo "用法：./scripts/session-browser.sh deps" >&2
+        return 2
+    fi
 
     discover_java_home
     build_java_launcher
@@ -72,15 +54,6 @@ run_test() {
     discover_java_home
     cd "$PROJECT_DIR"
     exec ./java/gradlew -p java verifyNoSkippedJavaTests --no-daemon --no-build-cache --no-parallel --max-workers=1
-}
-
-# quality 默认执行增量 Gate；显式参数原样交给 Gate CLI。
-run_quality() {
-    cd "$PROJECT_DIR"
-    if [[ $# -eq 0 ]]; then
-        exec python3 scripts/gates/cli.py run --mode incremental
-    fi
-    exec python3 scripts/gates/cli.py "$@"
 }
 
 # serve 是本地开发启动命令；每次启动前刷新 launcher，Gradle 自行判断是否需要编译。
@@ -110,9 +83,6 @@ case "$COMMAND" in
         ;;
     test)
         run_test "$@"
-        ;;
-    quality)
-        run_quality "$@"
         ;;
     *)
         run_java_command "$COMMAND" "$@"

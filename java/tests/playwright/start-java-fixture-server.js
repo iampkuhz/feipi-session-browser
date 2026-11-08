@@ -54,14 +54,14 @@ function portClaimRoot() {
  * claim 是跨 checkout 的端口选择协议；starter 绑定前必须持有匹配 token，
  * 因而两个本仓库 invocation 不会经历“查找后无所有权地等待绑定”的窗口。
  */
-async function reservePortClaim(requestedPort = 0) {
+async function reservePortClaim() {
   const claimRoot = portClaimRoot();
   fs.mkdirSync(claimRoot, { recursive: true });
   for (let attempt = 0; attempt < 20; attempt += 1) {
     const server = net.createServer();
     await new Promise((resolve, reject) => {
       server.once('error', reject);
-      server.listen(requestedPort, '127.0.0.1', resolve);
+      server.listen(0, '127.0.0.1', resolve);
     });
     const port = server.address().port;
     const token = crypto.randomUUID();
@@ -76,7 +76,7 @@ async function reservePortClaim(requestedPort = 0) {
       return { port, token };
     } catch (error) {
       await new Promise((resolve) => server.close(resolve));
-      if (error.code !== 'EEXIST' || requestedPort) throw error;
+      if (error.code !== 'EEXIST') throw error;
     }
   }
   throw new Error('unable to claim a unique Playwright proxy port');
@@ -273,10 +273,9 @@ async function waitUntilReady(baseURL, server) {
  * 启动真实 Java fixture 的唯一生命周期：准备数据、正常启动并自动扫描、等待内容就绪，
  * 再挂载 identity proxy；端口 claim、信号处理和临时文件也在这里统一清理。
  */
-async function startServer({ claimToken = '' } = {}) {
-  const baseURL = process.env.BASE_URL || 'http://127.0.0.1:19099';
-  const parsed = new URL(baseURL);
-  const port = Number(parsed.port || 80);
+async function startServer(claimToken) {
+  const baseURL = process.env.FEIPI_PLAYWRIGHT_MANAGED_BASE_URL;
+  const port = Number(new URL(baseURL).port);
   const outerClaimPath = consumePortClaim(port, claimToken);
   let innerClaimPath = null;
   const launcher = path.join(ROOT, 'java', 'app-cli', 'build', 'install', 'app-cli', 'bin', 'app-cli');
@@ -295,7 +294,7 @@ async function startServer({ claimToken = '' } = {}) {
     // 启动器存在不代表其 JAR/静态资源仍对应当前源码；由 Gradle 增量同步后再验页面。
     console.log('[playwright-fixture] build: one installDist');
     runChecked(
-      path.join(ROOT, 'java', process.platform === 'win32' ? 'gradlew.bat' : 'gradlew'),
+      path.join(ROOT, 'java', 'gradlew'),
       ['-p', path.join(ROOT, 'java'), ':java:app-cli:installDist', '--console=plain'],
       'Gradle installDist',
       { timeout: 300_000 },
@@ -325,7 +324,7 @@ async function startServer({ claimToken = '' } = {}) {
   console.log('[playwright-fixture] start: one normal serve with automatic scan');
   const server = spawn(
     launcher,
-    ['serve', '--host', '127.0.0.1', '--port', String(innerPort), '--allow-empty'],
+    ['serve', '--host', '127.0.0.1', '--port', String(innerPort)],
     { cwd: ROOT, env: { ...process.env, ...javaEnv }, stdio: ['ignore', 'pipe', 'pipe'] },
   );
   let diagnostics = '';
@@ -394,15 +393,12 @@ function argumentValue(name) {
 }
 
 if (process.argv.includes('--reserve-port')) {
-  const requestedPort = Number(argumentValue('--port') || 0);
-  reservePortClaim(requestedPort).then((claim) => console.log(JSON.stringify(claim))).catch((error) => {
+  reservePortClaim().then((claim) => console.log(JSON.stringify(claim))).catch((error) => {
     console.error(`[playwright-fixture] port claim failed: ${error.stack || error.message}`);
     process.exit(1);
   });
 } else {
-  startServer({
-    claimToken: argumentValue('--claim-token'),
-  }).catch((error) => {
+  startServer(argumentValue('--claim-token')).catch((error) => {
     console.error(`[playwright-fixture] setup failed: ${error.stack || error.message}`);
     process.exit(1);
   });

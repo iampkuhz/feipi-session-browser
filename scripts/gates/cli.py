@@ -6,8 +6,6 @@
 from __future__ import annotations
 
 import argparse
-import json
-import os
 import sys
 from dataclasses import asdict
 from datetime import UTC, datetime
@@ -48,16 +46,6 @@ from scripts.gates.presentation import (  # noqa: E402
 _FORMATS = ('human', 'json')
 
 
-def _changed_files(value: str) -> tuple[str, ...]:
-    try:
-        parsed = json.loads(value)
-    except json.JSONDecodeError as exc:
-        raise argparse.ArgumentTypeError('--changed-files must be a JSON array') from exc
-    if not isinstance(parsed, list) or not all(isinstance(item, str) for item in parsed):
-        raise argparse.ArgumentTypeError('--changed-files must be a JSON string array')
-    return tuple(parsed)
-
-
 def _selection_arguments(parser: argparse.ArgumentParser) -> None:
     selector = parser.add_mutually_exclusive_group()
     selector.add_argument('--gate', choices=tuple(gate.name for gate in GATES))
@@ -67,10 +55,7 @@ def _selection_arguments(parser: argparse.ArgumentParser) -> None:
 def _plan_arguments(parser: argparse.ArgumentParser, *, include_format: bool) -> None:
     parser.add_argument('--mode', required=True, choices=tuple(ExecutionMode))
     _selection_arguments(parser)
-    source = parser.add_mutually_exclusive_group()
-    source.add_argument('--base')
-    source.add_argument('--changed-files', type=_changed_files)
-    parser.add_argument('--base-url')
+    parser.add_argument('--base')
     if include_format:
         parser.add_argument('--format', choices=_FORMATS, default='human')
 
@@ -105,7 +90,6 @@ def _compile(args: argparse.Namespace, repo_root: Path):
         repo_root,
         mode=args.mode,
         base=args.base,
-        changed_files=args.changed_files,
     )
 
     def invocation_factory(gate, recipe_step):
@@ -116,7 +100,6 @@ def _compile(args: argparse.Namespace, repo_root: Path):
             repo_root,
             mode=args.mode,
             changed_files=snapshot.files,
-            base_url=args.base_url or os.environ.get('BASE_URL'),
         )
 
     return compile_gate_plan(

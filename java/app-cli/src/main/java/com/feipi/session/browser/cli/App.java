@@ -16,6 +16,11 @@ public final class App {
    * @param args 命令行参数
    */
   public static void main(String[] args) {
+    if (!"Mac OS X".equals(System.getProperty("os.name"))
+        || !"aarch64".equals(System.getProperty("os.arch"))) {
+      System.err.println("错误：仅支持 Apple Silicon macOS（arm64）。");
+      System.exit(1);
+    }
     final int exitCode = new CommandLine(new SessionBrowserCommand()).execute(args);
     System.exit(exitCode);
   }

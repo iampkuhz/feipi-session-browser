@@ -3,9 +3,6 @@ package com.feipi.session.browser.contracttest.schema;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
-import com.feipi.session.browser.index.store.sqlite.schema.Migration;
-import com.feipi.session.browser.index.store.sqlite.schema.MigrationRunner;
-import com.feipi.session.browser.index.store.sqlite.schema.SchemaVersion;
 import com.feipi.session.browser.testsupport.sqlite.SqliteTestHelper;
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -39,20 +36,9 @@ class SchemaContractTest {
   }
 
   @Test
-  @DisplayName("Java migration 后 schema 完整性验证通过")
-  void javaMigrationProducesCompleteSchema() throws SQLException {
-    IndexSchema schema = IndexSchema.withDefaults();
-    schema.ensureSchema(conn);
-
-    IndexSchema.SchemaValidationResult result = schema.validateSchema(conn);
-    assertThat(result.isComplete()).as("Java migration 应产出完整的 schema，无缺失表或列").isTrue();
-  }
-
-  @Test
   @DisplayName("sessions 表精确包含 43 列，含 provenance、typed timing 和调用边界计数")
   void sessionsTableMatchesCurrentJavaDefinition() throws SQLException {
-    IndexSchema schema = IndexSchema.withDefaults();
-    schema.ensureSchema(conn);
+    IndexSchema.ensureSchema(conn);
 
     Set<String> columns = getTableColumns("sessions");
     assertThat(columns).as("sessions 表应包含原37列及6个内容与消息计量列").hasSize(43);
@@ -108,7 +94,7 @@ class SchemaContractTest {
   @Test
   @DisplayName("未提供计量来源与计时时默认 unknown，而不是 provider 上报或实测零")
   void measurementColumnsDefaultToUnknown() throws SQLException {
-    IndexSchema.withDefaults().ensureSchema(conn);
+    IndexSchema.ensureSchema(conn);
     try (Statement statement = conn.createStatement()) {
       statement.executeUpdate(
           """
@@ -142,8 +128,7 @@ class SchemaContractTest {
   @Test
   @DisplayName("全部 7 个索引存在")
   void allIndexesExist() throws SQLException {
-    IndexSchema schema = IndexSchema.withDefaults();
-    schema.ensureSchema(conn);
+    IndexSchema.ensureSchema(conn);
 
     Set<String> indexes = getIndexNames();
     assertThat(indexes)
@@ -160,8 +145,7 @@ class SchemaContractTest {
   @Test
   @DisplayName("scan_log 表结构正确")
   void scanLogTableStructure() throws SQLException {
-    IndexSchema schema = IndexSchema.withDefaults();
-    schema.ensureSchema(conn);
+    IndexSchema.ensureSchema(conn);
 
     Set<String> columns = getTableColumns("scan_log");
     assertThat(columns)
@@ -182,8 +166,7 @@ class SchemaContractTest {
   @Test
   @DisplayName("index_metadata 表结构正确")
   void indexMetadataTableStructure() throws SQLException {
-    IndexSchema schema = IndexSchema.withDefaults();
-    schema.ensureSchema(conn);
+    IndexSchema.ensureSchema(conn);
 
     Set<String> columns = getTableColumns("index_metadata");
     assertThat(columns).containsExactlyInAnyOrder("key", "value", "updated_at");
@@ -192,8 +175,7 @@ class SchemaContractTest {
   @Test
   @DisplayName("session_artifacts 表结构正确且含外键")
   void sessionArtifactsTableStructure() throws SQLException {
-    IndexSchema schema = IndexSchema.withDefaults();
-    schema.ensureSchema(conn);
+    IndexSchema.ensureSchema(conn);
 
     Set<String> columns = getTableColumns("session_artifacts");
     assertThat(columns)
@@ -207,28 +189,6 @@ class SchemaContractTest {
             "size_bytes",
             "created_at",
             "updated_at");
-  }
-
-  @Test
-  @DisplayName("schema_migrations 追踪表存在")
-  void schemaMigrationsTrackingTableExists() throws SQLException {
-    MigrationRunner runner = MigrationRunner.withAllMigrations();
-    runner.applyAll(conn);
-
-    Set<String> columns = getTableColumns("schema_migrations");
-    assertThat(columns).containsExactlyInAnyOrder("version", "description", "applied_at");
-  }
-
-  @Test
-  @DisplayName("CURRENT_VERSION 与 migration 列表一致")
-  void currentVersionConsistentWithMigrations() {
-    List<Migration> migrations = Migration.allMigrations();
-    SchemaVersion maxVersion =
-        new SchemaVersion(migrations.stream().mapToInt(m -> m.version().version()).max().orElse(0));
-
-    assertThat(IndexSchema.CURRENT_VERSION)
-        .as("CURRENT_VERSION 应与最大 migration 版本号一致")
-        .isEqualTo(maxVersion);
   }
 
   /** 获取指定表的列名集合（小写）。 */

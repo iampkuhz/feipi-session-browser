@@ -3,7 +3,6 @@ package com.feipi.session.browser.scan.engine;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
-import com.feipi.session.browser.index.store.sqlite.schema.MigrationRunner;
 import com.feipi.session.browser.source.spi.BoundedStream;
 import com.feipi.session.browser.source.spi.Candidate;
 import com.feipi.session.browser.source.spi.SourceAdapter;
@@ -75,7 +74,7 @@ class ScanPerformanceBaselineTest {
       Connection conn = SqliteTestHelper.createInMemoryConnection();
       conn.setAutoCommit(false);
       try {
-        new IndexSchema(MigrationRunner.withAllMigrations()).ensureSchema(conn);
+        IndexSchema.ensureSchema(conn);
 
         Path root = tempDir.resolve("zero-incr");
         Files.createDirectories(root);
@@ -168,7 +167,7 @@ class ScanPerformanceBaselineTest {
       Connection conn = SqliteTestHelper.createInMemoryConnection();
       conn.setAutoCommit(false);
       try {
-        new IndexSchema(MigrationRunner.withAllMigrations()).ensureSchema(conn);
+        IndexSchema.ensureSchema(conn);
 
         Path root = tempDir.resolve("hundred-incr");
         Files.createDirectories(root);
@@ -208,7 +207,7 @@ class ScanPerformanceBaselineTest {
       Connection conn = SqliteTestHelper.createInMemoryConnection();
       conn.setAutoCommit(false);
       try {
-        new IndexSchema(MigrationRunner.withAllMigrations()).ensureSchema(conn);
+        IndexSchema.ensureSchema(conn);
 
         Path root = tempDir.resolve("nochange-incr");
         Files.createDirectories(root);
@@ -253,7 +252,7 @@ class ScanPerformanceBaselineTest {
       Connection conn = SqliteTestHelper.createInMemoryConnection();
       conn.setAutoCommit(false);
       try {
-        new IndexSchema(MigrationRunner.withAllMigrations()).ensureSchema(conn);
+        IndexSchema.ensureSchema(conn);
 
         Path root = tempDir.resolve("empty-incr");
         Files.createDirectories(root);

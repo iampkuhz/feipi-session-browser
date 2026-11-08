@@ -15,18 +15,15 @@ import picocli.CommandLine.Option;
 @Command(name = "deps", mixinStandardHelpOptions = true, description = "安装或检查项目依赖")
 final class DepsCommand implements Callable<Integer> {
 
-  /** 默认索引目录环境变量名。 */
-  private static final String INDEX_DIR_ENV = "INDEX_DIR";
-
   @Option(
       names = {"--index-dir"},
-      description = "索引目录（默认遵循 XDG 规范）")
+      description = "索引目录（默认使用当前版本的 macOS 应用数据目录）")
   private String indexDirOption;
 
   @Override
   public Integer call() {
-    Path indexDir = PathResolver.resolveDataDir(indexDirOption, INDEX_DIR_ENV);
-    RuntimePaths paths = RuntimePaths.fromDataDir(indexDir);
+    Path indexDir = PathResolver.resolveDataDir(indexDirOption);
+    RuntimePaths paths = new RuntimePaths(indexDir);
 
     List<RuntimePreflight.CheckResult> results =
         List.of(

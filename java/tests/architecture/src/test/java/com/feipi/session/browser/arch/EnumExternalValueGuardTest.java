@@ -44,7 +44,6 @@ final class EnumExternalValueGuardTest {
     enums.add(Arguments.of("com.feipi.session.browser.domain.enums.CallScope"));
     enums.add(Arguments.of("com.feipi.session.browser.domain.enums.TokenTotalSemantics"));
     enums.add(Arguments.of("com.feipi.session.browser.domain.enums.TokenPrecision"));
-    enums.add(Arguments.of("com.feipi.session.browser.domain.enums.MigrationPhase"));
 
     // 领域层归一化枚举：core-domain/normalized/
     enums.add(Arguments.of("com.feipi.session.browser.domain.normalized.SourceUnitDirection"));

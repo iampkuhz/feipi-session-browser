@@ -3,13 +3,9 @@ package com.feipi.session.browser.scan.engine;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.nio.channels.FileChannel;
-import java.nio.channels.FileLock;
-import java.nio.channels.OverlappingFileLockException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -61,34 +57,8 @@ class ScanLockTest {
       }
       assertThat(lock.readCurrentHolder()).contains("owner=holder");
     }
-    // Windows 仅在全部竞争句柄关闭后允许删除；不忽略清理失败。
     Files.delete(lock.lockPath());
     assertThat(lock.lockPath()).doesNotExist();
-  }
-
-  @Test
-  void legacyWholeFileLockStillExcludesNewLock() throws Exception {
-    ScanLock lock = new ScanLock(tempDir);
-    try (FileChannel channel =
-            FileChannel.open(lock.lockPath(), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
-        FileLock legacy = channel.lock()) {
-      assertThat(legacy.isValid()).isTrue();
-      assertThat(lock.tryLock("new-owner")).isNull();
-      assertThatThrownBy(() -> lock.acquire("new-owner", 0))
-          .isInstanceOf(ScanLock.ScanLockUnavailableException.class);
-    }
-    Files.delete(lock.lockPath());
-  }
-
-  @Test
-  void newLockStillExcludesLegacyWholeFileLock() throws Exception {
-    ScanLock lock = new ScanLock(tempDir);
-    try (ScanLock.ScanLockHandle holder = lock.acquire("new-owner", 1000);
-        FileChannel legacy = FileChannel.open(lock.lockPath(), StandardOpenOption.WRITE)) {
-      assertThat(holder).isNotNull();
-      assertThatThrownBy(() -> legacy.tryLock()).isInstanceOf(OverlappingFileLockException.class);
-      assertThat(Files.readString(lock.lockPath())).contains("owner=new-owner");
-    }
   }
 
   @Test
@@ -114,7 +84,6 @@ class ScanLockTest {
         """);
     Path aliasDir = Files.createDirectory(tempDir.resolve("alias"));
     ScanLock alias = new ScanLock(aliasDir);
-    // NTFS 硬链接不要求 Windows 符号链接特权；所有平台执行同一真实文件别名回归。
     Files.createFile(lock.lockPath());
     Files.createLink(alias.lockPath(), lock.lockPath());
     try (ScanLock.ScanLockHandle holder = lock.acquire("native-owner", 1000)) {

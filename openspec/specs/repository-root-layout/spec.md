@@ -48,7 +48,7 @@ Python 工程工具测试 SHALL 位于 `scripts/tests/`；浏览器验证 SHALL 
 
 ### Requirement: 发行工具与实际构建 JDK 一致
 
-发行任务 SHALL 使用实际 Gradle JVM 所属 JDK 的 `jdeps` 和 `jlink`，不分别从 shell PATH 或 JAVA_HOME 选择另一套安装。发行任务 MUST 声明 JDK 身份、release 文件、工具以及 runtime 模块输入，避免切换 JDK 后错误复用旧 runtime。
+发行任务 SHALL 使用实际 Gradle JVM 所属原生 JDK 的 `jlink`，不从 shell PATH 或 JAVA_HOME 选择另一套安装。发行任务 MUST 声明 JDK 身份、release 文件、工具以及明确的 runtime 模块输入，避免切换 JDK 或改变模块后错误复用旧 runtime。
 
 #### Scenario: 使用 JDK25 重新验收
 

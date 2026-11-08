@@ -26,7 +26,7 @@ final class NormalizedContentCodec {
     return value instanceof Map<?, ?> ? (Map<String, Object>) value : Map.of();
   }
 
-  /** 读取规范字段名，并兼容历史字段别名。 */
+  /** 读取独立紧凑格式和流式格式的不同外层字段。 */
   static Object field(Map<String, Object> m, String key, String alias) {
     return m.containsKey(key) ? m.get(key) : m.get(alias);
   }
@@ -91,10 +91,10 @@ final class NormalizedContentCodec {
     return result;
   }
 
-  /** 还原旧格式的具名来源单元序列。 */
+  /** 还原紧凑制品的具名来源单元序列。 */
   static Map<String, List<String>> sequences(Map<String, Object> root) {
     Map<String, List<String>> result = new LinkedHashMap<>();
-    map(field(root, "sourceUnitSequences", "source_unit_sequences"))
+    map(root.get("source_unit_sequences"))
         .forEach((k, v) -> result.put(k, list(v).stream().map(Object::toString).toList()));
     return result;
   }
@@ -114,9 +114,9 @@ final class NormalizedContentCodec {
             .toList();
     return new NormalizedContentUnit(
         number(m.get("unitIndex")),
-        NormalizedArtifactLoader.parseSourceFiles(m),
+        NormalizedArtifactLoader.parseSourceFiles(m.get("sourceFiles")),
         NormalizedArtifactLoader.parseCalls(m),
-        NormalizedArtifactLoader.parseToolExecutions(m),
+        NormalizedArtifactLoader.parseToolExecutions(m.get("toolExecutions")),
         diagnostics(m),
         catalog(m),
         chunks);

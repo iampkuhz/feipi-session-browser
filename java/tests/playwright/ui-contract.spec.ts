@@ -133,7 +133,7 @@ for (const vp of viewports) {
 
 // ─── 会话详情视口契约测试（T096） ────────────────────────────────────
 // 必需视口：1440x900, 1280x800, 1180x800, 2560x1440
-// 使用 fixture session URL，不再依赖 PW_SESSION_URL 环境变量。
+// 使用受管 fixture 的会话路径。
 
 const FIXTURE_SESSION_URL = '/sessions/claude_code/hifi-viz-session-001';
 const sessionDetailChecks: VisibleCheck[] = [

@@ -1,6 +1,6 @@
 # Java 发行 release workflow
 # 触发方式：push tag v* 或 workflow_dispatch（手动/RC）
-# 产物：四平台未签名 distribution + checksum
+# 产物：单一 macOS arm64 自包含归档与校验材料
 # 失败策略：任一阶段失败不发布 partial release。
 name: Release
 
@@ -10,9 +10,6 @@ on:
       - "v*"
   workflow_dispatch:
     inputs:
-      version:
-        description: "发布版本号，不带 v 前缀（例如 0.4 或 0.4.1-rc.1）"
-        required: true
       publish:
         description: "创建 GitHub Release；false 时只构建验证不发布"
         required: true
@@ -20,7 +17,7 @@ on:
         default: false
 
 concurrency:
-  group: release-${{ inputs.version || github.ref_name }}
+  group: release-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
@@ -32,7 +29,7 @@ jobs:
   # 校验位于 CI 入口 trust boundary：tag/ref 与 VERSION 文件一致性。
   # ============================================================
   validate:
-    runs-on: ubuntu-latest
+    runs-on: macos-15
     outputs:
       version: ${{ steps.resolve.outputs.version }}
       publish: ${{ steps.resolve.outputs.publish }}
@@ -47,45 +44,23 @@ jobs:
         id: resolve
         shell: bash
         env:
-          INPUT_VERSION: ${{ inputs.version }}
           INPUT_PUBLISH: ${{ inputs.publish }}
         run: |
           set -euo pipefail
 
-          file_version="$(tr -d '[:space:]' < java/gradle/VERSION)"
-          publish="false"
-
-          if [[ "${GITHUB_EVENT_NAME}" == "push" && "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            tag="${GITHUB_REF_NAME}"
-            if [[ ! "$tag" =~ ^v([0-9]+\.[0-9]+(-[A-Za-z0-9._-]+)?|[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9._-]+)?)$ ]]; then
-              echo "::error::非法发布 tag：$tag。请使用发布 tag vX.Y 或 vX.Y.Z，例如 v0.4 或 v0.4.1-rc.1" >&2
-              exit 1
-            fi
-            version="${tag#v}"
-            publish="true"
-          else
-            version="${INPUT_VERSION}"
-            if [[ ! "$version" =~ ^([0-9]+\.[0-9]+(-[A-Za-z0-9._-]+)?|[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9._-]+)?)$ ]]; then
-              echo "::error::非法发布版本：$version。请使用发布版本 X.Y 或 X.Y.Z，例如 0.4 或 0.4.1-rc.1" >&2
-              exit 1
-            fi
-            if [[ "${INPUT_PUBLISH}" == "true" ]]; then
-              if [[ "${GITHUB_REF_TYPE}" != "tag" || "${GITHUB_REF_NAME}" != "v${version}" ]]; then
-                echo "::error::workflow_dispatch publish=true 必须在 v${version} tag ref 上运行。" >&2
-                exit 1
-              fi
-              publish="true"
-            fi
-          fi
-
-          # VERSION 文件是唯一真源，必须与发布版本一致
-          if [[ "$version" == *..* ]]; then
-            echo "::error::发布版本不能包含连续的点。" >&2
+          version="$(cat java/gradle/VERSION)"
+          if [[ ! "$version" =~ ^([0-9]+\.[0-9]+(-[A-Za-z0-9._-]+)?|[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9._-]+)?)$ || "$version" == *..* ]]; then
+            echo "::error::VERSION 格式非法；期望 X.Y 或 X.Y.Z，可带预发布后缀。" >&2
             exit 1
           fi
-          if [[ "$file_version" != "$version" ]]; then
-            echo "::error::VERSION($file_version) 与发布版本($version)不一致。请先更新 VERSION 文件。" >&2
-            exit 1
+
+          publish=false
+          if [[ "$GITHUB_EVENT_NAME" == push || "$INPUT_PUBLISH" == true ]]; then
+            if [[ "$GITHUB_REF_TYPE" != tag || "$GITHUB_REF_NAME" != "v$version" ]]; then
+              echo "::error::正式发布必须从与 VERSION 一致的 v$version tag 运行。" >&2
+              exit 1
+            fi
+            publish=true
           fi
 
           echo "version=$version" >> "$GITHUB_OUTPUT"
@@ -94,13 +69,11 @@ jobs:
 
   distribution:
     needs: validate
-    uses: ./.github/workflows/distribution.yml
-    with:
-      version: ${{ needs.validate.outputs.version }}
+    uses: ./.github/workflows/quality.yml
 
   release-candidate:
     needs: [validate, distribution]
-    runs-on: ubuntu-24.04
+    runs-on: macos-15
     environment:
       name: release-candidate
       url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -124,7 +97,7 @@ jobs:
   publish-release:
     needs: [validate, distribution, release-candidate]
     if: needs.validate.outputs.publish == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: macos-15
     concurrency:
       group: publish-version-${{ needs.validate.outputs.version }}
       cancel-in-progress: false
@@ -174,7 +147,7 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$GITHUB_REF_TYPE" == tag && "$GITHUB_REF_NAME" == "v$VERSION" ]]
-          [[ "$(tr -d '[:space:]' < java/gradle/VERSION)" == "$VERSION" ]]
+          [[ "$(cat java/gradle/VERSION)" == "$VERSION" ]]
           # gh supplies authentication without persisting a write token in checkout.
           gh auth setup-git
           remote_refs="$(git ls-remote origin "refs/tags/v$VERSION" "refs/tags/v$VERSION^{}")"

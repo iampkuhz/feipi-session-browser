@@ -22,7 +22,7 @@ class ScanLogManagerTest {
   @BeforeEach
   void setUp() throws SQLException {
     conn = SqliteTestHelper.createInMemoryConnection();
-    IndexSchema.withDefaults().ensureSchema(conn);
+    IndexSchema.ensureSchema(conn);
   }
 
   @AfterEach

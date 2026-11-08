@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from scripts.gates.catalog.gate_contracts import Gate, RecipeStep
 
 
-def _snapshot(*files: str, source: str = 'explicit-changed-files') -> ChangeSnapshot:
+def _snapshot(*files: str, source: str = 'git-working-tree') -> ChangeSnapshot:
     return ChangeSnapshot(source, 'head-sha', None, files, 'content-fingerprint')
 
 
@@ -66,7 +66,7 @@ def test_selector_exclusions_are_not_reported_as_execution_results() -> None:
 
 
 def test_invocation_factory_must_preserve_gate_and_step_ownership() -> None:
-    def wrong_owner(gate: Gate, step: RecipeStep) -> Iterable[CommandInvocation]:
+    def wrong_owner(_gate: Gate, step: RecipeStep) -> Iterable[CommandInvocation]:
         yield CommandInvocation('id', 'command', ('true',), (), 'wrong', step.name)
 
     with pytest.raises(ValueError, match='wrong Gate'):

@@ -107,39 +107,12 @@ class SafeArtifactNameTest {
         .isInstanceOf(IllegalArgumentException.class);
   }
 
-  // ---- sanitize Windows 保留名 ----
-
-  @Test
-  @DisplayName("Windows 保留名 CON 被加前缀")
-  void windowsReservedConPrefixed() {
-    assertThat(SafeArtifactName.sanitize("CON")).startsWith("_");
-  }
-
-  @Test
-  @DisplayName("Windows 保留名 NUL 被加前缀")
-  void windowsReservedNulPrefixed() {
-    assertThat(SafeArtifactName.sanitize("NUL")).startsWith("_");
-  }
-
-  @Test
-  @DisplayName("Windows 保留名 COM1 被加前缀")
-  void windowsReservedCom1Prefixed() {
-    assertThat(SafeArtifactName.sanitize("COM1")).startsWith("_");
-  }
-
-  @Test
-  @DisplayName("Windows 保留名大小写不敏感：con 也被处理")
-  void windowsReservedCaseInsensitive() {
-    assertThat(SafeArtifactName.sanitize("con")).startsWith("_");
-  }
-
   // ---- sanitize 非法字符 ----
 
   @Test
-  @DisplayName("Windows 非法字符被替换为下划线")
-  void illegalCharsReplaced() {
-    // 冒号、星号、问号等
-    assertThat(SafeArtifactName.sanitize("session:name*here?")).isEqualTo("session_name_here_");
+  @DisplayName("来源与会话标识间的冒号被替换为下划线")
+  void sourceSeparatorReplaced() {
+    assertThat(SafeArtifactName.sanitize("session:name")).isEqualTo("session_name");
   }
 
   @Test

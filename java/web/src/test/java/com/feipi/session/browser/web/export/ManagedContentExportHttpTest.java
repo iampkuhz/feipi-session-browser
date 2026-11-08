@@ -51,7 +51,7 @@ class ManagedContentExportHttpTest {
     String url = "jdbc:sqlite:" + directory.resolve("synthetic-export.sqlite");
     var connection = DriverManager.getConnection(url);
     index = IndexConnection.create(connection, PragmaConfig.DEFAULTS, url);
-    IndexSchema.withDefaults().ensureSchema(connection);
+    IndexSchema.ensureSchema(connection);
     try (var statement = connection.createStatement()) {
       statement.executeUpdate(
           "INSERT INTO sessions(session_key,agent,session_id,title,project_key,project_name,"

@@ -30,7 +30,7 @@ def test_protected_roots_yaml_violation_is_blocked(tmp_path: Path, monkeypatch) 
     monkeypatch.setattr(
         document_policy,
         '_load_document_inputs',
-        lambda _root: (_ for _ in ()).throw(__import__('yaml').YAMLError('invalid')),
+        lambda: (_ for _ in ()).throw(__import__('yaml').YAMLError('invalid')),
     )
     assert document_policy.check([]).status is CheckStatus.BLOCKED
 
@@ -73,7 +73,7 @@ def test_permission_json_content_violation_is_blocked(monkeypatch) -> None:
     monkeypatch.setattr(
         runtime_policy,
         '_load_runtime_inputs',
-        lambda _root: (_ for _ in ()).throw(json.JSONDecodeError('invalid', '', 0)),
+        lambda: (_ for _ in ()).throw(json.JSONDecodeError('invalid', '', 0)),
     )
     assert runtime_policy.check([]).status is CheckStatus.BLOCKED
 
@@ -83,7 +83,7 @@ def test_codex_policy_read_error_is_fail(monkeypatch) -> None:
     monkeypatch.setattr(
         runtime_policy,
         '_load_runtime_inputs',
-        lambda _root: (_ for _ in ()).throw(OSError('denied')),
+        lambda: (_ for _ in ()).throw(OSError('denied')),
     )
 
     _assert_execution_failure(runtime_policy.check([]), 'input-unavailable')
@@ -96,7 +96,7 @@ def test_entry_parity_yaml_content_violation_is_blocked(monkeypatch) -> None:
     monkeypatch.setattr(
         runtime_policy,
         '_load_runtime_inputs',
-        lambda _root: (_ for _ in ()).throw(yaml.YAMLError('invalid')),
+        lambda: (_ for _ in ()).throw(yaml.YAMLError('invalid')),
     )
 
     assert runtime_policy.check([]).status is CheckStatus.BLOCKED

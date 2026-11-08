@@ -36,7 +36,7 @@ scripts/
 │   │   └── source/           注释与语言政策
 ├── harness/                  只读 doctor、项目 Python 和 Harness 结构验证
 ├── openspec/                 change 创建与 OpenSpec validators
-└── release/                  release candidate、checksum 和升级/回滚演练
+└── release/                  release candidate、安全解包、启动与校验
 ```
 
 `checks/` 属于 Gate，所以不再与 `gates/` 平铺。JVM/Web resource 规则位于

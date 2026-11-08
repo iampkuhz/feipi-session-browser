@@ -6,9 +6,6 @@ import com.feipi.session.browser.domain.normalized.NormalizedAgent;
 import com.feipi.session.browser.domain.normalized.NormalizedConstants;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
 import com.feipi.session.browser.index.store.sqlite.repository.SqliteIndexWriter;
-import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
-import com.feipi.session.browser.index.store.sqlite.schema.Migration;
-import com.feipi.session.browser.index.store.sqlite.schema.MigrationRunner;
 import java.nio.file.Path;
 import java.sql.DriverManager;
 import java.time.Instant;
@@ -124,34 +121,6 @@ class MessageMeasurementPersistenceTest {
       assertThat(zero.userMessageMeasured()).isTrue();
       assertThat(zero.assistantMessageMeasured()).isTrue();
       assertThat(zero.assistantMessageCount()).isZero();
-    }
-  }
-
-  @Test
-  void v2AndV3ExistingCountsRemainUnmeasuredAfterV4Migration() throws Exception {
-    for (int version : List.of(2, 3)) {
-      try (var connection =
-          DriverManager.getConnection("jdbc:sqlite:" + directory.resolve("v" + version + ".db"))) {
-        new MigrationRunner(Migration.allMigrations().subList(0, version)).applyAll(connection);
-        try (var statement = connection.createStatement()) {
-          statement.executeUpdate(
-              "INSERT INTO sessions(session_key, agent, session_id, project_key, ended_at,"
-                  + " user_message_count, assistant_message_count) VALUES ('codex:old', 'codex',"
-                  + " 'old', '', '', 4, 9)");
-        }
-        IndexSchema.withDefaults().ensureSchema(connection);
-        try (var statement = connection.createStatement();
-            var rows =
-                statement.executeQuery(
-                    "SELECT " + SqliteSessionResultSetMapper.ALL_COLUMNS + " FROM sessions")) {
-          assertThat(rows.next()).isTrue();
-          var row = SqliteSessionResultSetMapper.mapRow(rows);
-          assertThat(row.userMessageCount()).isEqualTo(4);
-          assertThat(row.assistantMessageCount()).isEqualTo(9);
-          assertThat(row.userMessageMeasured()).isFalse();
-          assertThat(row.assistantMessageMeasured()).isFalse();
-        }
-      }
     }
   }
 

@@ -43,7 +43,7 @@ class DashboardResourceApiTest {
     Connection writerConn = DriverManager.getConnection(jdbcUrl);
     PragmaConfig.DEFAULTS.apply(writerConn);
     indexConnection = IndexConnection.create(writerConn, PragmaConfig.DEFAULTS, jdbcUrl);
-    IndexSchema.withDefaults().ensureSchema(indexConnection.writerConnection());
+    IndexSchema.ensureSchema(indexConnection.writerConnection());
     ApiContractFixture.insertThreeSessionFixture(indexConnection);
 
     // 趋势查询使用 SQLite 的 UTC 当前窗口；仅移动本测试日期，保留分组、时刻和精确指标。

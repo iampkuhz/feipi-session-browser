@@ -10,7 +10,6 @@ from scripts.gates.catalog.gate_contracts import (
     GateCatalog,
     RecipeStep,
     RecipeStepKind,
-    TriggerMode,
 )
 
 _GATE_ID = re.compile(r'[a-z][A-Za-z0-9]*')
@@ -50,12 +49,10 @@ def _unused_fields(step: RecipeStep, allowed: set[str]) -> list[str]:
         'required_paths': step.required_paths,
         'append_globs': step.append_globs,
         'check_id': step.check_id,
-        'runtime': step.runtime if step.runtime != 'system' else None,
         'args': step.args,
         'tasks': step.tasks,
         'rules': step.rules,
         'tests': step.tests,
-        'prerequisite_tasks': step.prerequisite_tasks,
     }
     return sorted(name for name, value in values.items() if value and name not in allowed)
 
@@ -72,11 +69,9 @@ def _validate_recipe_step(step: RecipeStep, label: str) -> None:
         _repository_paths(step.required_paths, f'{label}.required_paths', allow_glob=False)
         _repository_paths(step.append_globs, f'{label}.append_globs', allow_glob=True)
     elif step.kind is RecipeStepKind.PYTHON_CHECK:
-        allowed = {'check_id', 'runtime', 'args'}
+        allowed = {'check_id', 'args'}
         if not step.check_id or not _CHECK_ID.fullmatch(step.check_id):
             raise ValueError(f'{label}.check_id has invalid identifier')
-        if step.runtime not in {'system', 'dev'}:
-            raise ValueError(f'{label}.runtime has invalid value: {step.runtime}')
     elif step.kind is RecipeStepKind.GRADLE_TASK:
         allowed = {'tasks', 'args'}
         if len(step.tasks) != 1:
@@ -87,9 +82,9 @@ def _validate_recipe_step(step: RecipeStep, label: str) -> None:
             raise ValueError(f'{label}.rules must not be empty')
         _unique(step.rules, f'{label}.rules')
     elif step.kind is RecipeStepKind.PLAYWRIGHT:
-        allowed = {'tests', 'args'}
+        allowed = set()
     elif step.kind is RecipeStepKind.SCAN_SMOKE:
-        allowed = {'tests', 'prerequisite_tasks', 'args'}
+        allowed = {'tests', 'args'}
         if not step.tests:
             raise ValueError(f'{label} requires tests')
     else:  # pragma: no cover - 新 adapter 必须先显式声明字段协议。
@@ -125,17 +120,9 @@ def validate_gate_catalog(catalog: GateCatalog) -> None:
             raise ValueError(f'Gate {gate.name} references unknown TargetPresets: {unknown}')
         referenced_presets.update(gate.target_presets)
 
-        if gate.trigger.mode is TriggerMode.ALWAYS:
-            if gate.trigger.paths:
-                raise ValueError(f'Gate {gate.name} always trigger cannot contain paths')
-        elif gate.trigger.mode is TriggerMode.CHANGED:
-            if not gate.trigger.paths:
-                raise ValueError(f'Gate {gate.name} changed trigger requires paths')
-            _repository_paths(
-                gate.trigger.paths,
-                f'Gate {gate.name}.trigger.paths',
-                allow_glob=True,
-            )
+        if not gate.trigger.paths:
+            raise ValueError(f'Gate {gate.name} trigger requires paths')
+        _repository_paths(gate.trigger.paths, f'Gate {gate.name}.trigger.paths', allow_glob=True)
 
         durations = gate.recipe.duration_expectations
         if type(durations.incremental) is not int or durations.incremental <= 0:

@@ -80,7 +80,7 @@ public final class SqliteIndexWriter implements IndexWriterPort {
   @Override
   public void ensureSchema() {
     try {
-      IndexSchema.withDefaults().ensureSchema(conn);
+      IndexSchema.ensureSchema(conn);
     } catch (SQLException e) {
       throw new IndexWriteException("Schema initialization failed", e);
     }

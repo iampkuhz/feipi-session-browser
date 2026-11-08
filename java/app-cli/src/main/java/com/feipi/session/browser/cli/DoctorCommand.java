@@ -54,9 +54,6 @@ final class DoctorCommand implements Callable<Integer> {
   /** 默认端口，与 serve 命令一致。 */
   private static final int DEFAULT_PORT = 8848;
 
-  /** 默认索引目录环境变量名。 */
-  private static final String INDEX_DIR_ENV = "INDEX_DIR";
-
   /** 端口连接探测超时（毫秒）。 */
   private static final int PORT_PROBE_TIMEOUT_MS = 1000;
 
@@ -73,7 +70,7 @@ final class DoctorCommand implements Callable<Integer> {
 
   @Override
   public Integer call() {
-    Path indexDir = PathResolver.resolveDataDir(indexDirOption, INDEX_DIR_ENV);
+    Path indexDir = PathResolver.resolveDataDir(indexDirOption);
     List<RuntimePreflight.CheckResult> results = new ArrayList<>();
 
     results.add(RuntimePreflight.checkJavaRuntime());

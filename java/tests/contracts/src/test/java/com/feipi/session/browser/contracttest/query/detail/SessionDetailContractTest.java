@@ -37,7 +37,7 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * 会话详情契约测试。
  *
- * <p>验证 Java session detail 装配与 Python routes.py 行为一致： 轮次分组、payload 来源、敏感字段 masking 和缓存键。
+ * <p>验证会话详情装配的轮次分组、payload 来源、敏感字段脱敏和缓存键。
  */
 @DisplayName("会话详情契约：detail / artifact / payload 装配")
 class SessionDetailContractTest {
@@ -54,7 +54,7 @@ class SessionDetailContractTest {
     writerConnection = DriverManager.getConnection(jdbcUrl);
     PragmaConfig.DEFAULTS.apply(writerConnection);
     ic = IndexConnection.create(writerConnection, PragmaConfig.DEFAULTS, jdbcUrl);
-    IndexSchema.withDefaults().ensureSchema(ic.writerConnection());
+    IndexSchema.ensureSchema(ic.writerConnection());
     insertFixtures();
     SqliteSessionQueryRepository sessionQueryRepo = new SqliteSessionQueryRepository(ic);
     repository = new SqliteSessionDetailRepository(sessionQueryRepo);

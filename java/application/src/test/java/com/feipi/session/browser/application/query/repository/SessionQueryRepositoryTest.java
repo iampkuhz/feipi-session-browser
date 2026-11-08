@@ -52,7 +52,7 @@ class SessionQueryRepositoryTest {
     PragmaConfig.DEFAULTS.apply(writerConnection);
     indexConnection = IndexConnection.create(writerConnection, PragmaConfig.DEFAULTS, jdbcUrl);
     // 初始化 schema
-    IndexSchema.withDefaults().ensureSchema(indexConnection.writerConnection());
+    IndexSchema.ensureSchema(indexConnection.writerConnection());
     // 插入测试数据
     insertTestData();
     indexConnection
@@ -844,7 +844,7 @@ class SessionQueryRepositoryTest {
         PragmaConfig.DEFAULTS.apply(writerConn);
         try (IndexConnection emptyIc =
             IndexConnection.create(writerConn, PragmaConfig.DEFAULTS, jdbcUrl)) {
-          IndexSchema.withDefaults().ensureSchema(emptyIc.writerConnection());
+          IndexSchema.ensureSchema(emptyIc.writerConnection());
           SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(emptyIc);
 
           assertThat(repo.getSession("any:key")).isEmpty();

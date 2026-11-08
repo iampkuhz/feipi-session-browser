@@ -11,8 +11,6 @@ import java.security.NoSuchAlgorithmException;
 import java.text.Normalizer;
 import java.util.HexFormat;
 import java.util.Locale;
-import java.util.Set;
-import java.util.regex.Pattern;
 
 /**
  * 安全的 artifact 文件名生成器。
@@ -23,7 +21,6 @@ import java.util.regex.Pattern;
  *
  * <ul>
  *   <li>路径遍历：拒绝 {@code ..}、绝对路径、包含路径分隔符的输入。
- *   <li>Windows 保留名：{@code CON}、{@code PRN}、{@code AUX}、{@code NUL}、{@code COM1-8}、{@code LPT1-8}。
  *   <li>非法字符：替换为下划线。
  *   <li>长度限制：超过 {@value #MAX_NAME_LENGTH} 字符时截断并附加 hash 后缀。
  *   <li>空或全非法字符：使用内容 hash 作为 fallback。
@@ -36,15 +33,6 @@ public final class SafeArtifactName {
 
   /** hash 后缀长度（用于截断后的唯一性保证）。 */
   private static final int HASH_SUFFIX_LENGTH = 8;
-
-  /** Windows 保留文件名集合（大写形式）。 */
-  private static final Set<String> WINDOWS_RESERVED =
-      Set.of(
-          "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7",
-          "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9");
-
-  /** 匹配 Windows 平台非法文件名字符。 */
-  private static final Pattern ILLEGAL_CHARS = Pattern.compile("[\\\\/:*?\"<>|\\x00-\\x1f]");
 
   /** 禁止实例化。 */
   private SafeArtifactName() {}
@@ -84,8 +72,8 @@ public final class SafeArtifactName {
 
     String sanitized = rawKey.strip();
 
-    // 替换 Windows 非法字符
-    sanitized = ILLEGAL_CHARS.matcher(sanitized).replaceAll("_");
+    // 冒号分隔来源与 session ID，不写入文件名；替换控制字符。
+    sanitized = sanitized.replaceAll("[:\\p{Cntrl}]", "_");
 
     // 去除首尾控制字符和点号（防止隐藏文件）
     while (!sanitized.isEmpty()
@@ -96,13 +84,6 @@ public final class SafeArtifactName {
         && (sanitized.charAt(sanitized.length() - 1) == '.'
             || Character.isISOControl(sanitized.charAt(sanitized.length() - 1)))) {
       sanitized = sanitized.substring(0, sanitized.length() - 1);
-    }
-
-    // Windows 保留名检查（带或不带扩展名均拒绝）
-    String baseName =
-        sanitized.contains(".") ? sanitized.substring(0, sanitized.indexOf('.')) : sanitized;
-    if (WINDOWS_RESERVED.contains(baseName.toUpperCase())) {
-      sanitized = "_" + sanitized;
     }
 
     // 空值回退

@@ -74,7 +74,6 @@ def test_owner_directories_contain_the_unique_tool_entrypoints() -> None:
         'java/build.gradle.kts',
         'java/settings.gradle.kts',
         'java/gradlew',
-        'java/gradlew.bat',
         'java/gradle/VERSION',
         'java/gradle/dependency-locks/root.lockfile',
         'java/gradle/config/checkstyle/suppressions.xml',

@@ -38,9 +38,6 @@ import java.util.Objects;
 public final class ScanLock {
 
   private static final String LOCK_FILE_NAME = "scan.lock";
-  // 锁定诊断内容以外的字节，避免 Windows 强制锁阻止读取；仍与旧版全文件锁重叠。
-  // 文件锁允许超出 EOF，且不会扩展文件。
-  private static final long LOCK_POSITION = Long.MAX_VALUE - 1;
   private static final DateTimeFormatter LOCK_TIME_FORMAT =
       DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssZ").withZone(ZoneId.systemDefault());
 
@@ -63,7 +60,7 @@ public final class ScanLock {
    *
    * @return {@code lockDir/scan.lock}
    */
-  public Path lockPath() {
+  Path lockPath() {
     return lockDir.resolve(LOCK_FILE_NAME);
   }
 
@@ -150,7 +147,7 @@ public final class ScanLock {
 
   private static FileLock tryFileLock(FileChannel channel) throws IOException {
     try {
-      return channel.tryLock(LOCK_POSITION, 1, false);
+      return channel.tryLock();
     } catch (OverlappingFileLockException e) {
       // 同 JVM 竞争与跨进程竞争遵循相同的非阻塞/超时语义。
       return null;
@@ -162,7 +159,7 @@ public final class ScanLock {
    *
    * @return 持有者诊断字符串，无法读取时返回空串
    */
-  public String readCurrentHolder() {
+  String readCurrentHolder() {
     return readHolderInfo(lockPath());
   }
 

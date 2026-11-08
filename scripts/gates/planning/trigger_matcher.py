@@ -10,10 +10,10 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from scripts.gates.catalog.gate_contracts import Gate, TriggerMode
-
 if TYPE_CHECKING:
     from collections.abc import Iterable
+
+    from scripts.gates.catalog.gate_contracts import Gate
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,9 +62,6 @@ def match_trigger(changed_files: Iterable[str], gates: Iterable[Gate]) -> tuple[
     files = tuple(normalize_repo_path(path) for path in changed_files)
     matches: list[TriggerMatch] = []
     for gate in gates:
-        if gate.trigger.mode is TriggerMode.ALWAYS:
-            matches.append(TriggerMatch('<always>', '<always>', gate.name))
-            continue
         for path in files:
             for pattern in gate.trigger.paths:
                 if trigger_pattern_matches(path, pattern):

@@ -59,7 +59,7 @@ def test_shared_protocol_rejects_missing_fields_and_isolation_rules():
 
     from scripts.gates.checks.agent import check_documentation as policy
 
-    inputs = policy._load_document_inputs(ROOT)
+    inputs = policy._load_document_inputs()
     assert policy._check_handoff(inputs) == []
     protocol = inputs.manifest['subagent_instance_protocol']
     for key in ('required_handoff_fields', 'required_output_fields', 'status_values'):
@@ -101,7 +101,7 @@ def test_protocol_rejects_broken_platform_links():
 
     from scripts.gates.checks.agent import check_documentation as policy
 
-    inputs = policy._load_document_inputs(ROOT)
+    inputs = policy._load_document_inputs()
     for relative in (*policy.MAIN_DOCS.values(), '.claude/CLAUDE.md'):
         for reference in (policy.HANDOFF_CONTRACT, 'harness/agent-policy.manifest.yaml'):
             documents = {

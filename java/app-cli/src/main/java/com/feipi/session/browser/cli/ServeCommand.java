@@ -1,7 +1,6 @@
 package com.feipi.session.browser.cli;
 
 import java.nio.file.Path;
-import java.util.Set;
 import java.util.concurrent.Callable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,9 +39,6 @@ final class ServeCommand implements Callable<Integer> {
   /** 默认端口。 */
   private static final int DEFAULT_PORT = 8848;
 
-  /** 默认索引目录环境变量名。 */
-  private static final String INDEX_DIR_ENV = "INDEX_DIR";
-
   @Option(
       names = {"--host"},
       description = "监听地址（默认 ${DEFAULT-VALUE}）",
@@ -56,11 +52,6 @@ final class ServeCommand implements Callable<Integer> {
   private int port;
 
   @Option(
-      names = {"--allow-empty"},
-      description = "允许无源目录时启动（默认已启用，保留用于兼容）")
-  private boolean allowEmpty;
-
-  @Option(
       names = {"--strict-sources"},
       description = "无可扫描源目录时启动失败")
   private boolean strictSources;
@@ -72,13 +63,13 @@ final class ServeCommand implements Callable<Integer> {
 
   @Option(
       names = {"--index-dir"},
-      description = "索引目录（默认遵循 XDG 规范）")
+      description = "索引目录（默认使用当前版本的 macOS 应用数据目录）")
   private String indexDirOption;
 
   @Override
   public Integer call() {
-    Path indexDir = PathResolver.resolveDataDir(indexDirOption, INDEX_DIR_ENV);
-    RuntimePaths paths = RuntimePaths.fromDataDir(indexDir);
+    Path indexDir = PathResolver.resolveDataDir(indexDirOption);
+    RuntimePaths paths = new RuntimePaths(indexDir);
 
     try {
       paths.ensureDirectories();
@@ -101,9 +92,8 @@ final class ServeCommand implements Callable<Integer> {
       }
     }
 
-    boolean effectiveAllowEmpty = allowEmpty || !strictSources;
     ServerLifecycle lifecycle =
-        new ServerLifecycle(paths.dataDir(), host, port, noScan, effectiveAllowEmpty, Set.of());
+        new ServerLifecycle(paths.dataDir(), host, port, noScan, strictSources);
 
     try {
       int actualPort = lifecycle.start();

@@ -67,7 +67,7 @@ public final class NormalizedArtifactLoader {
 
     return open(artifactPath)
         .legacyArtifact()
-        .orElseThrow(() -> new IOException("此制品为流式内容，请使用 open(Path) 读取，不能隐式转换为旧制品"));
+        .orElseThrow(() -> new IOException("此制品为流式内容，请使用 open(Path) 读取，不能隐式转换为紧凑制品"));
   }
 
   /**
@@ -82,11 +82,10 @@ public final class NormalizedArtifactLoader {
   public static NormalizedSessionArtifact fromMap(Map<String, Object> root) {
     Objects.requireNonNull(root, "root 不得为 null");
     if (root.containsKey("storageFormat")) {
-      throw new IllegalArgumentException("storageFormat requires open(Path), not legacy fromMap");
+      throw new IllegalArgumentException("storageFormat requires open(Path), not compact fromMap");
     }
 
-    String schemaVersion =
-        asString(root, "schemaVersion", NormalizedConstants.SCHEMA_VERSION, "schema_version");
+    String schemaVersion = asString(root, "schema_version", NormalizedConstants.SCHEMA_VERSION);
     String agentValue = asString(root, "agent", "");
     NormalizedAgent agent = NormalizedAgent.fromValue(agentValue);
 
@@ -99,10 +98,11 @@ public final class NormalizedArtifactLoader {
     List<NormalizedCall> calls = parseCalls(root);
 
     // toolExecutions 列表
-    List<NormalizedToolExecution> toolExecutions = parseToolExecutions(root);
+    List<NormalizedToolExecution> toolExecutions = parseToolExecutions(root.get("tool_executions"));
 
     // sourceFiles 列表
-    List<NormalizedSourceFile> sourceFiles = parseSourceFiles(root);
+    List<NormalizedSourceFile> sourceFiles =
+        parseSourceFiles(asMap(root.get("source")).get("files"));
 
     return new NormalizedSessionArtifact(
         schemaVersion,
@@ -137,17 +137,16 @@ public final class NormalizedArtifactLoader {
 
   /** 解析单个调用。 */
   private static NormalizedCall parseCall(Map<String, Object> cm) {
-    String callId = asString(cm, "callId", "", "call_id");
+    String callId = asString(cm, "call_id", "");
     ParamChecks.nonEmpty(callId, "callId");
-    int callIndex = asInt(cm, "callIndex", 1, "call_index");
+    int callIndex = asInt(cm, "call_index", 1);
     ParamChecks.atLeast(callIndex, 1, "callIndex");
-    String callKey = asString(cm, "callKey", "C" + callIndex, "call_key");
+    String callKey = asString(cm, "call_key", "C" + callIndex);
     String scopeValue = asString(cm, "scope", "main");
     CallScope scope = parseCallScope(scopeValue);
-    Optional<String> parentCallId = optionalString(cm, "parentCallId", "parent_call_id");
-    Optional<String> parentToolCallId =
-        optionalString(cm, "parentToolCallId", "parent_tool_call_id");
-    Optional<String> turnId = optionalString(cm, "turnId", "turn_id");
+    Optional<String> parentCallId = optionalString(cm, "parent_call_id");
+    Optional<String> parentToolCallId = optionalString(cm, "parent_tool_call_id");
+    Optional<String> turnId = optionalString(cm, "turn_id");
     String model = asString(cm, "model", "");
     Optional<String> timestamp = optionalString(cm, "timestamp");
 
@@ -168,13 +167,12 @@ public final class NormalizedArtifactLoader {
         usage,
         request,
         response,
-        NormalizedContentCodec.ranges(
-            firstValue(cm, "sourceUnitRefRanges", "source_unit_ref_ranges")),
-        asMapList(firstValue(cm, "sourceUnits", "source_units")),
-        asMap(firstValue(cm, "attributionCandidates", "attribution_candidates")),
-        asMap(firstValue(cm, "usageSource", "usage_source")),
-        optionalString(cm, "subagentId", "subagent_id"),
-        optionalString(cm, "parentToolName", "parent_tool_name"));
+        NormalizedContentCodec.ranges(cm.get("source_unit_ref_ranges")),
+        asMapList(cm.get("source_units")),
+        asMap(cm.get("attribution_candidates")),
+        asMap(cm.get("usage_source")),
+        optionalString(cm, "subagent_id"),
+        optionalString(cm, "parent_tool_name"));
   }
 
   private static List<Map<String, Object>> asMapList(Object value) {
@@ -196,8 +194,8 @@ public final class NormalizedArtifactLoader {
     @SuppressWarnings("unchecked")
     Map<String, Object> um = (Map<String, Object>) usageMap;
     long fresh = asLong(um, "fresh", 0);
-    long cacheRead = asLong(um, "cacheRead", 0, "cache_read");
-    long cacheWrite = asLong(um, "cacheWrite", 0, "cache_write");
+    long cacheRead = asLong(um, "cache_read", 0);
+    long cacheWrite = asLong(um, "cache_write", 0);
     long output = asLong(um, "output", 0);
     long total = asLong(um, "total", 0);
     return new NormalizedCallUsage(fresh, cacheRead, cacheWrite, output, total);
@@ -211,7 +209,7 @@ public final class NormalizedArtifactLoader {
     }
     @SuppressWarnings("unchecked")
     Map<String, Object> rm = (Map<String, Object>) reqMap;
-    List<String> toolResultIds = asStringList(rm, "toolResultIds", "tool_result_ids");
+    List<String> toolResultIds = asStringList(rm, "tool_result_ids");
     return new NormalizedCallRequest(toolResultIds);
   }
 
@@ -223,13 +221,12 @@ public final class NormalizedArtifactLoader {
     }
     @SuppressWarnings("unchecked")
     Map<String, Object> rm = (Map<String, Object>) respMap;
-    List<String> toolCallIds = asStringList(rm, "toolCallIds", "tool_call_ids");
+    List<String> toolCallIds = asStringList(rm, "tool_call_ids");
     return new NormalizedCallResponse(toolCallIds);
   }
 
   /** 解析工具执行列表。 */
-  static List<NormalizedToolExecution> parseToolExecutions(Map<String, Object> root) {
-    Object execObj = firstValue(root, "toolExecutions", "tool_executions");
+  static List<NormalizedToolExecution> parseToolExecutions(Object execObj) {
     if (!(execObj instanceof List<?> execList)) {
       return List.of();
     }
@@ -241,17 +238,16 @@ public final class NormalizedArtifactLoader {
       }
       @SuppressWarnings("unchecked")
       Map<String, Object> em = (Map<String, Object>) execMap;
-      String toolCallId = asString(em, "toolCallId", "", "tool_call_id");
+      String toolCallId = asString(em, "tool_call_id", "");
       String name = asString(em, "name", "");
       String scopeValue = asString(em, "scope", "main");
       CallScope scope = parseCallScope(scopeValue);
-      String declaredByCallId = asString(em, "declaredByCallId", "", "declared_by_call_id");
-      Optional<String> resultConsumedByCallId =
-          optionalString(em, "resultConsumedByCallId", "result_consumed_by_call_id");
+      String declaredByCallId = asString(em, "declared_by_call_id", "");
+      Optional<String> resultConsumedByCallId = optionalString(em, "result_consumed_by_call_id");
       Optional<String> status = optionalString(em, "status");
-      Optional<Integer> exitCode = optionalInt(em, "exitCode", "exit_code");
-      long durationMs = asLong(em, "durationMs", 0, "duration_ms");
-      Optional<String> subagentId = optionalString(em, "subagentId", "subagent_id");
+      Optional<Integer> exitCode = optionalInt(em, "exit_code");
+      long durationMs = asLong(em, "duration_ms", 0);
+      Optional<String> subagentId = optionalString(em, "subagent_id");
 
       result.add(
           new NormalizedToolExecution(
@@ -263,23 +259,14 @@ public final class NormalizedArtifactLoader {
               status,
               exitCode,
               durationMs,
-              asStringList(em, "filesTouched", "files_touched"),
+              asStringList(em, "files_touched"),
               subagentId));
     }
     return result;
   }
 
   /** 解析源文件列表。 */
-  static List<NormalizedSourceFile> parseSourceFiles(Map<String, Object> root) {
-    Object sfObj = firstValue(root, "sourceFiles", "source_files");
-    if (sfObj == null) {
-      Object sourceObj = root.get("source");
-      if (sourceObj instanceof Map<?, ?> sourceMap) {
-        @SuppressWarnings("unchecked")
-        Map<String, Object> source = (Map<String, Object>) sourceMap;
-        sfObj = source.get("files");
-      }
-    }
+  static List<NormalizedSourceFile> parseSourceFiles(Object sfObj) {
     if (!(sfObj instanceof List<?> sfList)) {
       return List.of();
     }
@@ -295,9 +282,8 @@ public final class NormalizedArtifactLoader {
       Path filePath = Path.of(pathStr);
       String roleValue = asString(sm, "role", "primary");
       SourceFileRole role = SourceFileRole.fromValue(roleValue);
-      Optional<String> subagentId = optionalString(sm, "subagentId", "subagent_id");
-      Optional<String> parentToolUseId =
-          optionalString(sm, "parentToolUseId", "parent_tool_use_id");
+      Optional<String> subagentId = optionalString(sm, "subagent_id");
+      Optional<String> parentToolUseId = optionalString(sm, "parent_tool_use_id");
       result.add(new NormalizedSourceFile(role, filePath, subagentId, parentToolUseId));
     }
     return result;
@@ -307,41 +293,24 @@ public final class NormalizedArtifactLoader {
     return "subagent".equalsIgnoreCase(value) ? CallScope.SUBAGENT : CallScope.MAIN;
   }
 
-  private static Object firstValue(Map<String, Object> map, String key, String... aliases) {
-    if (map.containsKey(key)) {
-      return map.get(key);
-    }
-    for (String alias : aliases) {
-      if (map.containsKey(alias)) {
-        return map.get(alias);
-      }
-    }
-    return null;
+  private static String asString(Map<String, Object> map, String key, String defaultValue) {
+    return new FieldValue(map.get(key)).asString(defaultValue);
   }
 
-  private static String asString(
-      Map<String, Object> map, String key, String defaultValue, String... aliases) {
-    return field(map, key, aliases).asString(defaultValue);
+  private static int asInt(Map<String, Object> map, String key, int defaultValue) {
+    return new FieldValue(map.get(key)).asInt(defaultValue);
   }
 
-  private static int asInt(
-      Map<String, Object> map, String key, int defaultValue, String... aliases) {
-    return field(map, key, aliases).asInt(defaultValue);
+  private static long asLong(Map<String, Object> map, String key, long defaultValue) {
+    return new FieldValue(map.get(key)).asLong(defaultValue);
   }
 
-  private static long asLong(
-      Map<String, Object> map, String key, long defaultValue, String... aliases) {
-    return field(map, key, aliases).asLong(defaultValue);
+  private static Optional<String> optionalString(Map<String, Object> map, String key) {
+    return new FieldValue(map.get(key)).optionalString();
   }
 
-  private static Optional<String> optionalString(
-      Map<String, Object> map, String key, String... aliases) {
-    return field(map, key, aliases).optionalString();
-  }
-
-  private static Optional<Integer> optionalInt(
-      Map<String, Object> map, String key, String... aliases) {
-    return field(map, key, aliases).optionalInt();
+  private static Optional<Integer> optionalInt(Map<String, Object> map, String key) {
+    return new FieldValue(map.get(key)).optionalInt();
   }
 
   @SuppressWarnings("unchecked")
@@ -354,8 +323,8 @@ public final class NormalizedArtifactLoader {
 
   /** 从 map 中读取字符串列表。 */
   @SuppressWarnings("unchecked")
-  private static List<String> asStringList(Map<String, Object> map, String key, String... aliases) {
-    Object value = field(map, key, aliases).value();
+  private static List<String> asStringList(Map<String, Object> map, String key) {
+    Object value = map.get(key);
     if (value instanceof List<?> list) {
       List<String> result = new ArrayList<>();
       for (Object item : list) {
@@ -366,10 +335,6 @@ public final class NormalizedArtifactLoader {
       return result;
     }
     return List.of();
-  }
-
-  private static FieldValue field(Map<String, Object> map, String key, String... aliases) {
-    return new FieldValue(firstValue(map, key, aliases));
   }
 
   /**

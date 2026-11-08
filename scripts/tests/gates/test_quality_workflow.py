@@ -11,8 +11,9 @@ def test_quality_workflow_uses_incremental_base_and_manual_full() -> None:
     assert 'push:' in text
     assert 'pull_request:' in text
     assert 'workflow_dispatch:' in text
-    assert 'python3 scripts/gates/cli.py run --mode incremental --base "$base"' in text
+    assert 'python3 scripts/gates/cli.py run --mode incremental --base "$BASE_SHA"' in text
     assert 'python3 scripts/gates/cli.py run --mode full' in text
+    assert text.index('Validate Gradle Wrapper') < text.index('Unified quality gates')
     assert 'path: tmp/quality/runs/' in text
     assert 'if-no-files-found: error' in text
 

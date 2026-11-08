@@ -17,7 +17,6 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SHELL_SCRIPT = REPO_ROOT / 'scripts' / 'session-browser.sh'
 LAUNCHER_RELATIVE = Path('java/app-cli/build/install/app-cli/bin/app-cli')
-INSTALLED_LAUNCHER = REPO_ROOT / LAUNCHER_RELATIVE
 
 
 def _write_executable(path: Path, content: str) -> None:
@@ -44,6 +43,7 @@ def _create_fake_jdk(path: Path, *, version: int = 25, java_home: Path | None = 
         'if $has_properties; then\n'
         f'  printf "java.home = %s\\n" "{home}"\n'
         f'  printf "java.specification.version = {version}\\n"\n'
+        f'  printf "os.arch = aarch64\\n"\n'
         'fi\n'
         'if $has_version; then\n'
         f'  echo "java version \\"{version}.0.1\\"" >&2\n'
@@ -109,7 +109,6 @@ def _isolate_script(project: Path, tmp_path: Path) -> None:
     content = script.read_text(encoding='utf-8')
     content = content.replace('/usr/libexec/java_home', str(tmp_path / 'absent-java-home'))
     content = content.replace('/opt/homebrew', str(tmp_path / 'absent-homebrew'))
-    content = content.replace('/usr/local', str(tmp_path / 'absent-localbrew'))
     content = content.replace('$HOME/.sdkman', str(tmp_path / 'absent-sdkman'))
     script.write_text(content, encoding='utf-8')
 
@@ -290,29 +289,15 @@ def test_deps_builds_launcher_then_runs_java_preflight(tmp_path: Path) -> None:
     assert f'CWD=<{project}>' in result.stdout
 
 
-def test_deps_plan_has_no_side_effect(tmp_path: Path) -> None:
+def test_deps_rejects_invalid_arguments(tmp_path: Path) -> None:
     project, script = _create_fake_project(tmp_path)
     marker = project / 'unexpected-execution'
     _write_executable(project / 'java/gradlew', f'#!/bin/sh\ntouch "{marker}"\n')
 
-    result = _run_shell(script, 'deps', 'plan', cwd=tmp_path)
-
-    assert result.returncode == 0, result.stderr
-    assert result.stdout.splitlines()[0] == 'PLAN ./java/gradlew -p java :java:app-cli:installDist'
-    assert not marker.exists()
-    assert 'ARG=<' not in result.stdout
-
-
-@pytest.mark.parametrize('arguments', [('--dev',), ('unexpected',), ('plan', 'extra')])
-def test_deps_rejects_invalid_arguments(tmp_path: Path, arguments: tuple[str, ...]) -> None:
-    project, script = _create_fake_project(tmp_path)
-    marker = project / 'unexpected-execution'
-    _write_executable(project / 'java/gradlew', f'#!/bin/sh\ntouch "{marker}"\n')
-
-    result = _run_shell(script, 'deps', *arguments, cwd=tmp_path)
+    result = _run_shell(script, 'deps', '--dev', cwd=tmp_path)
 
     assert result.returncode == 2
-    assert '错误：deps' in result.stderr
+    assert '用法：./scripts/session-browser.sh deps' in result.stderr
     assert not marker.exists()
 
 
@@ -347,56 +332,6 @@ def test_test_command_rejects_pytest_arguments(tmp_path: Path) -> None:
     assert result.returncode == 2
     assert 'test 不接受额外参数' in result.stderr
     assert not marker.exists()
-
-
-def _quality_env(tmp_path: Path) -> dict[str, str]:
-    """创建仅记录 Gate CLI 参数的 python3 进程边界。"""
-    fake_bin = tmp_path / 'fake-bin'
-    _write_executable(
-        fake_bin / 'python3',
-        '#!/usr/bin/env bash\nprintf "PY_ARG=<%s>\\n" "$@"\n',
-    )
-    return {**os.environ, 'PATH': f'{fake_bin}{os.pathsep}{os.environ.get("PATH", "")}'}
-
-
-def test_quality_defaults_to_incremental_gate(tmp_path: Path) -> None:
-    _, script = _create_fake_project(tmp_path)
-
-    result = _run_shell(script, 'quality', cwd=tmp_path, env=_quality_env(tmp_path))
-
-    assert result.returncode == 0, result.stderr
-    assert result.stdout.splitlines() == [
-        'PY_ARG=<scripts/gates/cli.py>',
-        'PY_ARG=<run>',
-        'PY_ARG=<--mode>',
-        'PY_ARG=<incremental>',
-    ]
-
-
-def test_quality_forwards_explicit_gate_arguments(tmp_path: Path) -> None:
-    _, script = _create_fake_project(tmp_path)
-
-    result = _run_shell(
-        script,
-        'quality',
-        'plan',
-        '--mode',
-        'full',
-        '--format',
-        'json',
-        cwd=tmp_path,
-        env=_quality_env(tmp_path),
-    )
-
-    assert result.returncode == 0, result.stderr
-    assert result.stdout.splitlines() == [
-        'PY_ARG=<scripts/gates/cli.py>',
-        'PY_ARG=<plan>',
-        'PY_ARG=<--mode>',
-        'PY_ARG=<full>',
-        'PY_ARG=<--format>',
-        'PY_ARG=<json>',
-    ]
 
 
 def test_shell_exec_preserves_pid_and_signal(tmp_path: Path) -> None:
@@ -435,54 +370,3 @@ def test_shell_exec_preserves_pid_and_signal(tmp_path: Path) -> None:
         if process.poll() is None:
             process.kill()
             process.wait(timeout=5)
-
-
-def _run_installed_launcher_with_fake_java(
-    tmp_path: Path, *arguments: str, app_cli_opts: str | None = None
-) -> subprocess.CompletedProcess[str]:
-    """用 fake Java 观测 Gradle 生成 launcher 的最终 JVM 参数。"""
-    assert INSTALLED_LAUNCHER.is_file(), '请先运行 :java:app-cli:installDist'
-    java_home = tmp_path / 'fake-java-home'
-    _write_executable(
-        java_home / 'bin' / 'java',
-        '#!/usr/bin/env bash\nprintf "JVM_ARG=<%s>\\n" "$@"\n',
-    )
-    env = {**os.environ, 'JAVA_HOME': str(java_home)}
-    if app_cli_opts is None:
-        env.pop('APP_CLI_OPTS', None)
-    else:
-        env['APP_CLI_OPTS'] = app_cli_opts
-    return subprocess.run(
-        [str(INSTALLED_LAUNCHER), *arguments],
-        cwd=tmp_path,
-        env=env,
-        text=True,
-        capture_output=True,
-        timeout=30,
-        check=False,
-    )
-
-
-def test_generated_launcher_selects_full_scan_heap(tmp_path: Path) -> None:
-    normal = _run_installed_launcher_with_fake_java(tmp_path, 'scan')
-    full = _run_installed_launcher_with_fake_java(tmp_path, 'scan', '--full')
-
-    assert normal.returncode == 0, normal.stderr
-    assert 'JVM_ARG=<-Xmx128m>' in normal.stdout
-    assert 'JVM_ARG=<-Xmx512m>' not in normal.stdout
-    assert full.returncode == 0, full.stderr
-    assert 'JVM_ARG=<-Xmx512m>' in full.stdout
-    assert 'JVM_ARG=<-Xmx128m>' not in full.stdout
-
-
-def test_generated_launcher_keeps_user_heap_override_last(tmp_path: Path) -> None:
-    result = _run_installed_launcher_with_fake_java(
-        tmp_path,
-        'scan',
-        '--full',
-        app_cli_opts='-Dexample=true -Xmx2g',
-    )
-
-    assert result.returncode == 0, result.stderr
-    args = result.stdout.splitlines()
-    assert args.index('JVM_ARG=<-Xmx512m>') < args.index('JVM_ARG=<-Xmx2g>')

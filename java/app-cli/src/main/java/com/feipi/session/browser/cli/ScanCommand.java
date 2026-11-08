@@ -3,7 +3,6 @@ package com.feipi.session.browser.cli;
 import com.feipi.session.browser.index.api.write.IndexWriterPort;
 import com.feipi.session.browser.index.store.sqlite.connection.ConnectionFactory;
 import com.feipi.session.browser.index.store.sqlite.repository.SqliteIndexWriter;
-import com.feipi.session.browser.index.store.sqlite.schema.DatabaseUpgrader;
 import com.feipi.session.browser.scan.engine.FullScanEngine;
 import com.feipi.session.browser.scan.engine.IncrementalScanEngine;
 import com.feipi.session.browser.scan.engine.IncrementalScanSummary;
@@ -56,9 +55,6 @@ final class ScanCommand implements Callable<Integer> {
   /** 扫描锁超时（毫秒），默认 30 秒，可通过环境变量覆盖。 */
   private static final long DEFAULT_LOCK_TIMEOUT_MS = 30_000;
 
-  /** 默认索引目录环境变量名。 */
-  private static final String INDEX_DIR_ENV = "INDEX_DIR";
-
   @Option(
       names = {"--incremental"},
       description = "只扫描源文件有变化的会话（默认）")
@@ -82,7 +78,7 @@ final class ScanCommand implements Callable<Integer> {
 
   @Option(
       names = {"--index-dir"},
-      description = "索引目录（默认遵循 XDG 规范）")
+      description = "索引目录（默认使用当前版本的 macOS 应用数据目录）")
   private String indexDirOption;
 
   @Override
@@ -92,8 +88,8 @@ final class ScanCommand implements Callable<Integer> {
       return 1;
     }
 
-    Path indexDir = PathResolver.resolveDataDir(indexDirOption, INDEX_DIR_ENV);
-    RuntimePaths paths = RuntimePaths.fromDataDir(indexDir);
+    Path indexDir = PathResolver.resolveDataDir(indexDirOption);
+    RuntimePaths paths = new RuntimePaths(indexDir);
 
     try {
       paths.ensureDirectories();
@@ -147,30 +143,20 @@ final class ScanCommand implements Callable<Integer> {
     String jdbcUrl = "jdbc:sqlite:" + dbPath.toAbsolutePath();
     List<ScanConfig.SourceEntry> sourceEntries = buildSourceEntries(agentFilter);
 
-    // 升级前备份 + schema migration + 版本兼容性检查
-    String appVersion = BuildInfoVersionProvider.readAppVersion();
-    Path backupDir = dbPath.getParent().resolve("backups");
-    DatabaseUpgrader upgrader = DatabaseUpgrader.withDefaults(appVersion, backupDir);
-    try {
-      upgrader.upgrade(dbPath);
-    } catch (DatabaseUpgrader.UpgradeException e) {
-      System.err.println("错误：数据库升级失败: " + e.getMessage());
-      return 1;
-    }
+    try (Connection conn =
+        ConnectionFactory.withDefaults(jdbcUrl)
+            .createForRelease(BuildInfoVersionProvider.readAppVersion())) {
+      if (sourceEntries.isEmpty()) {
+        System.out.println("未找到可扫描的源目录，已创建空索引。");
+        System.out.println("请确认 ~/.claude、~/.codex 或 ~/.qoder 中存在会话数据后重新运行 scan。");
+        System.out.println("  Claude Code: 0 sessions");
+        System.out.println("  Codex:       0 sessions");
+        System.out.println("  Total:       0 sessions");
+        return 0;
+      }
 
-    if (sourceEntries.isEmpty()) {
-      System.out.println("未找到可扫描的源目录，已创建空索引。");
-      System.out.println("请确认 ~/.claude、~/.codex 或 ~/.qoder 中存在会话数据后重新运行 scan。");
-      System.out.println("  Claude Code: 0 sessions");
-      System.out.println("  Codex:       0 sessions");
-      System.out.println("  Total:       0 sessions");
-      return 0;
-    }
-
-    ScanConfig config = new ScanConfig(sourceEntries, artifactDir, agentFilter, 1);
-    String agentLabel = agent != null ? " (" + agent + ")" : "";
-
-    try (Connection conn = ConnectionFactory.withDefaults(jdbcUrl).create()) {
+      ScanConfig config = new ScanConfig(sourceEntries, artifactDir, agentFilter, 1);
+      String agentLabel = agent != null ? " (" + agent + ")" : "";
       if (incremental && !full) {
         return runIncremental(new SqliteIndexWriter(conn), config, agentLabel);
       } else {

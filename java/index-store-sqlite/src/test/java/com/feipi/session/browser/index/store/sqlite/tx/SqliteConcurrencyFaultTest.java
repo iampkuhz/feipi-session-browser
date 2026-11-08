@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.feipi.session.browser.index.store.sqlite.connection.ConnectionFactory;
 import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
 import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
-import com.feipi.session.browser.index.store.sqlite.schema.MigrationRunner;
 import com.feipi.session.browser.testsupport.sqlite.SqliteTestHelper;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -50,7 +49,7 @@ class SqliteConcurrencyFaultTest {
 
       Connection writerConn = DriverManager.getConnection(jdbcUrl);
       SqliteTestHelper.configureConnection(writerConn);
-      new IndexSchema(MigrationRunner.withAllMigrations()).ensureSchema(writerConn);
+      IndexSchema.ensureSchema(writerConn);
 
       int readThreadCount = 4;
       int iterationsPerThread = 50;
@@ -131,7 +130,7 @@ class SqliteConcurrencyFaultTest {
       // 第一阶段：写入数据
       Connection conn1 = DriverManager.getConnection(jdbcUrl);
       SqliteTestHelper.configureConnection(conn1);
-      new IndexSchema(MigrationRunner.withAllMigrations()).ensureSchema(conn1);
+      IndexSchema.ensureSchema(conn1);
 
       try (WriteTransaction wt = new WriteTransaction(conn1)) {
         try (Statement stmt = wt.connection().createStatement()) {

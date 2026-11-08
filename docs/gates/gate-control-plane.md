@@ -14,7 +14,7 @@
 | 触发条件（`Trigger`） | 路径匹配规则，说明某个变更为什么需要某个 Gate | 修改 `java/web/**` 会选中 Web 相关 Gate |
 | 人工分组（`TargetPreset`） | 方便人工一次选择一组 Gate；只表示分组，不表示执行强度或耗时 | `web-interface` |
 | Gate 检查步骤（`RecipeStep`） | 一个 Gate 内由某类工具负责的一项检查动作 | 运行 Ruff、一个 Python Check、一组 Playwright 测试或 Gradle task |
-| 系统命令（`CommandInvocation`） | 真正启动的一个 OS 进程；一个检查步骤可以产生多个系统命令 | scan smoke 会先构建 launcher，再执行 smoke 命令 |
+| 系统命令（`CommandInvocation`） | Gate 实际启动的一个 OS 进程 | scan smoke 只启动 smoke 命令，由公开 launcher 自行准备运行所需产物 |
 | 执行计划（`GatePlan`） | 本次运行唯一的冻结清单，包含输入、选择原因、Gate、检查步骤和系统命令 | `plan --format json` 的主体 |
 | 步骤结果（`StepResult`） | 一个 Gate 检查步骤的综合结果 | Python Check 完成后得到 PASS/BLOCKED/FAIL |
 | Gate 结果（`GateResult`） | 一个 Gate 下全部步骤合并后的结果 | 任一步 FAIL，则该 Gate FAIL |
@@ -41,7 +41,6 @@ python3 scripts/gates/cli.py explain --target web-interface
 
 python3 scripts/gates/cli.py plan --mode incremental
 python3 scripts/gates/cli.py plan --mode incremental --base <commit>
-python3 scripts/gates/cli.py plan --mode incremental --changed-files '["scripts/gates/cli.py"]'
 
 python3 scripts/gates/cli.py run --mode incremental
 python3 scripts/gates/cli.py run --mode full
@@ -127,17 +126,16 @@ endlegend
 |---|---|
 | `--mode incremental` | 当前 Git staged、working、untracked 文件 |
 | `--mode incremental --base <commit>` | `<commit>...HEAD` 的 changed files |
-| `--mode incremental --changed-files '[...]'` | 调用者给出的仓库相对路径 |
 | `--mode full` | 全部 Gate；记录 HEAD，不携带 changed-files 列表 |
 
-`--base` 与 `--changed-files` 互斥。`plan` 输出中的 `snapshot.source`、`snapshot.files` 和
+`plan` 输出中的 `snapshot.source`、`snapshot.files` 和
 `contentFingerprint` 共同证明计划使用了哪一份输入。
 
 ### Gate 怎么被选中
 
 1. `full` 且没有 selector：选择全部 Gate。
 2. 指定 `--gate`：只选择该 Gate；指定 `--target`：按规则目录展开该人工分组。
-3. 普通 `incremental`：`always` Gate 固定选中，其他 Gate 根据 changed file 与 Trigger pattern 匹配。
+3. 普通 `incremental`：根据 changed file 与 Trigger pattern 匹配 Gate。
 4. 每条命中保存为 `file → pattern → Gate`；未选中的 Gate 记录具体原因，例如
    `no-trigger-pattern-matched` 或 `excluded-by-selector`。
 5. `incremental` selector 需要非空输入；没有变更但需要人工执行时使用 `full --gate/--target`。
@@ -175,10 +173,10 @@ endlegend
 
 | 排查场景 | 实现入口 | 接收什么 | 产出什么 |
 |---|---|---|---|
-| S7 的输入文件不符合预期 | `capture_change_snapshot` | repo、mode、可选 base/changed-files | 冻结的 `ChangeSnapshot` |
+| S7 的输入文件不符合预期 | `capture_change_snapshot` | repo、mode、可选 base | 冻结的 `ChangeSnapshot` |
 | S7 某个 Gate 触发原因不对 | `match_trigger` | changed files、规则目录中的 Gate | `TriggerMatch` 因果记录 |
 | S8 选中的 Gate 或进程数不对 | `compile_gate_plan` | 输入快照、mode、selector、命令适配器 | 唯一 `GatePlan` |
-| S8 某个检查步骤生成了错误命令 | `adapt_recipe_step` | Gate、检查步骤、mode、changed files | 一个或多个 `CommandInvocation` |
+| S8 某个检查步骤生成了错误命令 | `adapt_recipe_step` | Gate、检查步骤、mode、changed files | 当前目录每个步骤对应一个 `CommandInvocation` |
 | S9 进程启动、heartbeat 或清理异常 | `supervise_process` | 一个系统命令、工作目录、日志路径 | `ProcessObservation` |
 | S9 PASS/BLOCKED/FAIL 分类异常 | `classify_owner_outcome` | 系统命令及进程观察结果 | `InvocationResult` |
 | S9 Gate 内步骤合并异常 | `orchestrate_gate_run` | 冻结执行计划 | `StepResult` 与 `GateResult` |

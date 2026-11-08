@@ -9,13 +9,9 @@ from __future__ import annotations
 
 import tomllib
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
 import yaml
 from scripts.gates.checks.check_protocol import CheckResult, argument_parser, repository_root
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 ROOT = repository_root()
 POLICY_REQUIRED_ROOTS = [
@@ -69,9 +65,10 @@ class DocumentInputs:
     documents: dict[str, str]
 
 
-def _load_document_inputs(root: Path = ROOT) -> DocumentInputs:
+def _load_document_inputs() -> DocumentInputs:
     """一次读取 manifest、AGENTS、Codex config 和各 handoff 文档。"""
 
+    root = ROOT
     manifest_text = (root / 'harness/agent-policy.manifest.yaml').read_text(encoding='utf-8')
     agents_text = (root / 'AGENTS.md').read_text(encoding='utf-8')
     documents = {
@@ -178,7 +175,7 @@ def check(arguments: list[str]) -> CheckResult:
 
     argument_parser(description='检查 Agent document policy').parse_args(arguments)
     try:
-        inputs = _load_document_inputs(ROOT)
+        inputs = _load_document_inputs()
     except OSError as exc:
         return CheckResult.execution_failure(
             [f'Agent document 输入读取失败: {exc}'], reason='input-unavailable'

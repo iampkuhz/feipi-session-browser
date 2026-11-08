@@ -13,9 +13,7 @@ import com.feipi.session.browser.index.store.sqlite.repository.SqliteAggregateQu
 import com.feipi.session.browser.index.store.sqlite.repository.SqliteIndexWriter;
 import com.feipi.session.browser.index.store.sqlite.repository.SqliteSessionDetailRepository;
 import com.feipi.session.browser.index.store.sqlite.repository.SqliteSessionQueryRepository;
-import com.feipi.session.browser.index.store.sqlite.schema.DatabaseUpgrader;
 import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
-import com.feipi.session.browser.index.store.sqlite.schema.SchemaVersion;
 import com.feipi.session.browser.scan.engine.BackgroundScanner;
 import com.feipi.session.browser.scan.engine.IncrementalScanEngine;
 import com.feipi.session.browser.scan.engine.ScanCancelToken;
@@ -38,7 +36,6 @@ import java.sql.Connection;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 import org.slf4j.Logger;
@@ -72,8 +69,7 @@ public final class ServerLifecycle {
   private final String host;
   private final int port;
   private final boolean noScan;
-  private final boolean allowEmpty;
-  private final Set<String> agentFilter;
+  private final boolean strictSources;
 
   private volatile WebServer webServer;
   private volatile WebCompositionRoot webRoot;
@@ -93,22 +89,15 @@ public final class ServerLifecycle {
    * @param host 监听地址
    * @param port 监听端口，0 表示随机端口
    * @param noScan 是否禁用所有扫描
-   * @param allowEmpty 是否允许无源目录时启动
-   * @param agentFilter agent 过滤集合，空表示不过滤
+   * @param strictSources 无可扫描源目录时是否拒绝启动
    */
   public ServerLifecycle(
-      Path indexDir,
-      String host,
-      int port,
-      boolean noScan,
-      boolean allowEmpty,
-      Set<String> agentFilter) {
+      Path indexDir, String host, int port, boolean noScan, boolean strictSources) {
     this.indexDir = Objects.requireNonNull(indexDir, "indexDir 不得为 null");
     this.host = Objects.requireNonNull(host, "host 不得为 null");
     this.port = port;
     this.noScan = noScan;
-    this.allowEmpty = allowEmpty;
-    this.agentFilter = agentFilter != null ? Set.copyOf(agentFilter) : Set.of();
+    this.strictSources = strictSources;
   }
 
   /**
@@ -128,36 +117,20 @@ public final class ServerLifecycle {
     Files.createDirectories(artifactDir);
     LOG.info("运行时目录就绪");
 
-    // 阶段 0：升级前备份 + schema migration + 版本兼容性检查
-    String appVersion = BuildInfoVersionProvider.readAppVersion();
-    Path backupDir = indexDir.resolve("backups");
-    DatabaseUpgrader upgrader = DatabaseUpgrader.withDefaults(appVersion, backupDir);
-    try {
-      upgrader.upgrade(dbPath);
-    } catch (DatabaseUpgrader.UpgradeException e) {
-      LOG.error("数据库升级失败", e);
-      throw new IOException("数据库升级失败: " + e.getMessage(), e);
-    }
-
-    // 构建源条目（noScan 时仍构建，用于 background scanner 配置；allowEmpty 控制空源行为）
-    List<ScanConfig.SourceEntry> sourceEntries = buildSourceEntries(artifactDir);
+    List<ScanConfig.SourceEntry> sourceEntries = buildSourceEntries();
     LOG.info("发现 {} 个源", sourceEntries.size());
 
     // 阶段 1：打开数据库连接并初始化 schema
     String jdbcUrl = "jdbc:sqlite:" + dbPath.toAbsolutePath();
-    jdbcConnection = ConnectionFactory.withDefaults(jdbcUrl).create();
+    jdbcConnection =
+        ConnectionFactory.withDefaults(jdbcUrl)
+            .createForRelease(BuildInfoVersionProvider.readAppVersion());
     try {
-      IndexSchema schema = IndexSchema.withDefaults();
-      schema.ensureSchema(jdbcConnection);
-      SchemaVersion schemaVersion = schema.currentVersion(jdbcConnection);
-      if (schemaVersion == null) {
-        schemaVersion = IndexSchema.CURRENT_VERSION;
-      }
-      LOG.info("数据库 schema 就绪 (v{})", schemaVersion.version());
+      LOG.info("数据库 schema 就绪");
 
       // 阶段 2：创建 query composition root
       indexConnection = IndexConnection.withDefaults(jdbcConnection, jdbcUrl);
-      QueryCompositionRoot queryRoot = createQueryCompositionRoot(indexConnection, schemaVersion);
+      QueryCompositionRoot queryRoot = createQueryCompositionRoot(indexConnection);
       LOG.info("查询引擎就绪");
 
       // 阶段 3：创建并绑定 Web 服务器（先于扫描，确保尽快可访问）
@@ -171,7 +144,7 @@ public final class ServerLifecycle {
       webServer = webRoot.createServer();
       this.sourceEntries = sourceEntries;
       this.artifactDir = artifactDir;
-      installShutdownHook(queryRoot, sourceEntries, artifactDir);
+      installShutdownHook();
       LOG.info("启动 Web 服务器");
       webServer.start();
       int actualPort = webServer.actualPort();
@@ -253,8 +226,7 @@ public final class ServerLifecycle {
   // ===== 私有方法 =====
 
   /** 使用具体 SQLite 适配器装配 application 查询用例。 */
-  private static QueryCompositionRoot createQueryCompositionRoot(
-      IndexConnection indexConnection, SchemaVersion schemaVersion) {
+  private static QueryCompositionRoot createQueryCompositionRoot(IndexConnection indexConnection) {
     SqliteSessionQueryRepository sessionRepository =
         new SqliteSessionQueryRepository(indexConnection);
     SqliteAggregateQueryRepository aggregateRepository =
@@ -276,7 +248,7 @@ public final class ServerLifecycle {
             return NormalizedArtifactLoader.open(path);
           }
         },
-        schemaVersion.version(),
+        IndexSchema.CURRENT_VERSION.version(),
         QueryCache.withDefaultSize());
   }
 
@@ -341,10 +313,7 @@ public final class ServerLifecycle {
   }
 
   /** 安装 JVM shutdown hook，确保 SIGINT/SIGTERM 触发优雅关闭。 */
-  private void installShutdownHook(
-      QueryCompositionRoot queryRoot,
-      List<ScanConfig.SourceEntry> sourceEntries,
-      Path artifactDir) {
+  private void installShutdownHook() {
     shutdownHook = new Thread(() -> doShutdown(), "serve-shutdown");
     Runtime.getRuntime().addShutdownHook(shutdownHook);
   }
@@ -498,46 +467,31 @@ public final class ServerLifecycle {
   }
 
   /**
-   * 构建源条目列表，根据 agent 过滤选择用户主目录下的默认源目录。
+   * 查找用户主目录下现存的默认会话源。
    *
-   * <p>校验放置：源目录存在性在此边界检查一次。ScanConfig 紧凑构造器验证 sourceEntries 非空， 但当 noScan+allowEmpty 时返回空列表绕过此校验。
-   *
-   * @param artifactDir 归一化制品输出目录
    * @return 源条目列表，可能为空
-   * @throws IOException 当无源目录且不允许空时
+   * @throws IOException 启用严格源检查且未找到任何源目录时
    */
-  private List<ScanConfig.SourceEntry> buildSourceEntries(Path artifactDir) throws IOException {
+  private List<ScanConfig.SourceEntry> buildSourceEntries() throws IOException {
+    Path home = Path.of(System.getProperty("user.home"));
     List<ScanConfig.SourceEntry> entries = new ArrayList<>();
 
-    boolean includeClaude = agentFilter.isEmpty() || agentFilter.contains("claude_code");
-    boolean includeCodex = agentFilter.isEmpty() || agentFilter.contains("codex");
-    boolean includeQoder = agentFilter.isEmpty() || agentFilter.contains("qoder");
-
-    if (includeClaude) {
-      Path root = Path.of(System.getProperty("user.home"), ".claude");
-      if (Files.isDirectory(root)) {
-        entries.add(new ScanConfig.SourceEntry(new ClaudeSourceAdapter(), root));
-      }
+    Path claudeRoot = home.resolve(".claude");
+    if (Files.isDirectory(claudeRoot)) {
+      entries.add(new ScanConfig.SourceEntry(new ClaudeSourceAdapter(), claudeRoot));
+    }
+    Path codexRoot = home.resolve(".codex");
+    if (Files.isDirectory(codexRoot)) {
+      entries.add(new ScanConfig.SourceEntry(new CodexSourceAdapter(), codexRoot));
+    }
+    Path qoderRoot = home.resolve(".qoder");
+    if (Files.isDirectory(qoderRoot)) {
+      entries.add(new ScanConfig.SourceEntry(new QoderSourceAdapter(), qoderRoot));
     }
 
-    if (includeCodex) {
-      Path root = Path.of(System.getProperty("user.home"), ".codex");
-      if (Files.isDirectory(root)) {
-        entries.add(new ScanConfig.SourceEntry(new CodexSourceAdapter(), root));
-      }
+    if (strictSources && entries.isEmpty()) {
+      throw new IOException("未找到可扫描的源目录；如需允许空源启动，请移除 --strict-sources");
     }
-
-    if (includeQoder) {
-      Path root = Path.of(System.getProperty("user.home"), ".qoder");
-      if (Files.isDirectory(root)) {
-        entries.add(new ScanConfig.SourceEntry(new QoderSourceAdapter(), root));
-      }
-    }
-
-    if (entries.isEmpty() && !allowEmpty) {
-      throw new IOException("未找到可扫描的源目录，使用 --allow-empty 跳过或使用 --no-scan 禁用扫描");
-    }
-
     return entries;
   }
 }

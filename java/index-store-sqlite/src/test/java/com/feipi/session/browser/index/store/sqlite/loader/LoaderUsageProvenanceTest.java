@@ -12,27 +12,24 @@ class LoaderUsageProvenanceTest {
   @TempDir Path directory;
 
   @Test
-  void diskLoaderRetainsBothKeySpellingsAndLegacyUnknown() throws Exception {
-    for (String key : new String[] {"usage_source", "usageSource"}) {
-      Path file = directory.resolve(key + ".json");
-      Files.writeString(
-          file,
-          """
+  void diskLoaderPreservesReportedZeroAndMissingProvenance() throws Exception {
+    Path file = directory.resolve("content.json");
+    Files.writeString(
+        file,
+        """
           {"agent":"codex","session":{"freshInputTokenPrecision":"provider_reported"},
            "calls":[{"call_id":"reported-zero","call_index":1,"usage":{"fresh":0},
-             "%s":{"freshInputTokenPrecision":"provider_reported","outputTokenPrecision":"unavailable"}},
-            {"call_id":"legacy","call_index":2,"usage":{"fresh":10,"total":10}}]}
-          """
-              .formatted(key));
-      var calls = NormalizedArtifactLoader.load(file).calls();
-      assertThat(calls).hasSize(2);
-      assertThat(calls.get(0).usageSource())
-          .hasSize(2)
-          .containsEntry("freshInputTokenPrecision", "provider_reported")
-          .containsEntry("outputTokenPrecision", "unavailable");
-      assertThat(calls.get(0).usage().fresh()).isZero();
-      assertThat(calls.get(1).usageSource()).isEmpty();
-      assertThat(calls.get(1).usage().fresh()).isEqualTo(10);
-    }
+             "usage_source":{"freshInputTokenPrecision":"provider_reported","outputTokenPrecision":"unavailable"}},
+            {"call_id":"unavailable","call_index":2,"usage":{"fresh":10,"total":10}}]}
+          """);
+    var calls = NormalizedArtifactLoader.load(file).calls();
+    assertThat(calls).hasSize(2);
+    assertThat(calls.get(0).usageSource())
+        .hasSize(2)
+        .containsEntry("freshInputTokenPrecision", "provider_reported")
+        .containsEntry("outputTokenPrecision", "unavailable");
+    assertThat(calls.get(0).usage().fresh()).isZero();
+    assertThat(calls.get(1).usageSource()).isEmpty();
+    assertThat(calls.get(1).usage().fresh()).isEqualTo(10);
   }
 }

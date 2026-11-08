@@ -4,15 +4,12 @@ from __future__ import annotations
 
 import io
 import json
-import subprocess
 import tarfile
-from pathlib import Path
 
 import pytest
 from scripts.release import release_pipeline_helpers as h
 
 PROVENANCE = h.Provenance('0.5', 'a' * 40, '100', '1')
-SCRIPT = Path(h.__file__)
 SERVE_HELP = 'Usage: app-cli serve --no-scan --index-dir'
 JVM_ARCH_PROPERTY = "    printf '    os.arch = aarch64\\n' >&2\n"
 MODEL = f'''#!/bin/sh
@@ -31,11 +28,6 @@ case "$1" in
   *) exit 11 ;;
 esac
 '''
-
-
-@pytest.fixture
-def native(monkeypatch):
-    monkeypatch.setattr(h, 'is_macos_arm64', lambda: True)
 
 
 def _tar(path, entries):
@@ -135,50 +127,9 @@ def test_manifest_syntax(tmp_path, content):
 
 
 @pytest.mark.parametrize(
-    'fault', ['extra', 'missing', 'directory', 'symlink', 'size', 'hash', 'duplicate']
-)
-def test_manifest_membership_and_integrity(tmp_path, fault):
-    asset = tmp_path / 'a.tar.gz'
-    asset.write_bytes(b'a')
-    line = f'{h.compute_sha256(asset)}  1  a.tar.gz\n'
-    if fault == 'extra':
-        (tmp_path / 'b.tar.gz').write_bytes(b'b')
-    elif fault in ('missing', 'directory', 'symlink'):
-        asset.unlink()
-        if fault == 'directory':
-            asset.mkdir()
-        if fault == 'symlink':
-            asset.symlink_to(tmp_path / 'target')
-    elif fault == 'size':
-        line = line.replace('  1  ', '  2  ')
-    elif fault == 'hash':
-        line = '0' * 64 + '  1  a.tar.gz\n'
-    else:
-        line *= 2
-    manifest = tmp_path / 'MANIFEST.SHA256'
-    manifest.write_text(line)
-    assert not h.verify_manifest_against_files(manifest, tmp_path)[0]
-
-
-def test_checksum_wrapper_uses_bash32_compatible_entry(tmp_path):
-    (tmp_path / 'a.tar.gz').write_bytes(b'a')
-    wrapper = SCRIPT.parent / 'generate-checksums.sh'
-    for args in ([], ['--verify']):
-        result = subprocess.run(
-            ['/bin/bash', str(wrapper), str(tmp_path), *args], capture_output=True
-        )
-        assert result.returncode == 0, result.stderr
-    (tmp_path / 'MANIFEST.SHA256').write_text('')
-    assert subprocess.run(
-        ['/bin/bash', str(wrapper), str(tmp_path), '--verify'], capture_output=True
-    ).returncode
-
-
-@pytest.mark.parametrize(
     'os_name,arch,expected',
     [
         ('Darwin', 'arm64', True),
-        ('Darwin', 'aarch64', True),
         ('Darwin', 'x86_64', False),
         ('Linux', 'arm64', False),
     ],
@@ -191,7 +142,7 @@ def test_native_host_check_does_not_accept_other_system_or_cpu(
     assert h.is_macos_arm64() is expected
 
 
-def test_single_seal_binds_exact_bytes_and_real_launcher_model(tmp_path, native, monkeypatch):
+def test_single_seal_binds_exact_bytes_and_real_launcher_model(tmp_path, monkeypatch):
     monkeypatch.setenv('JAVA_HOME', 'synthetic-jdk-must-not-leak')
     monkeypatch.setenv('CLASSPATH', 'synthetic-classpath-must-not-leak')
     monkeypatch.setenv('_JAVA_OPTIONS', 'synthetic-jvm-args-must-not-leak')
@@ -234,16 +185,16 @@ def test_single_seal_binds_exact_bytes_and_real_launcher_model(tmp_path, native,
         ('wrong-serve-help', 'output mismatch'),
         ('wrong-home', 'isolated JVM home'),
         ('duplicate-home', 'isolated JVM home'),
-        ('x86-jvm-on-arm-host', 'JVM os.arch must be aarch64 or arm64'),
-        ('missing-jvm-arch', 'JVM os.arch must be aarch64 or arm64'),
-        ('duplicate-jvm-arch', 'JVM os.arch must be aarch64 or arm64'),
+        ('x86-jvm-on-arm-host', 'JVM os.arch must be aarch64'),
+        ('missing-jvm-arch', 'JVM os.arch must be aarch64'),
+        ('duplicate-jvm-arch', 'JVM os.arch must be aarch64'),
         ('created-index', 'created an index'),
         ('launcher-error', 'returncode=2'),
         ('invalid-utf8', 'not UTF-8'),
         ('unsafe-tar', 'path traversal'),
     ],
 )
-def test_prepare_rejects_bad_archive_and_leaves_no_candidate(tmp_path, native, fault, pattern):
+def test_prepare_rejects_bad_archive_and_leaves_no_candidate(tmp_path, fault, pattern):
     script = {
         'wrong-version': MODEL.replace('0.5 版本', '0.50 版本'),
         'wrong-serve-help': MODEL.replace(SERVE_HELP, 'Usage: serve'),
@@ -293,7 +244,7 @@ def test_prepare_rejects_bad_archive_and_leaves_no_candidate(tmp_path, native, f
         'duplicate-json',
     ],
 )
-def test_verify_rejects_bad_files_bytes_identity_or_smoke(tmp_path, native, fault):
+def test_verify_rejects_bad_files_bytes_identity_or_smoke(tmp_path, fault):
     raw = _raw(tmp_path / 'raw')
     output = tmp_path / 'verified'
     asset = h.prepare_candidate(raw.parent, output, PROVENANCE)
@@ -330,7 +281,7 @@ def test_verify_rejects_bad_files_bytes_identity_or_smoke(tmp_path, native, faul
     assert not h.verify_candidate_set(output, PROVENANCE)[0]
 
 
-def test_prepare_copies_bytes_before_inspection(tmp_path, native, monkeypatch):
+def test_prepare_copies_bytes_before_inspection(tmp_path, monkeypatch):
     raw = _raw(tmp_path / 'raw')
     original = raw.read_bytes()
     inspect = h._inspect
@@ -345,13 +296,13 @@ def test_prepare_copies_bytes_before_inspection(tmp_path, native, monkeypatch):
     assert output.read_bytes() == original
 
 
-def test_consistent_metadata_cannot_admit_an_unsafe_tar(tmp_path, native):
+def test_consistent_metadata_cannot_admit_an_unsafe_tar(tmp_path):
     raw = _raw(tmp_path / 'raw')
     root = tmp_path / 'verified'
     asset = h.prepare_candidate(raw.parent, root, PROVENANCE)
     _tar(asset, [_file('../escape')])
     entry = h._measure(asset)
-    h._write_manifest(root, [entry])
+    h._write_manifest(root, entry)
     for suffix in ('.provenance.json', '.smoke.json'):
         sidecar = h.sidecar(asset, suffix)
         data = json.loads(sidecar.read_text())

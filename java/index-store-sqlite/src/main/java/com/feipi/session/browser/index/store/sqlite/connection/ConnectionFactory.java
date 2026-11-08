@@ -1,6 +1,7 @@
 package com.feipi.session.browser.index.store.sqlite.connection;
 
 import com.feipi.session.browser.common.validation.ParamChecks;
+import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
@@ -48,23 +49,31 @@ public final class ConnectionFactory {
    * @throws SQLException 连接打开或 PRAGMA 配置失败
    */
   public Connection create() throws SQLException {
+    return open(null);
+  }
+
+  /**
+   * 先验证发行归属，再启用可能改变数据库文件的 PRAGMA。
+   *
+   * @param releaseVersion 当前发行版
+   * @return 已初始化且已配置的索引连接
+   * @throws SQLException 连接、发行校验或配置失败
+   */
+  public Connection createForRelease(String releaseVersion) throws SQLException {
+    return open(ParamChecks.nonBlank(releaseVersion, "releaseVersion"));
+  }
+
+  private Connection open(String releaseVersion) throws SQLException {
     Connection conn = DriverManager.getConnection(jdbcUrl);
     try {
+      if (releaseVersion != null) {
+        IndexSchema.prepareRelease(conn, releaseVersion);
+      }
       pragmaConfig.apply(conn);
       return conn;
     } catch (SQLException e) {
       conn.close();
       throw e;
     }
-  }
-
-  /** 获取数据库连接地址。 */
-  public String jdbcUrl() {
-    return jdbcUrl;
-  }
-
-  /** 获取 PRAGMA 配置。 */
-  public PragmaConfig pragmaConfig() {
-    return pragmaConfig;
   }
 }

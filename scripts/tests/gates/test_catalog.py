@@ -10,7 +10,6 @@ from scripts.gates.catalog.gate_contracts import (
     GateTrigger,
     RecipeStep,
     RecipeStepKind,
-    TriggerMode,
 )
 from scripts.gates.catalog.registry import (
     CATALOG,
@@ -131,7 +130,6 @@ def test_scan_smoke_keeps_scan_coverage_and_normal_serve_delivery() -> None:
         'scripts/tests/script_commands/test_session_browser_serve_smoke.py',
         'scripts/tests/script_commands/test_session_browser_scan_smoke.py',
     )
-    assert step.prerequisite_tasks == ()
     assert step.args[:2] == ('-n', '0')
 
 
@@ -165,13 +163,9 @@ def test_trigger_description_path_and_duration_invariants_fail_closed() -> None:
     source = CATALOG.gates[0]
     mutations = (
         (replace(source, description='not Chinese.'), 'Chinese sentence'),
+        (replace(source, trigger=GateTrigger(())), 'requires paths'),
         (
-            replace(source, trigger=GateTrigger(TriggerMode.ALWAYS, ('scripts/**',))),
-            'cannot contain',
-        ),
-        (replace(source, trigger=GateTrigger(TriggerMode.CHANGED)), 'requires paths'),
-        (
-            replace(source, trigger=GateTrigger(TriggerMode.CHANGED, ('../outside',))),
+            replace(source, trigger=GateTrigger(('../outside',))),
             'invalid repository',
         ),
         (

@@ -26,7 +26,7 @@ class ConnectionFactoryTest {
     void createFileConnection(@TempDir Path tempDir) throws SQLException {
       Path dbFile = tempDir.resolve("factory-test.db");
       ConnectionFactory factory =
-          new ConnectionFactory("jdbc:sqlite:" + dbFile.toAbsolutePath(), PragmaConfig.DEFAULTS);
+          ConnectionFactory.withDefaults("jdbc:sqlite:" + dbFile.toAbsolutePath());
       try (Connection conn = factory.create()) {
         assertThat(conn).isNotNull();
         assertThat(conn.isClosed()).isFalse();
@@ -126,23 +126,6 @@ class ConnectionFactoryTest {
     void nullPragma() {
       assertThatThrownBy(() -> new ConnectionFactory("jdbc:sqlite::memory:", null))
           .isInstanceOf(IllegalArgumentException.class);
-    }
-  }
-
-  @Nested
-  @DisplayName("便捷方法")
-  class Convenience {
-
-    @Test
-    @DisplayName("withDefaults 使用默认 PRAGMA")
-    void withDefaultsUsesDefaultPragma() throws SQLException {
-      ConnectionFactory factory = ConnectionFactory.withDefaults("jdbc:sqlite::memory:");
-      assertThat(factory.pragmaConfig()).isEqualTo(PragmaConfig.DEFAULTS);
-      assertThat(factory.jdbcUrl()).isEqualTo("jdbc:sqlite::memory:");
-
-      try (Connection conn = factory.create()) {
-        assertThat(conn.isClosed()).isFalse();
-      }
     }
   }
 

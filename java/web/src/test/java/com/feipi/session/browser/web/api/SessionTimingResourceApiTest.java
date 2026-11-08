@@ -29,7 +29,7 @@ class SessionTimingResourceApiTest {
   void setUp() throws Exception {
     String url = "jdbc:sqlite:" + tempDir.resolve("synthetic-timing.db");
     connection = IndexConnection.withDefaults(DriverManager.getConnection(url), url);
-    IndexSchema.withDefaults().ensureSchema(connection.writerConnection());
+    IndexSchema.ensureSchema(connection.writerConnection());
     ApiContractFixture.insertThreeSessionFixture(connection);
     ApiContractFixture.insertNormalizedArtifactForAlpha(connection, tempDir);
   }

@@ -58,8 +58,7 @@ class SqliteRuntimeContractTest {
 
     try (IndexConnection ic = IndexConnection.create(writerConn, PragmaConfig.DEFAULTS, jdbcUrl)) {
       // 运行 schema migration
-      IndexSchema schema = IndexSchema.withDefaults();
-      schema.ensureSchema(ic.writerConnection());
+      IndexSchema.ensureSchema(ic.writerConnection());
 
       // 通过 WriteQueue 写入数据
       ic.writeQueue()

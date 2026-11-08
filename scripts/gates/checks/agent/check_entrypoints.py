@@ -40,9 +40,10 @@ def _read_text(path: Path) -> str:
     return path.read_text(encoding='utf-8')
 
 
-def _load_runtime_inputs(root: Path = ROOT) -> RuntimeInputs:
+def _load_runtime_inputs() -> RuntimeInputs:
     """每个共享输入只读取一次；文件不可用直接交给公开入口返回 FAIL。"""
 
+    root = ROOT
     manifest = yaml.safe_load(_read_text(root / 'harness/agent-runtime.manifest.yaml'))
     agents = manifest.get('domain_agents', {}) if isinstance(manifest, dict) else {}
     entry_paths: set[str] = set()
@@ -220,7 +221,7 @@ def check(arguments: list[str]) -> CheckResult:
 
     argument_parser(description='检查 Agent runtime policy').parse_args(arguments)
     try:
-        inputs = _load_runtime_inputs(ROOT)
+        inputs = _load_runtime_inputs()
     except OSError as exc:
         return CheckResult.execution_failure(
             [f'Agent runtime 输入读取失败: {exc}'], reason='input-unavailable'

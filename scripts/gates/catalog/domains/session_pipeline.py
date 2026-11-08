@@ -40,7 +40,6 @@ GATES = (
             scan_smoke(
                 'scanCommandSmoke',
                 SCAN_SMOKE_TESTS,
-                (),
                 '-n',
                 '0',
                 '-q',

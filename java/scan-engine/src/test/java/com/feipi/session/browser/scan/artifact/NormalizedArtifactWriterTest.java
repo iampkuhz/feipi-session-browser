@@ -350,14 +350,14 @@ class NormalizedArtifactWriterTest {
   @DisplayName("collision fail closed：sanitization 后同名 key 不互相覆盖")
   void sanitizationCollisionDisambiguated() throws IOException {
     WriteResult colon = writer.write(tempDir, createMinimalArtifact("session:name"), Map.of());
-    WriteResult star = writer.write(tempDir, createMinimalArtifact("session*name"), Map.of());
+    WriteResult plain = writer.write(tempDir, createMinimalArtifact("session_name"), Map.of());
 
     assertThat(colon.dataPath().getFileName().toString())
         .startsWith("session_name-")
-        .isNotEqualTo(star.dataPath().getFileName().toString());
-    assertThat(star.dataPath().getFileName().toString()).startsWith("session_name-");
+        .isNotEqualTo(plain.dataPath().getFileName().toString());
+    assertThat(plain.dataPath().getFileName().toString()).isEqualTo("session_name.json");
     assertThat(writer.validate(colon.dataPath(), colon.metaPath())).isTrue();
-    assertThat(writer.validate(star.dataPath(), star.metaPath())).isTrue();
+    assertThat(writer.validate(plain.dataPath(), plain.metaPath())).isTrue();
   }
 
   @Test

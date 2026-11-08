@@ -38,11 +38,7 @@ class JvmIsolatedMemoryTest {
     // 使用当前 java.home 的 java 可执行文件，保证同 JDK
     javaExe = System.getProperty("java.home") + "/bin/java";
     if (!Files.isExecutable(Path.of(javaExe))) {
-      // Windows 平台需要追加 .exe 后缀
-      javaExe = javaExe + ".exe";
-      if (!Files.isExecutable(Path.of(javaExe))) {
-        fail("找不到 java 可执行文件: " + javaExe);
-      }
+      fail("找不到 java 可执行文件: " + javaExe);
     }
 
     // 使用测试运行时 classpath，包含测试类和所有依赖

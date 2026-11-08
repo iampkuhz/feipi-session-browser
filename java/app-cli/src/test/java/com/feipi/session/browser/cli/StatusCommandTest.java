@@ -6,7 +6,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -109,8 +108,7 @@ class StatusCommandTest {
       Path indexDir = tempDir.resolve("running-index");
       Files.createDirectories(indexDir);
 
-      ServerLifecycle lifecycle =
-          new ServerLifecycle(indexDir, "127.0.0.1", 0, true, true, Set.of());
+      ServerLifecycle lifecycle = new ServerLifecycle(indexDir, "127.0.0.1", 0, true, false);
       int actualPort = lifecycle.start();
 
       try {

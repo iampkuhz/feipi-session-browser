@@ -3,6 +3,7 @@ package com.feipi.session.browser.scan.engine;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.feipi.session.browser.index.api.write.StoredSessionFingerprint;
+import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
 import com.feipi.session.browser.source.spi.BoundedStream;
 import com.feipi.session.browser.source.spi.Candidate;
 import com.feipi.session.browser.source.spi.SourceAdapter;
@@ -45,9 +46,7 @@ class IncrementalScanEngineTest {
     conn = SqliteTestHelper.createInMemoryConnection();
     conn.setAutoCommit(false);
     // 确保 schema
-    new com.feipi.session.browser.index.store.sqlite.schema.IndexSchema(
-            com.feipi.session.browser.index.store.sqlite.schema.MigrationRunner.withAllMigrations())
-        .ensureSchema(conn);
+    IndexSchema.ensureSchema(conn);
   }
 
   @AfterEach

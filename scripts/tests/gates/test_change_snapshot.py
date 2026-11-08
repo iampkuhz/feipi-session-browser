@@ -80,21 +80,6 @@ def test_git_deleted_and_added_browser_contracts_select_native_discovery(tmp_pat
     assert gate.recipe.steps[0].tests == ()  # 原生发现，无旧清单掩盖新文件。
 
 
-def test_explicit_files_are_normalized_deduplicated_and_content_sensitive(
-    tmp_path: Path,
-) -> None:
-    repo = _repository(tmp_path)
-    first = capture_change_snapshot(
-        repo, changed_files=(r'.\working.txt', 'staged.txt', 'working.txt')
-    )
-    (repo / 'working.txt').write_text('new content\n', encoding='utf-8')
-    second = capture_change_snapshot(repo, changed_files=('staged.txt', 'working.txt'))
-
-    assert first.source == 'explicit-changed-files'
-    assert first.files == ('staged.txt', 'working.txt')
-    assert first.content_fingerprint != second.content_fingerprint
-
-
 def test_full_input_records_head_without_changed_files(tmp_path: Path) -> None:
     repo = _repository(tmp_path)
     (repo / 'working.txt').write_text('ignored by full input\n', encoding='utf-8')
@@ -106,31 +91,10 @@ def test_full_input_records_head_without_changed_files(tmp_path: Path) -> None:
     assert snapshot.base is None
 
 
-@pytest.mark.parametrize(
-    'kwargs',
-    [
-        {'base': 'HEAD', 'changed_files': ('a.py',)},
-        {'mode': 'full', 'base': 'HEAD'},
-        {'mode': 'full', 'changed_files': ()},
-    ],
-)
-def test_input_sources_are_mutually_exclusive(tmp_path: Path, kwargs: dict[str, object]) -> None:
+def test_full_mode_rejects_git_base(tmp_path: Path) -> None:
     repo = _repository(tmp_path)
-    with pytest.raises(ValueError):
-        capture_change_snapshot(repo, **kwargs)  # type: ignore[arg-type]
-
-
-@pytest.mark.parametrize('path', ('../outside.py', '/absolute.py', r'C:\absolute.py', '', './'))
-def test_explicit_changed_files_reject_non_repository_paths(tmp_path: Path, path: str) -> None:
-    repo = _repository(tmp_path)
-    with pytest.raises(ValueError, match='repository-relative'):
-        capture_change_snapshot(repo, changed_files=(path,))
-
-
-def test_explicit_changed_files_rejects_scalar_string(tmp_path: Path) -> None:
-    repo = _repository(tmp_path)
-    with pytest.raises(TypeError, match='iterable of paths'):
-        capture_change_snapshot(repo, changed_files='one.py')
+    with pytest.raises(ValueError, match='does not accept a base'):
+        capture_change_snapshot(repo, mode='full', base='HEAD')
 
 
 def test_staged_rename_out_of_browser_keeps_old_consumers(tmp_path: Path) -> None:

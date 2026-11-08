@@ -38,23 +38,15 @@ def test_explain_requires_one_subject(capsys) -> None:
     assert 'requires exactly one' in capsys.readouterr().err
 
 
-def test_plan_reports_match_and_process_count(capsys) -> None:
-    assert (
-        cli.main(
-            [
-                'plan',
-                '--mode',
-                'incremental',
-                '--changed-files',
-                '["scripts/gates/cli.py"]',
-                '--format',
-                'json',
-            ]
-        )
-        == 0
-    )
+def test_plan_reports_match_and_process_count(tmp_path: Path, monkeypatch, capsys) -> None:
+    _init_repo(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    source = tmp_path / 'scripts/gates/cli.py'
+    source.parent.mkdir(parents=True)
+    source.write_text('synthetic change\n')
+    assert cli.main(['plan', '--mode', 'incremental', '--format', 'json']) == 0
     payload = json.loads(capsys.readouterr().out)
-    assert payload['snapshot']['source'] == 'explicit-changed-files'
+    assert payload['snapshot']['source'] == 'git-working-tree'
     assert payload['matches']
     assert payload['processCount'] > 0
 
@@ -62,7 +54,7 @@ def test_plan_reports_match_and_process_count(capsys) -> None:
 def test_plan_allows_empty_automatic_input(tmp_path: Path, monkeypatch, capsys) -> None:
     _init_repo(tmp_path)
     monkeypatch.chdir(tmp_path)
-    assert cli.main(['plan', '--mode', 'incremental', '--changed-files', '[]']) == 0
+    assert cli.main(['plan', '--mode', 'incremental']) == 0
     assert 'gates=0' in capsys.readouterr().out
 
 
@@ -70,7 +62,7 @@ def test_plan_allows_empty_automatic_input(tmp_path: Path, monkeypatch, capsys) 
 def test_run_empty_input_writes_fail_receipt(tmp_path: Path, monkeypatch, capsys) -> None:
     _init_repo(tmp_path)
     monkeypatch.chdir(tmp_path)
-    assert cli.main(['run', '--mode', 'incremental', '--changed-files', '[]']) == 2
+    assert cli.main(['run', '--mode', 'incremental']) == 2
     summary = next((tmp_path / 'tmp/quality/runs').glob('*/summary.json'))
     payload = json.loads(summary.read_text(encoding='utf-8'))
     assert payload['status'] == 'FAIL'
@@ -91,8 +83,6 @@ def test_incremental_selector_without_input_requires_full(tmp_path: Path, monkey
                 'incremental',
                 '--gate',
                 'javaBuildVerification',
-                '--changed-files',
-                '[]',
             ]
         )
         == 2

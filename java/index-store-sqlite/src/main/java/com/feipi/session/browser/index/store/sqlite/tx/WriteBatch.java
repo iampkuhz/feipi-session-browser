@@ -1,6 +1,5 @@
 package com.feipi.session.browser.index.store.sqlite.tx;
 
-import com.feipi.session.browser.index.store.sqlite.schema.MigrationRunner;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -99,7 +98,7 @@ public final class WriteBatch {
   /**
    * 在指定连接上执行事务的静态辅助方法。
    *
-   * <p>供 schema/tx 类（如 {@link MigrationRunner}）复用相同的事务管理模式， 避免各自重复 auto-commit 切换和回滚逻辑。
+   * <p>由 schema 初始化和写入逻辑复用，统一事务提交和回滚。
    *
    * @param conn JDBC 连接
    * @param op JDBC 操作

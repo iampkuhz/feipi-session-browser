@@ -27,7 +27,7 @@ def test_browser_changed_paths_always_use_complete_native_discovery(
     path: str, tmp_path: Path
 ) -> None:
     # Neither new nor removed paths need exist: selection cannot depend on a stale suite inventory.
-    snapshot = ChangeSnapshot('explicit-changed-files', 'head', None, (path,), 'fingerprint')
+    snapshot = ChangeSnapshot('git-working-tree', 'head', None, (path,), 'fingerprint')
     plan = compile_gate_plan(snapshot)
     gate = gate_by_name('browserTests')
     assert gate in plan.gates
@@ -37,10 +37,7 @@ def test_browser_changed_paths_always_use_complete_native_discovery(
     (invocation,) = adapt_recipe_step(
         gate, step, tmp_path, mode='incremental', changed_files=(path,)
     )
-    assert invocation.argv[:5] == ('npm', '--prefix', 'java/tests/playwright', 'test', '--')
-    assert len(invocation.argv) == 6
-    assert invocation.argv[-1].startswith('--workers=')
-    assert '--grep-invert' not in invocation.argv
+    assert invocation.argv == ('npm', '--prefix', 'java/tests/playwright', 'test')
 
 
 @pytest.mark.parametrize(
@@ -54,7 +51,7 @@ def test_browser_changed_paths_always_use_complete_native_discovery(
     ),
 )
 def test_unknown_local_java_and_shared_entries_keep_complete_root_check(path: str) -> None:
-    snapshot = ChangeSnapshot('explicit-changed-files', 'head', None, (path,), 'fingerprint')
+    snapshot = ChangeSnapshot('git-working-tree', 'head', None, (path,), 'fingerprint')
     plan = compile_gate_plan(snapshot)
     gate = gate_by_name('javaBuildVerification')
     assert gate in plan.gates
@@ -64,7 +61,7 @@ def test_unknown_local_java_and_shared_entries_keep_complete_root_check(path: st
 
 def test_unrelated_documentation_does_not_select_product_consumers() -> None:
     snapshot = ChangeSnapshot(
-        'explicit-changed-files', 'head', None, ('docs/unrelated.md',), 'fingerprint'
+        'git-working-tree', 'head', None, ('docs/unrelated.md',), 'fingerprint'
     )
     names = {gate.name for gate in compile_gate_plan(snapshot).gates}
     assert not names.intersection({'browserTests', 'javaBuildVerification'})
@@ -82,7 +79,7 @@ def test_unrelated_documentation_does_not_select_product_consumers() -> None:
     ),
 )
 def test_leaf_tools_do_not_select_unrelated_product_checks(path, included) -> None:
-    snapshot = ChangeSnapshot('explicit-changed-files', 'head', None, (path,), 'fingerprint')
+    snapshot = ChangeSnapshot('git-working-tree', 'head', None, (path,), 'fingerprint')
     names = {gate.name for gate in compile_gate_plan(snapshot).gates}
     assert included <= names
     assert not names & {'browserTests', 'javaBuildVerification', 'scanCommandSmoke'}
@@ -100,15 +97,13 @@ def test_leaf_tools_do_not_select_unrelated_product_checks(path, included) -> No
     ),
 )
 def test_shared_execution_inputs_keep_root_and_browser(path) -> None:
-    snapshot = ChangeSnapshot('explicit-changed-files', 'head', None, (path,), 'fingerprint')
+    snapshot = ChangeSnapshot('git-working-tree', 'head', None, (path,), 'fingerprint')
     names = {gate.name for gate in compile_gate_plan(snapshot).gates}
     assert {'browserTests', 'javaBuildVerification'} <= names
 
 
 def test_python_config_changes_keep_toolchain_framework_and_dependency_audit() -> None:
-    snapshot = ChangeSnapshot(
-        'explicit-changed-files', 'head', None, ('scripts/uv.lock',), 'fingerprint'
-    )
+    snapshot = ChangeSnapshot('git-working-tree', 'head', None, ('scripts/uv.lock',), 'fingerprint')
     names = {gate.name for gate in compile_gate_plan(snapshot).gates}
     assert {'scriptToolchainQuality', 'gateFrameworkTests', 'pythonDependencyAudit'} <= names
 
@@ -134,7 +129,7 @@ def test_python_config_changes_keep_toolchain_framework_and_dependency_audit() -
     ),
 )
 def test_runtime_suites_follow_distribution_inputs_not_java_test_modules(path, browser, scan):
-    snapshot = ChangeSnapshot('explicit-changed-files', 'head', None, (path,), 'fingerprint')
+    snapshot = ChangeSnapshot('git-working-tree', 'head', None, (path,), 'fingerprint')
     names = {gate.name for gate in compile_gate_plan(snapshot).gates}
     assert ('browserTests' in names, 'scanCommandSmoke' in names) == (browser, scan)
     if '/src/test/' in path or path.endswith(('.java', '/build.gradle.kts')):

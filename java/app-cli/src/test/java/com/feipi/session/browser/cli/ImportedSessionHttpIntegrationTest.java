@@ -64,7 +64,7 @@ class ImportedSessionHttpIntegrationTest {
             new ImportedSessionUseCase(
                 new IsolatedSessionImportService(
                     source -> SourceAdapterRegistry.forSourceId(source.getValue())))) {
-      IndexSchema.withDefaults().ensureSchema(connection.writerConnection());
+      IndexSchema.ensureSchema(connection.writerConnection());
       insertPersonalBaseline(connection);
       var repository = new SqliteSessionQueryRepository(connection);
       var queryRoot =

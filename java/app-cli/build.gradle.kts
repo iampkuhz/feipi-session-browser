@@ -10,9 +10,14 @@ plugins {
 
 val repoRoot = rootProject.extra["repoRoot"] as org.gradle.api.file.Directory
 val sourceVersionFile = rootProject.layout.projectDirectory.file("gradle/VERSION")
-// 发行工具跟随实际 Gradle JVM，不再各自从 PATH/JAVA_HOME 选择另一套 JDK。
-val distributionJdk = File(System.getProperty("java.home"))
-val jdkExecutableSuffix = if (System.getProperty("os.name").startsWith("Windows")) ".exe" else ""
+// 仅在需要内嵌 runtime 时校验宿主；普通 installDist 仍使用开发 JVM。
+val distributionJdk = providers.provider {
+    require(
+        System.getProperty("os.name") == "Mac OS X" &&
+            System.getProperty("os.arch") == "aarch64",
+    ) { "自包含 runtime 只支持 macOS arm64，请使用原生 JDK 25" }
+    File(System.getProperty("java.home"))
+}
 val runtimeLayout = layout.buildDirectory.dir("runtime-layout")
 
 // 产品 launcher 是 JVM profile 的唯一 owner；full scan 需要更大的有界堆。
@@ -61,25 +66,6 @@ tasks.named<CreateStartScripts>("startScripts") {
     val unixTemplate = unixGenerator.template.asString()
     require(unixTemplate.contains(unixMarker)) { "startScripts 缺少预期的 Unix JVM profile 模板" }
     unixGenerator.template = resources.text.fromString(unixTemplate.replace(unixMarker, unixProfile))
-
-    val fullScanWindows = fullScanLauncherJvmArgs.joinToString(" ") { "\"$it\"" }
-    val windowsMarker = "set DEFAULT_JVM_OPTS=${'$'}{defaultJvmOpts}"
-    val windowsProfile = """
-        $windowsMarker
-        @rem full scan 和 serve 的有界堆由 launcher 统一选择。
-        if "%~1"=="scan" (
-            for %%a in (%*) do if "%%~a"=="--full" set DEFAULT_JVM_OPTS=$fullScanWindows
-        )
-        if "%~1"=="serve" set DEFAULT_JVM_OPTS=$fullScanWindows
-    """.trimIndent()
-    val windowsGenerator = windowsStartScriptGenerator as TemplateBasedScriptGenerator
-    val windowsTemplate = windowsGenerator.template.asString()
-    require(windowsTemplate.contains(windowsMarker)) {
-        "startScripts 缺少预期的 Windows JVM profile 模板"
-    }
-    windowsGenerator.template = resources.text.fromString(
-        windowsTemplate.replace(windowsMarker, windowsProfile),
-    )
 }
 
 dependencies {
@@ -189,14 +175,8 @@ abstract class CliSmokeTestTask : DefaultTask() {
         spaceDir.mkdirs()
         installDirectory.get().asFile.copyRecursively(spaceDir, overwrite = true)
 
-        val windows = System.getProperty("os.name").startsWith("Windows")
-        val binScript = spaceDir.resolve(if (windows) "bin/app-cli.bat" else "bin/app-cli")
-        if (!windows) binScript.setExecutable(true)
-
-        val launcherContent = binScript.readText(Charsets.UTF_8)
-        require(launcherContent.contains("-Xmx128m") && launcherContent.contains("-Xmx512m")) {
-            "Smoke test failed: launcher 未同时包含标准/full-scan JVM profile"
-        }
+        val binScript = spaceDir.resolve("bin/app-cli")
+        binScript.setExecutable(true)
 
         val workDir = temporaryDir.apply { mkdirs() }
 
@@ -231,11 +211,7 @@ abstract class CliSmokeTestTask : DefaultTask() {
     }
 
     private fun execCli(workDir: File, script: String, vararg args: String): Pair<String, Int> {
-        val allArgs = if (System.getProperty("os.name").startsWith("Windows")) {
-            listOf("cmd.exe", "/d", "/c", script, *args)
-        } else {
-            listOf(script, *args)
-        }
+        val allArgs = listOf(script, *args)
         val process = ProcessBuilder(allArgs)
             .directory(workDir)
             .redirectErrorStream(false)
@@ -266,22 +242,7 @@ tasks.withType<Tar>().configureEach {
     compression = Compression.GZIP
 }
 
-distributions {
-    main {
-        distributionBaseName.set(project.name)
-        contents {
-            // VERSION 文件打包到发行根目录，供 launcher 读取版本信息。
-            from(sourceVersionFile) {
-                into("")
-            }
-        }
-    }
-}
-
-// 发行只裁剪 macOS arm64；其他宿主的内部测试使用未修改的 JDBC。
-val macArm64 = System.getProperty("os.name") == "Mac OS X" &&
-    System.getProperty("os.arch") in setOf("aarch64", "arm64")
-val sqliteNativePath = "org/sqlite/native/Mac/aarch64/"
+val sqliteNativePath = "org/sqlite/native/Mac/aarch64/libsqlitejdbc.dylib"
 val sqliteJdbcJar = configurations.runtimeClasspath.map { classpath ->
     classpath.single { it.name.startsWith("sqlite-jdbc-") && it.extension == "jar" }
 }
@@ -294,7 +255,7 @@ val nativeSqliteJar = tasks.register<Zip>("nativeSqliteJar") {
     inputs.property("nativePath", requiredPath)
     from(zipTree(sqliteJdbcJar)) {
         exclude { entry ->
-            entry.path.startsWith("org/sqlite/native/") && !entry.path.startsWith(requiredPath)
+            !entry.isDirectory && entry.path.startsWith("org/sqlite/native/") && entry.path != requiredPath
         }
     }
     includeEmptyDirs = false
@@ -305,82 +266,31 @@ val nativeSqliteJar = tasks.register<Zip>("nativeSqliteJar") {
             require(names.none { it.matches(Regex("META-INF/[^/]+\\.(SF|RSA|DSA|EC)", RegexOption.IGNORE_CASE)) }) {
                 "不能裁剪已签名的 SQLite JAR"
             }
-            require(names.any { it.startsWith(requiredPath) }) {
+            require(requiredPath in names) {
                 "SQLite JAR 缺少目标 native: $requiredPath"
             }
         }
     }
 }
-val runtimeJars = files(tasks.named("jar"), configurations.runtimeClasspath)
-
-// ============================================================
-// jdeps 模块依赖分析 —— 确定应用需要的最小 JDK 模块集合
-// ============================================================
-val jdepsModuleList = tasks.register("jdepsModuleList") {
-    group = "distribution"
-    description = "使用 jdeps 分析运行时 classpath JAR 所需的 JDK 模块清单。"
-
-    dependsOn(tasks.named("jar"))
-
-    // 直接分析原始 JAR，不为 jdeps 复制完整 installDist。
-    val jars = runtimeJars
-    val outputDir = layout.buildDirectory.dir("reports/jdeps")
-    val outputFile = outputDir.map { it.file("module-deps.txt") }
-    val jdepsExecutable = distributionJdk.resolve("bin/jdeps$jdkExecutableSuffix")
-
-    inputs.property("jdkHome", distributionJdk.absolutePath)
-    inputs.file(distributionJdk.resolve("release")).withPropertyName("jdkRelease")
-    inputs.file(jdepsExecutable).withPropertyName("jdepsExecutable")
-    inputs.files(jars).withPropertyName("runtimeJars")
-    outputs.file(outputFile).withPropertyName("moduleDepsFile")
-
-    doLast {
-        val allJars = jars.files.filter { it.name.endsWith(".jar") }
-
-        if (allJars.isEmpty()) {
-            throw org.gradle.api.GradleException("jdepsModuleList: runtime classpath 为空")
+// 开发安装与发行共用同一份 macOS arm64 SQLite JAR，launcher classpath 文件名不变。
+val nativeSqliteOutput = nativeSqliteJar.flatMap { it.archiveFile }
+distributions {
+    main {
+        distributionBaseName.set(project.name)
+        contents {
+            val packagedJar = nativeSqliteOutput
+            exclude("bin/*.bat")
+            exclude { entry ->
+                entry.name.startsWith("sqlite-jdbc-") &&
+                    entry.file != packagedJar.get().asFile
+            }
+            from(packagedJar) { into("lib") }
+            from(sourceVersionFile)
         }
-
-        val jdepsCmd = listOf(jdepsExecutable.absolutePath, "--multi-release", "base", "--print-module-deps",
-            "--ignore-missing-deps") + allJars.map { it.absolutePath }
-
-        val process = ProcessBuilder(jdepsCmd)
-            .redirectErrorStream(false)
-            .start()
-        val stdout = process.inputStream.bufferedReader().readText().trim()
-        val stderr = process.errorStream.bufferedReader().readText()
-        val exitCode = process.waitFor()
-
-        if (exitCode != 0) {
-            logger.warn("jdeps 返回非零退出码 $exitCode: $stderr")
-        }
-
-        // jdeps 输出为逗号分隔的模块列表，过滤掉非模块名称的干扰行。
-        val modules = stdout.lines()
-            .flatMap { line -> line.split(",").map { it.trim() } }
-            .filter { it.matches(Regex("[a-zA-Z][a-zA-Z0-9.]*")) && !it.contains("->") }
-            .map { if (it.startsWith("java.") || it.startsWith("jdk.")) it else "java.$it" }
-            .distinct()
-            .sorted()
-
-        // 基础模块：仅包含运行时真实依赖的 JDK 模块。
-        // java.desktop/java.management 不属于当前运行时必需路径：
-        //   - java.desktop：仅 jackson-databind 可选 AWT 引用，运行时通过反射守卫跳过
-        //   - java.management：本应用不使用 Jetty JMX
-        // java.naming：Jetty 正常 Web 初始化动态加载 NamingException，jdeps 静态分析无法捕获
-        // jdk.zipfs：Jetty 通过 FileSystems provider 读取 JAR 内的 classpath 静态资源
-        // java.net.http：StopCommand 使用 HttpClient 发送 HTTP 请求
-        val baseModules = listOf(
-            "java.base", "java.logging", "java.sql", "java.net.http", "java.naming", "jdk.zipfs",
-        )
-        val allModules = (modules + baseModules).distinct().sorted()
-
-        val out = outputFile.get().asFile
-        out.parentFile.mkdirs()
-        out.writeText(allModules.joinToString("\n") + "\n", Charsets.UTF_8)
-        logger.lifecycle("jdepsModuleList: 检测到 ${allModules.size} 个 JDK 模块: ${allModules.joinToString(", ")}")
     }
 }
+
+val runtimeJars = files(tasks.named("jar"), configurations.runtimeClasspath)
 
 // ============================================================
 // jlink 最小 runtime image —— 无系统 JDK 即可运行
@@ -389,35 +299,26 @@ val jlinkImage = tasks.register("jlinkImage") {
     group = "distribution"
     description = "使用 jlink 创建包含最小必要 JDK 模块的自包含 runtime image。"
 
-    dependsOn(jdepsModuleList)
-
+    // 只包含真实归档所需模块：Jetty 运行时使用 JNDI 与 ZIP 文件系统。
+    val modules = listOf("java.base", "java.logging", "java.naming", "java.net.http", "java.sql", "jdk.zipfs")
     val imageDir = runtimeLayout.map { it.dir("runtime") }
-    val moduleDepsFile = layout.buildDirectory.file("reports/jdeps/module-deps.txt")
-    val jlinkExecutable = distributionJdk.resolve("bin/jlink$jdkExecutableSuffix")
+    val jlinkExecutable = distributionJdk.map { it.resolve("bin/jlink") }
 
-    inputs.property("jdkHome", distributionJdk.absolutePath)
-    inputs.file(distributionJdk.resolve("release")).withPropertyName("jdkRelease")
+    inputs.property("jdkHome", distributionJdk.map { it.absolutePath })
+    inputs.file(distributionJdk.map { it.resolve("release") }).withPropertyName("jdkRelease")
     inputs.file(jlinkExecutable).withPropertyName("jlinkExecutable")
-    inputs.dir(distributionJdk.resolve("jmods")).withPropertyName("jdkModules")
-    inputs.file(moduleDepsFile).withPropertyName("moduleDeps")
-    outputs.dir(imageDir).withPropertyName("imageDir")
+    inputs.dir(distributionJdk.map { it.resolve("jmods") }).withPropertyName("jdkModules")
+    inputs.property("runtimeModules", modules)
+    outputs.dir(imageDir)
 
     doLast {
-        val modules = moduleDepsFile.get().asFile.readLines()
-            .filter { it.isNotBlank() }
-            .map { it.trim() }
-
-        if (modules.isEmpty()) {
-            throw org.gradle.api.GradleException("jlinkImage: 模块清单为空")
-        }
-
         val outDir = imageDir.get().asFile
         if (outDir.exists()) {
             outDir.deleteRecursively()
         }
 
         val jlinkArgs = listOf(
-            jlinkExecutable.absolutePath,
+            jlinkExecutable.get().absolutePath,
             "--add-modules", modules.joinToString(","),
             "--no-header-files",
             "--no-man-pages",
@@ -452,7 +353,7 @@ val runtimeVersionFile = runtimeLayout.map { it.file("VERSION") }
 
 val generateRuntimeLauncher = tasks.register("generateRuntimeLauncher") {
     group = "distribution"
-    description = "为 runtime distribution 生成跨平台 launcher 脚本。"
+    description = "生成 macOS arm64 内嵌 runtime launcher。"
 
     val launcherDir = runtimeLauncherDirectory
     val versionOutput = runtimeVersionFile
@@ -470,6 +371,7 @@ val generateRuntimeLauncher = tasks.register("generateRuntimeLauncher") {
 
     doLast {
         val binDir = launcherDir.get().asFile
+        binDir.deleteRecursively()
         binDir.mkdirs()
         versionSource.copyTo(versionOutput.get().asFile, overwrite = true)
 
@@ -510,28 +412,6 @@ val generateRuntimeLauncher = tasks.register("generateRuntimeLauncher") {
         )
         unixScript.setExecutable(true)
 
-        // Windows launcher 脚本
-        val winScript = binDir.resolve("run.bat")
-        winScript.writeText(
-            "@echo off\r\n" +
-            "rem Feipi Session Browser runtime launcher —— 使用自包含 runtime，无需系统 JDK。\r\n" +
-            "set SCRIPT_DIR=%~dp0\r\n" +
-            "set DIST_ROOT=%SCRIPT_DIR%..\r\n" +
-            "set RUNTIME_JAVA=%DIST_ROOT%\\runtime\\bin\\java.exe\r\n" +
-            "set APP_HOME=%DIST_ROOT%\\app\r\n\r\n" +
-            "if not exist \"%RUNTIME_JAVA%\" (\r\n" +
-            "    echo 错误: runtime image 未找到，请确认发行包完整。\r\n" +
-            "    exit /b 1\r\n" +
-            ")\r\n\r\n" +
-            // 交给 Java 展开 JAR 通配符，避免 cmd 逐 JAR 拼接超过 8191 字符。
-            "set \"CLASSPATH=%APP_HOME%\\lib\\*\"\r\n" +
-            "set JVM_ARGS=$standardJvmArgs\r\n" +
-            "if \"%~1\"==\"scan\" for %%a in (%*) do if \"%%~a\"==\"--full\" set JVM_ARGS=$fullScanJvmArgs\r\n" +
-            "if \"%~1\"==\"serve\" set JVM_ARGS=$fullScanJvmArgs\r\n" +
-            "\"%RUNTIME_JAVA%\" %JVM_ARGS% -cp \"%CLASSPATH%\" $mainClassName %*\r\n",
-            Charsets.UTF_8,
-        )
-
         logger.lifecycle("generateRuntimeLauncher: launcher 脚本已生成于 ${binDir.absolutePath}")
     }
 }
@@ -540,9 +420,9 @@ val generateRuntimeLauncher = tasks.register("generateRuntimeLauncher") {
 val runtimeAppContents = copySpec {
     from(runtimeJars) {
         into("lib")
-        if (macArm64) exclude("sqlite-jdbc-*.jar")
+        exclude("sqlite-jdbc-*.jar")
     }
-    if (macArm64) from(nativeSqliteJar) { into("lib") }
+    from(nativeSqliteJar) { into("lib") }
 }
 
 tasks.register<Sync>("prepareRuntimeDist") {
@@ -564,11 +444,6 @@ tasks.register<Tar>("runtimeDistTar") {
     filePermissions { unix("0644") }
     dirPermissions { unix("0755") }
     destinationDirectory.set(layout.buildDirectory.dir("distributions"))
-    val supportedHost = macArm64
-    inputs.property("macArm64", supportedHost)
-    doFirst {
-        require(supportedHost) { "runtimeDistTar 只支持 macOS arm64" }
-    }
     into("app-cli") {
         from(runtimeLauncherDirectory) {
             include("run")

@@ -37,13 +37,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Query Parity 门禁测试。
+ * 查询结果一致性测试。
  *
- * <p>验证 Java 查询结果与 Python queries.py/metrics.py 的等价语义。 使用固定脱敏 DB fixture，逐查询比较 Java 输出与预期值。
- *
- * <p>每个测试用例的 fixture 数据和预期值均手工计算，不依赖 Python 运行时。 如果 Java 查询结果偏离 Python 行为，测试会明确标出差异字段。
+ * <p>使用固定的脱敏数据库数据与手工计算的预期值，验证会话列表、计数、聚合和项目统计在不同查询入口一致。
  */
-@DisplayName("QA-080: Query Parity 门禁 — Java vs Python 等价性")
+@DisplayName("QA-080: 查询结果一致性")
 class QueryParityGateTest {
 
   @TempDir Path tempDir;
@@ -56,7 +54,7 @@ class QueryParityGateTest {
     Connection writerConn = DriverManager.getConnection(jdbcUrl);
     PragmaConfig.DEFAULTS.apply(writerConn);
     ic = IndexConnection.create(writerConn, PragmaConfig.DEFAULTS, jdbcUrl);
-    IndexSchema.withDefaults().ensureSchema(ic.writerConnection());
+    IndexSchema.ensureSchema(ic.writerConnection());
     insertParityFixture();
   }
 

@@ -58,7 +58,7 @@ class AggregateQueryRepositoryTest {
     writerConnection = DriverManager.getConnection(jdbcUrl);
     PragmaConfig.DEFAULTS.apply(writerConnection);
     indexConnection = IndexConnection.create(writerConnection, PragmaConfig.DEFAULTS, jdbcUrl);
-    IndexSchema.withDefaults().ensureSchema(indexConnection.writerConnection());
+    IndexSchema.ensureSchema(indexConnection.writerConnection());
     insertTestData();
     repo = new SqliteAggregateQueryRepository(indexConnection);
   }
@@ -804,7 +804,7 @@ class AggregateQueryRepositoryTest {
         PragmaConfig.DEFAULTS.apply(writerConn);
         try (IndexConnection emptyIc =
             IndexConnection.create(writerConn, PragmaConfig.DEFAULTS, jdbcUrl)) {
-          IndexSchema.withDefaults().ensureSchema(emptyIc.writerConnection());
+          IndexSchema.ensureSchema(emptyIc.writerConnection());
           SqliteAggregateQueryRepository emptyRepo = new SqliteAggregateQueryRepository(emptyIc);
 
           // 项目统计

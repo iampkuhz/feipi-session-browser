@@ -129,7 +129,7 @@ if [[ -n "$PYTHON" ]]; then
   pass_check "python interpreter: $PYTHON"
   run_check "python environment report" "$PYTHON" scripts/harness/python_env.py report
   run_check "test dependencies installed" \
-    "$PYTHON" scripts/harness/python_env.py check-installed --profile test
+    "$PYTHON" scripts/harness/python_env.py check-installed
 else
   fail_check "no compatible Python interpreter"
 fi

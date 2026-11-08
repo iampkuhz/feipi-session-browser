@@ -4,7 +4,11 @@
 
 ### Requirement: 单一 macOS arm64 候选
 
-发行 SHALL 仅提供 macOS arm64 自包含归档，不提供 Intel Mac、Linux、Windows 或 generic ZIP。canonical full Gate 通过后，实际 macOS arm64 宿主 SHALL 执行根 Java `check`、构建并安全解包归档，以内置 Java 通过真实 launcher 验证版本、帮助及隔离 JVM home 的无扫描 `serve` 帮助。
+发行 SHALL 仅提供 macOS arm64 自包含归档，不提供 Intel Mac、Linux、Windows 或 generic ZIP。canonical full Gate SHALL 对同一提交执行 Java 根 `check`。Gate 通过后，实际 macOS arm64 宿主 SHALL 构建并安全解包归档，以内置 Java 通过真实 launcher 验证版本、帮助及隔离 JVM home 的无扫描 `serve` 帮助。
+
+发行归档 SHALL 只生成原生 `bin/run`，其 SQLite JDBC JAR SHALL 保留 JDBC 类、SPI、许可及唯一的 macOS arm64 native。根 `check` 使用同一打包内容验证实际内嵌 JVM 和 SQLite 自动扫描，不依赖合成多平台打包。
+
+统一 Quality SHALL 在同一 macOS arm64 job 内选择并执行一档 Gate，并在首次执行 Gradle 前验证 Wrapper。Java 或发布链变更、手动运行和 tag SHALL 走 full；其他有可信 diff 基线的运行 SHALL 走 incremental。Release SHALL 复用 Quality 的 full 路径；full Gate 通过后仅运行 `runtimeDistTar`，不再执行 Java `check`。独立 Java Quality workflow 只按需生成专项报告。
 
 #### Scenario: 单一候选直接封存
 
@@ -22,11 +26,11 @@
 - **Then** SHALL 不创建或覆盖公开 Release，也不移动或删除已有 tag
 - **And** 仅在完整下载回读 draft 资产并逐项核对名称、大小和摘要后 SHALL 公开
 
-### Requirement: 实际运行与升级证据
+### Requirement: 实际运行与索引重建
 
-实际自动扫描 SHALL 先用归档 launcher 证实 JVM home 隔离，并显式使用独立索引。用户升级说明 SHALL 保留旧安装、停服备份整份索引，恢复使用备份的独立副本；同版本替换、跨版本迁移和恢复只声明实际验证范围。发行归档与清单不构成签名或公证。
+开发、构建、验证和运行 SHALL 只支持 Apple Silicon macOS。实际自动扫描 SHALL 使用隔离 JVM home 和独立索引。每个发布版本 SHALL 默认使用独立索引目录，由新版本扫描原始会话重建；不得迁移、回滚、读取或覆盖旧版索引。允许同版本增量更新。发行归档与清单不构成签名或公证。
 
-#### Scenario: 版本迁移不能逆向假定
+#### Scenario: 新版启动
 
-- **When** 新版已迁移索引或迁移未验证
-- **Then** SHALL 不把旧版读取已迁移索引或恢复未记录历史宣称为已支持
+- **When** 启动不同于现有索引版本的新版本
+- **Then** SHALL 在默认版本目录从原始会话重建；显式指向旧版索引时拒绝，不修改旧索引

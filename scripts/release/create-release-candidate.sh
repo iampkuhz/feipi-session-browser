@@ -39,14 +39,9 @@ if [[ ! -f "$VERSION_FILE" ]]; then
     exit 1
 fi
 
-VERSION="$(tr -d '[:space:]' < "$VERSION_FILE")"
-if [[ -z "$VERSION" ]]; then
-    echo "FAIL: VERSION 文件为空" >&2
-    exit 1
-fi
-
+VERSION="$(cat "$VERSION_FILE")"
 # 接受现有发布约定的 X.Y / X.Y.Z 及预发布后缀，不在此推导或改写版本。
-if [[ ! "$VERSION" =~ ^([0-9]+\.[0-9]+(-[A-Za-z0-9._-]+)?|[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9._-]+)?)$ ]]; then
+if [[ ! "$VERSION" =~ ^([0-9]+\.[0-9]+(-[A-Za-z0-9._-]+)?|[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9._-]+)?)$ || "$VERSION" == *..* ]]; then
     echo "FAIL: VERSION 格式非法: $VERSION" >&2
     echo "期望格式: X.Y 或 X.Y.Z，例如 0.4 或 0.4.1-rc.1" >&2
     exit 1
@@ -83,39 +78,12 @@ fi
 echo "  PASS: tag $TAG 不存在"
 echo ""
 
-# 阶段 4：验证 Gradle 构建
-echo "--- 阶段 4：验证构建 ---"
-
-if ! ./java/gradlew -p java check --no-daemon --quiet 2>&1; then
-    echo "FAIL: ./java/gradlew -p java check 失败" >&2
-    exit 1
-fi
-
-echo "  PASS: ./java/gradlew -p java check 通过"
-echo ""
-
-# 阶段 5：创建 tag
-echo "--- 阶段 5：创建 release tag ---"
-
-if [[ "$ACTION" == "verify" ]]; then
-    echo "  PASS: release candidate 前置验证完成"
-    echo ""
-    echo "===== Candidate 元数据 ====="
-    echo "版本: $VERSION"
-    echo "Tag: $TAG"
-    echo "Commit: $(git rev-parse --short=12 HEAD)"
-    echo "Branch: $(git rev-parse --abbrev-ref HEAD)"
-    echo "动作: verify"
-else
+if [[ "$ACTION" == "create" ]]; then
     git tag -a "$TAG" -m "Release v$VERSION"
-    echo "  PASS: tag $TAG 已创建"
-    echo ""
-    echo "===== Candidate 元数据 ====="
-    echo "版本: $VERSION"
-    echo "Tag: $TAG"
-    echo "Commit: $(git rev-parse --short=12 HEAD)"
-    echo "Branch: $(git rev-parse --abbrev-ref HEAD)"
-    echo "动作: create"
-    echo ""
-    echo "下一步: git push origin $TAG"
+    echo "  PASS: 本地 tag $TAG 已创建；尚未推送或发布"
+else
+    echo "  PASS: 本地前置验证完成；未运行远端 Gate"
 fi
+
+printf '版本: %s\nTag: %s\nCommit: %s\n动作: %s\n' \
+    "$VERSION" "$TAG" "$(git rev-parse --short=12 HEAD)" "$ACTION"

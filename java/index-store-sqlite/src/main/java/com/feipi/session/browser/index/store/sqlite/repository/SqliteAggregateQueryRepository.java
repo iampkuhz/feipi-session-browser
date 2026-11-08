@@ -72,7 +72,7 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
   private static final String MEASURED_CONTENT =
       "sessions.content_measured = 1 AND EXISTS"
           + " (SELECT 1 FROM session_artifacts a WHERE a.session_key = sessions.session_key"
-          + " AND a.artifact_type IN ('normalized', 'normalized_session_json'))";
+          + " AND a.artifact_type = 'normalized')";
 
   private static final String MEASURED_DURATION =
       MEASURED_CONTENT

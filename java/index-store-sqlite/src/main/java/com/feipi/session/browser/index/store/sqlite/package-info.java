@@ -1,5 +1,5 @@
 /**
- * {@code index-store-sqlite} 模块：SQLite schema、连接运行时与 migration 管理。
+ * {@code index-store-sqlite} 模块：SQLite schema 与连接运行时。
  *
  * <p>本模块提供 SQLite index 的完整运行时基础设施：
  *
@@ -8,12 +8,8 @@
  * <ul>
  *   <li>{@link com.feipi.session.browser.index.store.sqlite.schema.SchemaVersion} — schema 版本号，独立于
  *       scan logic version。
- *   <li>{@link com.feipi.session.browser.index.store.sqlite.schema.Migration} — 单条 migration 定义，SQL
- *       从 classpath 资源加载。
- *   <li>{@link com.feipi.session.browser.index.store.sqlite.schema.MigrationRunner} — 幂等 migration
- *       执行器，原子事务。
- *   <li>{@link com.feipi.session.browser.index.store.sqlite.schema.IndexSchema} — schema 入口，注册
- *       migration 并验证表结构。
+ *   <li>{@link com.feipi.session.browser.index.store.sqlite.schema.IndexSchema} — 从当前 DDL
+ *       建立空索引并检查发行归属。
  * </ul>
  *
  * <h2>连接运行时</h2>
@@ -23,8 +19,6 @@
  *       配置：WAL、synchronous、busy_timeout、 foreign_keys。
  *   <li>{@link com.feipi.session.browser.index.store.sqlite.connection.ConnectionFactory} —
  *       连接工厂，创建并配置 JDBC 连接。
- *   <li>{@link com.feipi.session.browser.index.store.sqlite.util.NativeLibraryDiagnostics} — native
- *       library 诊断：平台检测、加载验证、目标平台可用性检查和提取目录配置。
  *   <li>{@link com.feipi.session.browser.index.store.sqlite.tx.WriteQueue} — 有界队列 + 单 writer
  *       线程，保证写入串行化。
  *   <li>{@link com.feipi.session.browser.index.store.sqlite.tx.WriteBatch} — 批量写入辅助，事务大小可配置。

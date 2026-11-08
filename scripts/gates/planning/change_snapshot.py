@@ -23,7 +23,6 @@ if TYPE_CHECKING:
 
 _SOURCE_WORKTREE = 'git-working-tree'
 _SOURCE_BASE = 'git-base'
-_SOURCE_EXPLICIT = 'explicit-changed-files'
 _SOURCE_FULL = 'full'
 
 
@@ -162,26 +161,20 @@ def capture_change_snapshot(
     *,
     mode: ExecutionMode | str = ExecutionMode.INCREMENTAL,
     base: str | None = None,
-    changed_files: Iterable[str] | None = None,
 ) -> ChangeSnapshot:
     """采集 full 或 incremental 输入，不读取 session/runtime 证据。
 
-    Incremental 只允许一种显式来源（``base`` 或 ``changed_files``），否则使用
-    当前 Git staged/working/untracked 快照。Full 记录 HEAD，但不携带 changed files。
+    Incremental 使用提交基线或当前 Git staged/working/untracked 快照。Full 记录 HEAD，但不携带 changed files。
     """
 
     root = repo_root.resolve()
-    if base is not None and changed_files is not None:
-        raise ValueError('base and changed-files inputs are mutually exclusive')
-    if isinstance(changed_files, str):
-        raise TypeError('changed-files input must be an iterable of paths, not a string')
     selected_mode = ExecutionMode(mode)
     head = _resolve_head(root)
     resolved_base: str | None = None
 
     if selected_mode is ExecutionMode.FULL:
-        if base is not None or changed_files is not None:
-            raise ValueError('full mode does not accept base or changed-files input')
+        if base is not None:
+            raise ValueError('full mode does not accept a base')
         source, files = _SOURCE_FULL, ()
     elif base is not None:
         source = _SOURCE_BASE
@@ -196,8 +189,6 @@ def capture_change_snapshot(
                 f'{resolved_base}...HEAD',
             )
         )
-    elif changed_files is not None:
-        source, files = _SOURCE_EXPLICIT, _normalize_files(changed_files)
     else:
         source, files = _SOURCE_WORKTREE, _capture_worktree_files(root)
 

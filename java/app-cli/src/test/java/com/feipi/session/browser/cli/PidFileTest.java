@@ -101,30 +101,6 @@ class PidFileTest {
 
       assertThat(PidFile.read(tempDir)).isNull();
     }
-
-    @Test
-    @DisplayName("缺少可选字段时使用默认值")
-    void missingOptionalFieldsUseDefaults() throws Exception {
-      Files.writeString(PidFile.path(tempDir), "pid=999\n");
-
-      PidFile.Metadata meta = PidFile.read(tempDir);
-      assertThat(meta).isNotNull();
-      assertThat(meta.pid()).isEqualTo(999L);
-      assertThat(meta.port()).isEqualTo(0);
-      assertThat(meta.host()).isEqualTo("127.0.0.1");
-      assertThat(meta.startedAt()).isEmpty();
-    }
-
-    @Test
-    @DisplayName("包含空行和多余空格时仍可解析")
-    void toleratesBlankLinesAndWhitespace() throws Exception {
-      String content = "\npid = 42\n\n  \nport = 9090\nhost = 0.0.0.0\n\n";
-      Files.writeString(PidFile.path(tempDir), content);
-
-      PidFile.Metadata meta = PidFile.read(tempDir);
-      assertThat(meta).isNotNull();
-      assertThat(meta.pid()).isEqualTo(42L);
-    }
   }
 
   // ===== 解析契约 =====
@@ -134,21 +110,16 @@ class PidFileTest {
   class ParseContract {
 
     @Test
-    @DisplayName("parse 使用 fallbackIndexDir 当文件缺少 index_dir")
-    void parseUsesFallbackIndexDir() {
-      Path fallback = Path.of("/fallback/dir");
-      PidFile.Metadata meta = PidFile.parse("pid=100\nport=3000\n", fallback);
-
-      assertThat(meta).isNotNull();
-      assertThat(meta.indexDir()).isEqualTo(fallback);
+    @DisplayName("旧格式缺少 index_dir 时拒绝识别进程")
+    void rejectsMissingIndexDir() {
+      assertThat(PidFile.parse("pid=100\nport=3000\n")).isNull();
     }
 
     @Test
     @DisplayName("parse 优先使用文件中的 index_dir")
     void parsePrefersFileIndexDir() {
-      Path fallback = Path.of("/fallback/dir");
       String content = "pid=100\nindex_dir=/custom/dir\n";
-      PidFile.Metadata meta = PidFile.parse(content, fallback);
+      PidFile.Metadata meta = PidFile.parse(content);
 
       assertThat(meta).isNotNull();
       assertThat(meta.indexDir()).isEqualTo(Path.of("/custom/dir"));
@@ -157,7 +128,7 @@ class PidFileTest {
     @Test
     @DisplayName("空内容返回 null")
     void emptyContentReturnsNull() {
-      assertThat(PidFile.parse("", tempDir)).isNull();
+      assertThat(PidFile.parse("")).isNull();
     }
   }
 

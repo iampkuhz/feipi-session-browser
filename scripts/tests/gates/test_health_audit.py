@@ -11,7 +11,6 @@ from scripts.gates.catalog.gate_contracts import (
     GateTrigger,
     RecipeStep,
     RecipeStepKind,
-    TriggerMode,
 )
 from scripts.gates.execution import ExecutionEvent, ExecutionStatus, InvocationResult
 from scripts.gates.maintenance import health_audit
@@ -37,7 +36,7 @@ def _plan(*, executable: str = 'true', include_invocation: bool = True) -> GateP
     gate = Gate(
         'gateFrameworkTests',
         '校验 Gate 控制面契约。',
-        GateTrigger(TriggerMode.ALWAYS),
+        GateTrigger(('**',)),
         (),
         GateRecipe(DurationExpectations(1, 1), (step,)),
     )

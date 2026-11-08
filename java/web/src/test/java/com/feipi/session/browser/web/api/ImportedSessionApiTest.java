@@ -58,7 +58,7 @@ class ImportedSessionApiTest {
     var writer = DriverManager.getConnection(url);
     PragmaConfig.DEFAULTS.apply(writer);
     connection = IndexConnection.create(writer, PragmaConfig.DEFAULTS, url);
-    IndexSchema.withDefaults().ensureSchema(writer);
+    IndexSchema.ensureSchema(writer);
     ApiContractFixture.insertThreeSessionFixture(connection);
     ApiContractFixture.insertNormalizedArtifactForAlpha(connection, tempDir);
     Path artifactPath = tempDir.resolve("alpha-001.normalized.json");

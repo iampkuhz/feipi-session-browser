@@ -9,18 +9,17 @@ import java.util.List;
 final class RuntimePreflight {
 
   /** 产品最低 Java 主版本。 */
-  private static final int MIN_JAVA_MAJOR_VERSION = 17;
+  private static final int MIN_JAVA_MAJOR_VERSION = 25;
 
   private RuntimePreflight() {}
 
   /** 检查 Java runtime 主版本满足产品运行要求。 */
   static CheckResult checkJavaRuntime() {
-    String version = System.getProperty("java.version", "unknown");
+    Runtime.Version version = Runtime.version();
     String vendor = System.getProperty("java.vendor", "unknown");
     String vmName = System.getProperty("java.vm.name", "unknown");
-    int majorVersion = parseMajorVersion(version);
-    boolean passed = majorVersion >= MIN_JAVA_MAJOR_VERSION;
-    String detail = "版本 " + version + " (" + vendor + ", " + vmName + "；需要 Java 17+)";
+    boolean passed = version.feature() >= MIN_JAVA_MAJOR_VERSION;
+    String detail = "版本 " + version + " (" + vendor + ", " + vmName + "；需要 Java 25+)";
     return new CheckResult("Java 运行时", passed, detail);
   }
 
@@ -61,33 +60,6 @@ final class RuntimePreflight {
 
     System.out.println(failurePrefix + failed + " 项检查失败。");
     return 1;
-  }
-
-  /** 解析 Java 主版本号。 */
-  static int parseMajorVersion(String version) {
-    if (version == null || version.isBlank()) {
-      return 0;
-    }
-    if (version.startsWith("1.")) {
-      String rest = version.substring(2);
-      int dot = rest.indexOf('.');
-      return parseLeadingInt(dot > 0 ? rest.substring(0, dot) : rest);
-    }
-    int dot = version.indexOf('.');
-    return parseLeadingInt(dot > 0 ? version.substring(0, dot) : version);
-  }
-
-  /** 解析字符串开头的整数，失败返回 0。 */
-  private static int parseLeadingInt(String value) {
-    String digits = value.replaceAll("[^0-9].*", "");
-    if (digits.isBlank()) {
-      return 0;
-    }
-    try {
-      return Integer.parseInt(digits);
-    } catch (NumberFormatException e) {
-      return 0;
-    }
   }
 
   /**

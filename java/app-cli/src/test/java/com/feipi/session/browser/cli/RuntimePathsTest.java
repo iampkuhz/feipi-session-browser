@@ -14,8 +14,7 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * RuntimePaths 与 PathResolver 契约测试。
  *
- * <p>验证跨平台路径解析、配置优先级、XDG Base Directory 兼容、目录创建和权限检查。 所有测试使用 {@link TempDir}
- * 隔离文件系统，不依赖真实用户主目录或环境变量。
+ * <p>验证macOS 版本化路径、配置优先级、目录创建和权限检查。 所有测试使用 {@link TempDir} 隔离文件系统，不依赖真实用户主目录或环境变量。
  */
 @DisplayName("RuntimePaths 与 PathResolver 契约测试")
 class RuntimePathsTest {
@@ -32,14 +31,14 @@ class RuntimePathsTest {
     @DisplayName("显式路径优先于环境变量和默认值")
     void explicitPathTakesPrecedence() {
       Path explicit = tempDir.resolve("explicit-data");
-      Path result = PathResolver.resolveDataDir(explicit.toString(), "INDEX_DIR");
+      Path result = PathResolver.resolveDataDir(explicit.toString());
       assertThat(result).isEqualTo(explicit);
     }
 
     @Test
     @DisplayName("空白显式路径回退到环境变量或默认值")
     void blankExplicitFallsThrough() {
-      Path result = PathResolver.resolveDataDir("  ", "INDEX_DIR_NONEXISTENT_FOR_TEST");
+      Path result = PathResolver.resolveDataDir("  ");
       // 应回退到默认值（非 null，非空白）
       assertThat(result).isNotNull();
       assertThat(result.toString()).isNotEmpty();
@@ -48,7 +47,7 @@ class RuntimePathsTest {
     @Test
     @DisplayName("null 显式路径回退到环境变量或默认值")
     void nullExplicitFallsThrough() {
-      Path result = PathResolver.resolveDataDir(null, "INDEX_DIR_NONEXISTENT_FOR_TEST");
+      Path result = PathResolver.resolveDataDir(null);
       assertThat(result).isNotNull();
     }
   }
@@ -63,12 +62,12 @@ class RuntimePathsTest {
     @DisplayName("显式路径中 ~ 被展开为用户主目录")
     void tildeExpandedInExplicitPath() {
       String home = System.getProperty("user.home");
-      Path result = PathResolver.resolveDataDir("~/test-data", "INDEX_DIR_NONEXISTENT_FOR_TEST");
+      Path result = PathResolver.resolveDataDir("~/test-data");
       assertThat(result).isEqualTo(Path.of(home + "/test-data"));
     }
   }
 
-  // ===== PathResolver XDG 默认路径 =====
+  // ===== PathResolver 版本化默认路径 =====
 
   @Nested
   @DisplayName("PathResolver 平台默认路径")
@@ -80,50 +79,17 @@ class RuntimePathsTest {
       Path dataDir = PathResolver.defaultDataDir();
       assertThat(dataDir).isNotNull();
       assertThat(dataDir.toString()).contains("feipi");
-      assertThat(dataDir.toString()).contains("session-browser");
+      assertThat(dataDir.getParent().getFileName().toString()).isEqualTo("session-browser");
+      assertThat(dataDir.getFileName().toString())
+          .isEqualTo(BuildInfoVersionProvider.readAppVersion());
     }
 
     @Test
     @DisplayName("当前平台（macOS）默认数据目录使用 Library 结构")
     void macOSDefaultDataDir() {
-      String os = System.getProperty("os.name", "").toLowerCase();
-      if (!os.contains("mac")) {
-        return; // 非 macOS 跳过
-      }
       Path dataDir = PathResolver.defaultDataDir();
       assertThat(dataDir.toString()).contains("Library");
       assertThat(dataDir.toString()).contains("Application Support");
-    }
-
-    @Test
-    @DisplayName("macOS 日志目录使用 Library/Logs 结构")
-    void macOSLogDir() {
-      String os = System.getProperty("os.name", "").toLowerCase();
-      if (!os.contains("mac")) {
-        return;
-      }
-      Path logDir = PathResolver.defaultLogDir(tempDir);
-      assertThat(logDir.toString()).contains("Library");
-      assertThat(logDir.toString()).contains("Logs");
-    }
-
-    @Test
-    @DisplayName("macOS 缓存目录使用 Library/Caches 结构")
-    void macOSCacheDir() {
-      String os = System.getProperty("os.name", "").toLowerCase();
-      if (!os.contains("mac")) {
-        return;
-      }
-      Path cacheDir = PathResolver.defaultCacheDir(tempDir);
-      assertThat(cacheDir.toString()).contains("Library");
-      assertThat(cacheDir.toString()).contains("Caches");
-    }
-
-    @Test
-    @DisplayName("日志目录和缓存目录不为 null")
-    void logAndCacheDirNotNull() {
-      assertThat(PathResolver.defaultLogDir(tempDir)).isNotNull();
-      assertThat(PathResolver.defaultCacheDir(tempDir)).isNotNull();
     }
   }
 
@@ -136,63 +102,28 @@ class RuntimePathsTest {
     @Test
     @DisplayName("dbPath 位于数据目录下")
     void dbPathUnderDataDir() {
-      RuntimePaths paths =
-          new RuntimePaths(tempDir, tempDir.resolve("logs"), tempDir.resolve("cache"));
+      RuntimePaths paths = new RuntimePaths(tempDir);
       assertThat(paths.dbPath()).isEqualTo(tempDir.resolve(RuntimePaths.DB_FILE_NAME));
     }
 
     @Test
     @DisplayName("artifactDir 位于数据目录下")
     void artifactDirUnderDataDir() {
-      RuntimePaths paths =
-          new RuntimePaths(tempDir, tempDir.resolve("logs"), tempDir.resolve("cache"));
+      RuntimePaths paths = new RuntimePaths(tempDir);
       assertThat(paths.artifactDir()).isEqualTo(tempDir.resolve("artifacts/normalized-sessions"));
-    }
-
-    @Test
-    @DisplayName("backupDir 位于数据目录下")
-    void backupDirUnderDataDir() {
-      RuntimePaths paths =
-          new RuntimePaths(tempDir, tempDir.resolve("logs"), tempDir.resolve("cache"));
-      assertThat(paths.backupDir()).isEqualTo(tempDir.resolve("backups"));
     }
 
     @Test
     @DisplayName("pidFile 位于数据目录下")
     void pidFileUnderDataDir() {
-      RuntimePaths paths =
-          new RuntimePaths(tempDir, tempDir.resolve("logs"), tempDir.resolve("cache"));
+      RuntimePaths paths = new RuntimePaths(tempDir);
       assertThat(paths.pidFile()).isEqualTo(tempDir.resolve("server.pid"));
-    }
-
-    @Test
-    @DisplayName("fromDataDir 使用数据目录派生日志和缓存目录")
-    void fromDataDirDerivesLogAndCache() {
-      RuntimePaths paths = RuntimePaths.fromDataDir(tempDir);
-      assertThat(paths.dataDir()).isEqualTo(tempDir);
-      assertThat(paths.logDir()).isNotNull();
-      assertThat(paths.cacheDir()).isNotNull();
     }
 
     @Test
     @DisplayName("dataDir 为 null 时抛出 NullPointerException")
     void nullDataDirRejected() {
-      assertThatThrownBy(() -> new RuntimePaths(null, tempDir, tempDir))
-          .isInstanceOf(NullPointerException.class);
-    }
-
-    @Test
-    @DisplayName("logDir 为 null 时抛出 NullPointerException")
-    void nullLogDirRejected() {
-      assertThatThrownBy(() -> new RuntimePaths(tempDir, null, tempDir))
-          .isInstanceOf(NullPointerException.class);
-    }
-
-    @Test
-    @DisplayName("cacheDir 为 null 时抛出 NullPointerException")
-    void nullCacheDirRejected() {
-      assertThatThrownBy(() -> new RuntimePaths(tempDir, tempDir, null))
-          .isInstanceOf(NullPointerException.class);
+      assertThatThrownBy(() -> new RuntimePaths(null)).isInstanceOf(NullPointerException.class);
     }
   }
 
@@ -203,28 +134,21 @@ class RuntimePathsTest {
   class DirectoryCreationContract {
 
     @Test
-    @DisplayName("ensureDirectories 创建数据、日志、缓存、制品和备份目录")
+    @DisplayName("ensureDirectories 创建数据和制品目录")
     void ensureDirectoriesCreatesAll() throws IOException {
       Path dataDir = tempDir.resolve("data");
-      Path logDir = tempDir.resolve("logs");
-      Path cacheDir = tempDir.resolve("cache");
-      RuntimePaths paths = new RuntimePaths(dataDir, logDir, cacheDir);
+      RuntimePaths paths = new RuntimePaths(dataDir);
 
       paths.ensureDirectories();
 
       assertThat(dataDir).isDirectory();
-      assertThat(logDir).isDirectory();
-      assertThat(cacheDir).isDirectory();
       assertThat(paths.artifactDir()).isDirectory();
-      assertThat(paths.backupDir()).isDirectory();
     }
 
     @Test
     @DisplayName("ensureDirectories 幂等：重复调用不抛异常")
     void ensureDirectoriesIdempotent() throws IOException {
-      RuntimePaths paths =
-          new RuntimePaths(
-              tempDir.resolve("data"), tempDir.resolve("logs"), tempDir.resolve("cache"));
+      RuntimePaths paths = new RuntimePaths(tempDir.resolve("data"));
 
       paths.ensureDirectories();
       paths.ensureDirectories(); // 不抛异常即为通过
@@ -234,22 +158,18 @@ class RuntimePathsTest {
     @DisplayName("路径含空格时目录正常创建")
     void spacesInPath() throws IOException {
       Path base = tempDir.resolve("path with spaces");
-      RuntimePaths paths =
-          new RuntimePaths(base.resolve("data"), base.resolve("logs"), base.resolve("cache"));
+      RuntimePaths paths = new RuntimePaths(base.resolve("data"));
 
       paths.ensureDirectories();
 
       assertThat(paths.dataDir()).isDirectory();
-      assertThat(paths.logDir()).isDirectory();
-      assertThat(paths.cacheDir()).isDirectory();
     }
 
     @Test
     @DisplayName("路径含 Unicode 字符时目录正常创建")
     void unicodeInPath() throws IOException {
       Path base = tempDir.resolve("路径-テスト-데이터");
-      RuntimePaths paths =
-          new RuntimePaths(base.resolve("data"), base.resolve("logs"), base.resolve("cache"));
+      RuntimePaths paths = new RuntimePaths(base.resolve("data"));
 
       paths.ensureDirectories();
 
@@ -259,11 +179,10 @@ class RuntimePathsTest {
     @Test
     @DisplayName("数据目录被普通文件阻断时 ensureDirectories 抛出 IOException")
     void unavailableDataDirThrows() throws IOException {
-      // 普通文件不能作为父目录；不依赖 POSIX 权限、Windows ACL 或执行用户身份。
+      // 普通文件不能作为父目录；不依赖 文件权限或执行用户身份。
       Path blocker = Files.createFile(tempDir.resolve("data-parent-file"));
       Path dataDir = blocker.resolve("data");
-      RuntimePaths paths =
-          new RuntimePaths(dataDir, tempDir.resolve("logs"), tempDir.resolve("cache"));
+      RuntimePaths paths = new RuntimePaths(dataDir);
 
       assertThat(blocker).isRegularFile();
       assertThatThrownBy(paths::ensureDirectories).isInstanceOf(IOException.class);
@@ -280,13 +199,12 @@ class RuntimePathsTest {
     @DisplayName("RuntimePaths 使用绝对路径时不依赖 cwd")
     void absolutePathNoCwdDependency() throws IOException {
       Path absDataDir = tempDir.toAbsolutePath().resolve("abs-data");
-      RuntimePaths paths = RuntimePaths.fromDataDir(absDataDir);
+      RuntimePaths paths = new RuntimePaths(absDataDir);
       paths.ensureDirectories();
 
       assertThat(paths.dbPath()).isAbsolute();
       assertThat(paths.artifactDir()).isAbsolute();
       assertThat(paths.pidFile()).isAbsolute();
-      assertThat(paths.backupDir()).isAbsolute();
     }
   }
 }

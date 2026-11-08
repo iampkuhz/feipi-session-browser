@@ -45,17 +45,6 @@ class SourcePathOpsTest {
     }
 
     @Test
-    @DisplayName("不可相对化时回退返回原始文件路径")
-    void fallbackWhenCannotRelativize() {
-      // Windows 风格不同盘符或绝对不可能相对化的场景在 macOS/Linux 上难以触发，
-      // 使用相同路径验证不抛异常
-      Path root = Path.of("/a/b");
-      Path file = Path.of("/a/b/c");
-      Path result = SourcePathOps.toRelative(root, file);
-      assertThat(result.toString()).isEqualTo("c");
-    }
-
-    @Test
     @DisplayName("根路径与文件路径相同时返回空路径")
     void samePathReturnsEmpty() {
       Path root = Path.of("/home/user/data");

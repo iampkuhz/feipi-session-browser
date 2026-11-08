@@ -4,7 +4,7 @@
 
 ## 开发环境与验证
 
-产品用 JDK 25；POSIX Gradle Wrapper 和 Gate 自动发现，错误的显式 `JAVA_HOME` 不回退。排查时运行
+开发只支持 Apple Silicon macOS 和原生 JDK 25；Gradle Wrapper 和 Gate 自动发现 JDK，错误的显式 `JAVA_HOME` 不回退。排查时运行
 `./java/gradlew -p java --version`，确认 Launcher JVM 和 Daemon JVM 均为 25；显式设置时也可运行
 `"$JAVA_HOME/bin/java" -version`。完整发现逻辑见 `scripts/harness/java_env.sh`。
 
@@ -26,20 +26,15 @@ UV_PROJECT_ENVIRONMENT="$PWD/.local/python/venv" uv sync --project scripts --fro
 | 工程脚本 | Shell 用 `bash -n -- <path>`，行为改动跑相邻测试。Python 用 `.local/python/venv/bin/python -m pytest -c scripts/pyproject.toml --rootdir . -n 0 <test-path>`；无运行行为时可用 Ruff 定向检查 |
 | 共享契约 | OpenSpec 和实际消费者的定向测试；不把局部证据当交付 |
 
-提交或交接时一次运行 `python3 scripts/gates/cli.py run --mode incremental`，不传 `--changed-files`、
-`--base` 或 selector。它覆盖 staged、unstaged、untracked 路径的**当前工作树内容**；不证明与工作树不同的部分暂存版本。
+提交或交接时一次运行 `python3 scripts/gates/cli.py run --mode incremental`，不传 `--base` 或 selector。它覆盖 staged、unstaged、untracked 路径的**当前工作树内容**；不证明与工作树不同的部分暂存版本。
 未验证的其他差异仍在范围内；输入变化需重跑，历史 receipt 不复用。Gradle 的
 `UP-TO-DATE`/`FROM-CACHE` 是由原生输入和工具环境判定的复用，不是测试重跑。
 Java 根 `check` 已覆盖全模块测试与零跳过时，不另跑产品 `test`；构建配置按 `AGENTS.md` 另验 `java-build`。
 浏览器最终仍用原生发现完整套件；纯 Web 测试或测试模块构建不启动运行分发。Framework 对已知叶子按实际消费者发现测试，共享或未知输入仍走整套；不要把局部 spec 当全量。更多 Gate 用法见 [Gate CLI](../gates/gate-control-plane.md)。
 
-`session-browser.sh` 只直接处理 `deps`、`test`、`quality`；`serve` 启动前先执行 `:java:app-cli:installDist` 的 Gradle 增量构建（不运行测试），并由 Java CLI 安全替换同端口且可识别的旧 serve 进程，其他子命令原样转发给 Java CLI。详细工程规则见 [AGENTS.md](../../AGENTS.md)，脚本说明见 [scripts/README.md](../../scripts/README.md)。
+`session-browser.sh` 只直接处理 `deps` 和 `test`；`serve` 启动前先执行 `:java:app-cli:installDist` 的 Gradle 增量构建（不运行测试），并由 Java CLI 安全替换同端口且可识别的旧 serve 进程，其他子命令原样转发给 Java CLI。详细工程规则见 [AGENTS.md](../../AGENTS.md)，脚本说明见 [scripts/README.md](../../scripts/README.md)。
 
-修改 serve/scan 或启动链，需要验收真实启动时，可直接运行下面的消费者；不需要先 `deps`、手工 `scan --full` 或抄固定端口。它使用 synthetic 源和临时独立索引，消费本次 `serve --port 0` 输出的实际地址，验证自动扫描后的列表和详情文本，并用第二受控实例验证错地址会被拒绝。验收前后核对进程、索引和安装包指纹，只清理自己启动的进程。该测试也是 `scanCommandSmoke` suite 的第一个候选生产者：公开 serve 构建一次后，原扫描测试消费同一安装包，不再先运行重复的 installDist prerequisite。该 suite 串行执行，避免共享安装输出与扫描消费者并发。
-
-```bash
-UV_PROJECT_ENVIRONMENT="$PWD/.local/python/venv" uv run --project scripts --frozen --extra dev python -m pytest -c scripts/pyproject.toml --rootdir . -n 0 -q -s scripts/tests/script_commands/test_session_browser_serve_smoke.py
-```
+修改启动链时，用 `scanCommandSmoke` 检查真实启动：它通过公开 `serve --port 0` 消费合成会话源、临时索引与终端返回的地址，不需要手工构建 launcher 或指定固定端口。
 
 Python 项目配置和 pre-commit 配置集中在 `scripts/`；从仓库根安装或运行 hooks 时必须显式指定配置：
 

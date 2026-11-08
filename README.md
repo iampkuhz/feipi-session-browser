@@ -15,11 +15,11 @@
 
 新发行仅支持 Apple Silicon（macOS arm64）。从 [GitHub Releases](https://github.com/iampkuhz/feipi-session-browser/releases) 下载 macOS arm64 runtime 包和 `MANIFEST.SHA256`。核对后解压，运行包内的 `bin/run serve`，打开终端给出的地址。包内置 Java，不需要 Git 或 Gradle。
 
-见[安装、更新与失败恢复](docs/release/README.md#安装更新与恢复)。维护或修改源码时，使用下面的开发入口。
+见[安装与重建索引](docs/release/README.md#安装与重建索引)。维护或修改源码时，使用下面的开发入口。
 
 ## 从源码开始使用
 
-需要 Git、JDK 25 和 Bash，首次构建需联网。
+需要 Apple Silicon Mac、Git、原生 JDK 25 和 Bash，首次构建需联网。
 
 ### 1. 拉取代码
 
@@ -43,6 +43,6 @@ cd feipi-session-browser
 
 打开 **[localhost:8848](http://127.0.0.1:8848)**。服务会自动扫描本机会话；保持终端开启，按 `Ctrl-C` 停止。
 
-原始会话只读，索引保存在本机。分享截图前请脱敏，不要将服务直接暴露到公网。
+原始会话只读。新版从原始会话重新建立本机索引，不读取旧版索引。分享截图前请脱敏，不要将服务直接暴露到公网。
 
 [文档](docs/README.md) · [配置示例](docs/examples/session-browser.env.example) · [反馈问题](https://github.com/iampkuhz/feipi-session-browser/issues)

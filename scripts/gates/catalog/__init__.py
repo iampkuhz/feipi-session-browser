@@ -12,7 +12,6 @@ from scripts.gates.catalog.gate_contracts import (
     RecipeStep,
     RecipeStepKind,
     TargetPreset,
-    TriggerMode,
 )
 from scripts.gates.catalog.registry import (
     CATALOG,
@@ -36,7 +35,6 @@ __all__ = (
     'RecipeStep',
     'RecipeStepKind',
     'TargetPreset',
-    'TriggerMode',
     'gate_by_name',
     'target_preset_by_name',
     'validate_gate_catalog',

@@ -10,7 +10,6 @@ from scripts.gates.catalog.gate_contracts import (
     GateTrigger,
     RecipeStep,
     RecipeStepKind,
-    TriggerMode,
 )
 
 # 这些入口直接决定 Java/Playwright 命令和环境；领域审计、报告和 doctor 不是其输入。
@@ -42,7 +41,7 @@ JAVA_RUNTIME_BUILD_INPUTS = (
 def changed(*paths: str) -> GateTrigger:
     """声明只在 changed path 命中时自动选择的 Gate。"""
 
-    return GateTrigger(TriggerMode.CHANGED, paths)
+    return GateTrigger(paths)
 
 
 def recipe(incremental: int, full: int, *steps: RecipeStep) -> GateRecipe:
@@ -68,14 +67,13 @@ def command(
     )
 
 
-def python_check(name: str, check_id: str, *args: str, runtime: str = 'system') -> RecipeStep:
+def python_check(name: str, check_id: str, *args: str) -> RecipeStep:
     """声明一个由 Python Check registry 执行的领域步骤。"""
 
     return RecipeStep(
         name,
         RecipeStepKind.PYTHON_CHECK,
         check_id=check_id,
-        runtime=runtime,
         args=args,
     )
 
@@ -92,24 +90,22 @@ def java_rule(name: str, *rules: str) -> RecipeStep:
     return RecipeStep(name, RecipeStepKind.JAVA_RULE, rules=rules)
 
 
-def playwright(name: str, tests: tuple[str, ...] = (), *args: str) -> RecipeStep:
-    """声明 Playwright suite；空 tests 使用原生完整发现。"""
+def playwright(name: str) -> RecipeStep:
+    """声明由 Playwright 原生完整发现的 suite。"""
 
-    return RecipeStep(name, RecipeStepKind.PLAYWRIGHT, tests=tests, args=args)
+    return RecipeStep(name, RecipeStepKind.PLAYWRIGHT)
 
 
 def scan_smoke(
     name: str,
     tests: tuple[str, ...],
-    prerequisite_tasks: tuple[str, ...],
     *args: str,
 ) -> RecipeStep:
-    """声明需要准备 Java distribution 的 scan smoke 步骤。"""
+    """声明由公开 launcher 自行准备发行目录的 scan smoke 步骤。"""
 
     return RecipeStep(
         name,
         RecipeStepKind.SCAN_SMOKE,
         tests=tests,
-        prerequisite_tasks=prerequisite_tasks,
         args=args,
     )

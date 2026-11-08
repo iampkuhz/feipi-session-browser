@@ -4,12 +4,13 @@ REQUIRED_JAVA_MAJOR=25
 
 # 从实际执行结果获取真实 JDK home；不把可执行的系统占位程序视为可用 Java。
 _read_java_home() {
-    local java_bin="$1" settings major home
+    local java_bin="$1" settings major home arch
     [[ -x "$java_bin" ]] || return 1
     settings=$("$java_bin" -XshowSettings:properties -version 2>&1) || return 1
     major=$(printf '%s\n' "$settings" | sed -n 's/^[[:space:]]*java.specification.version = //p')
     home=$(printf '%s\n' "$settings" | sed -n 's/^[[:space:]]*java.home = //p')
-    [[ "$major" == "$REQUIRED_JAVA_MAJOR" && -n "$home" ]] || return 1
+    arch=$(printf '%s\n' "$settings" | sed -n 's/^[[:space:]]*os.arch = //p')
+    [[ "$major" == "$REQUIRED_JAVA_MAJOR" && "$arch" == aarch64 && -n "$home" ]] || return 1
     [[ -x "$home/bin/java" && -x "$home/bin/javac" ]] || return 1
     (cd "$home" && pwd -P)
 }
@@ -41,7 +42,7 @@ _find_java_home() {
         return 0
     fi
 
-    local brew_prefixes=("${HOMEBREW_PREFIX:-}" "/opt/homebrew" "/usr/local")
+    local brew_prefixes=("${HOMEBREW_PREFIX:-}" "/opt/homebrew")
     local candidates_dirs=("${SDKMAN_CANDIDATES_DIR:-}")
     if [[ -n "${SDKMAN_DIR:-}" ]]; then
         candidates_dirs+=("$SDKMAN_DIR/candidates")
@@ -85,6 +86,10 @@ _find_java_home() {
 # 显式配置错误不静默回退；构建和 launcher 继承同一套选定 JDK。
 discover_java_home() {
     local candidate
+    if [[ "$(uname -sm)" != 'Darwin arm64' ]]; then
+        echo "错误：开发与构建仅支持 Apple Silicon macOS（arm64）。" >&2
+        return 1
+    fi
     if [[ -n "${JAVA_HOME:-}" ]]; then
         if ! candidate=$(_validate_java_home "$JAVA_HOME"); then
             echo "错误：JAVA_HOME 已设置但无效或非 JDK ${REQUIRED_JAVA_MAJOR}：$JAVA_HOME" >&2

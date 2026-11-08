@@ -167,9 +167,6 @@ tasks.register<JavaExec>("runJavaQualityGates") {
         "--rules", javaQualityRules.get(),
         "--report-file", summary.get().asFile.absolutePath,
     )
-    if (changedFiles.get().isNotBlank()) {
-        args("--changed-files", changedFiles.get())
-    }
     if (baselineUpdateRules.get().isNotBlank()) {
         args("--update-baselines", baselineUpdateRules.get())
     }

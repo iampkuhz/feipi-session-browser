@@ -58,7 +58,7 @@ class ScanStatusQueryTest {
     String url = "jdbc:sqlite:" + directory.resolve("unknown-project.db");
     try (var connection = DriverManager.getConnection(url);
         var index = IndexConnection.withDefaults(connection, url)) {
-      IndexSchema.withDefaults().ensureSchema(connection);
+      IndexSchema.ensureSchema(connection);
       try (var statement = connection.createStatement()) {
         statement.executeUpdate(
             "INSERT INTO sessions(session_key, agent, session_id, project_key, project_name, cwd, ended_at) VALUES ('codex:unknown', 'codex', 'unknown', '', '', '', '')");

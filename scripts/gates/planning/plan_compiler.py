@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
-from scripts.gates.catalog.gate_contracts import ExecutionMode, Gate, RecipeStep, TriggerMode
+from scripts.gates.catalog.gate_contracts import ExecutionMode, Gate, RecipeStep
 from scripts.gates.catalog.registry import GATES, gate_by_name, target_preset_by_name
 from scripts.gates.planning.trigger_matcher import NotTriggeredGate, TriggerMatch, match_trigger
 
@@ -149,11 +149,7 @@ def compile_gate_plan(
         selected = GATES
     else:
         matched_names = {match.gate_name for match in matches}
-        selected = tuple(
-            candidate
-            for candidate in GATES
-            if candidate.trigger.mode is TriggerMode.ALWAYS or candidate.name in matched_names
-        )
+        selected = tuple(candidate for candidate in GATES if candidate.name in matched_names)
 
     selected_names = {candidate.name for candidate in selected}
     reason = 'excluded-by-selector' if selector_kind else 'no-trigger-pattern-matched'

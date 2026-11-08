@@ -14,12 +14,8 @@ import shutil
 import subprocess
 import sys
 import time
+import tomllib
 from dataclasses import dataclass
-
-try:
-    import tomllib
-except ModuleNotFoundError:
-    tomllib = None  # type: ignore[assignment]
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -80,7 +76,7 @@ def normalize_name(name: str) -> str:
 
 def _is_executable(path: str) -> bool:
     """判断命令名或文件路径是否指向可执行文件。"""
-    if os.sep in path or (os.altsep and os.altsep in path):
+    if os.sep in path:
         return Path(path).expanduser().is_file() and os.access(Path(path).expanduser(), os.X_OK)
     return shutil.which(path) is not None
 
@@ -135,13 +131,8 @@ def _runtime_import_names(repo_root: Path) -> tuple[str, ...]:
     path = tool_config_path(repo_root)
     if not path.is_file():
         return ()
-    if tomllib is None:
-        dependencies, _dev = _parse_pyproject_arrays(path)
-    else:
-        project = tomllib.loads(path.read_text(encoding='utf-8')).get('project', {})
-        dependencies = [str(item) for item in project.get('dependencies', [])]
     names = []
-    for dependency in dependencies:
+    for dependency in _project_config(path).get('dependencies', []):
         match = re.match(r'[A-Za-z0-9_.-]+', dependency.strip())
         if not match:
             continue
@@ -236,25 +227,14 @@ def _version_in_range(version: tuple[int, int, int]) -> bool:
 
 def _pyproject_requires_python(path: Path) -> str:
     """读取 pyproject.toml 的 requires-python，缺失时返回空字符串。"""
-    if tomllib is None:
-        for raw in path.read_text(encoding='utf-8').splitlines():
-            line = raw.strip()
-            if line.startswith('requires-python'):
-                return line.split('=', 1)[1].strip().strip('"').strip("'")
-        return ''
-    data = tomllib.loads(path.read_text(encoding='utf-8'))
-    return str(data.get('project', {}).get('requires-python', ''))
+    return str(_project_config(path).get('requires-python', ''))
 
 
 def _uv_requires_python(path: Path) -> str:
     """读取 uv.lock 的 requires-python，文件或字段缺失时返回空字符串。"""
     if not path.is_file():
         return ''
-    for raw in path.read_text(encoding='utf-8').splitlines()[:20]:
-        line = raw.strip()
-        if line.startswith('requires-python'):
-            return line.split('=', 1)[1].strip().strip('"').strip("'")
-    return ''
+    return str(tomllib.loads(path.read_text(encoding='utf-8')).get('requires-python', ''))
 
 
 def _python_contract_problems(repo_root: Path) -> list[str]:
@@ -280,43 +260,8 @@ def _python_contract_problems(repo_root: Path) -> list[str]:
     return problems
 
 
-def _parse_pyproject_arrays(path: Path) -> tuple[list[str], list[str]]:
-    """在 tomllib 不可用时解析项目维护的简单 dependency 数组结构。"""
-    text = path.read_text(encoding='utf-8')
-    deps: list[str] = []
-    dev: list[str] = []
-    current: str | None = None
-    in_array = False
-    for raw in text.splitlines():
-        line = raw.strip()
-        if line == 'dependencies = [':
-            current = 'dependencies'
-            in_array = True
-            continue
-        if line == 'dev = [':
-            current = 'dev'
-            in_array = True
-            continue
-        if in_array and line == ']':
-            current = None
-            in_array = False
-            continue
-        if in_array and current in {'dependencies', 'dev'}:
-            item = line.rstrip(',').strip().strip('"').strip("'")
-            if item:
-                (deps if current == 'dependencies' else dev).append(normalize_name(item))
-    return deps, dev
-
-
-def pyproject_names(path: Path) -> tuple[list[str], list[str]]:
-    """返回 pyproject 声明的 runtime 与 dev distribution 名。"""
-    if tomllib is None:
-        return _parse_pyproject_arrays(path)
-    data = tomllib.loads(path.read_text(encoding='utf-8'))
-    project = data.get('project', {})
-    deps = [normalize_name(item) for item in project.get('dependencies', [])]
-    dev = [normalize_name(item) for item in project.get('optional-dependencies', {}).get('dev', [])]
-    return deps, dev
+def _project_config(path: Path) -> dict:
+    return tomllib.loads(path.read_text(encoding='utf-8')).get('project', {})
 
 
 def check_locks(repo_root: Path = REPO_ROOT) -> list[str]:
@@ -328,20 +273,12 @@ def check_locks(repo_root: Path = REPO_ROOT) -> list[str]:
     return problems
 
 
-def installed_problems(profile: str, repo_root: Path = REPO_ROOT) -> list[str]:
-    """汇总指定依赖 profile 中尚未安装的 distribution。"""
-    runtime, dev = pyproject_names(tool_config_path(repo_root))
-    if profile == 'runtime':
-        names = set(runtime)
-    elif profile == 'test':
-        names = set(runtime) | _TEST_PACKAGES
-    elif profile == 'dev':
-        names = set(runtime) | set(dev)
-    else:
-        raise ValueError(f'unknown profile: {profile}')
+def installed_problems() -> list[str]:
+    """汇总本地运行和测试尚未安装的依赖。"""
+    runtime = _project_config(tool_config_path()).get('dependencies', [])
 
     problems: list[str] = []
-    for name in sorted(names):
+    for name in sorted(set(runtime) | _TEST_PACKAGES):
         try:
             importlib.metadata.version(name)
         except importlib.metadata.PackageNotFoundError:
@@ -373,9 +310,7 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest='cmd', required=True)
     sub.add_parser('resolve')
     sub.add_parser('report')
-    sub.add_parser('check-locks')
-    installed = sub.add_parser('check-installed')
-    installed.add_argument('--profile', choices=['runtime', 'test', 'dev'], default='runtime')
+    sub.add_parser('check-installed')
     args = parser.parse_args(argv)
 
     try:
@@ -384,19 +319,12 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.cmd == 'report':
             return print_report()
-        problems = check_locks() if args.cmd == 'check-locks' else installed_problems(args.profile)
+        problems = installed_problems()
         if problems:
             for problem in problems:
                 print(f'[FAIL] {problem}', file=sys.stderr)
             return 1
-        print(
-            '[PASS] '
-            + (
-                'Python dependency contract present'
-                if args.cmd == 'check-locks'
-                else f'{args.profile} dependencies installed'
-            )
-        )
+        print('[PASS] Python test dependencies installed')
         return 0
     except ProjectPythonNotReadyError as exc:
         print(exc.render(), file=sys.stderr)

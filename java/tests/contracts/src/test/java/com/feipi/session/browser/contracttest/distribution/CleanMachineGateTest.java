@@ -140,16 +140,12 @@ class CleanMachineGateTest {
     @DisplayName("RuntimePaths 使用绝对路径，不依赖 cwd")
     void runtimePathsAbsoluteNoCwdDependency() throws IOException {
       Path base = tempDir.toAbsolutePath().resolve("clean-machine");
-      RuntimePaths paths =
-          new RuntimePaths(base.resolve("data"), base.resolve("logs"), base.resolve("cache"));
+      RuntimePaths paths = new RuntimePaths(base.resolve("data"));
       paths.ensureDirectories();
 
       assertThat(paths.dataDir()).isAbsolute();
-      assertThat(paths.logDir()).isAbsolute();
-      assertThat(paths.cacheDir()).isAbsolute();
       assertThat(paths.dbPath()).isAbsolute();
       assertThat(paths.artifactDir()).isAbsolute();
-      assertThat(paths.backupDir()).isAbsolute();
       assertThat(paths.pidFile()).isAbsolute();
     }
 

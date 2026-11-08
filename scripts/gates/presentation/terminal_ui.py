@@ -35,12 +35,10 @@ _EVENT_FIELD_ORDER = (
 class ReceiptView(Protocol):
     """Presentation 读取的最小 receipt 视图，避免阶段间实现依赖。"""
 
-    schema_version: int
     run_id: str
     status: str
     reason: str
     duration_ms: int
-    plan_fingerprint: str
     summary_path: Path
     canonical_rerun: str
 
@@ -89,7 +87,7 @@ def _gate_payload(gate: Gate) -> dict[str, Any]:
         'id': gate.name,
         'description': gate.description,
         'targetPresets': list(gate.target_presets),
-        'trigger': {'mode': gate.trigger.mode.value, 'patterns': list(gate.trigger.paths)},
+        'trigger': {'mode': 'changed', 'patterns': list(gate.trigger.paths)},
         'durationTargetsSeconds': {
             'incremental': gate.recipe.duration_expectations.incremental,
             'full': gate.recipe.duration_expectations.full,
@@ -126,10 +124,7 @@ def render_gate_catalog(catalog: GateCatalog, *, output_format: str = 'human') -
     lines = [f'GATES count={len(catalog.gates)}']
     for gate in catalog.gates:
         targets = ','.join(gate.target_presets) or '-'
-        lines.append(
-            f'- {gate.name}: {gate.description} '
-            f'[trigger={gate.trigger.mode.value}; targets={targets}]'
-        )
+        lines.append(f'- {gate.name}: {gate.description} [targets={targets}]')
     lines.append(f'TARGET_PRESETS count={len(catalog.target_presets)}')
     for target in catalog.target_presets:
         gates = ','.join(gate.name for gate in catalog.gates if target.name in gate.target_presets)
@@ -153,7 +148,6 @@ def render_explanation(
         lines = [
             f'GATE id={subject.name}',
             f'description={subject.description}',
-            f'trigger={subject.trigger.mode.value}',
         ]
         lines.extend(f'pattern={pattern}' for pattern in subject.trigger.paths)
         lines.append(f'targetPresets={",".join(subject.target_presets) or "-"}')
@@ -297,28 +291,14 @@ def render_terminal_event(
     return ' '.join(rendered)
 
 
-def render_run_receipt(receipt: ReceiptView, *, output_format: str = 'human') -> str:
+def render_run_receipt(receipt: ReceiptView) -> str:
     """展示一次已持久化运行的最终状态和可复现入口。"""
 
-    _require_format(output_format)
     next_action = (
         'python3 scripts/gates/cli.py plan --mode incremental'
         if receipt.reason == 'input-empty'
         else receipt.canonical_rerun
     )
-    payload = {
-        'schemaVersion': receipt.schema_version,
-        'runId': receipt.run_id,
-        'status': receipt.status,
-        'reason': receipt.reason,
-        'durationMs': receipt.duration_ms,
-        'planFingerprint': receipt.plan_fingerprint,
-        'summaryPath': str(receipt.summary_path),
-        'canonicalRerun': receipt.canonical_rerun,
-        'nextAction': next_action,
-    }
-    if output_format == 'json':
-        return _render_json(payload)
     reason = f' reason={receipt.reason}' if receipt.reason else ''
     return (
         f'DONE run={receipt.run_id} status={receipt.status}{reason} '

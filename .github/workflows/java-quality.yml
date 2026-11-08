@@ -1,30 +1,7 @@
-# macOS arm64 Java 产品验证；统一 Gate receipt 由 quality.yml 负责。
+# 按需生成 Java 专项报告；自动验证与统一 Gate receipt 由 quality.yml 负责。
 name: Java Quality
 
 on:
-  push:
-    branches: [main, main_java]
-    paths:
-      - 'java/**'
-      - 'java/gradle/build-logic/**'
-      - 'java/gradle/**'
-      - 'java/gradle.properties'
-      - 'java/build.gradle.kts'
-      - 'java/settings.gradle.kts'
-      - 'scripts/gates/checks/**'
-      - 'scripts/gates/config/technical-terms.json'
-      - '.github/workflows/java-quality.yml'
-  pull_request:
-    paths:
-      - 'java/**'
-      - 'java/gradle/build-logic/**'
-      - 'java/gradle/**'
-      - 'java/gradle.properties'
-      - 'java/build.gradle.kts'
-      - 'java/settings.gradle.kts'
-      - 'scripts/gates/checks/**'
-      - 'scripts/gates/config/technical-terms.json'
-      - '.github/workflows/java-quality.yml'
   workflow_dispatch:
 
 concurrency:
@@ -54,7 +31,7 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/main_java' }}
+          cache-read-only: true
           build-scan-publish: false
 
       - name: Check native macOS arm64 host
@@ -62,12 +39,6 @@ jobs:
 
       - name: qualityFull
         run: ./java/gradlew -p java qualityFull
-
-      - name: Check development launcher
-        run: |
-          ./java/gradlew -p java :java:app-cli:installDist
-          ./java/app-cli/build/install/app-cli/bin/app-cli --help
-          ./java/app-cli/build/install/app-cli/bin/app-cli --version
 
       - name: Upload quality reports
         if: always()

@@ -89,7 +89,7 @@ final class PidFile {
   /**
    * 写入 PID 文件。
    *
-   * <p>原子性不保证，但写入顺序为 pid → port → host → index_dir → app_name → started_at， 读取时按行解析，容忍缺失字段。
+   * <p>原子性不保证，但写入顺序为 pid → port → host → index_dir → app_name → started_at， 读取时按行解析，缺少索引目录时拒绝。
    *
    * @param indexDir 索引目录
    * @param pid 进程 ID
@@ -112,7 +112,7 @@ final class PidFile {
   /**
    * 读取并解析 PID 文件。
    *
-   * <p>文件不存在时返回 {@code null}；格式损坏时尽量解析已知字段， 缺少必要字段（pid）时返回 {@code null}。
+   * <p>文件不存在时返回 {@code null}；格式损坏时尽量解析已知字段， 缺少必要字段（pid、index_dir）时返回 {@code null}。
    *
    * @param indexDir 索引目录
    * @return 解析后的元数据，文件不存在或解析失败时返回 {@code null}
@@ -124,7 +124,7 @@ final class PidFile {
       return null;
     }
     String content = Files.readString(file, StandardCharsets.UTF_8);
-    return parse(content, indexDir);
+    return parse(content);
   }
 
   /**
@@ -178,10 +178,9 @@ final class PidFile {
    * 解析 PID 文件内容。
    *
    * @param content 文件内容
-   * @param fallbackIndexDir 当文件中缺少 index_dir 字段时的回退路径
-   * @return 解析后的元数据，缺少 pid 字段时返回 null
+   * @return 解析后的元数据，缺少进程 ID 或索引目录时返回 null
    */
-  static Metadata parse(String content, Path fallbackIndexDir) {
+  static Metadata parse(String content) {
     Map<String, String> props = new LinkedHashMap<>();
     try (BufferedReader reader = new BufferedReader(new StringReader(content))) {
       String line;
@@ -214,10 +213,10 @@ final class PidFile {
     int port = parseIntOrDefault(props.get("port"), 0);
     String host = props.getOrDefault("host", "127.0.0.1");
     String indexDirStr = props.get("index_dir");
-    Path indexDir =
-        indexDirStr != null && !indexDirStr.isBlank()
-            ? Path.of(indexDirStr.trim())
-            : fallbackIndexDir;
+    if (indexDirStr == null || indexDirStr.isBlank()) {
+      return null;
+    }
+    Path indexDir = Path.of(indexDirStr);
     String startedAt = props.getOrDefault("started_at", "");
 
     return new Metadata(pid, port, host, indexDir, startedAt);

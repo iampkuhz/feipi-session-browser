@@ -42,11 +42,11 @@ class SourceDirectoriesTest {
     }
 
     assertThat(scanRoots(Set.of())).containsExactlyElementsOf(roots);
-    assertThat(serveRoots(Set.of())).containsExactlyElementsOf(roots);
+    assertThat(serveRoots()).containsExactlyElementsOf(roots);
   }
 
   @Test
-  void bothCommandsApplyAgentFilter() throws Exception {
+  void scanAppliesAgentFilter() throws Exception {
     Files.createDirectories(home.resolve(".claude"));
     Files.createDirectories(home.resolve(".codex"));
     Files.createDirectories(home.resolve(".qoder"));
@@ -54,7 +54,6 @@ class SourceDirectoriesTest {
     for (String agent : List.of("claude_code", "codex", "qoder")) {
       Path expected = home.resolve(agent.equals("claude_code") ? ".claude" : "." + agent);
       assertThat(scanRoots(Set.of(agent))).containsExactly(expected);
-      assertThat(serveRoots(Set.of(agent))).containsExactly(expected);
     }
   }
 
@@ -62,7 +61,7 @@ class SourceDirectoriesTest {
   void missingDirectoriesAndRegularFilesAreNotSources() throws Exception {
     Files.createFile(home.resolve(".claude"));
     assertThat(scanRoots(Set.of())).isEmpty();
-    assertThat(serveRoots(Set.of())).isEmpty();
+    assertThat(serveRoots()).isEmpty();
   }
 
   private List<Path> scanRoots(Set<String> filter) throws Exception {
@@ -71,12 +70,12 @@ class SourceDirectoriesTest {
     return roots(method.invoke(new ScanCommand(), filter));
   }
 
-  private List<Path> serveRoots(Set<String> filter) throws Exception {
+  private List<Path> serveRoots() throws Exception {
     ServerLifecycle lifecycle =
-        new ServerLifecycle(home.resolve("index"), "127.0.0.1", 0, true, true, filter);
-    Method method = ServerLifecycle.class.getDeclaredMethod("buildSourceEntries", Path.class);
+        new ServerLifecycle(home.resolve("index"), "127.0.0.1", 0, true, false);
+    Method method = ServerLifecycle.class.getDeclaredMethod("buildSourceEntries");
     method.setAccessible(true);
-    return roots(method.invoke(lifecycle, home.resolve("artifacts")));
+    return roots(method.invoke(lifecycle));
   }
 
   private static List<Path> roots(Object entries) {

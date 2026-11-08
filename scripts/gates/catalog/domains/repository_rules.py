@@ -16,6 +16,7 @@ GATES = (
         trigger=changed(
             '.gitignore',
             'AGENTS.md',
+            'README.md',
             '.claude/CLAUDE.md',
             '.github/**',
             '.agents/**',
@@ -38,7 +39,6 @@ GATES = (
                 'repository.file-boundary',
                 '--root',
                 '{repo_root}',
-                '--all-tracked',
             ),
         ),
     ),

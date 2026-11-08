@@ -240,13 +240,8 @@ def _canonical_rerun(plan: GatePlan) -> str:
     command = ['python3', 'scripts/gates/cli.py', 'run', '--mode', plan.mode.value]
     if plan.selector_kind and plan.selector_value:
         command.extend([f'--{plan.selector_kind}', plan.selector_value])
-    if plan.mode.value == 'incremental':
-        if plan.snapshot.source == 'git-base' and plan.snapshot.base:
-            command.extend(['--base', plan.snapshot.base])
-        else:
-            command.extend(
-                ['--changed-files', json.dumps(list(plan.snapshot.files), separators=(',', ':'))]
-            )
+    if plan.snapshot.base:
+        command.extend(['--base', plan.snapshot.base])
     return shlex.join(command)
 
 

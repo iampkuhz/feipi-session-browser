@@ -209,10 +209,10 @@ def _run_git(
     )
 
 
-def _git_output(root: Path, args: list[str], *, input_bytes: bytes | None = None) -> bytes:
+def _git_output(root: Path, args: list[str]) -> bytes:
     """读取必须成功的 Git 输出，任何错误都采用 fail-closed。"""
     try:
-        result = _run_git(root, args, input_bytes=input_bytes)
+        result = _run_git(root, args)
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise RuntimeError(f"git {' '.join(args)} failed: {exc}") from exc
     if result.returncode != 0:
@@ -261,14 +261,9 @@ def _path_exists(path: Path) -> bool:
     return path.exists() or os.path.lexists(path)
 
 
-def _candidate_paths(root: Path, all_tracked: bool) -> list[str]:
-    """读取本次新增/修改路径或全部追踪路径，并排除正在删除的清理项。"""
-    args = (
-        ['ls-files', '-z']
-        if all_tracked
-        else ['diff', '--cached', '--name-only', '-z', '--diff-filter=ACMR']
-    )
-    paths = _split_nul_paths(_git_output(root, args))
+def _candidate_paths(root: Path) -> list[str]:
+    """检查所有跟踪路径，并排除正在删除的清理项。"""
+    paths = _split_nul_paths(_git_output(root, ['ls-files', '-z']))
     return [path for path in paths if _path_exists(root / path)]
 
 
@@ -337,10 +332,10 @@ def _gate_root_layout_errors(root: Path) -> list[str]:
     return errors
 
 
-def _validate(root: Path, manifest_path: Path, all_tracked: bool) -> list[str]:
+def _validate(root: Path) -> list[str]:
     """一次完成公开入口、磁盘路径和 Git 追踪边界检查。"""
 
-    forbidden_paths = _load_forbidden_paths(manifest_path)
+    forbidden_paths = _load_forbidden_paths(root / MANIFEST_RELATIVE_PATH)
     errors = [f'缺少必需路径: {path}' for path in REQUIRED_PATHS if not _path_exists(root / path)]
     errors.extend(_gate_root_layout_errors(root))
     errors.extend(
@@ -349,7 +344,7 @@ def _validate(root: Path, manifest_path: Path, all_tracked: bool) -> list[str]:
         if _path_exists(root / path)
     )
 
-    candidates = _candidate_paths(root, all_tracked)
+    candidates = _candidate_paths(root)
     errors.extend(
         f'{item.path}: 被 ignore 规则追踪 ({item.source}:{item.line}:{item.pattern})'
         for item in _ignored_findings(root, candidates)
@@ -368,18 +363,11 @@ def check(arguments: list[str]) -> CheckResult:
     """解析检查范围并返回全部仓库文件政策违规。"""
     parser = argument_parser(description='Validate repository file policy')
     parser.add_argument('--root', default=str(REPO_ROOT), help='Repository root to inspect')
-    parser.add_argument('--manifest', help='Manifest path, relative to --root by default')
-    mode = parser.add_mutually_exclusive_group()
-    mode.add_argument('--staged', action='store_true', help='Check staged changed paths')
-    mode.add_argument('--all-tracked', action='store_true', help='Check every tracked path')
     args = parser.parse_args(arguments)
 
     root = Path(args.root).resolve()
-    manifest_path = Path(args.manifest) if args.manifest else MANIFEST_RELATIVE_PATH
-    if not manifest_path.is_absolute():
-        manifest_path = root / manifest_path
     try:
-        errors = _validate(root, manifest_path, args.all_tracked)
+        errors = _validate(root)
     except RuntimeError as exc:
         return CheckResult.execution_failure(
             [f'repository file policy cannot inspect repository: {exc}'],

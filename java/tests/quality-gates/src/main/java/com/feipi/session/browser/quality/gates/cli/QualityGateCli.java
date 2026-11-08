@@ -82,10 +82,7 @@ public final class QualityGateCli {
               options.repoRoot(),
               options.paths(),
               path -> selectedRules.stream().anyMatch(rule -> rule.supportsPath(path)));
-      var changedJson = options.changedFiles();
-      if (changedJson == null) {
-        changedJson = environment.get("QUALITY_CHANGED_FILES");
-      }
+      var changedJson = environment.get("QUALITY_CHANGED_FILES");
       var changedPaths =
           changedJson != null && selectedRules.stream().anyMatch(QualityRule::usesChangedFiles)
               ? changedPaths(options.repoRoot(), parseStringArray(changedJson))
@@ -435,7 +432,6 @@ public final class QualityGateCli {
    * @param repoRoot 仓库根目录。
    * @param paths 显式源码输入路径。
    * @param rules 待运行的规则标识列表。
-   * @param changedFiles planner 传入的变更文件 JSON；未传时为空。
    * @param reportFile 结构化摘要输出文件；未传时为空。
    * @param baselineUpdateRequested 是否出现 baseline 维护 option。
    * @param baselineUpdateRules 显式维护 baseline 的 rule id 集合。
@@ -444,7 +440,6 @@ public final class QualityGateCli {
       Path repoRoot,
       List<Path> paths,
       List<String> rules,
-      String changedFiles,
       Path reportFile,
       boolean baselineUpdateRequested,
       List<String> baselineUpdateRules) {
@@ -453,7 +448,6 @@ public final class QualityGateCli {
       var repoRoot = Path.of("").toAbsolutePath().normalize();
       var paths = new ArrayList<Path>();
       var rules = new ArrayList<String>();
-      String changedFiles = null;
       Path reportFile = null;
       var baselineUpdateRequested = false;
       var baselineUpdateRules = new ArrayList<String>();
@@ -472,7 +466,6 @@ public final class QualityGateCli {
               }
             }
           }
-          case "--changed-files" -> changedFiles = requiredValue(args, ++index, "--changed-files");
           case "--report-file" ->
               reportFile = Path.of(requiredValue(args, ++index, "--report-file"));
           case "--update-baselines" -> {
@@ -503,7 +496,6 @@ public final class QualityGateCli {
           repoRoot,
           List.copyOf(paths),
           List.copyOf(rules),
-          changedFiles,
           reportFile,
           baselineUpdateRequested,
           List.copyOf(baselineUpdateRules));

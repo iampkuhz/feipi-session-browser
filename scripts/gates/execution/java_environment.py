@@ -41,9 +41,9 @@ def resolve_java_environment(
 def requires_java(invocations: tuple[CommandInvocation, ...]) -> bool:
     """识别需要 Java 的消费者，包括启动产品服务的浏览器测试。"""
     return any(
-        item.kind in {'gradle-task', 'java-rule', 'gradle-prerequisite', 'scan-smoke', 'playwright'}
+        item.kind in {'gradle-task', 'java-rule', 'scan-smoke', 'playwright'}
         or any(
-            Path(arg).name in {'gradlew', 'gradlew.bat', 'java', 'javac', 'session-browser.sh'}
+            Path(arg).name in {'gradlew', 'java', 'javac', 'session-browser.sh'}
             for arg in item.argv[:2]
         )
         for item in invocations

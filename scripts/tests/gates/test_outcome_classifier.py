@@ -101,20 +101,6 @@ def test_gradle_spotless_failure_is_verification_blocked(tmp_path: Path) -> None
     assert dict(result.task_outcomes) == {':java:index-api:spotlessJavaCheck': 'FAILED'}
 
 
-def test_gradle_prerequisite_failure_is_dependency_fail(tmp_path: Path) -> None:
-    result = _classify(
-        tmp_path,
-        'gradle-prerequisite',
-        ('./java/gradlew', '-p', 'java', ':java:app-cli:installDist'),
-        1,
-        '> Task :java:app-cli:installDist FAILED',
-    )
-    assert (result.status, result.reason) == (
-        ExecutionStatus.FAIL,
-        'dependency-unavailable',
-    )
-
-
 def test_gradle_rejects_skipped_owner_but_ignores_housekeeping(tmp_path: Path) -> None:
     housekeeping = _classify(
         tmp_path,
@@ -176,11 +162,6 @@ def test_generic_warning_text_does_not_guess_blocked(tmp_path: Path) -> None:
             '> Task :check\nBUILD SUCCESSFUL',
         ),
         ('java-rule', ('./java/gradlew', '-p', 'java', 'rule'), '> Task :rule UP-TO-DATE'),
-        (
-            'gradle-prerequisite',
-            ('./java/gradlew', '-p', 'java', 'assemble'),
-            '> Task :assemble FROM-CACHE',
-        ),
     ],
 )
 @pytest.mark.parametrize('code', [0, 1])

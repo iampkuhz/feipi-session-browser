@@ -36,7 +36,7 @@ class InitialPageSnapshotTest {
     String url = "jdbc:sqlite:" + directory.resolve("unknown-activity.db");
     try (var connection = DriverManager.getConnection(url);
         var index = IndexConnection.withDefaults(connection, url)) {
-      IndexSchema.withDefaults().ensureSchema(connection);
+      IndexSchema.ensureSchema(connection);
       publish(connection);
       var aggregate = new SqliteAggregateQueryRepository(index);
       assertThat(aggregate.agentBreakdown())
@@ -65,7 +65,7 @@ class InitialPageSnapshotTest {
         var executor = Executors.newSingleThreadExecutor()) {
       PragmaConfig.DEFAULTS.apply(connection);
       PragmaConfig.DEFAULTS.apply(publisher);
-      IndexSchema.withDefaults().ensureSchema(connection);
+      IndexSchema.ensureSchema(connection);
       var firstRead = new CountDownLatch(1);
       var committed = new CountDownLatch(1);
       var delegate = new SqliteAggregateQueryRepository(index);
@@ -122,7 +122,7 @@ class InitialPageSnapshotTest {
     String url = "jdbc:sqlite:" + directory.resolve("stable.db");
     try (var connection = DriverManager.getConnection(url);
         var index = IndexConnection.withDefaults(connection, url)) {
-      IndexSchema.withDefaults().ensureSchema(connection);
+      IndexSchema.ensureSchema(connection);
       publish(connection);
       var root = queryRoot(index, new SqliteAggregateQueryRepository(index));
       // 直接执行全部页面查询，避免把测试数据错误误认成快照失败回归。

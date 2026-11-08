@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.feipi.session.browser.index.api.write.IndexWriterPort;
+import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
 import com.feipi.session.browser.source.spi.BoundedStream;
 import com.feipi.session.browser.source.spi.Candidate;
 import com.feipi.session.browser.source.spi.SourceAdapter;
@@ -45,9 +46,7 @@ class ScanRebuildProgressTest {
   void setUp() throws SQLException {
     conn = SqliteTestHelper.createInMemoryConnection();
     conn.setAutoCommit(false);
-    new com.feipi.session.browser.index.store.sqlite.schema.IndexSchema(
-            com.feipi.session.browser.index.store.sqlite.schema.MigrationRunner.withAllMigrations())
-        .ensureSchema(conn);
+    IndexSchema.ensureSchema(conn);
   }
 
   @AfterEach

@@ -58,7 +58,7 @@ def test_python_dependency_audit_check_stops_when_export_fails(monkeypatch, tmp_
     calls = 0
     monkeypatch.setattr(audit.shutil, 'which', lambda _name: '/tool/uv')
 
-    def fake_run(command, *, root, input_text=None):
+    def fake_run(*_args, **_kwargs):
         nonlocal calls
         calls += 1
         return _completed(2, stderr='lock export failed')
@@ -83,7 +83,7 @@ def test_python_dependency_audit_check_reports_audit_vulnerability(monkeypatch, 
         )
     )
     monkeypatch.setattr(audit.shutil, 'which', lambda _name: '/tool/uv')
-    monkeypatch.setattr(audit, '_run', lambda *args, **kwargs: next(results))
+    monkeypatch.setattr(audit, '_run', lambda *_args, **_kwargs: next(results))
 
     result = audit.check(['--root', str(tmp_path)])
 
@@ -101,7 +101,7 @@ def test_python_dependency_audit_check_preserves_network_error(monkeypatch, tmp_
         )
     )
     monkeypatch.setattr(audit.shutil, 'which', lambda _name: '/tool/uv')
-    monkeypatch.setattr(audit, '_run', lambda *args, **kwargs: next(results))
+    monkeypatch.setattr(audit, '_run', lambda *_args, **_kwargs: next(results))
 
     result = audit.check(['--root', str(tmp_path)])
 

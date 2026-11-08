@@ -83,10 +83,6 @@ def _regular(path):
     return path.is_file() and not path.is_symlink()
 
 
-def _archives(directory):
-    return sorted(p for p in directory.iterdir() if p.name.endswith('.tar.gz'))
-
-
 def parse_manifest(path: Path):
     """严格解析非空清单，拒绝重复及不安全文件名。"""
     if not _regular(path):
@@ -114,50 +110,13 @@ def parse_manifest(path: Path):
         return [], str(error)
 
 
-def verify_manifest_against_files(manifest_path: Path, dist_dir: Path):
-    """验证清单与实际归档一一对应，拒绝目录及链接伪装。"""
-    entries, error = parse_manifest(manifest_path)
-    if error:
-        return False, [error]
-    errors = _manifest_errors(entries, dist_dir)
-    return not errors, errors
-
-
-def _manifest_errors(entries, dist_dir):
-    errors = []
-    if {p.name for p in _archives(dist_dir)} != {e.filename for e in entries}:
-        errors.append('manifest/archive membership mismatch')
-    for entry in entries:
-        asset = dist_dir / entry.filename
-        if not _regular(asset):
-            errors.append(f'missing file or nonregular asset: {entry.filename}')
-        elif asset.stat().st_size != entry.size:
-            errors.append(f'size mismatch: {entry.filename}')
-        elif compute_sha256(asset) != entry.sha256:
-            errors.append(f'hash mismatch: {entry.filename}')
-    return errors
-
-
-def generate_manifest(directory: Path):
-    """为非空正规归档集合生成清单；不用于认可下载输入。"""
-    assets = _archives(directory)
-    if not assets or any(
-        not _regular(p) or not ASSET_PATTERN.fullmatch(p.name) or '..' in p.name for p in assets
-    ):
-        raise ValueError('empty or unsafe archive set')
-    _write_manifest(directory, [_measure(asset) for asset in assets])
-
-
 def _measure(archive):
     return ManifestEntry(compute_sha256(archive), archive.stat().st_size, archive.name)
 
 
-def _write_manifest(directory, entries):
+def _write_manifest(directory, entry):
     (directory / 'MANIFEST.SHA256').write_text(
-        ''.join(
-            f'{entry.sha256}  {entry.size}  {entry.filename}\n'
-            for entry in sorted(entries, key=lambda entry: entry.filename)
-        ),
+        f'{entry.sha256}  {entry.size}  {entry.filename}\n',
         encoding='utf-8',
     )
 
@@ -241,10 +200,7 @@ def safe_extract_tar(path: Path, destination: Path):
 
 def is_macos_arm64():
     """检查真实原生宿主，不把异平台验证记为发行 smoke。"""
-    return system_platform.system() == 'Darwin' and system_platform.machine().lower() in {
-        'arm64',
-        'aarch64',
-    }
+    return system_platform.system() == 'Darwin' and system_platform.machine() == 'arm64'
 
 
 def _structure(extracted, version):
@@ -321,7 +277,6 @@ def run_launcher_smoke_test(extract_dir: Path, version: str):
             blocker.chmod(0o755)
             env = {
                 'HOME': str(home),
-                'USERPROFILE': str(home),
                 'PATH': str(sandbox),
                 'JAVA_TOOL_OPTIONS': f'-Duser.home="{home}"',
             }
@@ -335,8 +290,8 @@ def run_launcher_smoke_test(extract_dir: Path, version: str):
             if re.findall(r'^\s*user\.home = (.*)$', properties, re.M) != [str(home)]:
                 raise ValueError('launcher did not use the isolated JVM home')
             architectures = re.findall(r'^\s*os\.arch = (.*)$', properties, re.M)
-            if architectures not in (['aarch64'], ['arm64']):
-                raise ValueError('launcher JVM os.arch must be aarch64 or arm64')
+            if architectures != ['aarch64']:
+                raise ValueError('launcher JVM os.arch must be aarch64')
             if index.exists() or index.is_symlink():
                 raise ValueError('serve help unexpectedly created an index')
             if not _valid_outputs(version_output, help_output, version) or not _valid_serve_help(
@@ -467,7 +422,7 @@ def prepare_candidate(dist_dir: Path, output_dir: Path, provenance: Provenance):
                 'isolated_jvm_home': True,
             },
         )
-        _write_manifest(staging, [entry])
+        _write_manifest(staging, entry)
         staging.rename(output_dir)
     return output_dir / filename
 
@@ -506,9 +461,6 @@ def main():
     """解析命令并返回退出码；不执行 Git 或远端发布。"""
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
-    checksum = commands.add_parser('checksums')
-    checksum.add_argument('--dist-dir', type=Path, required=True)
-    checksum.add_argument('--verify', action='store_true')
     prepare = commands.add_parser('prepare')
     prepare.add_argument('--dist-dir', type=Path, required=True)
     prepare.add_argument('--output-dir', type=Path, required=True)
@@ -519,28 +471,18 @@ def main():
             command.add_argument('--' + field, required=True)
     args = parser.parse_args()
     try:
-        if args.command == 'checksums':
-            if args.verify:
-                valid, errors = verify_manifest_against_files(
-                    args.dist_dir / 'MANIFEST.SHA256', args.dist_dir
-                )
-                if not valid:
-                    raise ValueError('; '.join(errors))
-            else:
-                generate_manifest(args.dist_dir)
+        provenance = Provenance(args.version, args.source_sha, args.run_id, args.run_attempt)
+        if args.command == 'prepare':
+            print(prepare_candidate(args.dist_dir, args.output_dir, provenance))
         else:
-            provenance = Provenance(args.version, args.source_sha, args.run_id, args.run_attempt)
-            if args.command == 'prepare':
-                print(prepare_candidate(args.dist_dir, args.output_dir, provenance))
-            else:
-                valid, errors, summary = verify_candidate_set(args.candidate_dir, provenance)
-                if not valid:
-                    raise ValueError('; '.join(errors))
-                print(json.dumps(summary))
+            valid, errors, summary = verify_candidate_set(args.candidate_dir, provenance)
+            if not valid:
+                raise ValueError('; '.join(errors))
+            print(json.dumps(summary))
         return 0
     except (OSError, ValueError, TypeError) as error:
         print(str(error), file=sys.stderr)
-        return {'checksums': 10, 'prepare': 1, 'verify-candidate': 14}[args.command]
+        return 1
 
 
 if __name__ == '__main__':

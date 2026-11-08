@@ -55,7 +55,7 @@ class ReadOnlyGateTest {
     Connection writerConn = DriverManager.getConnection(jdbcUrl);
     PragmaConfig.DEFAULTS.apply(writerConn);
     ic = IndexConnection.create(writerConn, PragmaConfig.DEFAULTS, jdbcUrl);
-    IndexSchema.withDefaults().ensureSchema(ic.writerConnection());
+    IndexSchema.ensureSchema(ic.writerConnection());
     insertFixtures();
   }
 

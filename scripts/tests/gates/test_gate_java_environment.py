@@ -52,7 +52,6 @@ def test_discovery_sanitizes_provider_environment() -> None:
     [
         ('command', ('python3', 'check.py'), False),
         ('command', ('./java/gradlew', 'check'), True),
-        ('gradle-prerequisite', ('wrapper',), True),
         ('gradle-task', ('wrapper',), True),
         ('java-rule', ('wrapper',), True),
         ('scan-smoke', ('python3', '-m', 'pytest'), True),

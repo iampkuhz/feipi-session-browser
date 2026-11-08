@@ -41,7 +41,7 @@ class DashboardEventActivityApiTest {
   void setUp() throws Exception {
     String url = "jdbc:sqlite:" + directory.resolve("event-activity.db");
     index = IndexConnection.withDefaults(DriverManager.getConnection(url), url);
-    IndexSchema.withDefaults().ensureSchema(index.writerConnection());
+    IndexSchema.ensureSchema(index.writerConnection());
   }
 
   @AfterEach

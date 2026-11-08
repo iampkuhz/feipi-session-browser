@@ -72,7 +72,7 @@ GATES = (
         recipe=recipe(
             180,
             480,
-            playwright('browserTests', (), '--workers={playwright_workers}'),
+            playwright('browserTests'),
         ),
     ),
 )

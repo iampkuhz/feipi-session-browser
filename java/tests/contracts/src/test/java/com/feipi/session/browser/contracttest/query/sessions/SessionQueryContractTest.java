@@ -33,7 +33,7 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * 会话查询契约测试。
  *
- * <p>验证 Java session 查询与 Python {@code queries.py} 行为一致： 参数化 SQL、排序白名单、分页语义和空值处理。
+ * <p>验证会话查询的参数化 SQL、排序白名单、分页语义和空值处理。
  */
 @DisplayName("会话查询契约：list / search / count / lookup")
 class SessionQueryContractTest {
@@ -49,7 +49,7 @@ class SessionQueryContractTest {
     writerConnection = DriverManager.getConnection(jdbcUrl);
     PragmaConfig.DEFAULTS.apply(writerConnection);
     ic = IndexConnection.create(writerConnection, PragmaConfig.DEFAULTS, jdbcUrl);
-    IndexSchema.withDefaults().ensureSchema(ic.writerConnection());
+    IndexSchema.ensureSchema(ic.writerConnection());
     insertFixtures();
   }
 

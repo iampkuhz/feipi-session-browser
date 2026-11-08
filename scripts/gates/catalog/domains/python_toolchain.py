@@ -27,7 +27,7 @@ GATES = (
             165,
             command(
                 'pythonFormat',
-                '{dev_python}',
+                '{python}',
                 '-m',
                 'ruff',
                 'format',
@@ -38,7 +38,7 @@ GATES = (
             ),
             command(
                 'pythonLint',
-                '{dev_python}',
+                '{python}',
                 '-m',
                 'ruff',
                 'check',
@@ -48,7 +48,7 @@ GATES = (
             ),
             command(
                 'pythonDependencyDeclarations',
-                '{dev_python}',
+                '{python}',
                 '-m',
                 'deptry',
                 '--config',
@@ -57,7 +57,7 @@ GATES = (
             ),
             command(
                 'pythonSourceSecurity',
-                '{dev_python}',
+                '{python}',
                 '-m',
                 'bandit',
                 '-q',
@@ -70,7 +70,7 @@ GATES = (
             ),
             command(
                 'pythonDeadCode',
-                '{dev_python}',
+                '{python}',
                 '-m',
                 'vulture',
                 '--config',
@@ -113,7 +113,7 @@ GATES = (
             180,
             command(
                 'gateFrameworkTests',
-                '{dev_python}',
+                '{python}',
                 '-m',
                 'pytest',
                 '-c',
@@ -144,7 +144,6 @@ GATES = (
                 'repository.python-dependency-audit',
                 '--root',
                 '{repo_root}',
-                runtime='dev',
             ),
         ),
     ),

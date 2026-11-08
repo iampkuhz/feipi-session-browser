@@ -13,7 +13,6 @@ from scripts.gates.catalog.gate_contracts import (
     GateTrigger,
     RecipeStep,
     RecipeStepKind,
-    TriggerMode,
 )
 from scripts.gates.evidence.receipt_store import store_run_receipt
 from scripts.gates.execution.outcome_classifier import (
@@ -31,7 +30,7 @@ def _plan(*, source: str = 'git-base', base: str | None = 'base-sha') -> GatePla
     gate = Gate(
         'javaBuildVerification',
         'Verify the Java build.',
-        GateTrigger(TriggerMode.CHANGED, ('java/**',)),
+        GateTrigger(('java/**',)),
         ('java-build',),
         GateRecipe(
             DurationExpectations(60, 120),
@@ -167,7 +166,7 @@ def test_consecutive_auto_runs_are_unique_and_latest_is_only_pointer(tmp_path: P
 
 
 def test_empty_run_is_fail_receipt_with_explicit_input_reason(tmp_path: Path) -> None:
-    plan = _plan(source='explicit-changed-files', base=None)
+    plan = _plan(source='git-working-tree', base=None)
     plan = GatePlan(
         plan.mode,
         ChangeSnapshot('git-working-tree', 'head-sha', None, (), 'empty-sha'),

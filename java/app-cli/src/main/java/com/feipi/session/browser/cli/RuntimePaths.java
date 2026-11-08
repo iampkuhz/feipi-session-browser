@@ -6,27 +6,17 @@ import java.nio.file.Path;
 import java.util.Objects;
 
 /**
- * 运行时目录与文件路径的 typed 容器。
- *
- * <p>将数据目录（索引、制品）、日志目录、缓存目录和 PID 文件路径集中为一个不可变对象。 所有路径在构造时解析完成，下游直接使用，不再重复解析环境变量或默认值。
- *
- * <p>校验放置：路径解析在 {@link PathResolver} 边界执行一次（CLI 参数 > 环境变量 > 默认值）。 本 record
- * 紧凑构造器只验证非空，不重复校验路径存在性或权限。 目录创建和权限检查由 {@link #ensureDirectories()} 显式触发，不在构造时自动执行。
+ * 数据目录及其派生的索引、制品和 PID 路径。
  *
  * @param dataDir 数据根目录，包含数据库和归一化制品
- * @param logDir 日志目录
- * @param cacheDir 缓存目录
  */
-public record RuntimePaths(Path dataDir, Path logDir, Path cacheDir) {
+public record RuntimePaths(Path dataDir) {
 
   /** 数据库文件名，位于数据目录根。 */
   public static final String DB_FILE_NAME = String.join("", "index", ".sqlite");
 
   /** 归一化制品子目录相对路径。 */
   public static final String ARTIFACT_SUBDIR = "artifacts/normalized-sessions";
-
-  /** 数据库备份子目录相对路径。 */
-  public static final String BACKUP_SUBDIR = "backups";
 
   /**
    * 紧凑构造器，验证路径非空。
@@ -35,19 +25,6 @@ public record RuntimePaths(Path dataDir, Path logDir, Path cacheDir) {
    */
   public RuntimePaths {
     Objects.requireNonNull(dataDir, "dataDir 不得为 null");
-    Objects.requireNonNull(logDir, "logDir 不得为 null");
-    Objects.requireNonNull(cacheDir, "cacheDir 不得为 null");
-  }
-
-  /**
-   * 从数据目录构造，日志和缓存目录按平台默认规则派生。
-   *
-   * @param dataDir 数据根目录
-   * @return 包含派生路径的 RuntimePaths 实例
-   */
-  public static RuntimePaths fromDataDir(Path dataDir) {
-    return new RuntimePaths(
-        dataDir, PathResolver.defaultLogDir(dataDir), PathResolver.defaultCacheDir(dataDir));
   }
 
   /**
@@ -69,17 +46,6 @@ public record RuntimePaths(Path dataDir, Path logDir, Path cacheDir) {
   }
 
   /**
-   * 数据库备份目录路径。
-   *
-   * <p>升级前在此目录创建 DB 文件备份，保留策略由 {@code DatabaseUpgrader} 管理。
-   *
-   * @return {@code {dataDir}/backups}
-   */
-  public Path backupDir() {
-    return dataDir.resolve(BACKUP_SUBDIR);
-  }
-
-  /**
    * PID 文件路径。
    *
    * @return {@code {dataDir}/server.pid}
@@ -97,10 +63,7 @@ public record RuntimePaths(Path dataDir, Path logDir, Path cacheDir) {
    */
   public void ensureDirectories() throws IOException {
     Files.createDirectories(dataDir);
-    Files.createDirectories(logDir);
-    Files.createDirectories(cacheDir);
     Files.createDirectories(artifactDir());
-    Files.createDirectories(backupDir());
 
     Path probe = dataDir.resolve(".write-probe");
     try {

@@ -75,12 +75,8 @@ def _step_result(
     step: RecipeStep,
     results: tuple[InvocationResult, ...],
     invocations: tuple[CommandInvocation, ...],
-    *,
-    forced_reason: str = '',
 ) -> StepResult:
     status, reason = _aggregate_status(results)
-    if forced_reason:
-        status, reason = ExecutionStatus.FAIL, forced_reason
     rerun = ' && '.join(
         shlex.join(invocation.argv) for invocation in invocations if invocation.argv
     )
@@ -138,13 +134,7 @@ def _run_step_invocations(
         return _missing_step_result(gate, step, 'runtime-missing'), False
     results: list[InvocationResult] = []
     interrupted = False
-    forced_reason = ''
     for index, invocation in enumerate(invocations, start=invocation_offset):
-        if results and invocations[0].kind == 'gradle-prerequisite':
-            prerequisite = results[0]
-            if prerequisite.status is not ExecutionStatus.PASS:
-                forced_reason = prerequisite.reason or 'dependency-unavailable'
-                break
         observation = supervisor(
             invocation,
             cwd=repo_root,
@@ -158,7 +148,7 @@ def _run_step_invocations(
             interrupted = True
             break
     return (
-        _step_result(gate, step, tuple(results), invocations, forced_reason=forced_reason),
+        _step_result(gate, step, tuple(results), invocations),
         interrupted,
     )
 

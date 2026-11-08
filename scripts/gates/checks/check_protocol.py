@@ -31,7 +31,7 @@ def repository_root() -> Path:
     return Path(__file__).resolve().parents[3]
 
 
-def argument_parser(description: str = '') -> argparse.ArgumentParser:
+def argument_parser(description: str) -> argparse.ArgumentParser:
     """创建领域参数声明使用的共享 parser。"""
     return argparse.ArgumentParser(description=description)
 

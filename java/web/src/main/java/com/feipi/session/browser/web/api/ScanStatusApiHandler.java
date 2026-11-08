@@ -79,8 +79,6 @@ public final class ScanStatusApiHandler {
           "Source parsing reached its bounded buffer limit; source content was not fully processed.";
       case "NORMALIZED_CALL_LIMIT_EXCEEDED" ->
           "The normalized session exceeds the supported 10,000-call limit. Large-source support has not been restored by this failed scan.";
-      case "LEGACY_SCAN_FAILURE" ->
-          "This older scan failed before detailed failure reasons were recorded.";
       default ->
           "The scan could not complete. Resolve the reported stage/code before retrying the same input.";
     };

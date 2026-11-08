@@ -29,22 +29,14 @@ public final class SourcePathOps {
   /**
    * 将绝对路径转为相对于根目录的路径。
    *
-   * <p>对两个路径先取绝对路径再规范化后执行 relativize。 当两个路径不在同一根下导致 {@link IllegalArgumentException} 时， 回退返回原始
-   * {@code filePath}。
+   * <p>对同一 macOS 文件系统上的路径先取绝对路径并规范化，再执行 relativize。
    *
    * @param rootPath 根目录
    * @param filePath 文件路径
-   * @return 相对路径，或无法相对化时的原始文件路径
+   * @return 相对路径
    */
   public static Path toRelative(Path rootPath, Path filePath) {
-    try {
-      return rootPath
-          .toAbsolutePath()
-          .normalize()
-          .relativize(filePath.toAbsolutePath().normalize());
-    } catch (IllegalArgumentException e) {
-      return filePath;
-    }
+    return rootPath.toAbsolutePath().normalize().relativize(filePath.toAbsolutePath().normalize());
   }
 
   /**

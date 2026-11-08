@@ -124,15 +124,6 @@ def _pytest_command(argv: tuple[str, ...]) -> bool:
     )
 
 
-def _playwright_command(invocation: CommandInvocation) -> bool:
-    argv = invocation.argv
-    return invocation.kind == 'playwright' or (
-        len(argv) >= 5
-        and Path(argv[0]).name == 'npm'
-        and argv[1:5] == ('--prefix', 'java/tests/playwright', 'test', '--')
-    )
-
-
 def _skip_count(output: str) -> int:
     return sum(int(value) for value in re.findall(r'\b(\d+)\s+skipped\b', _ANSI_RE.sub('', output)))
 
@@ -260,8 +251,6 @@ def _classify_gradle(
         return ExecutionStatus.BLOCKED, 'verification-failed'
     if return_code == 0 and not any(value == 'FAILED' for value in all_outcomes.values()):
         return ExecutionStatus.PASS, ''
-    if invocation.kind == 'gradle-prerequisite':
-        return ExecutionStatus.FAIL, 'dependency-unavailable'
     if return_code == 1 and invocation.kind in {'gradle-task', 'java-rule'}:
         return ExecutionStatus.BLOCKED, 'verification-failed'
     return ExecutionStatus.FAIL, 'outcome-unknown'
@@ -295,9 +284,9 @@ def classify_owner_outcome(
             status, reason = _classify_python_check(return_code, output)
         elif _pytest_command(invocation.argv) or invocation.kind == 'scan-smoke':
             status, reason = _classify_pytest(return_code, output)
-        elif _playwright_command(invocation):
+        elif invocation.kind == 'playwright':
             status, reason = _classify_playwright(return_code, output)
-        elif invocation.kind in {'gradle-task', 'java-rule', 'gradle-prerequisite'}:
+        elif invocation.kind in {'gradle-task', 'java-rule'}:
             all_outcomes, outcomes, failures = _gradle_evidence(invocation, output)
             status, reason = _classify_gradle(
                 invocation, return_code, all_outcomes, outcomes, failures

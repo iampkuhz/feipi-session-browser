@@ -17,6 +17,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.zip.ZipFile;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -27,6 +28,7 @@ class RuntimeServeSmokeTest {
   @Test
   void embeddedRuntimeInitializesWebWithAutomaticScanning() throws Exception {
     Path root = runtimeRoot();
+    verifyPackagedSqlite(root);
     Path home = Files.createDirectory(temporary.resolve("fixture home"));
     Path sessions = Files.createDirectories(home.resolve(".codex/sessions/2026/11/06"));
     Files.writeString(
@@ -89,30 +91,40 @@ class RuntimeServeSmokeTest {
   }
 
   private ProcessBuilder nativeLauncher(Path root, Path home) {
-    boolean windows = System.getProperty("os.name").startsWith("Windows");
-    Path launcher = root.resolve(windows ? "bin/run.bat" : "bin/run");
+    Path launcher = root.resolve("bin/run");
     assertThat(launcher).isRegularFile();
-    assertThat(root.resolve(windows ? "runtime/bin/java.exe" : "runtime/bin/java")).isRegularFile();
-    List<String> command = new ArrayList<>();
-    if (windows) {
-      command.addAll(List.of("cmd.exe", "/d", "/c"));
-    }
-    command.add(launcher.toString());
-    ProcessBuilder builder = new ProcessBuilder(command).directory(temporary.toFile());
-    // 清除继承的来源路径、JVM options 和配置；只保留 Windows 启动 shell 所需变量。
-    String systemRoot = builder.environment().get("SystemRoot");
+    assertThat(root.resolve("runtime/bin/java")).isRegularFile();
+    ProcessBuilder builder = new ProcessBuilder(launcher.toString()).directory(temporary.toFile());
+    // 清除继承的来源路径、JVM options 和配置。
     builder.environment().clear();
-    if (systemRoot != null) {
-      builder.environment().put("SystemRoot", systemRoot);
-    }
-    builder.environment().put("PATH", windows ? systemRoot + "\\System32" : "/usr/bin:/bin");
+    builder.environment().put("PATH", "/usr/bin:/bin");
     builder.environment().put("HOME", home.toString());
-    builder.environment().put("USERPROFILE", home.toString());
-    builder.environment().put("XDG_CONFIG_HOME", home.resolve("config").toString());
-    builder.environment().put("XDG_DATA_HOME", home.resolve("data").toString());
     builder.environment().put("JAVA_HOME", temporary.resolve("absent-jdk").toString());
     builder.environment().put("JAVA_TOOL_OPTIONS", jvmHome(home));
     return builder;
+  }
+
+  private static void verifyPackagedSqlite(Path root) throws IOException {
+    try (var paths = Files.list(root.resolve("app/lib"))) {
+      var jars =
+          paths.filter(path -> path.getFileName().toString().startsWith("sqlite-jdbc-")).toList();
+      assertThat(jars).hasSize(1);
+      try (var jar = new ZipFile(jars.getFirst().toFile())) {
+        var entries =
+            jar.stream()
+                .filter(entry -> !entry.isDirectory())
+                .map(entry -> entry.getName())
+                .toList();
+        assertThat(entries)
+            .contains(
+                "org/sqlite/JDBC.class",
+                "META-INF/services/java.sql.Driver",
+                "META-INF/maven/org.xerial/sqlite-jdbc/LICENSE");
+        assertThat(entries)
+            .filteredOn(name -> name.startsWith("org/sqlite/native/"))
+            .containsExactly("org/sqlite/native/Mac/aarch64/libsqlitejdbc.dylib");
+      }
+    }
   }
 
   private static String jvmHome(Path home) {
@@ -125,9 +137,7 @@ class RuntimeServeSmokeTest {
     assertThat(home).isDirectory();
     assertThat(index.getParent()).isEqualTo(temporary);
     assertThat(index).doesNotExist();
-    assertThat(builder.environment())
-        .containsEntry("HOME", home.toString())
-        .containsEntry("USERPROFILE", home.toString());
+    assertThat(builder.environment()).containsEntry("HOME", home.toString());
     builder
         .command()
         .addAll(

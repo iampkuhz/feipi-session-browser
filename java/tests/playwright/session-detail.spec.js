@@ -19,12 +19,12 @@
  * 带可见浏览器运行：
  *   npm --prefix java/tests/playwright test -- --headed
  *
- * 测试自动发现会话详情 URL，优先级：
- *   - PW_SESSION_URL 环境变量（完整 URL）
- *   - SB_TEST_DB 环境变量指向 SQLite 索引（查询首个会话）
- *   - 回退到 /dashboard（部分覆盖）
+ * 测试使用受管 fixture 的相对路径。
  */
 const { test, expect } = require('@playwright/test');
+
+const sessionUrl = '/sessions/claude_code/hifi-viz-session-001';
+const longUrl = '/sessions/claude_code/long-session-001';
 
 test('a round without local calls does not offer dead payload or attribution actions', async ({ page }) => {
   await page.route('**/api/sessions/*/*/rounds', async (route) => {
@@ -34,7 +34,7 @@ test('a round without local calls does not offer dead payload or attribution act
     body.rounds[0] = { ...first, callCount: 0, calls: [], toolCallCount: 0, toolCallIds: [] };
     await route.fulfill({ response, json: body });
   });
-  await page.goto(process.env.PW_SESSION_URL);
+  await page.goto(sessionUrl);
   const first = page.locator('[data-trace-round-row]').first();
   await expect(first.locator('.attribution-col')).toHaveText('未记录调用', { timeout: 2500 });
   await expect(first.locator('.attribution-col button')).toHaveCount(0);
@@ -42,7 +42,7 @@ test('a round without local calls does not offer dead payload or attribution act
 
 test('long token provenance does not overlap the neighboring trace columns', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 960 });
-  await page.goto(process.env.PW_SESSION_URL);
+  await page.goto(sessionUrl);
   const row = page.locator('[data-trace-round-row]').first();
   const toggle = row.locator('[data-action="toggle-round"]');
   await expect(toggle).toBeVisible();
@@ -72,7 +72,7 @@ test('request attribution fits narrow screens without borrowing response tokens'
         cacheWrite: 'provider_reported', output: 'provider_reported' } };
     await route.fulfill({ response, json: body });
   });
-  await page.goto(process.env.PW_SESSION_URL);
+  await page.goto(sessionUrl);
   const action = page.locator('[data-attribution-path*="/request"]:visible').first();
   await action.click();
   const card = page.locator('[data-payload-attribution="request"]');
@@ -81,30 +81,6 @@ test('request attribution fits narrow screens without borrowing response tokens'
   await expect(card).not.toContainText('500,000');
   expect(await card.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
 });
-
-/**
- * 解析会话详情 URL。优先级：PW_SESSION_URL 环境变量 > fixture server URL。
- */
-function resolveSessionUrl() {
-  // 直接覆盖 URL — 运行测试前设置
-  const direct = process.env.PW_SESSION_URL;
-  if (direct) return direct;
-
-  const base = process.env.BASE_URL || 'http://127.0.0.1:19099';
-  return `${base}/sessions/claude_code/hifi-viz-session-001`;
-}
-
-function sessionUrlWithParams(baseUrl, params) {
-  const url = new URL(baseUrl);
-  for (const [key, value] of Object.entries(params)) {
-    if (value === undefined || value === null || value === '') {
-      url.searchParams.delete(key);
-    } else {
-      url.searchParams.set(key, String(value));
-    }
-  }
-  return url.toString();
-}
 
 function isBrowserResourceConsoleNoise(text) {
   return /^Failed to load resource: net::ERR_[A-Z_]+$/.test(text);
@@ -134,22 +110,14 @@ function cssAttrValue(value) {
   return String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
 
-async function gotoSessionDetail(page, url, options = {}) {
-  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000, ...options });
+async function gotoSessionDetail(page, url) {
+  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
 }
 
 // ── 会话详情 Phase 1 测试 ─────────────────────────────────────────
 
 test.describe('会话详情 — Phase 1', () => {
-  let sessionUrl;
-
-  test.beforeAll(() => {
-    sessionUrl = resolveSessionUrl();
-  });
-
   test('[UI-SD-001][UI-SD-016] 页面加载包含摘要和 trace 面板 — 无控制台错误', async ({ page }) => {
-    expect(sessionUrl, 'sessionUrl must be configured by playwright.config.js').toBeTruthy();
-
     const consoleErrors = [];
     page.on('console', (msg) => {
       if (msg.type() === 'error') {
@@ -172,8 +140,6 @@ test.describe('会话详情 — Phase 1', () => {
   });
 
   test('[UI-SD-002] 无可见的禁用占位按钮', async ({ page }) => {
-    expect(sessionUrl, 'sessionUrl must be configured by playwright.config.js').toBeTruthy();
-
     await gotoSessionDetail(page, sessionUrl);
     await expect(page.locator('.sd-hero').first()).toBeVisible({ timeout: 10000 });
 
@@ -187,8 +153,6 @@ test.describe('会话详情 — Phase 1', () => {
   });
 
   test('[UI-SD-003] 所有可见按钮都有支持的 data-action', async ({ page }) => {
-    expect(sessionUrl, 'sessionUrl must be configured by playwright.config.js').toBeTruthy();
-
     await gotoSessionDetail(page, sessionUrl);
     await expect(page.locator('.sd-hero').first()).toBeVisible({ timeout: 10000 });
 
@@ -235,8 +199,6 @@ test.describe('会话详情 — Phase 1', () => {
   });
 
   test('[UI-SD-004] 全部/失败筛选功能正常', async ({ page }) => {
-    expect(sessionUrl, 'sessionUrl must be configured by playwright.config.js').toBeTruthy();
-
     await gotoSessionDetail(page, sessionUrl);
     await expect(page.locator('[data-trace-panel]')).toBeVisible({ timeout: 10000 });
     await waitForSessionApiHydrated(page);
@@ -284,8 +246,6 @@ test.describe('会话详情 — Phase 1', () => {
   });
 
   test('[UI-SD-005][UI-SD-022][UI-INTERACTION-007] 展开全部 / 折叠全部功能正常', async ({ page }) => {
-    expect(sessionUrl, 'sessionUrl must be configured by playwright.config.js').toBeTruthy();
-
     await gotoSessionDetail(page, sessionUrl);
     await expect(page.locator('[data-trace-panel]')).toBeVisible({ timeout: 10000 });
     await waitForSessionApiHydrated(page);
@@ -328,8 +288,6 @@ test.describe('会话详情 — Phase 1', () => {
   });
 
   test('[UI-SD-006][UI-SD-024] 轮次切换会按需加载并切换详情', async ({ page }) => {
-    expect(sessionUrl, 'sessionUrl must be configured by playwright.config.js').toBeTruthy();
-
     await gotoSessionDetail(page, sessionUrl);
     await expect(page.locator('[data-trace-panel]')).toBeVisible({ timeout: 10000 });
 
@@ -405,8 +363,6 @@ test.describe('会话详情 — Phase 1', () => {
   });
 
   test('[UI-SD-007] 首个失败轮次可按需展开', async ({ page }) => {
-    expect(sessionUrl, 'sessionUrl must be configured by playwright.config.js').toBeTruthy();
-
     await gotoSessionDetail(page, sessionUrl);
     await expect(page.locator('[data-trace-panel]')).toBeVisible({ timeout: 10000 });
     await waitForSessionApiHydrated(page);
@@ -480,8 +436,6 @@ test.describe('会话详情 — Phase 1', () => {
   }
 
   test('[UI-SD-008][UI-INTERACTION-006] payload 弹窗正常打开和关闭', async ({ page }) => {
-    expect(sessionUrl, 'sessionUrl must be configured by playwright.config.js').toBeTruthy();
-
     const setup = await preparePayloadModal(page);
 
     const { payloadBtn, modal } = setup;
@@ -498,8 +452,6 @@ test.describe('会话详情 — Phase 1', () => {
   });
 
   test('[UI-SD-009] payload 弹窗是居中 panel，不是全屏覆盖层', async ({ page }) => {
-    expect(sessionUrl, 'sessionUrl must be configured by playwright.config.js').toBeTruthy();
-
     const setup = await preparePayloadModal(page, { width: 1440, height: 1100 });
 
     const { payloadBtn, modal } = setup;
@@ -555,8 +507,6 @@ test.describe('会话详情 — Phase 1', () => {
   });
 
   test('[UI-SD-011] trace tokenbar tooltip 可通过 API rows 交互显示', async ({ page }) => {
-    expect(sessionUrl, 'sessionUrl must be configured by playwright.config.js').toBeTruthy();
-
     await page.setViewportSize({ width: 2048, height: 768 });
     await gotoSessionDetail(page, sessionUrl);
     await expect(page.locator('[data-trace-panel]')).toBeVisible({ timeout: 10000 });
@@ -571,8 +521,6 @@ test.describe('会话详情 — Phase 1', () => {
   });
 
   test('[UI-SD-017][UI-SD-034] API trace rows 保留表格单元格结构', async ({ page }) => {
-    expect(sessionUrl, 'sessionUrl must be configured by playwright.config.js').toBeTruthy();
-
     await page.setViewportSize({ width: 1440, height: 900 });
     await gotoSessionDetail(page, sessionUrl);
     await expect(page.locator('[data-trace-panel]')).toBeVisible({ timeout: 10000 });
@@ -593,8 +541,6 @@ test.describe('会话详情 — Phase 1', () => {
   });
 
   test('[UI-SD-035] user input 与 failed round 保留状态底色', async ({ page }) => {
-    expect(sessionUrl, 'sessionUrl must be configured by playwright.config.js').toBeTruthy();
-
     await page.setViewportSize({ width: 1440, height: 900 });
     await gotoSessionDetail(page, sessionUrl);
     await waitForSessionApiHydrated(page);
@@ -650,8 +596,6 @@ test.describe('会话详情 — Phase 1', () => {
   });
 
   test('[UI-SD-036] KPI 和 Tool Impact 指标保留颜色 tone', async ({ page }) => {
-    expect(sessionUrl, 'sessionUrl must be configured by playwright.config.js').toBeTruthy();
-
     await page.setViewportSize({ width: 1440, height: 900 });
     await gotoSessionDetail(page, sessionUrl);
     await waitForSessionApiHydrated(page);
@@ -678,8 +622,6 @@ test.describe('会话详情 — Phase 1', () => {
   });
 
   test('[UI-SD-032] diagnostics 区渲染 API-first parity 卡片', async ({ page }) => {
-    expect(sessionUrl, 'sessionUrl must be configured by playwright.config.js').toBeTruthy();
-
     await page.setViewportSize({ width: 2048, height: 768 });
     await gotoSessionDetail(page, sessionUrl);
     await expect(page.locator('[data-session-diagnostics]')).toBeVisible({ timeout: 10000 });
@@ -727,8 +669,6 @@ test.describe('会话详情 — Phase 1', () => {
   });
 
   test('[UI-SD-032][UI-INTERACTION-005] agent select 和 copy 交互在 diagnostics 内可用', async ({ page }) => {
-    expect(sessionUrl, 'sessionUrl must be configured by playwright.config.js').toBeTruthy();
-
     await gotoSessionDetail(page, sessionUrl);
     await waitForSessionApiHydrated(page);
     await expect(page.getByRole('heading', { name: 'Agents Breakdown' })).toBeVisible({ timeout: 10000 });
@@ -766,8 +706,6 @@ test.describe('会话详情 — Phase 1', () => {
   });
 
   test('[UI-SD-033] trace 深链定位 API-rendered round', async ({ page }) => {
-    expect(sessionUrl, 'sessionUrl must be configured by playwright.config.js').toBeTruthy();
-
     await page.setViewportSize({ width: 1440, height: 760 });
     await gotoSessionDetail(page, sessionUrl);
     await expect(page.locator('[data-trace-panel]')).toBeVisible({ timeout: 10000 });
@@ -779,7 +717,8 @@ test.describe('会话详情 — Phase 1', () => {
     const roundId = await rows.nth(Math.min(2, rowCount - 1)).getAttribute('data-round');
     expect(roundId, 'target row must expose data-round').toBeTruthy();
 
-    await gotoSessionDetail(page, sessionUrlWithParams(sessionUrl, { tab: 'trace', round: roundId }));
+    const roundQuery = new URLSearchParams({ tab: 'trace', round: roundId });
+    await gotoSessionDetail(page, `${sessionUrl}?${roundQuery}`);
     const deepLinkedRow = page.locator(`[data-trace-round-row][data-round="${roundId}"]`);
     await expect(deepLinkedRow).toHaveClass(/is-open/, { timeout: 10000 });
     await expect(deepLinkedRow).toHaveClass(/is-jump-target/, { timeout: 10000 });
@@ -793,8 +732,6 @@ test.describe('会话详情 — Phase 1', () => {
   // ── Tab 切换测试（SD-19） ─────────────────────────────────────────
 
   test('[UI-SD-010][UI-SD-023] 只渲染 trace 顶层视图', async ({ page }) => {
-    expect(sessionUrl, 'sessionUrl must be configured by playwright.config.js').toBeTruthy();
-
     await gotoSessionDetail(page, sessionUrl);
     await expect(page.locator('.sd-hero').first()).toBeVisible({ timeout: 10000 });
 
@@ -806,8 +743,6 @@ test.describe('会话详情 — Phase 1', () => {
   });
 
   test('[UI-SD-012] payload 深链回退到 trace 视图', async ({ page }) => {
-    expect(sessionUrl, 'sessionUrl must be configured by playwright.config.js').toBeTruthy();
-
     await gotoSessionDetail(page, `${sessionUrl}?tab=payload`);
     await expect(page.locator('.sd-hero').first()).toBeVisible({ timeout: 10000 });
 
@@ -821,20 +756,7 @@ test.describe('会话详情 — Phase 1', () => {
 // ── 长会话性能测试（100+ 轮） ──────────────────────────────────────────
 
 test.describe('长会话 — 100 轮性能', () => {
-  /**
-   * 解析长会话 URL。
-   */
-  function resolveLongSessionUrl() {
-    const direct = process.env.PW_LONG_SESSION_URL;
-    if (direct) return direct;
-    const base = process.env.BASE_URL || 'http://127.0.0.1:19099';
-    return `${base}/sessions/claude_code/long-session-001`;
-  }
-
   test('[UI-SD-027] trace 视图在 100 轮下无超时渲染', async ({ page }) => {
-    const longUrl = resolveLongSessionUrl();
-    expect(longUrl, 'long session URL must be configured by playwright.config.js').toBeTruthy();
-
     // 测量页面加载时间
     const startTime = Date.now();
     await gotoSessionDetail(page, longUrl);
@@ -853,15 +775,12 @@ test.describe('长会话 — 100 轮性能', () => {
     // 断言全部 100 轮存在
     expect(rowCount).toBeGreaterThanOrEqual(100);
 
-    // 8 workers full run 会共享 fixture server，预算覆盖并发资源竞争但仍防止超时级退化。
+    // 全量用例共享 fixture server，预算仍需防止超时级退化。
     expect(loadTime).toBeLessThan(15000);
   });
 
   test('[UI-SD-005][UI-SD-028] 100 轮展开/折叠和 DOM 节点预算', async ({ page }) => {
     test.setTimeout(60000);
-
-    const longUrl = resolveLongSessionUrl();
-    expect(longUrl, 'long session URL must be configured by playwright.config.js').toBeTruthy();
 
     await gotoSessionDetail(page, longUrl);
     await expect(page.locator('[data-trace-panel]')).toBeVisible({ timeout: 10000 });

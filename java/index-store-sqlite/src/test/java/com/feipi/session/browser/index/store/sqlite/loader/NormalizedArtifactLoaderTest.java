@@ -8,35 +8,33 @@ import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/** {@link NormalizedArtifactLoader} 兼容性测试。 */
+/** {@link NormalizedArtifactLoader} 紧凑制品测试。 */
 @DisplayName("NormalizedArtifactLoader 测试")
 class NormalizedArtifactLoaderTest {
 
   @Test
-  void preservesInlinePayloadUnitsWithBothFieldStyles() {
+  void preservesInlinePayloadUnits() {
     List<Map<String, Object>> units =
         List.of(
             Map.of("role", "user", "text", " synthetic request\n"),
             Map.of("role", "assistant", "text", "synthetic response\n"),
             Map.of("type", "tool_result", "tool_call_id", "tool-1", "text", "result"));
-    for (String field : List.of("source_units", "sourceUnits")) {
-      var artifact =
-          NormalizedArtifactLoader.fromMap(
-              Map.of(
-                  "schema_version",
-                  NormalizedConstants.SCHEMA_VERSION,
-                  "agent",
-                  "claude_code",
-                  "session",
-                  Map.of("session_key", "claude_code:synthetic", "session_id", "synthetic"),
-                  "calls",
-                  List.of(Map.of("call_id", "C1", field, units))));
-      assertThat(artifact.calls().get(0).sourceUnits()).containsExactlyElementsOf(units);
-    }
+    var artifact =
+        NormalizedArtifactLoader.fromMap(
+            Map.of(
+                "schema_version",
+                NormalizedConstants.SCHEMA_VERSION,
+                "agent",
+                "claude_code",
+                "session",
+                Map.of("session_key", "claude_code:synthetic", "session_id", "synthetic"),
+                "calls",
+                List.of(Map.of("call_id", "C1", "source_units", units))));
+    assertThat(artifact.calls().get(0).sourceUnits()).containsExactlyElementsOf(units);
   }
 
   @Test
-  @DisplayName("支持 main/Python-era snake_case 归一化制品字段")
+  @DisplayName("读取扫描器写出的紧凑归一化制品")
   void supportsSnakeCaseNormalizedArtifact() {
     Map<String, Object> artifact =
         Map.of(

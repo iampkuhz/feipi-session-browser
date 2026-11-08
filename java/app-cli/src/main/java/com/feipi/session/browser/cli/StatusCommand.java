@@ -34,9 +34,6 @@ final class StatusCommand implements Callable<Integer> {
   /** 默认端口，与 serve 命令一致。 */
   private static final int DEFAULT_PORT = 8848;
 
-  /** 默认索引目录环境变量名。 */
-  private static final String INDEX_DIR_ENV = "INDEX_DIR";
-
   @Option(
       names = {"--port", "-p"},
       description = "服务端口（默认 ${DEFAULT-VALUE}），用于辅助探测",
@@ -50,7 +47,7 @@ final class StatusCommand implements Callable<Integer> {
 
   @Override
   public Integer call() {
-    Path indexDir = PathResolver.resolveDataDir(indexDirOption, INDEX_DIR_ENV);
+    Path indexDir = PathResolver.resolveDataDir(indexDirOption);
 
     try {
       return reportStatus(indexDir);

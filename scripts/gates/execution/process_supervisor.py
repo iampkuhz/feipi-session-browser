@@ -124,13 +124,13 @@ def _isolated_child_environment(
     return environment
 
 
-def _tail(path: Path, limit: int = PROCESS_TAIL_BYTES) -> str:
+def _tail(path: Path) -> str:
     try:
         with path.open('rb') as handle:
             handle.seek(0, os.SEEK_END)
             size = handle.tell()
-            handle.seek(max(0, size - limit))
-            return handle.read(limit).decode('utf-8', errors='replace')
+            handle.seek(max(0, size - PROCESS_TAIL_BYTES))
+            return handle.read(PROCESS_TAIL_BYTES).decode('utf-8', errors='replace')
     except OSError:
         return ''
 

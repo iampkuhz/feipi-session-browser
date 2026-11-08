@@ -6,7 +6,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -60,7 +59,6 @@ class ServeCommandTest {
       assertThat(result.stdout()).contains("serve");
       assertThat(result.stdout()).contains("--host");
       assertThat(result.stdout()).contains("--port");
-      assertThat(result.stdout()).contains("--allow-empty");
       assertThat(result.stdout()).contains("--strict-sources");
       assertThat(result.stdout()).contains("--no-scan");
     }
@@ -83,13 +81,12 @@ class ServeCommandTest {
   class ServeLifecycleContract {
 
     @Test
-    @DisplayName("--no-scan --allow-empty 启动后优雅关闭")
+    @DisplayName("--no-scan 启动后优雅关闭")
     void serveStartAndShutdown() throws Exception {
       Path indexDir = tempDir.resolve("test-index");
       Files.createDirectories(indexDir);
 
-      ServerLifecycle lifecycle =
-          new ServerLifecycle(indexDir, "127.0.0.1", 0, true, true, Set.of());
+      ServerLifecycle lifecycle = new ServerLifecycle(indexDir, "127.0.0.1", 0, true, false);
 
       int actualPort = lifecycle.start();
       assertThat(actualPort).isGreaterThan(0);
@@ -120,8 +117,7 @@ class ServeCommandTest {
       Path indexDir = tempDir.resolve("test-index");
       Files.createDirectories(indexDir);
 
-      ServerLifecycle lifecycle =
-          new ServerLifecycle(indexDir, "127.0.0.1", 0, true, true, Set.of());
+      ServerLifecycle lifecycle = new ServerLifecycle(indexDir, "127.0.0.1", 0, true, false);
 
       lifecycle.start();
       lifecycle.shutdown();
@@ -136,13 +132,12 @@ class ServeCommandTest {
       Files.createDirectories(indexDir);
 
       // 先启动一个 server
-      ServerLifecycle first = new ServerLifecycle(indexDir, "127.0.0.1", 0, true, true, Set.of());
+      ServerLifecycle first = new ServerLifecycle(indexDir, "127.0.0.1", 0, true, false);
       int firstPort = first.start();
       assertThat(first.isRunning()).isTrue();
 
       // 尝试绑定同一端口
-      ServerLifecycle second =
-          new ServerLifecycle(indexDir, "127.0.0.1", firstPort, true, true, Set.of());
+      ServerLifecycle second = new ServerLifecycle(indexDir, "127.0.0.1", firstPort, true, false);
       try {
         second.start();
         // 如果没有抛异常（某些 OS 可能允许），跳过断言

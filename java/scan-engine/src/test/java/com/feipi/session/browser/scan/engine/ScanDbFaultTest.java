@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
-import com.feipi.session.browser.index.store.sqlite.schema.MigrationRunner;
 import com.feipi.session.browser.source.spi.BoundedStream;
 import com.feipi.session.browser.source.spi.Candidate;
 import com.feipi.session.browser.source.spi.SourceAdapter;
@@ -147,7 +146,7 @@ class ScanDbFaultTest {
     void writeBatchFlushFailureRollsBack() throws Exception {
       Connection conn = SqliteTestHelper.createInMemoryConnection();
       try {
-        new IndexSchema(MigrationRunner.withAllMigrations()).ensureSchema(conn);
+        IndexSchema.ensureSchema(conn);
 
         // 创建测试表
         try (Statement stmt = conn.createStatement()) {
@@ -227,7 +226,7 @@ class ScanDbFaultTest {
       Connection conn = SqliteTestHelper.createInMemoryConnection();
       conn.setAutoCommit(false);
       try {
-        new IndexSchema(MigrationRunner.withAllMigrations()).ensureSchema(conn);
+        IndexSchema.ensureSchema(conn);
 
         Path root = tempDir.resolve("log-success");
         Files.createDirectories(root);
@@ -256,7 +255,7 @@ class ScanDbFaultTest {
       Connection conn = SqliteTestHelper.createInMemoryConnection();
       conn.setAutoCommit(false);
       try {
-        new IndexSchema(MigrationRunner.withAllMigrations()).ensureSchema(conn);
+        IndexSchema.ensureSchema(conn);
 
         Path root = tempDir.resolve("log-errors");
         Files.createDirectories(root);
@@ -332,7 +331,7 @@ class ScanDbFaultTest {
       Connection conn1 = DriverManager.getConnection("jdbc:sqlite:" + dbFile.toAbsolutePath());
       try {
         SqliteTestHelper.configureConnection(conn1);
-        new IndexSchema(MigrationRunner.withAllMigrations()).ensureSchema(conn1);
+        IndexSchema.ensureSchema(conn1);
 
         // 在事务中写入
         conn1.setAutoCommit(false);

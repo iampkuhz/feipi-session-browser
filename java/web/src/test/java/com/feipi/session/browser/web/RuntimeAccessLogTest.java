@@ -41,7 +41,7 @@ class RuntimeAccessLogTest {
     Connection writerConn = DriverManager.getConnection(jdbcUrl);
     PragmaConfig.DEFAULTS.apply(writerConn);
     indexConnection = IndexConnection.create(writerConn, PragmaConfig.DEFAULTS, jdbcUrl);
-    IndexSchema.withDefaults().ensureSchema(indexConnection.writerConnection());
+    IndexSchema.ensureSchema(indexConnection.writerConnection());
   }
 
   @AfterEach

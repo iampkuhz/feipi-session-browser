@@ -81,6 +81,8 @@ Harness 精简 SHALL 保留密钥、真实 session、隐私数据、ignored/gene
 
 Gate SHALL 使用仓库锁定依赖可用的 Python 环境，并保留 bounded subprocess、资源锁、稳定报告和内容敏感 changed-files 语义；这些通用能力不得依赖 Agent Session Runtime。
 
+Gate SHALL 使用 Harness 选定的同一个 Python 解释器；开发依赖缺失时明确报错，不另找解释器。无 selector 的增量计划只按变更路径选择 Gate。增量输入 SHALL 只从 Git 当前工作区或显式 Git 基线采集，不接收人工路径清单。仓库边界检查 SHALL 检查全部跟踪路径，不提供 staged 子集。Playwright 使用原生发现和仓库受管的合成会话服务，不接收外部会话 URL。Scan smoke 由公开 launcher 准备所需产物，Gate 不预跑 Gradle。
+
 #### Scenario: 系统 Python 缺少开发依赖
 
 - **Given** PATH 中的 `python3` 缺少 PyYAML 或 pytest

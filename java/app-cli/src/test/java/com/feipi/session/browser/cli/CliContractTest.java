@@ -4,9 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -15,7 +12,7 @@ import picocli.CommandLine;
 /**
  * CLI help/version 契约测试。
  *
- * <p>验证 no-arg、help、version、未知参数和多余参数的 stdout/stderr/exit code 行为矩阵， 以及发行目录的可重定位运行。
+ * <p>验证 no-arg、help、version、未知参数和多余参数的 stdout/stderr/exit code 行为矩阵。
  */
 @DisplayName("CLI help/version 契约测试")
 class CliContractTest {
@@ -45,50 +42,6 @@ class CliContractTest {
 
   /** 单次 CLI 执行的输出捕获结果。 */
   private record CliExecution(String stdout, String stderr, int exitCode) {}
-
-  // ===== 进程级契约测试（依赖 installDist 产物） =====
-
-  /** installDist 产物路径，通过系统属性或默认路径定位。 */
-  private static Path installDir;
-
-  /**
-   * 初始化 installDist 产物路径。
-   *
-   * <p>优先使用 {@code cli.install.dir} 系统属性，否则使用项目默认构建路径。 Gradle 测试任务负责准备发行产物，缺失时契约失败。
-   */
-  @BeforeAll
-  static void resolveInstallDir() {
-    String dirProp = System.getProperty("cli.install.dir");
-    if (dirProp != null) {
-      installDir = Path.of(dirProp);
-    } else {
-      // 默认 Gradle installDist 输出路径
-      installDir = Path.of("build/install/app-cli");
-    }
-  }
-
-  /**
-   * 获取 CLI 脚本路径。
-   *
-   * @return CLI 启动脚本的绝对路径
-   */
-  private Path cliScript() {
-    return installDir.resolve("bin").resolve(isWindows() ? "app-cli.bat" : "app-cli");
-  }
-
-  private static boolean isWindows() {
-    return System.getProperty("os.name").startsWith("Windows");
-  }
-
-  /** 使用本机脚本解释器运行实际发行 launcher，不绕过脚本直接调用 Java。 */
-  private static ProcessBuilder launcherProcess(Path script, String argument) {
-    String executable = script.toAbsolutePath().toString();
-    if (isWindows()) {
-      return new ProcessBuilder("cmd.exe", "/d", "/c", executable, argument);
-    }
-    script.toFile().setExecutable(true);
-    return new ProcessBuilder(executable, argument);
-  }
 
   // ===== help 契约 =====
 
@@ -269,124 +222,6 @@ class CliContractTest {
 
       assertThat(result.exitCode()).isEqualTo(2);
       assertThat(result.stderr()).contains("Unmatched argument");
-    }
-  }
-
-  // ===== 进程级发行目录测试 =====
-
-  @Nested
-  @DisplayName("发行目录进程级契约")
-  class DistributionContract {
-
-    /** 仅记录错误类别和长度，不输出可能包含环境信息的进程原始 stderr。 */
-    private static String safeStderrDiagnostics(String stderr) {
-      return "stderrChars=%d, zipError=%s, missingClass=%s, unsupportedClassVersion=%s"
-          .formatted(
-              stderr.length(),
-              stderr.contains("ZipException") || stderr.contains("invalid LOC header"),
-              stderr.contains("ClassNotFoundException")
-                  || stderr.contains("NoClassDefFoundError")
-                  || stderr.contains("Could not find or load main class"),
-              stderr.contains("UnsupportedClassVersionError"));
-    }
-
-    @Test
-    @DisplayName("从任意 cwd 运行 installDist 产物 --help")
-    void distHelpFromArbitraryCwd() throws Exception {
-      Path script = cliScript();
-      assertThat(script).as("installDist 必需产物").isRegularFile();
-      ProcessBuilder pb = launcherProcess(script, "--help");
-      pb.directory(Files.createTempDirectory("cli-test-cwd").toFile());
-      pb.redirectErrorStream(false);
-      Process process = pb.start();
-      String stdout = new String(process.getInputStream().readAllBytes());
-      String stderr = new String(process.getErrorStream().readAllBytes());
-      int exitCode = process.waitFor();
-
-      assertThat(exitCode).as("发行目录 --help 失败：%s", safeStderrDiagnostics(stderr)).isZero();
-      assertThat(stdout).contains("session-browser");
-    }
-
-    @Test
-    @DisplayName("从路径含空格的发行目录运行 --version")
-    void distVersionFromPathWithSpaces() throws Exception {
-      Path script = cliScript();
-      assertThat(script).as("installDist 必需产物").isRegularFile();
-
-      // 复制到路径含空格的临时目录
-      Path spaceDir = Files.createTempDirectory("cli test path with spaces");
-      Path spaceBin = spaceDir.resolve("bin");
-      Path spaceLib = spaceDir.resolve("lib");
-      Files.createDirectories(spaceBin);
-      Files.createDirectories(spaceLib);
-
-      Path origBin = installDir.resolve("bin");
-      Path origLib = installDir.resolve("lib");
-      if (Files.exists(origBin)) {
-        try (var stream = Files.walk(origBin)) {
-          stream.forEach(
-              source -> {
-                try {
-                  Path target = spaceBin.resolve(origBin.relativize(source));
-                  if (Files.isDirectory(source)) {
-                    Files.createDirectories(target);
-                  } else {
-                    Files.copy(source, target);
-                  }
-                } catch (Exception e) {
-                  throw new RuntimeException(e);
-                }
-              });
-        }
-      }
-      if (Files.exists(origLib)) {
-        try (var stream = Files.walk(origLib)) {
-          stream.forEach(
-              source -> {
-                try {
-                  Path target = spaceLib.resolve(origLib.relativize(source));
-                  if (Files.isDirectory(source)) {
-                    Files.createDirectories(target);
-                  } else {
-                    Files.copy(source, target);
-                  }
-                } catch (Exception e) {
-                  throw new RuntimeException(e);
-                }
-              });
-        }
-      }
-
-      Path relocatedScript = spaceBin.resolve(script.getFileName());
-      assertThat(relocatedScript).as("重定位后的本机 launcher").isRegularFile();
-
-      ProcessBuilder pb = launcherProcess(relocatedScript, "--version");
-      pb.directory(Files.createTempDirectory("cli-test-cwd").toFile());
-      pb.redirectErrorStream(false);
-      Process process = pb.start();
-      String stdout = new String(process.getInputStream().readAllBytes());
-      String stderr = new String(process.getErrorStream().readAllBytes());
-      int exitCode = process.waitFor();
-
-      assertThat(exitCode).as("发行目录路径含空格运行失败：%s", safeStderrDiagnostics(stderr)).isZero();
-      assertThat(stdout.trim()).matches("\\d+\\.\\d+(\\.\\d+)?(-[\\w.]+)?");
-
-      // 清理测试创建的临时目录
-      deleteRecursively(spaceDir);
-    }
-  }
-
-  private static void deleteRecursively(Path path) {
-    try {
-      if (Files.isDirectory(path)) {
-        try (var entries = Files.list(path)) {
-          entries.forEach(CliContractTest::deleteRecursively);
-        }
-      }
-      Files.deleteIfExists(path);
-    } catch (Exception e) {
-      // 清理失败不影响测试结果，记录到 stdout 供调试
-      System.out.println("清理临时文件失败: " + path + " (" + e.getMessage() + ")");
     }
   }
 }

@@ -50,6 +50,7 @@ def _create_fake_jdk(
         'if $has_properties; then\n'
         f'  printf "java.home = %s\\n" "{home}"\n'
         f'  printf "java.specification.version = {version}\\n"\n'
+        f'  printf "os.arch = aarch64\\n"\n'
         'fi\n'
         'if $has_version; then\n'
         f'  echo "java version \\"{version}.0.1\\"" >&2\n'
@@ -121,7 +122,6 @@ def _isolate_script(
     script = project / 'scripts/harness/java_env.sh'
     content = script.read_text(encoding='utf-8')
     content = content.replace('/opt/homebrew', str(tmp_path / 'system-homebrew'))
-    content = content.replace('/usr/local', str(tmp_path / 'system-localbrew'))
     if disable_macos_probe:
         content = content.replace('/usr/libexec/java_home', str(tmp_path / 'absent-java-home'))
     if sdkman_default_root is not None:
@@ -150,7 +150,7 @@ def _minimal_env(tmp_path: Path) -> dict[str, str]:
     """只提供指定基础工具，不把宿主 java/shim 带入测试 PATH。"""
     fake_bin = tmp_path / 'fake-bin'
     fake_bin.mkdir(parents=True, exist_ok=True)
-    for name in ('bash', 'dirname', 'sed', 'sleep', 'touch'):
+    for name in ('bash', 'dirname', 'sed', 'sleep', 'touch', 'uname'):
         tool = shutil.which(name)
         assert tool is not None, f'测试需要基础工具 {name}'
         link = fake_bin / name
@@ -669,32 +669,6 @@ def test_gradle_and_launcher_share_discovered_java_home(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
     assert f'GRADLE_JAVA_HOME=<{path_jdk}>' in gradle_log.read_text(encoding='utf-8')
     assert f'LAUNCHER_JAVA_HOME=<{path_jdk}>' in result.stdout
-
-
-# === 非 Java 分支 ===
-
-
-@pytest.mark.parametrize('args', [('deps', 'plan'), ('deps', '--help'), ('quality',)])
-def test_non_java_branches_do_not_require_jdk(tmp_path: Path, args: tuple[str, ...]) -> None:
-    project = tmp_path / 'project'
-    _create_minimal_project(project, include_launcher=False, include_gradle=False)
-    _isolate_script(project, tmp_path)
-    fake_bin = tmp_path / 'fake-bin'
-    _write_executable(
-        fake_bin / 'python3',
-        '#!/usr/bin/env bash\nprintf "PY_ARG=<%s>\\n" "$@"\n',
-    )
-    env = _minimal_env(tmp_path)
-    env['PATH'] = f'{fake_bin}:{env["PATH"]}'
-
-    result = _run_script(
-        project / 'scripts' / 'session-browser.sh',
-        *args,
-        env=env,
-        cwd=project,
-    )
-
-    assert result.returncode == 0, result.stderr
 
 
 # === 参数、退出码与 exec 契约 ===

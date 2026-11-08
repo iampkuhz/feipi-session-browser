@@ -31,7 +31,7 @@ class TokenProvenanceResourceApiTest {
     String url = "jdbc:sqlite:" + tempDir.resolve("synthetic-provenance.db");
     connection =
         IndexConnection.create(DriverManager.getConnection(url), PragmaConfig.DEFAULTS, url);
-    IndexSchema.withDefaults().ensureSchema(connection.writerConnection());
+    IndexSchema.ensureSchema(connection.writerConnection());
     ApiContractFixture.insertThreeSessionFixture(connection);
     LocalDate firstDay = LocalDate.now(ZoneOffset.UTC).minusDays(2);
     try (var statement =

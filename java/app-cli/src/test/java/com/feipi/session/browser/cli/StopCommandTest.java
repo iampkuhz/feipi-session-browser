@@ -6,7 +6,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -97,8 +96,7 @@ class StopCommandTest {
       // 启动一个真实服务器占用端口
       Path indexDir = tempDir.resolve("test-index");
       Files.createDirectories(indexDir);
-      ServerLifecycle lifecycle =
-          new ServerLifecycle(indexDir, "127.0.0.1", 0, true, true, Set.of());
+      ServerLifecycle lifecycle = new ServerLifecycle(indexDir, "127.0.0.1", 0, true, false);
       int actualPort = lifecycle.start();
 
       try {
@@ -157,8 +155,7 @@ class StopCommandTest {
       Files.createDirectories(indexDir);
 
       // 启动服务器
-      ServerLifecycle lifecycle =
-          new ServerLifecycle(indexDir, "127.0.0.1", 0, true, true, Set.of());
+      ServerLifecycle lifecycle = new ServerLifecycle(indexDir, "127.0.0.1", 0, true, false);
       int actualPort = lifecycle.start();
 
       // 验证 PID 文件已写入
@@ -253,8 +250,7 @@ class StopCommandTest {
       Path indexDir = tempDir.resolve("health-index");
       Files.createDirectories(indexDir);
 
-      ServerLifecycle lifecycle =
-          new ServerLifecycle(indexDir, "127.0.0.1", 0, true, true, Set.of());
+      ServerLifecycle lifecycle = new ServerLifecycle(indexDir, "127.0.0.1", 0, true, false);
       int actualPort = lifecycle.start();
 
       try {
@@ -279,8 +275,7 @@ class StopCommandTest {
       Path indexDir = tempDir.resolve("port-index");
       Files.createDirectories(indexDir);
 
-      ServerLifecycle lifecycle =
-          new ServerLifecycle(indexDir, "127.0.0.1", 0, true, true, Set.of());
+      ServerLifecycle lifecycle = new ServerLifecycle(indexDir, "127.0.0.1", 0, true, false);
       int actualPort = lifecycle.start();
 
       try {

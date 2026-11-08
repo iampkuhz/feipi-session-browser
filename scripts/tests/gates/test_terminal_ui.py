@@ -14,7 +14,6 @@ from scripts.gates.catalog.gate_contracts import (
     RecipeStep,
     RecipeStepKind,
     TargetPreset,
-    TriggerMode,
 )
 from scripts.gates.planning.change_snapshot import ChangeSnapshot
 from scripts.gates.planning.plan_compiler import CommandInvocation, GatePlan
@@ -34,7 +33,7 @@ def _catalog_and_plan() -> tuple[GateCatalog, GatePlan]:
     gate = Gate(
         'gateFrameworkTests',
         'Run Gate framework contracts.',
-        GateTrigger(TriggerMode.CHANGED, ('scripts/gates/**',)),
+        GateTrigger(('scripts/gates/**',)),
         (target.name,),
         GateRecipe(
             DurationExpectations(10, 20),
@@ -42,7 +41,7 @@ def _catalog_and_plan() -> tuple[GateCatalog, GatePlan]:
         ),
     )
     snapshot = ChangeSnapshot(
-        'explicit-changed-files',
+        'git-working-tree',
         'head-sha',
         None,
         ('scripts/gates/cli.py',),
@@ -88,7 +87,7 @@ def test_human_plan_explains_snapshot_match_not_triggered_and_process_cost() -> 
 
     rendered = render_gate_plan(plan)
 
-    assert 'source=explicit-changed-files' in rendered
+    assert 'source=git-working-tree' in rendered
     assert 'MATCH file=scripts/gates/cli.py pattern=scripts/gates/**' in rendered
     assert 'NOT_TRIGGERED gate=javaBuildVerification' in rendered
     assert 'target_seconds=10' in rendered
@@ -128,24 +127,18 @@ def test_terminal_event_is_one_line_and_does_not_reclassify_status() -> None:
 
 def test_receipt_rendering_preserves_final_status(tmp_path) -> None:
     receipt = SimpleNamespace(
-        schema_version=5,
         run_id='run-1',
         status='FAIL',
         reason='input-empty',
         duration_ms=0,
-        plan_fingerprint='plan-sha',
         summary_path=tmp_path / 'summary.json',
         canonical_rerun='python3 scripts/gates/cli.py run --mode incremental',
     )
 
     human = render_run_receipt(receipt)
-    payload = json.loads(render_run_receipt(receipt, output_format='json'))
 
     assert 'status=FAIL reason=input-empty' in human
     assert "next='python3 scripts/gates/cli.py plan --mode incremental'" in human
-    assert payload['status'] == 'FAIL'
-    assert payload['schemaVersion'] == 5
-    assert payload['nextAction'] == 'python3 scripts/gates/cli.py plan --mode incremental'
 
 
 def test_health_rendering_reports_static_plan_and_one_executed_process(tmp_path) -> None:

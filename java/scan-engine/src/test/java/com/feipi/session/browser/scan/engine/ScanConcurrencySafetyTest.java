@@ -6,7 +6,6 @@ import com.feipi.session.browser.index.store.sqlite.connection.ConnectionFactory
 import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
 import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
 import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
-import com.feipi.session.browser.index.store.sqlite.schema.MigrationRunner;
 import com.feipi.session.browser.index.store.sqlite.tx.WriteQueue;
 import com.feipi.session.browser.testsupport.sqlite.SqliteTestHelper;
 import java.nio.file.Files;
@@ -158,7 +157,7 @@ class ScanConcurrencySafetyTest {
 
       Connection writerConn = DriverManager.getConnection(jdbcUrl);
       SqliteTestHelper.configureConnection(writerConn);
-      new IndexSchema(MigrationRunner.withAllMigrations()).ensureSchema(writerConn);
+      IndexSchema.ensureSchema(writerConn);
 
       IndexConnection indexConn =
           IndexConnection.create(writerConn, PragmaConfig.DEFAULTS, jdbcUrl);
@@ -286,7 +285,7 @@ class ScanConcurrencySafetyTest {
 
       Connection writerConn = DriverManager.getConnection(jdbcUrl);
       SqliteTestHelper.configureConnection(writerConn);
-      new IndexSchema(MigrationRunner.withAllMigrations()).ensureSchema(writerConn);
+      IndexSchema.ensureSchema(writerConn);
 
       ConnectionFactory factory = new ConnectionFactory(jdbcUrl, PragmaConfig.DEFAULTS);
 
@@ -341,7 +340,7 @@ class ScanConcurrencySafetyTest {
     void singleConnectionDoesNotConcurrentScan() throws Exception {
       Connection conn = SqliteTestHelper.createInMemoryConnection();
       try {
-        new IndexSchema(MigrationRunner.withAllMigrations()).ensureSchema(conn);
+        IndexSchema.ensureSchema(conn);
 
         Path root = tempDir.resolve("concurrent-scan");
         Files.createDirectories(root);

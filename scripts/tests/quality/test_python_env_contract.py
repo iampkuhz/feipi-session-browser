@@ -11,7 +11,7 @@ from scripts.harness import python_env
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
-def _write_project(root: Path, *, dev_extra: str = '') -> None:
+def _write_project(root: Path) -> None:
     root = python_env.tool_project_dir(root)
     root.mkdir(parents=True, exist_ok=True)
     (root / 'pyproject.toml').write_text(
@@ -22,7 +22,7 @@ def _write_project(root: Path, *, dev_extra: str = '') -> None:
                 'dependencies = ["jinja2", "markdown-it-py"]',
                 '',
                 '[project.optional-dependencies]',
-                'dev = ["pytest", "pytest-xdist"' + dev_extra + ']',
+                'dev = ["pytest", "pytest-xdist"]',
                 '',
             ]
         ),
@@ -197,7 +197,7 @@ def test_lock_check_accepts_uv_minor_lock_equivalent(tmp_path: Path):
 def test_quality_gate_project_python_uses_shared_resolver(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
-    command_adapter._project_python_cached.cache_clear()
+    command_adapter._project_python.cache_clear()
     calls: list[Path] = []
 
     def fake_resolve(repo_root: Path) -> str:
@@ -208,24 +208,3 @@ def test_quality_gate_project_python_uses_shared_resolver(
 
     assert command_adapter._project_python(tmp_path) == '/tmp/shared-python'
     assert calls == [tmp_path]
-
-
-@pytest.mark.contract_case('HOOK-HARNESS-010')
-def test_quality_gate_dev_python_requires_pytest(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-    """开发 Gate 不得选择缺少 pytest 的仓库虚拟环境。"""
-    command_adapter._project_python_cached.cache_clear()
-    monkeypatch.setattr(command_adapter, 'resolve_python', lambda _root: '/tmp/runtime-python')
-    monkeypatch.setattr(
-        command_adapter,
-        '_python_candidates',
-        lambda _root: ['/tmp/runtime-python', '/tmp/dev-python'],
-    )
-    monkeypatch.setattr(
-        command_adapter,
-        '_supports_modules',
-        lambda executable, _root, modules: (
-            executable == '/tmp/dev-python' and modules == ('pytest',)
-        ),
-    )
-
-    assert command_adapter._project_python(tmp_path, dev=True) == '/tmp/dev-python'

@@ -311,7 +311,7 @@ def _assert_reports(fixture: Path, cases: list[dict]) -> None:
 def test_original_cpd_action_with_real_pmd_and_configuration_cache(tmp_path: Path) -> None:
     cases = _prepare_fixture(tmp_path)
     command = [
-        str(REPO_ROOT / 'java' / ('gradlew.bat' if os.name == 'nt' else 'gradlew')),
+        str(REPO_ROOT / 'java' / 'gradlew'),
         '-p',
         str(tmp_path),
         '--console=plain',

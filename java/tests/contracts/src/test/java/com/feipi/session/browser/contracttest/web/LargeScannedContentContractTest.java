@@ -7,9 +7,6 @@ import com.feipi.session.browser.contracttest.support.ContractTestComposition;
 import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
 import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
 import com.feipi.session.browser.index.store.sqlite.loader.NormalizedArtifactLoader;
-import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
-import com.feipi.session.browser.index.store.sqlite.schema.Migration;
-import com.feipi.session.browser.index.store.sqlite.schema.MigrationRunner;
 import com.feipi.session.browser.index.store.sqlite.schema.SchemaVersion;
 import com.feipi.session.browser.scan.engine.FullScanEngine;
 import com.feipi.session.browser.scan.engine.IncrementalScanEngine;
@@ -51,36 +48,11 @@ class LargeScannedContentContractTest {
     String jdbcUrl = "jdbc:sqlite:" + tempDir.resolve("index.db").toAbsolutePath();
     try (var connection = DriverManager.getConnection(jdbcUrl)) {
       SqliteTestHelper.configureConnection(connection);
-      if (incremental) {
-        new MigrationRunner(
-                Migration.allMigrations().stream()
-                    .filter(migration -> migration.version().version() <= 6)
-                    .toList())
-            .applyAll(connection);
-        try (var statement = connection.createStatement()) {
-          statement.executeUpdate(
-              "INSERT INTO sessions (session_key, agent, session_id, project_key, ended_at, round_count, llm_call_count)"
-                  + " VALUES ('claude_code:legacy','claude_code','legacy','','',2,70)");
-        }
-        var schema = IndexSchema.withDefaults();
-        assertThat(schema.ensureSchema(connection)).containsExactly(IndexSchema.CURRENT_VERSION);
-        assertThat(schema.ensureSchema(connection)).isEmpty();
-      }
       var writer = SqliteTestHelper.createIndexWriter(connection);
       if (incremental) {
         var result = new IncrementalScanEngine().scan(writer, config);
         assertThat(result.errorCount()).as("scan issues: %s", result.issues()).isZero();
         assertThat(result.successCount()).isEqualTo(1);
-        try (var statement = connection.createStatement();
-            var legacy =
-                statement.executeQuery(
-                    "SELECT round_count, llm_call_count, model_call_count "
-                        + "FROM sessions WHERE session_key = 'claude_code:legacy'")) {
-          assertThat(legacy.next()).isTrue();
-          assertThat(legacy.getLong("round_count")).isEqualTo(2);
-          assertThat(legacy.getLong("llm_call_count")).isEqualTo(70);
-          assertThat(legacy.getObject("model_call_count")).isNull();
-        }
       } else {
         var result = new FullScanEngine().scan(writer, config);
         assertThat(result.errorCount()).as("scan issues: %s", result.issues()).isZero();

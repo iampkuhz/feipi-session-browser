@@ -36,7 +36,7 @@ class IndexSnapshotGuardTest {
         var executor = Executors.newSingleThreadExecutor()) {
       PragmaConfig.DEFAULTS.apply(connection);
       PragmaConfig.DEFAULTS.apply(publisher);
-      IndexSchema.withDefaults().ensureSchema(connection);
+      IndexSchema.ensureSchema(connection);
       var firstRead = new CountDownLatch(1);
       var committed = new CountDownLatch(1);
       var delegate = new SqliteAggregateQueryRepository(index);
@@ -92,7 +92,7 @@ class IndexSnapshotGuardTest {
     try (var connection = DriverManager.getConnection(url);
         var index = IndexConnection.withDefaults(connection, url);
         var publisher = DriverManager.getConnection(url)) {
-      IndexSchema.withDefaults().ensureSchema(connection);
+      IndexSchema.ensureSchema(connection);
       var root = WebTestComposition.queryRoot(index, IndexSchema.CURRENT_VERSION);
       var web = new WebCompositionRoot(root, WebConfig.defaults());
       JavalinTest.test(

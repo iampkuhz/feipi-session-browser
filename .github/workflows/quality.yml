@@ -2,14 +2,15 @@ name: Quality
 
 on:
   push:
-    branches: [main, main_java]
+    branches: [main]
   pull_request:
   workflow_dispatch:
   workflow_call:
-    inputs:
-      full-mode:
-        type: boolean
-        default: false
+    outputs:
+      candidate-id:
+        value: ${{ jobs.quality.outputs.candidate-id }}
+      candidate-key:
+        value: ${{ jobs.quality.outputs.candidate-key }}
 
 permissions:
   contents: read
@@ -19,10 +20,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  python-quality:
+  quality:
     runs-on: macos-15
     env:
+      BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
       PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.local/playwright-browsers
+    outputs:
+      candidate-id: ${{ steps.seal.outputs.artifact-id }}
+      candidate-key: ${{ steps.seal.outputs.artifact-id && format('{0}:{1}:{2}', github.sha, github.run_id, github.run_attempt) }}
 
     steps:
       - name: Checkout
@@ -31,8 +36,27 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
 
+      - name: Select one Gate mode
+        id: scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          mode=full
+          if [[ "$GITHUB_EVENT_NAME" != workflow_dispatch && "$GITHUB_REF_TYPE" != tag ]] &&
+             git merge-base --is-ancestor "$BASE_SHA" HEAD 2>/dev/null &&
+             ! git diff --quiet "$BASE_SHA" HEAD -- &&
+             git diff --quiet --no-renames "$BASE_SHA" HEAD -- java/ scripts/release/ \
+               .github/workflows/quality.yml .github/workflows/release.yml; then
+            mode=incremental
+          fi
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "GATE_MODE=$mode" >> "$GITHUB_ENV"
+
       - name: Check native macOS arm64 host
         run: test "$(uname -sm)" = 'Darwin arm64'
+
+      - name: Validate Gradle Wrapper
+        uses: gradle/actions/wrapper-validation@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
 
       - name: Install uv
         uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
@@ -52,7 +76,7 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
         with:
-          cache-read-only: true
+          cache-read-only: ${{ github.event_name != 'push' || github.ref != 'refs/heads/main' }}
           build-scan-publish: false
 
       - name: Verify dependency lock
@@ -71,31 +95,17 @@ jobs:
       - name: Prepare empty ignored OpenSpec workspace for a fresh checkout
         run: mkdir -p openspec/changes
 
-      - name: Prepare installed CLI for clean runner contract tests
-        run: ./java/gradlew -p java :java:app-cli:installDist --no-daemon
-
       - name: Unified quality gates
         shell: bash
-        env:
-          FULL_MODE: ${{ inputs.full-mode }}
-          EVENT_NAME: ${{ github.event_name }}
-          PULL_REQUEST_BASE: ${{ github.event.pull_request.base.sha }}
-          PUSH_BASE: ${{ github.event.before }}
         run: |
-          if [[ "$FULL_MODE" == "true" || "$EVENT_NAME" == "workflow_dispatch" ]]; then
+          if [[ "$GATE_MODE" == "full" ]]; then
             python3 scripts/gates/cli.py run --mode full
           else
-            base="$PULL_REQUEST_BASE"
-            if [[ -z "$base" ]]; then
-              base="$PUSH_BASE"
-            fi
-            python3 scripts/gates/cli.py run --mode incremental --base "$base"
+            python3 scripts/gates/cli.py run --mode incremental --base "$BASE_SHA"
           fi
 
       - name: Require a complete successful receipt from this checkout
         shell: bash
-        env:
-          REQUIRE_FULL: ${{ inputs.full-mode || github.event_name == 'workflow_dispatch' }}
         run: |
           python3 - <<'PYTHON_CODE'
           import json
@@ -113,8 +123,8 @@ jobs:
           assert summary['status'] == 'PASS', summary['status']
           assert summary['snapshot']['head'] == os.environ['GITHUB_SHA']
           assert summary['planFingerprint'] == plan['planFingerprint']
-          if os.environ['REQUIRE_FULL'] == 'true':
-              assert summary['mode'] == plan['mode'] == 'full'
+          assert summary['mode'] == plan['mode'] == os.environ['GATE_MODE']
+          if plan['mode'] == 'full':
               assert plan['selector'] is None
               expected = {gate['gate']: gate for gate in plan['gates']}
               results = summary['gateResults']
@@ -143,3 +153,24 @@ jobs:
           path: tmp/quality/runs/
           retention-days: 14
           if-no-files-found: error
+
+      - name: Build the macOS arm64 runtime
+        if: steps.scope.outputs.mode == 'full'
+        run: ./java/gradlew -p java :java:app-cli:runtimeDistTar --no-daemon
+
+      - name: Prepare and launch actual native archive without external JDK
+        if: steps.scope.outputs.mode == 'full'
+        run: |
+          set -euo pipefail
+          python3 scripts/release/release_pipeline_helpers.py prepare --dist-dir java/app-cli/build/distributions --output-dir verified-candidate --version "$(cat java/gradle/VERSION)" --source-sha "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT"
+
+      - name: Upload the sole verified candidate
+        id: seal
+        if: steps.scope.outputs.mode == 'full'
+        uses: actions/upload-artifact@ea165f8d65b75b540449e92b4886f43607fa02 # v4
+        with:
+          name: verified-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: verified-candidate/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14

@@ -159,7 +159,7 @@ def test_check_help_keeps_success_exit_code(capsys, monkeypatch, stub_spec: Chec
     module = sys.modules[stub_spec.module]
 
     def check_help(arguments: list[str]) -> CheckResult:
-        argument_parser().parse_args(arguments)
+        argument_parser("synthetic check").parse_args(arguments)
         return CheckResult()
 
     module.check = check_help

@@ -137,7 +137,7 @@ def _scan_file(path: Path, root: Path, rules: list[PatternRule]) -> list[Finding
     return findings
 
 
-def _scan_repo(root: Path = REPO_ROOT) -> list[Finding]:
+def _scan_repo(root: Path) -> list[Finding]:
     """仅扫描仓库 Python 与 Playwright 测试中的禁用 skip API。"""
     python_files = _iter_files(root, ['scripts/tests'], ('.py',))
     playwright_files = _iter_files(

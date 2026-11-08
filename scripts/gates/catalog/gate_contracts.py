@@ -15,13 +15,6 @@ class ExecutionMode(StrEnum):
     FULL = 'full'
 
 
-class TriggerMode(StrEnum):
-    """自动增量规划时 Gate 的触发方式。"""
-
-    ALWAYS = 'always'
-    CHANGED = 'changed'
-
-
 class RecipeStepKind(StrEnum):
     """RecipeStep 可交给执行阶段的六种 owner adapter。"""
 
@@ -37,8 +30,7 @@ class RecipeStepKind(StrEnum):
 class GateTrigger:
     """声明 Gate 在无 selector 的 incremental 计划中何时被选中。"""
 
-    mode: TriggerMode
-    paths: tuple[str, ...] = ()
+    paths: tuple[str, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,12 +57,10 @@ class RecipeStep:
     required_paths: tuple[str, ...] = ()
     append_globs: tuple[str, ...] = ()
     check_id: str | None = None
-    runtime: str = 'system'
     args: tuple[str, ...] = ()
     tasks: tuple[str, ...] = ()
     rules: tuple[str, ...] = ()
     tests: tuple[str, ...] = ()
-    prerequisite_tasks: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

@@ -54,7 +54,7 @@ def test_clean_repository_passes(tmp_path: Path):
     root = tmp_path / 'repo'
     _init_repo(root)
 
-    assert policy.check(['--root', str(root), '--all-tracked']).passed
+    assert policy.check(['--root', str(root)]).passed
 
 
 def test_missing_required_path_fails(tmp_path: Path, monkeypatch):
@@ -136,7 +136,7 @@ def test_staged_ignored_file_fails(tmp_path: Path):
     _git(root, 'add', '.gitignore')
     _git(root, 'add', '-f', 'cache/leak.txt')
 
-    assert not policy.check(['--root', str(root), '--staged']).passed
+    assert not policy.check(['--root', str(root)]).passed
 
 
 def test_negated_gitignore_rule_is_allowed(tmp_path: Path):
@@ -147,7 +147,7 @@ def test_negated_gitignore_rule_is_allowed(tmp_path: Path):
     (root / 'tmp' / '.gitkeep').write_text('', encoding='utf-8')
     _git(root, 'add', '.gitignore', 'tmp/.gitkeep')
 
-    assert policy.check(['--root', str(root), '--staged']).passed
+    assert policy.check(['--root', str(root)]).passed
 
 
 def test_staged_deletion_is_allowed_for_cleanup(tmp_path: Path):
@@ -161,7 +161,7 @@ def test_staged_deletion_is_allowed_for_cleanup(tmp_path: Path):
     _git(root, 'commit', '-m', 'tracked ignored file')
     _git(root, 'rm', 'cache/tracked.txt')
 
-    assert policy.check(['--root', str(root), '--staged']).passed
+    assert policy.check(['--root', str(root)]).passed
 
 
 def test_forbidden_root_tracked_file_fails(tmp_path: Path):
@@ -171,7 +171,7 @@ def test_forbidden_root_tracked_file_fails(tmp_path: Path):
     (root / 'output' / 'result.txt').write_text('result\n', encoding='utf-8')
     _git(root, 'add', 'output/result.txt')
 
-    result = policy.check(['--root', str(root), '--staged'])
+    result = policy.check(['--root', str(root)])
 
     assert not result.passed
     assert any('禁止根路径不应进入 Git tracked' in d.message for d in result.diagnostics)
@@ -183,7 +183,7 @@ def test_tracked_database_fails(tmp_path: Path):
     (root / 'fixture.sqlite3').write_bytes(b'database')
     _git(root, 'add', 'fixture.sqlite3')
 
-    result = policy.check(['--root', str(root), '--staged'])
+    result = policy.check(['--root', str(root)])
 
     assert not result.passed
     assert any(
@@ -198,7 +198,7 @@ def test_product_python_path_outside_repository_boundary_fails(tmp_path: Path):
     source.parent.mkdir(parents=True)
     source.write_text('VALUE = 1\n', encoding='utf-8')
 
-    result = policy.check(['--root', str(root), '--all-tracked'])
+    result = policy.check(['--root', str(root)])
 
     assert not result.passed
     assert any(
@@ -215,7 +215,7 @@ def test_git_read_error_fails_closed(tmp_path: Path):
     result = policy.check(['--root', str(root)])
 
     assert not result.passed
-    assert 'git diff' in result.diagnostics[0].message
+    assert 'git ls-files' in result.diagnostics[0].message
 
 
 def test_controlled_gate_config_directory_passes(tmp_path: Path) -> None:
@@ -226,7 +226,7 @@ def test_controlled_gate_config_directory_passes(tmp_path: Path) -> None:
     config.write_text('{}', encoding='utf-8')
     _git(root, 'add', 'scripts/gates/config/technical-terms.json')
 
-    assert policy.check(['--root', str(root), '--all-tracked']).passed
+    assert policy.check(['--root', str(root)]).passed
 
 
 def test_gate_config_name_does_not_allow_a_root_file(tmp_path: Path) -> None:

@@ -190,7 +190,7 @@ def test_redirect_strips_cross_origin_credentials_only(tmp_path, monkeypatch):
 def test_full_gate_receipt_rejects_incomplete_evidence(tmp_path, monkeypatch, case):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv('GITHUB_SHA', SHA)
-    monkeypatch.setenv('REQUIRE_FULL', 'true')
+    monkeypatch.setenv('GATE_MODE', 'full')
     plan = {
         'planFingerprint': 'test',
         'mode': 'full',
@@ -255,7 +255,7 @@ def test_full_gate_receipt_rejects_incomplete_evidence(tmp_path, monkeypatch, ca
 def test_shared_workflow_permissions_and_fresh_checkout_prerequisites():
     workflows = {
         name: yaml.safe_load((ROOT / '.github/workflows' / (name + '.yml')).read_text())
-        for name in ('quality', 'distribution', 'release', 'ci-distribution')
+        for name in ('quality', 'release')
     }
     for workflow in workflows.values():
         assert workflow['permissions'] == {'contents': 'read'}
@@ -267,13 +267,11 @@ def test_shared_workflow_permissions_and_fresh_checkout_prerequisites():
     ] == ['publish-release']
     assert release['publish-release']['environment']['name'] == 'github-release'
     assert release['release-candidate']['environment']['name'] == 'release-candidate'
-    assert (
-        workflows['ci-distribution']['jobs']['distribution']['uses']
-        == './.github/workflows/distribution.yml'
-    )
-    triggers = workflows['ci-distribution'].get('on', workflows['ci-distribution'].get(True))
+    assert release['distribution']['uses'] == './.github/workflows/quality.yml'
+    assert release['distribution']['needs'] == 'validate'
+    triggers = workflows['quality'][True]
     assert 'tags' not in triggers['push']
-    steps = workflows['quality']['jobs']['python-quality']['steps']
+    steps = workflows['quality']['jobs']['quality']['steps']
     setup = next(
         index
         for index, step in enumerate(steps)
@@ -293,20 +291,13 @@ def test_shared_workflow_permissions_and_fresh_checkout_prerequisites():
 
 def test_quality_prepares_clean_runner_without_weakening_gate_isolation():
     workflow = yaml.safe_load((ROOT / '.github/workflows/quality.yml').read_text())
-    job = workflow['jobs']['python-quality']
+    job = workflow['jobs']['quality']
     assert job['runs-on'] == 'macos-15'
     assert job['env']['PLAYWRIGHT_BROWSERS_PATH'] == (
         '${{ github.workspace }}/.local/playwright-browsers'
     )
     steps = job['steps']
     gate = next(i for i, step in enumerate(steps) if step['name'] == 'Unified quality gates')
-    install = next(
-        i
-        for i, step in enumerate(steps)
-        if step.get('run') == './java/gradlew -p java :java:app-cli:installDist --no-daemon'
-    )
-    wrapper = steps[install]['run'].split()[0]
-    assert (ROOT / wrapper).is_file(), f'Gradle wrapper does not exist: {wrapper}'
     java = next(i for i, step in enumerate(steps) if step['name'] == 'Set up JDK 25')
     assert steps[java]['with']['architecture'] == 'arm64'
     host = next(
@@ -316,12 +307,13 @@ def test_quality_prepares_clean_runner_without_weakening_gate_isolation():
     browsers = next(
         i for i, step in enumerate(steps) if step.get('run') == 'npx playwright install chromium'
     )
-    assert host < java < install < gate
+    assert host < java < gate
+    assert all(':java:app-cli:installDist' not in step.get('run', '') for step in steps)
     assert browsers < gate
     for step in steps:
         assert 'PLAYWRIGHT_BROWSERS_PATH' not in step.get('env', {})
         assert 'XDG_CACHE_HOME' not in step.get('env', {})
-    for index in (host, install, browsers, gate):
+    for index in (host, browsers, gate):
         assert 'if' not in steps[index]
         assert not steps[index].get('continue-on-error', False)
     assert 'XDG_CACHE_HOME' not in job['env']
@@ -329,46 +321,47 @@ def test_quality_prepares_clean_runner_without_weakening_gate_isolation():
 
 
 def test_only_native_arm64_build_can_seal_candidate_after_full_gate():
-    workflow = yaml.safe_load((ROOT / '.github/workflows/distribution.yml').read_text())
-    jobs = workflow['jobs']
-    assert set(jobs) == {'quality', 'build'}
-    assert jobs['quality']['uses'] == './.github/workflows/quality.yml'
-    assert jobs['quality']['with']['full-mode'] is True
-    build = jobs['build']
-    assert build['needs'] == 'quality' and build['runs-on'] == 'macos-15'
-    assert 'strategy' not in build
-    steps = build['steps']
+    workflow = yaml.safe_load((ROOT / '.github/workflows/quality.yml').read_text())
+    assert set(workflow['jobs']) == {'quality'}
+    job = workflow['jobs']['quality']
+    assert job['runs-on'] == 'macos-15' and 'strategy' not in job
+    steps = job['steps']
     named = {step['name']: step for step in steps}
-    assert named['Set up native arm64 JDK 25']['with']['architecture'] == 'arm64'
-    guard = named['Check macOS arm64, JDK 25 and source version']
-    assert "platform.machine() == 'arm64'" in guard['run']
-    check = named['Check and build the macOS arm64 runtime']
-    assert './java/gradlew -p java check :java:app-cli:runtimeDistTar ' in check['run']
+    assert named['Set up JDK 25']['with']['architecture'] == 'arm64'
+    assert 'Darwin arm64' in named['Check native macOS arm64 host']['run']
+    guard = named['Require a complete successful receipt from this checkout']
+    archive = named['Build the macOS arm64 runtime']
+    assert archive['run'] == './java/gradlew -p java :java:app-cli:runtimeDistTar --no-daemon'
     prepare = named['Prepare and launch actual native archive without external JDK']
     assert (
         'prepare --dist-dir java/app-cli/build/distributions --output-dir verified-candidate'
         in prepare['run']
     )
     upload = named['Upload the sole verified candidate']
-    assert steps.index(guard) < steps.index(check) < steps.index(prepare) < steps.index(upload)
+    assert steps.index(guard) < steps.index(archive) < steps.index(prepare) < steps.index(upload)
     assert upload['with']['path'] == 'verified-candidate/'
     assert upload['with']['if-no-files-found'] == 'error'
-    assert sum('upload-artifact' in step.get('uses', '') for step in steps) == 1
     assert all(
-        'if' not in item and 'continue-on-error' not in item for item in (*jobs.values(), *steps)
+        step['if'] == "steps.scope.outputs.mode == 'full'" for step in (archive, prepare, upload)
     )
+    assert 'if' not in guard
+    assert all('continue-on-error' not in item for item in (job, *steps))
 
 
 def test_java_full_uses_current_entry_with_required_comment_language_rule():
     workflow = yaml.safe_load((ROOT / '.github/workflows/java-quality.yml').read_text())
+    assert set(workflow[True]) == {'workflow_dispatch'}
     assert set(workflow['jobs']) == {'java-full'}
     job = workflow['jobs']['java-full']
     assert job['runs-on'] == 'macos-15' and 'strategy' not in job and 'needs' not in job
     steps = {step['name']: step for step in job['steps']}
     assert steps['Set up native arm64 JDK 25']['with']['architecture'] == 'arm64'
     assert 'Darwin arm64' in steps['Check native macOS arm64 host']['run']
-    assert ':java:app-cli:installDist' in steps['Check development launcher']['run']
-    assert all(':distZip' not in step.get('run', '') for step in steps.values())
+    assert all(
+        ':distZip' not in step.get('run', '')
+        and ':java:app-cli:installDist' not in step.get('run', '')
+        for step in steps.values()
+    )
     uploads = [step for step in steps.values() if 'upload-artifact' in step.get('uses', '')]
     assert uploads == [steps['Upload quality reports']]
     assert uploads[0]['if'] == 'always()'
@@ -383,6 +376,9 @@ def test_java_full_uses_current_entry_with_required_comment_language_rule():
     root_build = (ROOT / 'java/build.gradle.kts').read_text()
     quality_full = root_build.split('tasks.register("qualityFull") {', 1)[1].split('\n}', 1)[0]
     assert 'dependsOn("check")' in quality_full
+    assert '${it.path}:check' in root_build
+    cli_build = (ROOT / 'java/app-cli/build.gradle.kts').read_text()
+    assert 'tasks.named("check") {\n    dependsOn(cliSmokeTest)\n}' in cli_build
     assert (
         'tasks.named("check") {\n    dependsOn(":java:tests:quality-gates:runJavaQualityGates")\n}'
     ) in root_build
@@ -396,10 +392,10 @@ def test_java_full_uses_current_entry_with_required_comment_language_rule():
 
 def test_rc_attests_to_sealed_artifact_without_downloading_another_copy():
     release = yaml.safe_load((ROOT / '.github/workflows/release.yml').read_text())['jobs']
-    distribution = yaml.safe_load((ROOT / '.github/workflows/distribution.yml').read_text())
+    distribution = yaml.safe_load((ROOT / '.github/workflows/quality.yml').read_text())
     entry = distribution.get('on', distribution.get(True))['workflow_call']
-    build = distribution['jobs']['build']
-    assert entry['outputs']['candidate-id']['value'] == '${{ jobs.build.outputs.candidate-id }}'
+    build = distribution['jobs']['quality']
+    assert entry['outputs']['candidate-id']['value'] == '${{ jobs.quality.outputs.candidate-id }}'
     assert build['outputs']['candidate-id'] == '${{ steps.seal.outputs.artifact-id }}'
     upload = build['steps'][-1]
     assert upload['id'] == 'seal'
@@ -430,9 +426,9 @@ def test_rc_attests_to_sealed_artifact_without_downloading_another_copy():
     preflight = next(step for step in steps if step['name'].startswith('Reject a missing'))
     assert steps.index(preflight) < steps.index(download) < steps.index(verify_candidate)
     assert steps.index(verify_candidate) < steps.index(remote_tag)
-    assert entry['outputs']['candidate-key']['value'] == '${{ jobs.build.outputs.candidate-key }}'
+    assert entry['outputs']['candidate-key']['value'] == '${{ jobs.quality.outputs.candidate-key }}'
     assert build['outputs']['candidate-key'] == (
-        "${{ format('{0}:{1}:{2}', github.sha, github.run_id, github.run_attempt) }}"
+        "${{ steps.seal.outputs.artifact-id && format('{0}:{1}:{2}', github.sha, github.run_id, github.run_attempt) }}"
     )
     for check in (rc['steps'][0], preflight):
         assert check['env']['CANDIDATE_KEY'] == '${{ needs.distribution.outputs.candidate-key }}'
