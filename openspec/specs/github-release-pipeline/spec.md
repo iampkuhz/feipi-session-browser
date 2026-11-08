@@ -18,7 +18,12 @@
 
 ### Requirement: 保护正式发布
 
-`publish=false` SHALL 不产生 tag、draft 或 public Release。RC SHALL 只登记本次封存的候选身份。正式发布 SHALL 仅从匹配 VERSION 的现有 `v*` tag 进入，由禁止管理员绕过的 `github-release` 环境人工审批；审批后 SHALL 仅按已登记 artifact ID 直接解包到验证目录，并重新验证同 SHA/run/attempt 候选及远端 tag。
+`publish=false` SHALL 不产生 tag、draft 或 public Release，允许独立分支验证。RC SHALL 只登记本次封存的候选身份。正式发布 SHALL 仅从匹配 VERSION 的现有 `v*` tag 进入，由禁止管理员绕过的 `github-release` 环境人工审批。构建前及审批后 SHALL 分别从远端读取 `main`，验证 tag 指向的精确提交是 `main` 的当前提交或其祖先；无法验证 SHALL 阻断发布。审批后 SHALL 仅按已登记 artifact ID 直接解包到验证目录，并重新验证同 SHA/run/attempt 候选及远端 tag。
+
+#### Scenario: 发行提交不在远端 main
+
+- **When** 正式 tag 指向尚未合入 `main` 的提交，或审批后该提交不再位于 `main` 历史中
+- **Then** SHALL 拒绝继续；不创建 draft 或 public Release
 
 #### Scenario: 等待审批或上传失败
 

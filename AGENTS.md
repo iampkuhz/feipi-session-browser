@@ -3,6 +3,7 @@
 - 中文沟通；标识符、命令、路径和 API 保持英文。先搜索定位，只读必要片段。不纳入真实 session、密钥、token、缓存、运行数据或个人配置。
 - 开发、构建、验证与产品运行只支持 Apple Silicon macOS（arm64）；不要保留或新增其他平台的兼容分支、launcher、产物和对应测试。
 - 每次发布使用全新索引目录，从原始会话源重新扫描构建；索引与运行状态不跨版本复用。不实现旧索引迁移、旧版回滚或跨版本兼容，不读取、迁移或删除旧索引作为发布步骤。保留当前会话源解析、安全校验与同版本正常增量扫描。
+- 正式发布先把发行提交合入远端 `main`，再从该提交创建版本 tag；不从尚未合入的分支发布，也不移动已经推送的发布 tag。
 - 普通说明、局部代码或样式小改由主线程直接做：说明用 `git diff HEAD --check -- <path>`（新文件直接审阅）；代码按[开发反馈表](docs/development/README.md#日常小改)运行最邻近的原生检查。无需 OpenSpec、委派或先跑整套 Gate。改 Java 时按需读取 `openspec/specs/java-code-conciseness/spec.md`。
 - 非平凡产品、跨模块、agent、harness 或 Gate 契约变更走 OpenSpec skill。大型/独立工作按需委派，独立 QA 集中在交付点；先读共享 handoff 和 manifest，不复制协议或让多个 agent 重证同一小步。
 - 原生子任务：模型路由、身份隔离和受保护路径以 `harness/agent-policy.manifest.yaml` 为准；用法和 Qoder 退役边界见 `docs/agent-runtime.md`。共用规则放 `skills/`、`harness/`，客户端只保留入口。

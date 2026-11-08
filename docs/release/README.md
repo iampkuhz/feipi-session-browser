@@ -12,7 +12,9 @@
 
 `java/gradle/VERSION` 是版本唯一真源。Quality 在同一个 macOS arm64 job 中选择并运行一档 Gate：一般文档和脚本变更走 incremental；Java、发布链变更及手动和 tag 运行走 full。Release 复用 Quality 的 full 路径：根 `check` 通过后只构建 `runtimeDistTar`，再解包启动并封存唯一候选。Java Quality 仅用于人工请求的专项报告。
 
-手动运行只需要选择是否发布，版本从该 ref 的 `VERSION` 读取。`publish=false` 不创建 tag、draft 或 public Release。Release 的 `release-candidate` deployment 仅记录同 SHA/run/attempt 封存的 artifact ID。正式发布 job 在受保护的 `github-release` 环境人工批准后，按**唯一 ID**下载到 `verified-candidate/`，重新验证候选和远端 tag；它不取旧尝试、不重新构建。随后创建 draft，逐项上传，重新下载全部资产核对名称、大小和 SHA-256，再公开。失败不得覆盖同名 draft/Release、删除或移动 tag。旧尝试或部分重跑不能复用候选；现有不完整 draft 必须由有权限的维护者明确处置。
+正式发布先把包含 `VERSION` 的发行提交合入远端 `main`，再从该提交推送 `v<VERSION>` tag。Release 在构建前和人工审批后各从远端读取 `main`，确认 tag 的精确提交仍在 `main` 历史中。独立分支仍可手动运行 `publish=false` 验证候选，不创建 tag、draft 或 public Release。
+
+`release-candidate` 只登记同 SHA/run/attempt 的 artifact ID。受保护的 `github-release` 环境批准后，发布 job 按**唯一 ID**下载并重新验证候选及远端 tag，再创建 draft、上传并回读全部资产核对名称、大小和 SHA-256，最后公开。不复用旧尝试、不重新构建，不覆盖同名 draft/Release，也不删除或移动 tag。已有不完整 draft 必须由有权限的维护者明确处置。
 
 候选与公开资产都是四个文件：
 

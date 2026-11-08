@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import subprocess
 import textwrap
 import urllib.error
@@ -250,6 +251,85 @@ def test_full_gate_receipt_rejects_incomplete_evidence(tmp_path, monkeypatch, ca
     else:
         with pytest.raises(AssertionError):
             exec(code, {})
+
+
+def test_release_requires_remote_main_before_and_after_approval(tmp_path):
+    release = yaml.safe_load((ROOT / '.github/workflows/release.yml').read_text())['jobs']
+    validate = next(s['run'] for s in release['validate']['steps'] if s.get('id') == 'resolve')
+    approved = next(
+        s['run'] for s in release['publish-release']['steps'] if 'git ls-remote' in s.get('run', '')
+    )
+    checkout = tmp_path / 'checkout'
+    checkout.mkdir()
+
+    def git(*args):
+        return subprocess.check_output(
+            [
+                'git',
+                '-c',
+                'user.name=Test',
+                '-c',
+                'user.email=test@example.test',
+                '-c',
+                'commit.gpgsign=false',
+                '-c',
+                'tag.gpgsign=false',
+                *args,
+            ],
+            cwd=checkout,
+            text=True,
+        ).strip()
+
+    git('init', '-qb', 'main')
+    origin = tmp_path / 'origin.git'
+    git('init', '-q', '--bare', str(origin))
+    git('remote', 'add', 'origin', str(origin))
+    git('commit', '-qm', 'main base', '--allow-empty')
+    git('push', '-q', 'origin', 'main')
+    git('switch', '-qc', 'release')
+    git('commit', '-qm', 'release', '--allow-empty')
+    sha = git('rev-parse', 'HEAD')
+    git('tag', '-am', 'release', 'v1.2')
+    git('push', '-q', 'origin', 'refs/tags/v1.2')
+    git('update-ref', 'refs/remotes/origin/main', sha)
+    version_file = checkout / 'java/gradle/VERSION'
+    version_file.parent.mkdir(parents=True)
+    version_file.write_text('1.2\n')
+    output = tmp_path / 'output'
+    env = os.environ | {
+        'GITHUB_EVENT_NAME': 'push',
+        'GITHUB_REF_TYPE': 'tag',
+        'GITHUB_REF_NAME': 'v1.2',
+        'GITHUB_SHA': sha,
+        'GITHUB_OUTPUT': str(output),
+        'INPUT_PUBLISH': '',
+        'VERSION': '1.2',
+    }
+
+    def run(script, settings):
+        return subprocess.run(
+            ['/bin/bash', '-c', script],
+            cwd=checkout,
+            env=settings,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    rc = env | {'GITHUB_EVENT_NAME': 'workflow_dispatch', 'GITHUB_REF_TYPE': 'branch'}
+    assert run(validate, rc).returncode == 0
+    assert 'publish=false\n' in output.read_text()
+    # 仅替换 gh 鉴权，远端 tag 与 main 校验使用真实 Git。
+    scripts = (validate, 'gh() { [[ "$*" == "auth setup-git" ]]; }\n' + approved)
+    for script in scripts:
+        result = run(script, env)
+        assert result.returncode == 1 and '远端 main' in result.stderr
+    git('commit', '-qm', 'main advanced after release', '--allow-empty')
+    git('push', '-q', 'origin', 'HEAD:refs/heads/main')
+    for script in scripts:
+        result = run(script, env)
+        assert result.returncode == 0, result.stderr
+    assert 'publish=true\n' in output.read_text()
 
 
 def test_shared_workflow_permissions_and_fresh_checkout_prerequisites():

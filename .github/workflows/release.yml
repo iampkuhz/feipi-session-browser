@@ -26,7 +26,7 @@ permissions:
 jobs:
   # ============================================================
   # 阶段 1：版本解析与前置校验
-  # 校验位于 CI 入口 trust boundary：tag/ref 与 VERSION 文件一致性。
+  # 正式 tag 必须匹配 VERSION，且其提交已进入远端 main。
   # ============================================================
   validate:
     runs-on: macos-15
@@ -58,6 +58,11 @@ jobs:
           if [[ "$GITHUB_EVENT_NAME" == push || "$INPUT_PUBLISH" == true ]]; then
             if [[ "$GITHUB_REF_TYPE" != tag || "$GITHUB_REF_NAME" != "v$version" ]]; then
               echo "::error::正式发布必须从与 VERSION 一致的 v$version tag 运行。" >&2
+              exit 1
+            fi
+            if ! git fetch --no-tags origin refs/heads/main ||
+               ! git merge-base --is-ancestor "$GITHUB_SHA" FETCH_HEAD; then
+              echo "::error::无法确认正式 tag 的提交已合入远端 main；请先合并再发布。" >&2
               exit 1
             fi
             publish=true
@@ -139,7 +144,7 @@ jobs:
           VERSION: ${{ needs.validate.outputs.version }}
         run: |
           python scripts/release/release_pipeline_helpers.py verify-candidate --candidate-dir verified-candidate --version "$VERSION" --source-sha "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT"
-      - name: Verify existing remote tag still targets the exact approved SHA
+      - name: Verify the approved SHA still matches the remote tag and is on main
         shell: bash
         env:
           VERSION: ${{ needs.validate.outputs.version }}
@@ -156,6 +161,11 @@ jobs:
             remote_sha="$(printf '%s\n' "$remote_refs" | awk 'NF == 2 {print $1}')"
           fi
           [[ "$remote_sha" == "$GITHUB_SHA" ]]
+          if ! git fetch --no-tags origin refs/heads/main ||
+             ! git merge-base --is-ancestor "$GITHUB_SHA" FETCH_HEAD; then
+            echo "::error::无法确认获批提交仍在远端 main；拒绝发布。" >&2
+            exit 1
+          fi
       - name: Create draft, upload and redownload every asset, then make public
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
