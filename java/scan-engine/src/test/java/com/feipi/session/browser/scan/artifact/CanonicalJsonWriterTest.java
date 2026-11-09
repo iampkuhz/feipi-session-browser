@@ -37,6 +37,7 @@ class CanonicalJsonWriterTest {
     byte[] first = writer.serialize(artifact);
     byte[] second = writer.serialize(artifact);
     assertThat(first).isEqualTo(second);
+    assertThat(writer.serializedSize(artifact)).isEqualTo(first.length);
   }
 
   @Test

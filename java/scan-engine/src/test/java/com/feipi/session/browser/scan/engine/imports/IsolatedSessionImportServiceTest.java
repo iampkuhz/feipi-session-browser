@@ -23,10 +23,12 @@ import com.feipi.session.browser.source.spi.SourceId;
 import com.feipi.session.browser.source.spi.SourceResult;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.SequenceInputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -54,6 +56,43 @@ class IsolatedSessionImportServiceTest {
           .isEqualTo("imports/" + result.metadata().importId() + "/upload.jsonl");
       assertThat(closes).hasValue(1);
     }
+  }
+
+  @Test
+  void defaultPolicyAcceptsAValidFileAtTheTwoHundredMebibyteBoundary() throws Exception {
+    long maximum = ImportLimits.defaults().maxFileBytes();
+    String prefix = "{\"type\":\"assistant\",\"sessionId\":\"shared\",\"message\":{\"content\":\"";
+    String suffix = "\"}}\n";
+    int records = 211;
+    int perLineBytes = Math.toIntExact(maximum / records);
+    int finalLineBytes = Math.toIntExact(maximum - (long) perLineBytes * (records - 1));
+    byte[] line = syntheticLine(prefix, suffix, perLineBytes);
+    byte[] finalLine = syntheticLine(prefix, suffix, finalLineBytes);
+    assertThat(line.length).isEqualTo(perLineBytes);
+    assertThat(finalLine.length).isEqualTo(finalLineBytes);
+    assertThat(perLineBytes).isLessThan(1_000_000);
+
+    var parts = new ArrayList<java.io.InputStream>(records);
+    for (int index = 0; index < records; index++) {
+      parts.add(new ByteArrayInputStream(index == records - 1 ? finalLine : line));
+    }
+    try (var service = new IsolatedSessionImportService(source -> new RecordingAdapter())) {
+      var result =
+          service.create(
+              new SequenceInputStream(Collections.enumeration(parts)),
+              "max-size-synthetic.jsonl",
+              NormalizedAgent.CLAUDE_CODE);
+      assertThat(result.metadata().sizeBytes()).isEqualTo(maximum);
+      assertThat(result.artifact().calls()).hasSize(1);
+    }
+  }
+
+  private static byte[] syntheticLine(String prefix, String suffix, int bytes) {
+    int contentLength = bytes - prefix.length() - suffix.length();
+    if (contentLength < 0 || contentLength > 1_000_000) {
+      throw new IllegalArgumentException("synthetic line length is outside import limits");
+    }
+    return (prefix + "x".repeat(contentLength) + suffix).getBytes(StandardCharsets.UTF_8);
   }
 
   @Test

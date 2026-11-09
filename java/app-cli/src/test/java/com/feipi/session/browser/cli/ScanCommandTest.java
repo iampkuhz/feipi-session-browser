@@ -151,6 +151,45 @@ class ScanCommandTest {
     }
 
     @Test
+    void realCodexFatalPrintsAnActionableCodeWithoutExposingTheSource() throws Exception {
+      Path home = tempDir.resolve("fixture-home");
+      Path sessions = Files.createDirectories(home.resolve(".codex/sessions"));
+      Files.writeString(
+          sessions.getParent().resolve("session_index.jsonl"),
+          "{\"id\":\"synthetic-private-session\"}\n");
+      Path source = sessions.resolve("rollout-synthetic-private-session.jsonl");
+      Files.writeString(
+          source,
+          """
+          {"ordinal":0,"type":"session_meta","payload":{"id":"synthetic-private-session","subagent_history_start_ordinal":999}}
+          {"ordinal":1,"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"synthetic-private-body"}]}}
+          """);
+      String oldHome = System.getProperty("user.home");
+      try {
+        System.setProperty("user.home", home.toString());
+        var result =
+            execute(
+                "scan",
+                "--full",
+                "--agent",
+                "codex",
+                "--index-dir",
+                tempDir.resolve("fatal-scan-index").toString());
+        assertThat(result.exitCode()).isEqualTo(1);
+        assertThat(result.stderr())
+            .contains(
+                "scanLogId=1",
+                "source=codex phase=PARSE code=CODEX_HISTORY_BOUNDARY_INVALID",
+                "hint[CODEX_HISTORY_BOUNDARY_INVALID]",
+                "No partial results were published")
+            .doesNotContain(
+                "synthetic-private-session", "synthetic-private-body", source.toString());
+      } finally {
+        System.setProperty("user.home", oldHome);
+      }
+    }
+
+    @Test
     @DisplayName("full scan 输出中 Total 等于各分项之和（回归：防止 Total 使用 successCount 导致不一致）")
     void fullScanTotalMatchesSumOfPerSourceCounts() throws Exception {
       Path indexDir = tempDir.resolve("total-consistency-index");

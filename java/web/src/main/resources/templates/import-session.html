@@ -49,7 +49,7 @@
                 <input id="import-session-file" name="file" type="file" accept=".jsonl" required
                        aria-describedby="import-session-file-help" data-import-file>
                 <p id="import-session-file-help" class="import-session__help">
-                    每次一个 .jsonl 文件，上限 <span data-import-limit>{% if import_max_bytes is defined %}{{ import_max_bytes }} 字节{% else %}以服务端限制为准{% endif %}</span>。
+                    每次一个 .jsonl 文件，上限 <span data-import-limit>{% if import_max_display is defined %}{{ import_max_display }}{% else %}以服务端限制为准{% endif %}</span>。
                 </p>
                 <p class="import-session__filename" data-import-filename></p>
             </div>

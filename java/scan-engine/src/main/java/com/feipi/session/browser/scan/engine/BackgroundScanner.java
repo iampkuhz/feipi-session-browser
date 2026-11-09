@@ -1,9 +1,12 @@
 package com.feipi.session.browser.scan.engine;
 
+import com.feipi.session.browser.index.api.write.ScanFailure;
 import com.feipi.session.browser.source.spi.SourceId;
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -12,6 +15,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,6 +39,11 @@ public final class BackgroundScanner {
 
   /** 调度检查频率（毫秒）。每 tick 检查一次是否有层级需要扫描。 */
   private static final long TICK_MS = 1000;
+
+  private static final int MAX_FAILURE_SAMPLES = 12;
+  private static final Pattern SAFE_LOG_SOURCE = Pattern.compile("[A-Za-z0-9_-]{1,40}");
+  private static final Pattern SAFE_LOG_PHASE = Pattern.compile("[A-Z][A-Z0-9_]{0,39}");
+  private static final Pattern SAFE_LOG_CODE = Pattern.compile("[A-Z][A-Z0-9_]{0,79}");
 
   private final TierConfig hotTier;
   private final TierConfig warmTier;
@@ -260,23 +269,17 @@ public final class BackgroundScanner {
    * 等）记录 ERROR 后设置 {@code fatalError} 标志并重新抛出， 由 {@link #isRunning()} 通过 Future 状态感知调度终止。
    */
   void checkAndScanSafe() {
-    IncrementalScanEngine.clearFatalErrorStackLogged();
+    ScanFatalDiagnostics.clearReported();
     try {
       checkAndScan();
     } catch (RuntimeException e) {
-      if (IncrementalScanEngine.hasFatalErrorStackBeenLogged()) {
-        log.warn("调度检查异常（stack 已由内层记录），后续调度继续: {}: {}", e.getClass().getName(), e.getMessage());
-      } else {
-        log.warn("调度检查异常，后续调度继续: {}", e.getMessage(), e);
-      }
+      log.warn("调度检查异常，后续调度继续: {}", e.getMessage(), e);
     } catch (Error e) {
       fatalError = true;
-      if (IncrementalScanEngine.hasFatalErrorStackBeenLogged()) {
-        log.error("调度任务致命错误（stack 已由内层记录）[{}]: {}", e.getClass().getName(), e.getMessage());
-      } else {
-        log.error("调度任务致命错误 [{}]: {}", e.getClass().getName(), e.getMessage(), e);
-      }
+      ScanFatalDiagnostics.reportAtBoundary(e, "background", "SCHEDULER");
       throw e;
+    } finally {
+      ScanFatalDiagnostics.clearReported();
     }
   }
 
@@ -347,7 +350,6 @@ public final class BackgroundScanner {
       log.debug("开始 warm 层级扫描");
       try {
         warmAction.accept(token);
-        log.debug("warm 层级扫描完成");
         success = !token.isCancelled();
       } catch (CancellationException e) {
         log.debug("warm 层级扫描已取消");
@@ -364,7 +366,6 @@ public final class BackgroundScanner {
       log.debug("开始 hot 层级扫描");
       try {
         hotAction.accept(token);
-        log.debug("hot 层级扫描完成");
         success = !token.isCancelled();
       } catch (CancellationException e) {
         log.debug("hot 层级扫描已取消");
@@ -375,13 +376,18 @@ public final class BackgroundScanner {
     }
 
     if (success) {
-      logScanSummary(tierName, windowSeconds);
+      IncrementalScanSummary summary = summarySupplier.get();
+      if (summary != null && (summary.errorCount() > 0 || !summary.issues().isEmpty())) {
+        logScanFailureSummary(tierName, windowSeconds, summary);
+      } else {
+        log.debug("{} 层级扫描完成", tierName);
+        logScanSummary(tierName, windowSeconds, summary);
+      }
     }
   }
 
   /** 输出后台扫描完成 INFO 摘要：实际模式、窗口、成功更新数和按来源计数。 */
-  private void logScanSummary(String tierName, long windowSeconds) {
-    IncrementalScanSummary summary = summarySupplier.get();
+  private void logScanSummary(String tierName, long windowSeconds, IncrementalScanSummary summary) {
     if (summary == null) {
       log.info("后台扫描完成: tier={} window={}s", tierName, windowSeconds);
       return;
@@ -407,6 +413,47 @@ public final class BackgroundScanner {
           summary.successCount(),
           groupedUpdates);
     }
+  }
+
+  /** 输出不含会话键、路径或原始诊断内容的后台失败定位摘要。 */
+  private static void logScanFailureSummary(
+      String tierName, long windowSeconds, IncrementalScanSummary summary) {
+    Map<String, Integer> failureCounts = new TreeMap<>();
+    Map<String, String> hints = new TreeMap<>();
+    var samples = new ArrayList<String>(MAX_FAILURE_SAMPLES);
+    for (ScanFailure failure : ScanDiagnostics.failures(summary.issues())) {
+      String label = failureLabel(failure);
+      failureCounts.merge(label, 1, Integer::sum);
+      if (samples.size() < MAX_FAILURE_SAMPLES) {
+        samples.add(label + (failure.line() > 0 ? "@" + failure.line() : ""));
+      }
+      String hint = ScanDiagnostics.hint(failure.code());
+      if (!hint.isEmpty() && hints.size() < MAX_FAILURE_SAMPLES) hints.put(failure.code(), hint);
+    }
+    log.warn(
+        "后台扫描失败结果: tier={} window={}s scanLogId={} candidates={} errors={} issues={}"
+            + " failureCounts={} samples={} hints={}",
+        tierName,
+        windowSeconds,
+        summary.scanLogId(),
+        summary.totalCandidates(),
+        summary.errorCount(),
+        summary.issues().size(),
+        failureCounts,
+        samples,
+        hints);
+  }
+
+  private static String failureLabel(ScanFailure failure) {
+    return safeLogValue(failure.source(), SAFE_LOG_SOURCE, "unknown")
+        + "/"
+        + safeLogValue(failure.phase(), SAFE_LOG_PHASE, "UNKNOWN")
+        + "/"
+        + safeLogValue(failure.code(), SAFE_LOG_CODE, "SCAN_FAILED");
+  }
+
+  private static String safeLogValue(String value, Pattern allowed, String fallback) {
+    return value != null && allowed.matcher(value).matches() ? value : fallback;
   }
 
   /** 更新层级时间戳（锁不可用时也更新，避免频繁重试）。 */

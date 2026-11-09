@@ -5,10 +5,28 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.feipi.session.browser.domain.source.SourceRecordSequence;
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.AccessDeniedException;
+import java.nio.file.NoSuchFileException;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class ManagedSourceResultTest {
+  @Test
+  void fatalIoCodesUseExceptionTypesWithoutCopyingPathsOrMessages() {
+    var denied =
+        SourceResult.Fatal.ioFailure(
+            "SOURCE_IO_FAILED",
+            new UncheckedIOException(new AccessDeniedException("/private/fixture")));
+    assertThat(denied.code()).isEqualTo("SOURCE_ACCESS_DENIED");
+    assertThat(denied.errorDetail()).doesNotContain("/private/fixture");
+    var missing = new NoSuchFileException("/private/fixture");
+    assertThat(SourceResult.Fatal.ioFailure("SOURCE_IO_FAILED", missing).code())
+        .isEqualTo("SOURCE_FILE_MISSING");
+    assertThat(SourceResult.Fatal.ioFailure("SOURCE_TEMP_IO_FAILED", missing).code())
+        .isEqualTo("SOURCE_TEMP_IO_FAILED");
+  }
+
   @Test
   void managedConstructionAndAccessNeverOpenOrMaterializeRecords() throws Exception {
     var sequence = new TrapSequence();

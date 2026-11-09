@@ -10,6 +10,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
 import java.io.IOException;
+import java.nio.file.AccessDeniedException;
+import java.nio.file.NoSuchFileException;
 import java.util.List;
 import java.util.Objects;
 
@@ -422,14 +424,35 @@ public sealed interface SourceResult
    *
    * @param diagnostics 诊断信息列表，不可变，不得为 null
    * @param errorDetail 错误详情，不得为空
+   * @param code 稳定错误码，不含异常正文
    */
   record Fatal(
       /* 诊断信息列表，不可变，不得为 null。 */
       List<SourceDiagnostic> diagnostics,
 
       /* 错误详情，不得为空。 */
-      @NotNull @NotBlank @CoreField String errorDetail)
+      @NotNull @NotBlank @CoreField String errorDetail,
+      String code)
       implements SourceResult {
+
+    /** 没有具体原因时使用明确的致命失败兜底码。 */
+    public Fatal(List<SourceDiagnostic> diagnostics, String errorDetail) {
+      this(diagnostics, errorDetail, "SOURCE_FATAL");
+    }
+
+    /** 只从异常类型判定原因，不把异常消息或路径用作错误码。 */
+    public static Fatal ioFailure(String fallbackCode, Exception failure) {
+      Throwable cause = failure;
+      for (int depth = 0; depth < 8 && cause != null; depth++, cause = cause.getCause()) {
+        if (cause instanceof AccessDeniedException || cause instanceof SecurityException) {
+          return new Fatal(List.of(), "文件访问被拒绝", "SOURCE_ACCESS_DENIED");
+        }
+        if (cause instanceof NoSuchFileException && !"SOURCE_TEMP_IO_FAILED".equals(fallbackCode)) {
+          return new Fatal(List.of(), "文件在读取时不可用", "SOURCE_FILE_MISSING");
+        }
+      }
+      return new Fatal(List.of(), "来源读写操作未完成", fallbackCode);
+    }
 
     /**
      * 紧凑构造器，执行防御性拷贝并校验约束。
@@ -445,9 +468,12 @@ public sealed interface SourceResult
       }
       diagnostics = copy;
       try {
-        ValidationSupport.validateCanonicalConstructor(Fatal.class, diagnostics, errorDetail);
+        ValidationSupport.validateCanonicalConstructor(Fatal.class, diagnostics, errorDetail, code);
       } catch (ConstraintViolationException e) {
         translateNotBlankNotNull(e, "errorDetail");
+      }
+      if (code == null || !code.matches("[A-Z][A-Z0-9_]{0,79}")) {
+        throw new IllegalArgumentException("非法的来源致命错误码");
       }
     }
 

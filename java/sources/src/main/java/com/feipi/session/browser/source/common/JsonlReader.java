@@ -118,6 +118,27 @@ public final class JsonlReader {
         null);
   }
 
+  /** 逐对象写入调用方拥有的 sink，不在返回值中保留整批事件。 */
+  public JsonlReaderResult readTo(Path path, List<JsonNode> sink) throws IOException {
+    return readTo(path, UnaryOperator.identity(), sink);
+  }
+
+  /** 在原有 JSONL 校验、诊断和文件变化检查下，将解析事件逐条写入外部 sink。 */
+  public JsonlReaderResult readTo(
+      Path path, UnaryOperator<JsonNode> eventProjection, List<JsonNode> sink) throws IOException {
+    Objects.requireNonNull(path, "path 不得为 null");
+    Objects.requireNonNull(eventProjection, "eventProjection 不得为 null");
+    Objects.requireNonNull(sink, "sink 不得为 null");
+    if (!sink.isEmpty()) throw new IllegalArgumentException("sink 必须为空");
+    return readInternal(
+        path,
+        eventProjection,
+        null,
+        Files.size(path),
+        Files.getLastModifiedTime(path).toMillis(),
+        sink);
+  }
+
   /**
    * 仅对完整验证且规则精确确认的值提前投影；原路径仍用于变化检测和原始字节定位。
    *

@@ -117,6 +117,20 @@ public final class FullScanEngine {
    * @throws NullPointerException 当 indexWriter 或 config 为 null 时
    */
   public ScanSummary scan(IndexWriterPort indexWriter, ScanConfig config, ScanProgress progress) {
+    var fatal = new ScanFatalDiagnostics("full");
+    try {
+      return scan(indexWriter, config, progress, fatal);
+    } catch (Error error) {
+      fatal.report(error);
+      throw error;
+    }
+  }
+
+  private ScanSummary scan(
+      IndexWriterPort indexWriter,
+      ScanConfig config,
+      ScanProgress progress,
+      ScanFatalDiagnostics fatal) {
     Objects.requireNonNull(indexWriter, "indexWriter 不得为 null");
     Objects.requireNonNull(config, "config 不得为 null");
 
@@ -135,10 +149,14 @@ public final class FullScanEngine {
     try {
       Files.createDirectories(config.artifactOutputDir().getParent());
     } catch (IOException e) {
-      log.error("无法创建 artifact 输出目录: {}", config.artifactOutputDir(), e);
-      return buildErrorSummary(startMs, e.getMessage());
+      return buildErrorSummary(
+          startMs,
+          fatal.setupFailure(
+              ScanIssue.ScanPhase.ARTIFACT_WRITE, "SCAN_ARTIFACT_DIRECTORY_FAILED", e),
+          fatal.scanLogId());
     }
 
+    fatal.at("SCHEMA_INIT", "");
     // 1. 确保 schema
     try {
       long phaseStart = System.nanoTime();
@@ -147,20 +165,27 @@ public final class FullScanEngine {
       if (progress != null)
         progress.onPhaseEnd("schema", (System.nanoTime() - phaseStart) / 1_000_000);
     } catch (RuntimeException e) {
-      log.error("schema 初始化失败", e);
-      return buildErrorSummary(startMs, "Schema initialization failed: " + exceptionMessage(e));
+      return buildErrorSummary(
+          startMs,
+          fatal.setupFailure(ScanIssue.ScanPhase.INDEX_WRITE, "SCAN_SCHEMA_INIT_FAILED", e),
+          fatal.scanLogId());
     }
 
+    fatal.at("SCAN_LOG_START", "");
     // 2. 开始 scan_log
     long scanLogId;
     try {
       scanLogId = indexWriter.startScan(startEpoch);
     } catch (RuntimeException e) {
-      log.error("scan_log 开始记录失败", e);
-      return buildErrorSummary(startMs, "scan_log start failed: " + exceptionMessage(e));
+      return buildErrorSummary(
+          startMs,
+          fatal.setupFailure(ScanIssue.ScanPhase.INDEX_WRITE, "SCAN_LOG_START_FAILED", e),
+          fatal.scanLogId());
     }
 
+    fatal.scanStarted(scanLogId);
     boolean scanLogFinalized = false;
+    fatal.at("INDEX_PREPARE", "");
     try {
       // 1b. 重建所选来源；无过滤时才重建完整索引，保留未扫描来源。
       try {
@@ -170,8 +195,10 @@ public final class FullScanEngine {
         if (progress != null)
           progress.onPhaseEnd("clear_index", (System.nanoTime() - phaseStart) / 1_000_000);
       } catch (RuntimeException e) {
-        log.error("清理旧 index 失败", e);
-        return buildErrorSummary(startMs, "Clear existing index failed: " + exceptionMessage(e));
+        return buildErrorSummary(
+            startMs,
+            fatal.setupFailure(ScanIssue.ScanPhase.INDEX_WRITE, "SCAN_INDEX_PREPARE_FAILED", e),
+            fatal.scanLogId());
       }
 
       // 3. 处理各源
@@ -193,6 +220,7 @@ public final class FullScanEngine {
           continue;
         }
 
+        fatal.at("ROOT_CHECK", agentValue);
         // 根目录安全检查
         SourceRoot root = entry.adapter().checkRoot(entry.rootPath());
         if (!root.isSafe()) {
@@ -211,6 +239,7 @@ public final class FullScanEngine {
           continue;
         }
 
+        fatal.at("DISCOVERY", agentValue);
         // 发现候选项
         BoundedStream<Candidate> candidates;
         try {
@@ -232,6 +261,7 @@ public final class FullScanEngine {
           progress.onSourceStart(agentValue, sourceCount);
         }
 
+        fatal.at("CANDIDATE", agentValue);
         // 逐候选处理
         int processedInBatch = 0;
         int progressCount = 0;
@@ -263,8 +293,7 @@ public final class FullScanEngine {
             case SKIPPED -> skippedCount++;
             case ERROR -> {
               counters[2]++;
-              issues.add(
-                  new ScanIssue(candidate.sessionKey(), agentValue, result.phase, result.message));
+              issues.add(result.issue(candidate.sessionKey(), agentValue));
             }
             default -> {}
           }
@@ -277,9 +306,11 @@ public final class FullScanEngine {
 
           // 定期 flush
           if (processedInBatch >= FLUSH_INTERVAL && indexWriter.pendingWriteCount() > 0) {
+            fatal.at("INDEX_FLUSH", agentValue);
             if (!ScanFlush.flush(indexWriter, progress, "flush", agentValue, issues)) {
               scanFailed = true;
             }
+            fatal.at("CANDIDATE", agentValue);
             processedInBatch = 0;
           }
         }
@@ -290,6 +321,7 @@ public final class FullScanEngine {
       }
 
       // 4. 最终 flush
+      fatal.at("INDEX_FLUSH", "");
       if (!scanFailed && indexWriter.pendingWriteCount() > 0) {
         if (!ScanFlush.flush(indexWriter, progress, "flush_final", "", issues)) {
           scanFailed = true;
@@ -299,6 +331,7 @@ public final class FullScanEngine {
       scanFailed = scanFailed || !issues.isEmpty() || counters[2] > 0;
 
       // 5. 完成 scan_log
+      fatal.at("SCAN_LOG_FINISH", "");
       long endMs = System.currentTimeMillis();
       double endEpoch = endMs / 1000.0;
       try {
@@ -318,8 +351,8 @@ public final class FullScanEngine {
         }
         scanLogFinalized = true;
       } catch (RuntimeException e) {
-        issues.add(new ScanIssue("", "", ScanIssue.ScanPhase.INDEX_WRITE, exceptionMessage(e)));
-        log.error("scan_log 完成记录失败", e);
+        issues.add(
+            fatal.setupFailure(ScanIssue.ScanPhase.INDEX_WRITE, "SCAN_LOG_FINISH_FAILED", e));
       }
 
       long duration = endMs - startMs;
@@ -332,9 +365,18 @@ public final class FullScanEngine {
           scanLogId,
           perSourceCount,
           issues);
+    } catch (Error error) {
+      fatal.report(error);
+      throw error;
     } finally {
       if (!scanLogFinalized) {
-        indexWriter.failScan(scanLogId, System.currentTimeMillis() / 1000.0, Map.of());
+        try {
+          indexWriter.failScan(
+              scanLogId, System.currentTimeMillis() / 1000.0, Map.of(), fatal.failures());
+        } catch (RuntimeException | Error cleanup) {
+          if (!fatal.hasReportedJvmError()) throw cleanup;
+          log.error("scan_log 最终标记失败: exception={}", cleanup.getClass().getName());
+        }
       }
     }
   }
@@ -367,7 +409,7 @@ public final class FullScanEngine {
         parseResult = adapter.parse(candidate, null);
       } catch (RuntimeException exception) {
         return new CandidateResult(
-            CandidateOutcome.ERROR, ScanIssue.ScanPhase.PARSE, exceptionMessage(exception));
+            CandidateOutcome.ERROR, ScanIssue.ScanPhase.PARSE, "", "SOURCE_PARSER_EXCEPTION");
       }
 
       if (parseResult instanceof SourceResult.Skipped skipped) {
@@ -375,12 +417,10 @@ public final class FullScanEngine {
             CandidateOutcome.SKIPPED, ScanIssue.ScanPhase.PARSE, skipped.reason());
       }
       if (parseResult instanceof SourceResult.Fatal fatal) {
-        return new CandidateResult(
-            CandidateOutcome.ERROR, ScanIssue.ScanPhase.PARSE, fatal.errorDetail());
+        return parseFailure(fatal.code(), fatal.diagnostics());
       }
       if (parseResult instanceof SourceResult.RetryableIncomplete retryable) {
-        return new CandidateResult(
-            CandidateOutcome.ERROR, ScanIssue.ScanPhase.PARSE, retryable.reason());
+        return parseFailure("SOURCE_RETRYABLE_INCOMPLETE", retryable.diagnostics());
       }
       if (!(parseResult instanceof SourceResult.Success success)) {
         return new CandidateResult(
@@ -393,18 +433,24 @@ public final class FullScanEngine {
             processParsedCandidate(
                 candidate, adapter, config, indexWriter, normEngine, artWriter, success);
       } catch (Exception cleanup) {
-        String message = "SOURCE_CLOSE:" + exceptionMessage(cleanup);
         if (processed != null && processed.outcome() == CandidateOutcome.ERROR) {
-          return new CandidateResult(
-              processed.outcome(), processed.phase(), processed.message() + "; " + message);
+          return processed;
         }
-        return new CandidateResult(CandidateOutcome.ERROR, ScanIssue.ScanPhase.PARSE, message);
+        return parseFailure("SOURCE_RESOURCE_CLOSE_FAILED", List.of());
       }
       return processed;
     } catch (Exception e) {
       return new CandidateResult(
           CandidateOutcome.ERROR, ScanIssue.ScanPhase.NORMALIZE, exceptionMessage(e));
     }
+  }
+
+  private static CandidateResult parseFailure(String code, List<SourceDiagnostic> diagnostics) {
+    return new CandidateResult(
+        CandidateOutcome.ERROR,
+        ScanIssue.ScanPhase.PARSE,
+        "SOURCE_ERRORS:" + ScanDiagnostics.sourceErrors(diagnostics),
+        code);
   }
 
   /** 在源 owner 仍有效时完成全部重放；源错误早退及任意阶段失败都由调用层关闭 owner。 */
@@ -641,17 +687,9 @@ public final class FullScanEngine {
   }
 
   /** 构建错误汇总。 */
-  private static ScanSummary buildErrorSummary(long startMs, String errorMessage) {
+  private static ScanSummary buildErrorSummary(long startMs, ScanIssue issue, long scanLogId) {
     long endMs = System.currentTimeMillis();
-    return new ScanSummary(
-        0,
-        0,
-        0,
-        1,
-        endMs - startMs,
-        0,
-        Map.of(),
-        List.of(new ScanIssue("", "", ScanIssue.ScanPhase.ROOT_CHECK, errorMessage)));
+    return new ScanSummary(0, 0, 0, 1, endMs - startMs, scanLogId, Map.of(), List.of(issue));
   }
 
   /**
@@ -660,8 +698,18 @@ public final class FullScanEngine {
    * @param outcome 处理结果。
    * @param phase 处理阶段。
    * @param message 消息文本。
+   * @param code 显式错误码，空字符串时使用阶段默认归类。
    */
-  record CandidateResult(CandidateOutcome outcome, ScanIssue.ScanPhase phase, String message) {}
+  record CandidateResult(
+      CandidateOutcome outcome, ScanIssue.ScanPhase phase, String message, String code) {
+    CandidateResult(CandidateOutcome outcome, ScanIssue.ScanPhase phase, String message) {
+      this(outcome, phase, message, "");
+    }
+
+    ScanIssue issue(String sessionKey, String source) {
+      return new ScanIssue(sessionKey, source, phase, message, code);
+    }
+  }
 
   /** 候选项处理结果枚举。 */
   enum CandidateOutcome {

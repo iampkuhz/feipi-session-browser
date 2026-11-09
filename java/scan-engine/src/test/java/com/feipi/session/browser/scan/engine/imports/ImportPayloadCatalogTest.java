@@ -13,7 +13,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-/** 镜像容器只生成一份工具投影，原始事件仍完整保留。 */
+/** 镜像容器只生成一份工具投影，完整原始事件仍然保留。 */
 class ImportPayloadCatalogTest {
   @TempDir Path directory;
 

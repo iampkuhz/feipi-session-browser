@@ -19,11 +19,13 @@ class ScanIssueTest {
         .isInstanceOf(ConstraintViolationException.class);
     assertThatThrownBy(() -> new ScanIssue("key", "claude_code", ScanIssue.ScanPhase.PARSE, null))
         .isInstanceOf(ConstraintViolationException.class);
+    assertThatThrownBy(
+            () -> new ScanIssue("key", "claude_code", ScanIssue.ScanPhase.PARSE, "msg", null))
+        .isInstanceOf(ConstraintViolationException.class);
   }
 
   @Test
   void allScanPhasesExist() {
-    assertThat(ScanIssue.ScanPhase.values()).hasSize(6);
     assertThat(ScanIssue.ScanPhase.values())
         .containsExactly(
             ScanIssue.ScanPhase.ROOT_CHECK,
@@ -31,6 +33,7 @@ class ScanIssueTest {
             ScanIssue.ScanPhase.PARSE,
             ScanIssue.ScanPhase.NORMALIZE,
             ScanIssue.ScanPhase.ARTIFACT_WRITE,
+            ScanIssue.ScanPhase.INDEX_READ,
             ScanIssue.ScanPhase.INDEX_WRITE);
   }
 }

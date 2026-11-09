@@ -2,12 +2,16 @@ package com.feipi.session.browser.scan.engine;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.feipi.session.browser.source.spi.SourceId;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -428,12 +432,14 @@ class BackgroundScannerTest {
     AtomicInteger attempts = new AtomicInteger();
     CountDownLatch errorLogged = new CountDownLatch(1);
     var logger =
-        (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(BackgroundScanner.class);
+        (ch.qos.logback.classic.Logger)
+            org.slf4j.LoggerFactory.getLogger(ScanFatalDiagnostics.class);
     var appender =
         new ch.qos.logback.core.AppenderBase<ch.qos.logback.classic.spi.ILoggingEvent>() {
           @Override
           protected void append(ch.qos.logback.classic.spi.ILoggingEvent event) {
             if (event.getLevel() == ch.qos.logback.classic.Level.ERROR
+                && event.getFormattedMessage().contains("code=SCAN_JVM_FATAL")
                 && event.getFormattedMessage().contains("java.lang.AssertionError")) {
               errorLogged.countDown();
             }
@@ -496,6 +502,75 @@ class BackgroundScannerTest {
       assertThat(summaryCalls.get()).isEqualTo(1);
     } finally {
       scanner.shutdown(1, TimeUnit.SECONDS);
+    }
+  }
+
+  @Test
+  void failedSummaryLogsSafeFailureCodesWithoutSessionDataOrStackTrace() {
+    var summary =
+        new IncrementalScanSummary(
+            2,
+            0,
+            0,
+            2,
+            100,
+            17,
+            Map.of(SourceId.CODEX, 0),
+            List.of(
+                new ScanIssue(
+                    "codex:synthetic-private-session",
+                    "codex",
+                    ScanIssue.ScanPhase.PARSE,
+                    "SOURCE_ERRORS:BAD_JSON@42;BUFFER_OVERFLOW@84",
+                    "CODEX_HISTORY_PARENT_CONFLICT"),
+                new ScanIssue(
+                    "codex:synthetic-private-session",
+                    "codex",
+                    ScanIssue.ScanPhase.NORMALIZE,
+                    "SYNTHETIC_PRIVATE_CONTENT /tmp/private")),
+            0,
+            0,
+            2,
+            0,
+            false);
+    AtomicReference<ch.qos.logback.classic.spi.ILoggingEvent> warning = new AtomicReference<>();
+    var logger =
+        (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(BackgroundScanner.class);
+    var appender =
+        new ch.qos.logback.core.AppenderBase<ch.qos.logback.classic.spi.ILoggingEvent>() {
+          @Override
+          protected void append(ch.qos.logback.classic.spi.ILoggingEvent event) {
+            if (event.getLevel() == ch.qos.logback.classic.Level.WARN
+                && event.getFormattedMessage().contains("后台扫描失败结果")) {
+              warning.set(event);
+            }
+          }
+        };
+    appender.start();
+    logger.addAppender(appender);
+    var scanner =
+        new BackgroundScanner(
+            new TierConfig(300, 30),
+            new TierConfig(86400, 300),
+            new ScanLock(tempDir),
+            token -> {},
+            token -> {},
+            () -> summary,
+            new FixedClock(100_000));
+    try {
+      scanner.checkAndScan();
+      assertThat(warning.get()).isNotNull();
+      assertThat(warning.get().getFormattedMessage())
+          .contains("tier=hot", "scanLogId=17", "candidates=2 errors=2 issues=2")
+          .contains("codex/PARSE/BAD_JSON", "codex/PARSE/BUFFER_OVERFLOW", "@42", "@84")
+          .contains(
+              "codex/PARSE/CODEX_HISTORY_PARENT_CONFLICT", "CODEX_HISTORY_PARENT_CONFLICT=Codex")
+          .doesNotContain("synthetic-private-session", "SYNTHETIC_PRIVATE_CONTENT", "/tmp/private");
+      assertThat(warning.get().getThrowableProxy()).isNull();
+    } finally {
+      scanner.shutdown(1, TimeUnit.SECONDS);
+      logger.detachAppender(appender);
+      appender.stop();
     }
   }
 

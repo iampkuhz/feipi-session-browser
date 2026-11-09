@@ -1,5 +1,7 @@
 package com.feipi.session.browser.scan.engine.imports;
 
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.feipi.session.browser.domain.normalized.ByteRange;
@@ -16,10 +18,19 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
-/** 保存完整原始事件和独立工具结果；不改变共享归一化的计量或调用归属。 */
+/** 保存完整原始事件与独立工具结果；不改变共享归一化的计量或调用归属。 */
 final class ImportPayloadCatalog {
   private static final ObjectMapper MAPPER = new ObjectMapper();
+  private static final Set<String> TOOL_TYPES =
+      Set.of(
+          "tool_use",
+          "tool_result",
+          "function_call",
+          "custom_tool_call",
+          "function_call_output",
+          "custom_tool_call_output");
 
   private ImportPayloadCatalog() {}
 
@@ -36,9 +47,13 @@ final class ImportPayloadCatalog {
         if (line.isBlank()) {
           continue;
         }
-        JsonNode event = MAPPER.readTree(line);
         String key = logicalPath + "#raw[" + index + "]";
         put(catalog, entry(key, logicalPath, "import_raw_event", index, "", "", line));
+        if (!containsToolType(line)) {
+          index++;
+          continue;
+        }
+        JsonNode event = MAPPER.readTree(line);
         int part = 0;
         for (JsonNode block : contentBlocks(event)) {
           if ("tool_result".equals(block.path("type").asText())) {
@@ -82,6 +97,20 @@ final class ImportPayloadCatalog {
       }
     }
     return Collections.unmodifiableMap(catalog);
+  }
+
+  /** 先用 token 流筛掉没有工具结构的行，避免为普通长消息创建完整 JsonNode 树。 */
+  private static boolean containsToolType(String line) throws IOException {
+    try (JsonParser parser = MAPPER.getFactory().createParser(line)) {
+      JsonToken token;
+      while ((token = parser.nextToken()) != null) {
+        if (token == JsonToken.FIELD_NAME && "type".equals(parser.currentName())) {
+          token = parser.nextToken();
+          if (token == JsonToken.VALUE_STRING && TOOL_TYPES.contains(parser.getText())) return true;
+        }
+      }
+    }
+    return false;
   }
 
   private static List<JsonNode> contentBlocks(JsonNode event) {

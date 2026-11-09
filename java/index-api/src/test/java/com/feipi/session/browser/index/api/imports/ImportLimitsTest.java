@@ -10,7 +10,7 @@ class ImportLimitsTest {
   @Test
   void defaultsAreExplicitAndNonPositiveLimitsAreRejected() {
     assertThat(ImportLimits.defaults())
-        .isEqualTo(new ImportLimits(33_554_432, 10_000, 1_000_000, 8, 67_108_864));
+        .isEqualTo(new ImportLimits(209_715_200, 10_000, 1_000_000, 8, 536_870_912));
     assertThatThrownBy(() -> new ImportLimits(0, 1, 1, 1, 1))
         .isInstanceOf(IllegalArgumentException.class);
     assertThatThrownBy(() -> new ImportLimits(1, 0, 1, 1, 1))

@@ -25,6 +25,7 @@ import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -141,6 +142,17 @@ public final class CanonicalJsonWriter {
    */
   public byte[] serialize(NormalizedSessionArtifact artifact) {
     return serializeObject(toCanonicalMap(artifact));
+  }
+
+  /** 计算规范 JSON 的 UTF-8 字节数而不分配与完整制品等大的 byte array。 */
+  public long serializedSize(NormalizedSessionArtifact artifact) {
+    try {
+      var output = new CountingOutputStream();
+      mapper.writeValue(output, toCanonicalMap(artifact));
+      return output.count;
+    } catch (IOException e) {
+      throw new UncheckedIOException("JSON 大小计算失败", e);
+    }
   }
 
   /** 逐个领域对象写入输出流，不将完整内容单元或文件预先编码为字节数组。 */
@@ -354,6 +366,22 @@ public final class CanonicalJsonWriter {
       return baos.toByteArray();
     } catch (IOException e) {
       throw new UncheckedIOException("JSON 序列化失败", e);
+    }
+  }
+
+  /** 只累计 Jackson 写入的字节数，避免大小检查阶段复制完整输出。 */
+  private static final class CountingOutputStream extends OutputStream {
+    private long count;
+
+    @Override
+    public void write(int value) {
+      count++;
+    }
+
+    @Override
+    public void write(byte[] bytes, int offset, int length) {
+      Objects.checkFromIndexSize(offset, length, bytes.length);
+      count += length;
     }
   }
 }

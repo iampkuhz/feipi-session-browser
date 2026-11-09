@@ -134,7 +134,7 @@ class ImportedSessionApiTest {
           String page = client.get("/imports/" + ID).body().string();
           assertThat(page).contains("shared.jsonl", BASE).doesNotContain("模板渲染失败");
           assertThat(client.get("/imports").body().string())
-              .contains("data-max-bytes=\"33554432\"", "不计入个人统计")
+              .contains("data-max-bytes=\"209715200\"", "200 MiB", "不计入个人统计")
               .doesNotContain("模板渲染失败");
           assertThat(client.delete(BASE).code()).isEqualTo(204);
           assertThat(client.get(BASE + "/round/1").code()).isEqualTo(404);
@@ -165,10 +165,12 @@ class ImportedSessionApiTest {
                     "import-session.html",
                     java.util.Map.of(
                         "import_max_bytes",
-                        33554432L,
+                        209715200L,
+                        "import_max_display",
+                        "200 MiB",
                         "import_lifetime_message",
                         "Synthetic lifetime")))
-        .contains("data-max-bytes=\"33554432\"", "Synthetic lifetime");
+        .contains("data-max-bytes=\"209715200\"", "200 MiB", "Synthetic lifetime");
   }
 
   @Test
@@ -368,7 +370,7 @@ class ImportedSessionApiTest {
 
     @Override
     public ImportLimits limits() {
-      return new ImportLimits(maxBytes, 10_000, 1_000_000, 8, 64L * 1024 * 1024);
+      return new ImportLimits(maxBytes, 10_000, 1_000_000, 8, 512L * 1024 * 1024);
     }
 
     @Override

@@ -383,7 +383,7 @@ public final class ServerLifecycle {
    * 将引擎的取消和失败结果传回调度器，已写入的部分结果同样需要清除查询缓存。
    *
    * <p>扫描完成后将 {@link com.feipi.session.browser.scan.engine.IncrementalScanSummary} 存入 {@code
-   * summaryRef}， 供 BackgroundScanner 输出 INFO 摘要日志。
+   * summaryRef}，供 BackgroundScanner 区分成功和失败结果并输出安全日志。
    */
   private Consumer<ScanCancelToken> createScanAction(
       IncrementalScanEngine engine,
@@ -402,9 +402,6 @@ public final class ServerLifecycle {
             engine.scan(new SqliteIndexWriter(conn), config, maxAgeSeconds, token, progress);
         summaryRef.set(summary);
         token.throwIfCancelled();
-        if (summary.errorCount() > 0 || !summary.issues().isEmpty()) {
-          throw new IllegalStateException("后台扫描返回失败结果: errors=" + summary.errorCount());
-        }
       } finally {
         progress.close();
         webRoot.invalidateCache();

@@ -6,9 +6,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.feipi.session.browser.domain.normalized.NormalizedAgent;
 import com.feipi.session.browser.index.api.imports.ImportLimits;
 import com.feipi.session.browser.index.api.imports.SessionImportException;
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.PushbackReader;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
@@ -20,6 +20,7 @@ import java.util.Set;
 /** 在宽容的来源解析器前执行严格、有界的单文件契约检查。 */
 final class ImportInputValidator {
   private static final ObjectMapper MAPPER = new ObjectMapper();
+  private static final int LINE_BUFFER_CHARS = 8192;
   private static final Set<String> CODEX_TYPES =
       Set.of("session_meta", "response_item", "event_msg", "turn_context", "token_usage_record");
   private static final Set<String> MESSAGE_TYPES = Set.of("user", "assistant");
@@ -52,9 +53,11 @@ final class ImportInputValidator {
     int count = 0;
     boolean transcript = false;
     try (var reader =
-        new BufferedReader(new InputStreamReader(Files.newInputStream(file), decoder))) {
+        new PushbackReader(
+            new InputStreamReader(Files.newInputStream(file), decoder), LINE_BUFFER_CHARS)) {
+      char[] lineBuffer = new char[LINE_BUFFER_CHARS];
       String line;
-      while ((line = readLine(reader, limits.maxRecordChars())) != null) {
+      while ((line = readLine(reader, limits.maxRecordChars(), lineBuffer)) != null) {
         if (count == 0 && line.startsWith("\uFEFF")) {
           line = line.substring(1);
         }
@@ -88,17 +91,21 @@ final class ImportInputValidator {
     return sessionIds.stream().findFirst().orElse("");
   }
 
-  private static String readLine(BufferedReader reader, int maxChars) throws IOException {
-    StringBuilder line = new StringBuilder();
-    int value;
-    while ((value = reader.read()) != -1) {
-      if (value == '\n') {
+  private static String readLine(PushbackReader reader, int maxChars, char[] buffer)
+      throws IOException {
+    StringBuilder line = new StringBuilder(Math.min(256, maxChars));
+    int count;
+    while ((count = reader.read(buffer, 0, buffer.length)) != -1) {
+      int newline = 0;
+      while (newline < count && buffer[newline] != '\n') newline++;
+      int append = newline;
+      if (line.length() > maxChars - append) throw failure("record_too_large");
+      line.append(buffer, 0, append);
+      if (newline < count) {
+        int remaining = count - newline - 1;
+        if (remaining > 0) reader.unread(buffer, newline + 1, remaining);
         return line.toString();
       }
-      if (line.length() == maxChars) {
-        throw failure("record_too_large");
-      }
-      line.append((char) value);
     }
     return line.isEmpty() ? null : line.toString();
   }

@@ -50,45 +50,6 @@ public final class IncrementalScanEngine {
 
   private static final Logger log = LoggerFactory.getLogger(IncrementalScanEngine.class);
 
-  /**
-   * 跟踪当前线程是否已记录致命错误堆栈。
-   *
-   * <p>当 IncrementalScanEngine 记录致命错误时设置为 true，BackgroundScanner 检查此标志以避免重复记录。
-   */
-  private static final ThreadLocal<Boolean> FATAL_ERROR_STACK_LOGGED =
-      ThreadLocal.withInitial(() -> false);
-
-  /**
-   * 检查当前线程是否已记录致命错误堆栈。
-   *
-   * <p>供 BackgroundScanner 在捕获 Error 时调用，避免重复记录完整堆栈。
-   *
-   * @return 如果已记录则为 true
-   */
-  static boolean hasFatalErrorStackBeenLogged() {
-    return FATAL_ERROR_STACK_LOGGED.get();
-  }
-
-  /**
-   * 清除当前线程的致命错误堆栈标记。
-   *
-   * <p>供 BackgroundScanner 在每次调度开始前调用，确保标记不会跨调度泄漏。
-   */
-  static void clearFatalErrorStackLogged() {
-    FATAL_ERROR_STACK_LOGGED.remove();
-  }
-
-  /**
-   * 设置当前线程的致命错误堆栈标记。
-   *
-   * <p>仅供测试使用，模拟 IncrementalScanEngine 记录致命错误的行为。
-   *
-   * @param logged 是否已记录
-   */
-  static void setFatalErrorStackLogged(boolean logged) {
-    FATAL_ERROR_STACK_LOGGED.set(logged);
-  }
-
   /** 每 N 个候选项 flush 一次 index writer。 */
   private static final int FLUSH_INTERVAL = 100;
 
@@ -194,6 +155,22 @@ public final class IncrementalScanEngine {
       Double maxAgeSeconds,
       ScanCancelToken cancelToken,
       ScanProgress progress) {
+    var fatal = new ScanFatalDiagnostics("incremental");
+    try {
+      return scan(indexWriter, config, maxAgeSeconds, cancelToken, progress, fatal);
+    } catch (Error error) {
+      fatal.report(error);
+      throw error;
+    }
+  }
+
+  private IncrementalScanSummary scan(
+      IndexWriterPort indexWriter,
+      ScanConfig config,
+      Double maxAgeSeconds,
+      ScanCancelToken cancelToken,
+      ScanProgress progress,
+      ScanFatalDiagnostics fatal) {
     Objects.requireNonNull(indexWriter, "indexWriter 不得为 null");
     Objects.requireNonNull(config, "config 不得为 null");
 
@@ -213,10 +190,14 @@ public final class IncrementalScanEngine {
     try {
       Files.createDirectories(config.artifactOutputDir().getParent());
     } catch (IOException e) {
-      log.error("无法创建 artifact 输出目录: {}", config.artifactOutputDir(), e);
-      return buildErrorSummary(startMs, e.getMessage());
+      return buildErrorSummary(
+          startMs,
+          fatal.setupFailure(
+              ScanIssue.ScanPhase.ARTIFACT_WRITE, "SCAN_ARTIFACT_DIRECTORY_FAILED", e),
+          fatal.scanLogId());
     }
 
+    fatal.at("SCHEMA_INIT", "");
     // 1. 确保 schema
     try {
       long phaseStart = System.nanoTime();
@@ -225,17 +206,22 @@ public final class IncrementalScanEngine {
       if (progress != null)
         progress.onPhaseEnd("schema", (System.nanoTime() - phaseStart) / 1_000_000);
     } catch (RuntimeException e) {
-      log.error("schema 初始化失败", e);
-      return buildErrorSummary(startMs, "Schema initialization failed: " + exceptionMessage(e));
+      return buildErrorSummary(
+          startMs,
+          fatal.setupFailure(ScanIssue.ScanPhase.INDEX_WRITE, "SCAN_SCHEMA_INIT_FAILED", e),
+          fatal.scanLogId());
     }
 
+    fatal.at("SCAN_LOG_START", "");
     // 2. 开始 scan_log（incremental 模式）
     long scanLogId;
     try {
       scanLogId = indexWriter.startScan(startEpoch, "incremental");
     } catch (RuntimeException e) {
-      log.error("scan_log 开始记录失败", e);
-      return buildErrorSummary(startMs, "scan_log start failed: " + exceptionMessage(e));
+      return buildErrorSummary(
+          startMs,
+          fatal.setupFailure(ScanIssue.ScanPhase.INDEX_WRITE, "SCAN_LOG_START_FAILED", e),
+          fatal.scanLogId());
     }
 
     boolean scanFailed = false;
@@ -243,8 +229,10 @@ public final class IncrementalScanEngine {
     Map<com.feipi.session.browser.source.spi.SourceId, Integer> perSourceCount =
         new LinkedHashMap<>();
     long scanLogIdFinal = scanLogId;
+    fatal.scanStarted(scanLogId);
     boolean scanLogFinalized = false;
 
+    fatal.at("INDEX_PREPARE", "");
     try {
       // 3. 加载已索引会话指纹
       Map<String, StoredSessionFingerprint> storedFingerprints;
@@ -255,9 +243,10 @@ public final class IncrementalScanEngine {
         if (progress != null)
           progress.onPhaseEnd("load_fingerprints", (System.nanoTime() - phaseStart) / 1_000_000);
       } catch (RuntimeException e) {
-        log.error("加载已索引指纹失败", e);
         return buildErrorSummary(
-            startMs, "Load stored fingerprints failed: " + exceptionMessage(e));
+            startMs,
+            fatal.setupFailure(ScanIssue.ScanPhase.INDEX_READ, "SCAN_FINGERPRINT_LOAD_FAILED", e),
+            fatal.scanLogId());
       }
 
       // 4. 检查 scan logic version
@@ -280,8 +269,10 @@ public final class IncrementalScanEngine {
             progress.onPhaseEnd("clear_index", (System.nanoTime() - phaseStart) / 1_000_000);
           storedFingerprints = Map.of(); // 清空内存指纹缓存
         } catch (RuntimeException e) {
-          log.error("rebuild 清理旧 index 失败", e);
-          return buildErrorSummary(startMs, "Rebuild cleanup failed: " + exceptionMessage(e));
+          return buildErrorSummary(
+              startMs,
+              fatal.setupFailure(ScanIssue.ScanPhase.INDEX_WRITE, "SCAN_INDEX_PREPARE_FAILED", e),
+              fatal.scanLogId());
         }
       }
 
@@ -310,6 +301,7 @@ public final class IncrementalScanEngine {
           continue;
         }
 
+        fatal.at("ROOT_CHECK", agentValue);
         // 根目录安全检查
         SourceRoot root = entry.adapter().checkRoot(entry.rootPath());
         if (!root.isSafe()) {
@@ -327,6 +319,7 @@ public final class IncrementalScanEngine {
           continue;
         }
 
+        fatal.at("DISCOVERY", agentValue);
         // 发现候选项
         BoundedStream<Candidate> candidates;
         try {
@@ -348,6 +341,7 @@ public final class IncrementalScanEngine {
           progress.onSourceStart(agentValue, sourceCount);
         }
 
+        fatal.at("CANDIDATE", agentValue);
         // 逐候选处理
         int progressCount = 0;
         int sourceSuccessCount = 0;
@@ -445,7 +439,7 @@ public final class IncrementalScanEngine {
             case SKIPPED -> skippedByAgeCount++;
             case ERROR -> {
               errorCount++;
-              issues.add(new ScanIssue(sessionKey, agentValue, result.phase(), result.message()));
+              issues.add(result.issue(sessionKey, agentValue));
             }
           }
 
@@ -456,9 +450,11 @@ public final class IncrementalScanEngine {
           }
 
           if (processedInBatch >= FLUSH_INTERVAL && indexWriter.pendingWriteCount() > 0) {
+            fatal.at("INDEX_FLUSH", agentValue);
             if (!ScanFlush.flush(indexWriter, progress, "flush", agentValue, issues)) {
               scanFailed = true;
             }
+            fatal.at("CANDIDATE", agentValue);
             processedInBatch = 0;
           }
         }
@@ -469,6 +465,7 @@ public final class IncrementalScanEngine {
       }
 
       // 6. 最终 flush
+      fatal.at("INDEX_FLUSH", "");
       if (!scanFailed && indexWriter.pendingWriteCount() > 0) {
         if (!ScanFlush.flush(indexWriter, progress, "flush_final", "", issues)) {
           scanFailed = true;
@@ -478,6 +475,7 @@ public final class IncrementalScanEngine {
       scanFailed = scanFailed || !issues.isEmpty() || errorCount > 0;
 
       // 7. 完成 scan_log
+      fatal.at("SCAN_LOG_FINISH", "");
       long endMs = clock.millis();
       double endEpoch = endMs / 1000.0;
       try {
@@ -496,9 +494,9 @@ public final class IncrementalScanEngine {
         }
         scanLogFinalized = true;
       } catch (RuntimeException e) {
-        issues.add(new ScanIssue("", "", ScanIssue.ScanPhase.INDEX_WRITE, exceptionMessage(e)));
+        issues.add(
+            fatal.setupFailure(ScanIssue.ScanPhase.INDEX_WRITE, "SCAN_LOG_FINISH_FAILED", e));
         scanFailed = true;
-        log.error("scan_log 完成记录失败", e);
       }
 
       long duration = endMs - startMs;
@@ -530,19 +528,20 @@ public final class IncrementalScanEngine {
       scanLogFinalized = false;
       log.info("增量扫描已取消");
       throw e;
-    } catch (Error e) {
-      scanLogFinalized = false;
-      FATAL_ERROR_STACK_LOGGED.set(true);
-      log.error("扫描致命错误 [{}]: {}", e.getClass().getName(), e.getMessage(), e);
-      throw e;
+    } catch (Error error) {
+      fatal.report(error);
+      throw error;
     } finally {
       if (!scanLogFinalized) {
         long endMs = clock.millis();
         double endEpoch = endMs / 1000.0;
         try {
-          indexWriter.failScan(scanLogIdFinal, endEpoch, perSourceCountByValue);
+          indexWriter.failScan(scanLogIdFinal, endEpoch, perSourceCountByValue, fatal.failures());
         } catch (RuntimeException writeEx) {
-          log.error("scan_log 最终标记失败", writeEx);
+          log.error("scan_log 最终标记失败: exception={}", writeEx.getClass().getName());
+        } catch (Error cleanup) {
+          if (!fatal.hasReportedJvmError()) throw cleanup;
+          log.error("scan_log 最终标记失败: exception={}", cleanup.getClass().getName());
         }
       }
     }
@@ -573,27 +572,12 @@ public final class IncrementalScanEngine {
     return cutoff.toString();
   }
 
-  private static String exceptionMessage(Throwable e) {
-    String message = e.getMessage();
-    if (message != null && !message.isBlank()) {
-      return message;
-    }
-    return e.getClass().getName();
-  }
-
   /** 构建错误汇总。 */
-  private static IncrementalScanSummary buildErrorSummary(long startMs, String errorMessage) {
+  private static IncrementalScanSummary buildErrorSummary(
+      long startMs, ScanIssue issue, long scanLogId) {
     long endMs = System.currentTimeMillis();
     ScanSummary base =
-        new ScanSummary(
-            0,
-            0,
-            0,
-            1,
-            endMs - startMs,
-            0,
-            Map.of(),
-            List.of(new ScanIssue("", "", ScanIssue.ScanPhase.ROOT_CHECK, errorMessage)));
+        new ScanSummary(0, 0, 0, 1, endMs - startMs, scanLogId, Map.of(), List.of(issue));
     return IncrementalScanSummary.fromBase(base, 0, 0, 0, 0, false);
   }
 }

@@ -7,6 +7,7 @@ import com.feipi.session.browser.domain.source.SourceRecord;
 import com.feipi.session.browser.domain.source.SourceRecordUsage;
 import com.feipi.session.browser.source.common.JsonCandidateMetadataReader;
 import com.feipi.session.browser.source.common.JsonNodeReaders;
+import com.feipi.session.browser.source.common.JsonNodeSpool;
 import com.feipi.session.browser.source.common.JsonlReader;
 import com.feipi.session.browser.source.common.JsonlReaderResult;
 import com.feipi.session.browser.source.common.SourceTitleTexts;
@@ -110,27 +111,33 @@ public final class QoderSourceAdapter implements SourceAdapter {
   /** 单文件按实际布局选择原估算法；混合无计量布局保持 unknown，不推断临时路径。 */
   @Override
   public Map<String, String> singleFileMetadata(Path filePath) throws IOException {
-    List<JsonNode> events = jsonlReader.read(filePath).events();
-    boolean cache = events.stream().anyMatch(QoderSourceAdapter::isCacheRoleEvent);
-    boolean project =
-        events.stream()
-            .anyMatch(
-                event ->
-                    "user".equals(text(event, "type")) || "assistant".equals(text(event, "type")));
-    boolean real = hasRealUsage(events);
-    if (!real && cache == project) {
-      return Map.of();
+    try (var events = new JsonNodeSpool()) {
+      jsonlReader.readTo(filePath, events);
+      events.seal();
+      boolean cache = events.stream().anyMatch(QoderSourceAdapter::isCacheRoleEvent);
+      boolean project =
+          events.stream()
+              .anyMatch(
+                  event ->
+                      "user".equals(text(event, "type"))
+                          || "assistant".equals(text(event, "type")));
+      boolean real = hasRealUsage(events);
+      if (!real && cache == project) {
+        return Map.of();
+      }
+      SourceKind kind = cache ? SourceKind.CACHE : SourceKind.PROJECTS;
+      Map<String, String> metadata = new HashMap<>(tokenMetadata(events, kind));
+      if (!real) {
+        TokenEstimate estimate = estimateTokens(events, kind);
+        metadata.put("freshInputTokens", Long.toString(estimate.freshInputTokens()));
+        metadata.put("outputTokens", Long.toString(estimate.outputTokens()));
+        metadata.put(
+            "totalTokens", Long.toString(estimate.freshInputTokens() + estimate.outputTokens()));
+      }
+      return Map.copyOf(metadata);
+    } catch (java.io.UncheckedIOException failure) {
+      throw failure;
     }
-    SourceKind kind = cache ? SourceKind.CACHE : SourceKind.PROJECTS;
-    Map<String, String> metadata = new HashMap<>(tokenMetadata(events, kind));
-    if (!real) {
-      TokenEstimate estimate = estimateTokens(events, kind);
-      metadata.put("freshInputTokens", Long.toString(estimate.freshInputTokens()));
-      metadata.put("outputTokens", Long.toString(estimate.outputTokens()));
-      metadata.put(
-          "totalTokens", Long.toString(estimate.freshInputTokens() + estimate.outputTokens()));
-    }
-    return Map.copyOf(metadata);
   }
 
   /**
@@ -314,10 +321,9 @@ public final class QoderSourceAdapter implements SourceAdapter {
     if (hasRealUsage(events)) {
       return TokenEstimate.empty();
     }
-    List<JsonNode> canonical = events.stream().map(QoderSourceAdapter::estimationEvent).toList();
     return sourceKind == SourceKind.CACHE
-        ? estimateCacheTokens(canonical)
-        : estimateProjectTokens(canonical);
+        ? estimateCacheTokens(events)
+        : estimateProjectTokens(events);
   }
 
   private static JsonNode estimationEvent(JsonNode event) {
@@ -351,7 +357,8 @@ public final class QoderSourceAdapter implements SourceAdapter {
   private static TokenEstimate estimateCacheTokens(List<JsonNode> events) {
     long inputTokens = 0;
     long outputTokens = 0;
-    for (JsonNode event : events) {
+    for (JsonNode sourceEvent : events) {
+      JsonNode event = estimationEvent(sourceEvent);
       String role = text(event, "role");
       String text = messageText(event);
       if (text.isBlank()) {
@@ -375,7 +382,8 @@ public final class QoderSourceAdapter implements SourceAdapter {
     long estimatedInput = 0;
     long estimatedOutput = 0;
     Set<String> seenAssistantKeys = new HashSet<>();
-    for (JsonNode event : events) {
+    for (JsonNode sourceEvent : events) {
+      JsonNode event = estimationEvent(sourceEvent);
       EventText eventText = extractEventText(event);
       if (eventText.category().isEmpty() || eventText.text().isBlank()) {
         continue;

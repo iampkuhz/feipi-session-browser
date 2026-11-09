@@ -1,11 +1,14 @@
 package com.feipi.session.browser.source.claude;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.feipi.session.browser.domain.source.SourceRecord;
 import com.feipi.session.browser.domain.source.SourceRecordUsage;
 import com.feipi.session.browser.source.claude.ClaudeDiscovery.ClaudeSessionDiscovery;
 import com.feipi.session.browser.source.common.JsonCandidateMetadataReader;
 import com.feipi.session.browser.source.common.JsonNodeReaders;
+import com.feipi.session.browser.source.common.JsonNodeSpool;
 import com.feipi.session.browser.source.common.JsonlReader;
 import com.feipi.session.browser.source.common.JsonlReaderResult;
 import com.feipi.session.browser.source.common.SourceTitleTexts;
@@ -95,7 +98,13 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
   /** 单文件沿用正式 usage 选择及字段存在性，不读取 sidecar。 */
   @Override
   public Map<String, String> singleFileMetadata(Path filePath) throws IOException {
-    return tokenPrecision(assistantRecords(jsonlReader.read(filePath).events()));
+    try (var events = new JsonNodeSpool()) {
+      jsonlReader.readTo(filePath, events);
+      events.seal();
+      return tokenPrecision(assistantRecords(events));
+    } catch (java.io.UncheckedIOException failure) {
+      throw failure;
+    }
   }
 
   /**
@@ -345,7 +354,7 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
           records.computeIfAbsent(key, ignored -> new AssistantRecordBuilder());
       JsonNode usage = JsonNodeReaders.objectChild(message, "usage");
       if (usage != null) {
-        builder.usageRows.add(message);
+        builder.usageRows.add(usageSnapshot(message));
       }
       JsonNode content = message.get("content");
       if (content != null && content.isArray()) {
@@ -386,6 +395,16 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
       return id;
     }
     return Integer.toHexString(System.identityHashCode(event));
+  }
+
+  /** Usage 裁定只需 usage 与 stop_reason，避免 spool 重放后长期保留整条消息正文。 */
+  private static JsonNode usageSnapshot(JsonNode message) {
+    ObjectNode snapshot = JsonNodeFactory.instance.objectNode();
+    JsonNode usage = JsonNodeReaders.objectChild(message, "usage");
+    if (usage != null) snapshot.set("usage", usage.deepCopy());
+    String stopReason = text(message, "stop_reason");
+    if (!stopReason.isEmpty()) snapshot.put("stop_reason", stopReason);
+    return snapshot;
   }
 
   private static UsageTotals mergeUsage(List<JsonNode> usages) {
@@ -533,7 +552,7 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
         if (JsonNodeReaders.objectChild(message, "usage") != null) {
           messages
               .computeIfAbsent(record.responseMessageId().get(), ignored -> new ArrayList<>())
-              .add(message);
+              .add(usageSnapshot(message));
         }
       }
     }
@@ -903,11 +922,9 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
       return new SourceResult.Success(
           diagnostics, candidateCount, records, success.fingerprint(), success.locator());
     } catch (IOException close) {
-      String detail = "Claude 合并资源关闭失败: " + close.getMessage();
       return originalFailure == null
-          ? new SourceResult.Fatal(List.of(), detail)
-          : new SourceResult.Fatal(
-              originalFailure.diagnostics(), originalFailure.message() + "; " + detail);
+          ? SourceResult.Fatal.ioFailure("SOURCE_RESOURCE_CLOSE_FAILED", close)
+          : originalFailure;
     }
   }
 

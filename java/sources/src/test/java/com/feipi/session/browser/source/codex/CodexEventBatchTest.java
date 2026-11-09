@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.feipi.session.browser.source.common.JsonNodeSpool;
 import com.feipi.session.browser.source.common.JsonlReader;
 import com.feipi.session.browser.source.common.JsonlReaderConfig;
 import java.io.UncheckedIOException;
@@ -63,7 +64,7 @@ class CodexEventBatchTest {
   @Test
   void spoolIsOwnerOnlyAndFailureAndNormalCloseDeleteAllResources() throws Exception {
     Path temporary;
-    var spool = new CodexEventSpool();
+    var spool = new JsonNodeSpool();
     try (spool) {
       temporary = spool.directory();
       assertThat(Files.getPosixFilePermissions(temporary))

@@ -82,7 +82,7 @@ public final class IsolatedSessionImportService implements SessionImportPort {
       long size = copy(input, file);
       String originalId = ImportInputValidator.validate(file, source, limits);
       NormalizedSessionArtifact artifact = analyze(file, id, source);
-      long encodedSize = new CanonicalJsonWriter().serialize(artifact).length;
+      long encodedSize = new CanonicalJsonWriter().serializedSize(artifact);
       if (encodedSize > limits.maxStoredBytes() - storedBytes) {
         throw ImportInputValidator.failure("capacity_exceeded");
       }
@@ -136,8 +136,8 @@ public final class IsolatedSessionImportService implements SessionImportPort {
         }
       }
       if (count != sequence.recordCount()) throw new IOException("Source record count mismatch");
-      // 调用 payload 可能引用累积历史，先按最坏复制量拒绝，避免构造后才发现内存超限。
-      if (contentChars > limits.maxStoredBytes() / Math.max(1, count)) {
+      // 内容规模先受保留制品剩余额度约束，避免在规范化前构造超出服务预算的载荷。
+      if (contentChars > limits.maxStoredBytes() - storedBytes) {
         throw ImportInputValidator.failure("analysis_too_large");
       }
       // 保持原导入容量：只有通过原最坏体积策略后才物化并替换为逻辑路径。

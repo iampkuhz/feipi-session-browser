@@ -129,8 +129,7 @@ class ScanDbFaultTest {
         assertThat(summary.errorCount()).isGreaterThanOrEqualTo(0);
         assertThat(summary.issues())
             .singleElement()
-            .satisfies(
-                issue -> assertThat(issue.message()).startsWith("Schema initialization failed:"));
+            .satisfies(issue -> assertThat(issue.code()).isEqualTo("SCAN_SCHEMA_INIT_FAILED"));
       } finally {
         SqliteTestHelper.closeQuietly(readOnlyConn);
       }

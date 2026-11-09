@@ -12,6 +12,7 @@ import jakarta.validation.constraints.NotNull;
  * @param sourceValue 源适配器协议值
  * @param phase 问题发生的阶段
  * @param message 问题描述
+ * @param code 显式稳定错误码；空字符串表示沿用阶段归类
  */
 public record ScanIssue(
     /* 相关会话键，空字符串表示非候选项级别的问题。 */
@@ -24,7 +25,13 @@ public record ScanIssue(
     @NotNull ScanPhase phase,
 
     /* 问题描述。 */
-    @NotNull String message) {
+    @NotNull String message,
+    @NotNull String code) {
+
+  /** 保持既有阶段诊断的构造方式。 */
+  public ScanIssue(String sessionKey, String sourceValue, ScanPhase phase, String message) {
+    this(sessionKey, sourceValue, phase, message, "");
+  }
 
   /**
    * 紧凑构造器，验证非 null。
@@ -33,7 +40,7 @@ public record ScanIssue(
    */
   public ScanIssue {
     ValidationSupport.validateCanonicalConstructor(
-        ScanIssue.class, sessionKey, sourceValue, phase, message);
+        ScanIssue.class, sessionKey, sourceValue, phase, message, code);
   }
 
   /**
@@ -52,6 +59,8 @@ public record ScanIssue(
     NORMALIZE,
     /** 制品写入阶段。 */
     ARTIFACT_WRITE,
+    /** 索引读取阶段。 */
+    INDEX_READ,
     /** 索引写入阶段。 */
     INDEX_WRITE
   }

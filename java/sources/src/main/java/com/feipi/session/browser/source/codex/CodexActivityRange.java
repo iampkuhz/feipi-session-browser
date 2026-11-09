@@ -41,7 +41,8 @@ final class CodexActivityRange {
       return new CodexActivityRange(source, 0, "");
     }
     if (diagnostics.stream().anyMatch(d -> !"CODEX_NON_TEXT_PAYLOAD_PROJECTED".equals(d.code()))) {
-      throw new IOException("CODEX_HISTORY_INVALID: history reader evidence is incomplete");
+      throw new InvalidHistoryException(
+          "CODEX_HISTORY_READER_INCOMPLETE", "history reader evidence is incomplete");
     }
     JsonNode first = source.getFirst();
     JsonNode header = first.path("payload");
@@ -50,7 +51,8 @@ final class CodexActivityRange {
         || !boundary.canConvertToInt()
         || boundary.intValue() < 2
         || boundary.intValue() > source.size()) {
-      throw new IOException("CODEX_HISTORY_INVALID: boundary is outside the source");
+      throw new InvalidHistoryException(
+          "CODEX_HISTORY_BOUNDARY_INVALID", "boundary is outside the source");
     }
     int start = boundary.intValue();
     String child = header.path("id").asText("");
@@ -73,7 +75,8 @@ final class CodexActivityRange {
         || !parent.equals(header.path("forked_from_id").asText(""))
         || !"session_meta".equals(source.get(1).path("type").asText())
         || !parent.equals(source.get(1).path("payload").path("id").asText(""))) {
-      throw new IOException("CODEX_HISTORY_INVALID: parent identity evidence conflicts");
+      throw new InvalidHistoryException(
+          "CODEX_HISTORY_PARENT_CONFLICT", "parent identity evidence conflicts");
     }
     String model = "";
     for (int index = 0; index < source.size(); index++) {
@@ -82,20 +85,36 @@ final class CodexActivityRange {
       if (!ordinal.isIntegralNumber()
           || !ordinal.canConvertToInt()
           || ordinal.intValue() != index) {
-        throw new IOException("CODEX_HISTORY_INVALID: ordinal evidence is not continuous");
+        throw new InvalidHistoryException(
+            "CODEX_HISTORY_ORDINAL_INVALID", "ordinal evidence is not continuous");
       }
       if (index >= start) continue;
       String type = event.path("type").asText();
       if ("token_usage_record".equals(type)
           || ("event_msg".equals(type)
               && "token_count".equals(event.path("payload").path("type").asText()))) {
-        throw new IOException(
-            "CODEX_HISTORY_USAGE_UNSUPPORTED: inherited usage counter lineage is unknown");
+        throw new InvalidHistoryException(
+            "CODEX_HISTORY_USAGE_UNSUPPORTED", "inherited usage counter lineage is unknown");
       }
       JsonNode candidate = event.path("payload").path("model");
       if (candidate.isTextual() && !candidate.asText().isBlank()) model = candidate.asText();
     }
     return new CodexActivityRange(source, start, model);
+  }
+
+  /** 继承历史校验失败，携带与异常文本无关的稳定错误码。 */
+  static final class InvalidHistoryException extends IOException {
+    private static final long serialVersionUID = 1L;
+    private final String code;
+
+    InvalidHistoryException(String code, String detail) {
+      super(code + ": " + detail);
+      this.code = code;
+    }
+
+    String code() {
+      return code;
+    }
   }
 
   List<JsonNode> events() {

@@ -137,7 +137,17 @@ class CodexInheritedHistoryTest {
                   new Candidate(adapter.fingerprint(file), "codex:child", "", Map.of()), null);
           if (result instanceof SourceResult.Success success) success.close();
           assertThat(result).as(name).isInstanceOf(SourceResult.Fatal.class);
-          assertThat(((SourceResult.Fatal) result).errorDetail()).containsIgnoringCase(reason);
+          var fatal = (SourceResult.Fatal) result;
+          assertThat(fatal.errorDetail()).containsIgnoringCase(reason);
+          assertThat(fatal.code())
+              .isEqualTo(
+                  switch (reason) {
+                    case "usage" -> "CODEX_HISTORY_USAGE_UNSUPPORTED";
+                    case "parent" -> "CODEX_HISTORY_PARENT_CONFLICT";
+                    case "boundary" -> "CODEX_HISTORY_BOUNDARY_INVALID";
+                    case "ordinal" -> "CODEX_HISTORY_ORDINAL_INVALID";
+                    default -> "CODEX_HISTORY_READER_INCOMPLETE";
+                  });
           assertThatThrownBy(() -> adapter.singleFileMetadata(file))
               .as(name + " metadata must not turn invalid history into known usage")
               .isInstanceOf(IOException.class)

@@ -8,6 +8,12 @@
 2. 停止正在运行的服务，将新归档解压到空目录，从解压后的 `app-cli` 目录运行 `./bin/run serve`，打开终端显示的地址。
 3. 每个版本默认使用 `~/Library/Application Support/feipi/session-browser/<VERSION>`。新版从原始会话重建索引，不读取、迁移或删除旧版索引。若用 `--index-dir` 或 `INDEX_DIR`，为新版指定新的空目录。
 
+## 扫描失败排查
+
+先找终端中的 `code=`，不要只看 `errors=`。例如，`SOURCE_ACCESS_DENIED` 指向文件权限，`CODEX_HISTORY_PARENT_CONFLICT` 指向 Codex 继承历史中的父会话标识冲突，`SCAN_JVM_OUT_OF_MEMORY` 表示 JVM 因内存不足中止扫描。按同条日志或摘要中的 `hint` 排查。普通解析诊断有已知行号时才报告行号；JVM 致命错误会额外给出异常类型和有限的代码栈帧。
+
+如需隔离单一来源，先停止占用扫描锁的 `serve`，再用发行包运行例如 `./bin/run scan --agent codex`（源码入口为 `./scripts/session-browser.sh scan --agent codex`）。反馈时附上应用版本、`scanLogId`、`source`、`phase`、`code` 和已有的行号或代码栈帧即可，不必发送原始会话、绝对路径或凭据。初始化阶段尚未建立扫描记录时，`scanLogId` 不可用。
+
 ## 发行流程
 
 `java/gradle/VERSION` 是版本唯一真源。Quality 在同一个 macOS arm64 job 中选择并运行一档 Gate：一般文档和脚本变更走 incremental；Java、发布链变更及手动和 tag 运行走 full。Release 复用 Quality 的 full 路径：根 `check` 通过后只构建 `runtimeDistTar`，再解包启动并封存唯一候选。Java Quality 仅用于人工请求的专项报告。

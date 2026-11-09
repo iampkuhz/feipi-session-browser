@@ -1,4 +1,4 @@
-package com.feipi.session.browser.source.codex;
+package com.feipi.session.browser.source.common;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -19,8 +19,8 @@ import java.util.AbstractList;
 import java.util.Arrays;
 import java.util.Objects;
 
-/** 仅保存顺序 JSON 和紧凑 long 偏移，不缓存 JsonNode 或正文；关闭时删除 owner-only 临时目录。 */
-final class CodexEventSpool extends AbstractList<JsonNode> implements AutoCloseable {
+/** 顺序写入 JSON 事件，仅保留紧凑偏移；可按索引重放，关闭时删除 owner-only 临时目录。 */
+public final class JsonNodeSpool extends AbstractList<JsonNode> implements AutoCloseable {
   private final ObjectMapper mapper =
       new ObjectMapper().enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
   private final Path directory;
@@ -32,10 +32,11 @@ final class CodexEventSpool extends AbstractList<JsonNode> implements AutoClosea
   private FileChannel channel;
   private boolean closed;
 
-  CodexEventSpool() throws IOException {
+  /** 创建私有事件 spool。 */
+  public JsonNodeSpool() throws IOException {
     directory =
         Files.createTempDirectory(
-            "feipi-codex-events-",
+            "feipi-json-events-",
             PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
     data = directory.resolve("events");
     try {
@@ -49,7 +50,7 @@ final class CodexEventSpool extends AbstractList<JsonNode> implements AutoClosea
 
   @Override
   public boolean add(JsonNode event) {
-    if (closed || channel != null) throw new IllegalStateException("事件批次不可追加");
+    if (closed || channel != null) throw new IllegalStateException("事件 spool 不可追加");
     try {
       if (count == offsets.length) offsets = Arrays.copyOf(offsets, Math.multiplyExact(count, 2));
       long start = output.count;
@@ -65,7 +66,10 @@ final class CodexEventSpool extends AbstractList<JsonNode> implements AutoClosea
     }
   }
 
-  void seal() throws IOException {
+  /** 停止写入并打开共享只读 channel，以便后续独立索引读取。 */
+  public void seal() throws IOException {
+    if (closed) throw new IllegalStateException("事件 spool 已关闭");
+    if (channel != null) return;
     output.close();
     length = output.count;
     channel = FileChannel.open(data, StandardOpenOption.READ);
@@ -74,7 +78,7 @@ final class CodexEventSpool extends AbstractList<JsonNode> implements AutoClosea
   @Override
   public JsonNode get(int index) {
     Objects.checkIndex(index, count);
-    if (closed || channel == null) throw new IllegalStateException("事件批次尚未完成或已关闭");
+    if (closed || channel == null) throw new IllegalStateException("事件 spool 尚未完成或已关闭");
     long start = offsets[index];
     long end = index + 1 < count ? offsets[index + 1] : length;
     try (var input = new SliceInput(channel, start, end)) {
@@ -93,11 +97,12 @@ final class CodexEventSpool extends AbstractList<JsonNode> implements AutoClosea
 
   @Override
   public void clear() {
-    // reader 仅在全局 INVALID_UTF8 时回滚；已写正文不再暴露，随批次关闭清理。
+    // JSONL reader 仅在全局 INVALID_UTF8 时回滚；已写数据在 close 时清理。
     count = 0;
   }
 
-  Path directory() {
+  /** 返回临时目录，供同模块生命周期测试验证权限和清理。 */
+  public Path directory() {
     return directory;
   }
 

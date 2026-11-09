@@ -6,6 +6,7 @@ import com.feipi.session.browser.web.template.PebbleEnvironment;
 import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -32,14 +33,27 @@ public final class ImportedSessionPage {
 
   /** 渲染上传表单及当前资源/生命周期提示。 */
   public void handleIndex(Context ctx) {
+    long maxFileBytes = imports.limits().maxFileBytes();
     ctx.html(
         templates.render(
             "import-session.html",
             new HashMap<>(
                 Map.of(
-                    "active_page", "imports",
-                    "import_max_bytes", imports.limits().maxFileBytes(),
-                    "import_lifetime_message", "导入分析仅在当前服务运行期间保留，服务停止或重启后失效；不计入个人统计。"))));
+                    "active_page",
+                    "imports",
+                    "import_max_bytes",
+                    maxFileBytes,
+                    "import_max_display",
+                    formatMebibytes(maxFileBytes),
+                    "import_lifetime_message",
+                    "导入分析仅在当前服务运行期间保留，服务停止或重启后失效；不计入个人统计。"))));
+  }
+
+  private static String formatMebibytes(long bytes) {
+    long mebibyte = 1024L * 1024;
+    return bytes % mebibyte == 0
+        ? (bytes / mebibyte) + " MiB"
+        : String.format(Locale.ROOT, "%.1f MiB", bytes / (double) mebibyte);
   }
 
   /** 根据不透明导入标识渲染独立详情。 */

@@ -15,7 +15,7 @@
 ## 控件和候选项
 
 - 来源为必选项：Claude Code、Codex、Qoder，提交值分别为 `claude_code`、`codex`、`qoder`；默认“请选择来源”，不猜测相似格式。
-- 文件控件有明确“JSONL 文件”标签，仅选择单个 `.jsonl`；字节上限由后端传入并在表单显示，前端不另定上限。
+- 文件控件有明确“JSONL 文件”标签，仅选择单个 `.jsonl`；默认上限为 200 MiB（209715200 字节），MiB 上限由后端传入并在表单显示，`data-max-bytes` 保留精确字节值供前端校验，前端不另定上限。
 - 主操作为“导入并分析”；上传期间显示“正在分析…”并禁用重复提交，控件恢复后允许选择新文件或重试。
 - 真实 POST `/api/imports` 使用 multipart 字段 `file`、`source`。成功响应的 `detail_url` 必须是当前服务 `/imports/<import_id>`，不得导航到任意外部 URL。
 

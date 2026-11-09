@@ -3,6 +3,7 @@ package com.feipi.session.browser.source.json;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.feipi.session.browser.domain.source.SourceRecord;
 import com.feipi.session.browser.domain.source.SourceToolCall;
+import com.feipi.session.browser.source.common.JsonNodeSpool;
 import com.feipi.session.browser.source.common.JsonlReader;
 import com.feipi.session.browser.source.common.JsonlReaderResult;
 import com.feipi.session.browser.source.common.ToolFailureClassifier;
@@ -121,15 +122,16 @@ public final class JsonCandidateParser {
       return new SourceResult.Skipped(List.of(), "文件不存在: " + filePath);
     }
 
-    try {
-      JsonlReaderResult result = jsonlReader.read(filePath);
+    try (var events = new JsonNodeSpool()) {
+      JsonlReaderResult result = jsonlReader.readTo(filePath, events);
+      events.seal();
       String locator = candidate.fingerprint().locator();
       List<SourceDiagnostic> diagnostics = new ArrayList<>(result.diagnostics());
-      List<SourceRecord> records = new ArrayList<>(result.events().size());
+      List<SourceRecord> records = new ArrayList<>(events.size());
       Map<String, String> toolNamesById = new LinkedHashMap<>();
 
-      for (int eventIndex = 0; eventIndex < result.events().size(); eventIndex++) {
-        JsonNode event = result.events().get(eventIndex);
+      for (int eventIndex = 0; eventIndex < events.size(); eventIndex++) {
+        JsonNode event = events.get(eventIndex);
         String eventType = eventTypeExtractor.apply(event);
         diagnosticCollector.collect(event, eventIndex, eventType, locator, diagnostics);
         List<SourceRecord> eventRecords =
@@ -141,16 +143,17 @@ public final class JsonCandidateParser {
         }
       }
 
-      completionDiagnostics.accept(diagnostics, result.events().size());
+      completionDiagnostics.accept(diagnostics, events.size());
       return new SourceResult.Success(
           diagnostics,
-          result.events().size(),
-          recordTransform.apply(result.events(), List.copyOf(records)),
+          events.size(),
+          recordTransform.apply(events, List.copyOf(records)),
           candidate.fingerprint(),
           locator);
+    } catch (java.io.UncheckedIOException e) {
+      return SourceResult.Fatal.ioFailure("SOURCE_TEMP_IO_FAILED", e);
     } catch (IOException e) {
-      String detail = "文件读取失败: " + filePath + " - " + e.getMessage();
-      return new SourceResult.Fatal(List.of(), detail);
+      return SourceResult.Fatal.ioFailure("SOURCE_IO_FAILED", e);
     }
   }
 

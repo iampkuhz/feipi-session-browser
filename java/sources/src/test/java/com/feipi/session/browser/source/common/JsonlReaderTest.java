@@ -29,6 +29,21 @@ class JsonlReaderTest {
   private final JsonlReader reader = new JsonlReader();
 
   @Test
+  void readToStreamsEventsIntoTheCallerOwnedSpoolWithTheSameDiagnosticsAndOrder() throws Exception {
+    Path path = write("{\"type\":\"first\"}\r\n{bad}\n{\"type\":\"last\"}");
+    JsonlReaderResult expected = reader.read(path);
+    try (var events = new JsonNodeSpool()) {
+      JsonlReaderResult actual = reader.readTo(path, events);
+      events.seal();
+      assertThat(actual.events()).isEmpty();
+      assertThat(events).containsExactlyElementsOf(expected.events());
+      assertThat(actual.diagnostics()).isEqualTo(expected.diagnostics());
+      assertThat(actual.stats()).isEqualTo(expected.stats());
+      assertThat(actual.stoppedByLimit()).isEqualTo(expected.stoppedByLimit());
+    }
+  }
+
+  @Test
   void largeSparseFileHeaderDetectionDoesNotNarrowSizeBeforeClamping() throws Exception {
     Path path = tempDir.resolve("large-sparse.jsonl");
     try (var file = new java.io.RandomAccessFile(path.toFile(), "rw")) {

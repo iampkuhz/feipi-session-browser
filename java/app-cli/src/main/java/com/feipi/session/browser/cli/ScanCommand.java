@@ -7,6 +7,9 @@ import com.feipi.session.browser.scan.engine.FullScanEngine;
 import com.feipi.session.browser.scan.engine.IncrementalScanEngine;
 import com.feipi.session.browser.scan.engine.IncrementalScanSummary;
 import com.feipi.session.browser.scan.engine.ScanConfig;
+import com.feipi.session.browser.scan.engine.ScanDiagnostics;
+import com.feipi.session.browser.scan.engine.ScanFatalDiagnostics;
+import com.feipi.session.browser.scan.engine.ScanIssue;
 import com.feipi.session.browser.scan.engine.ScanLock;
 import com.feipi.session.browser.scan.engine.ScanLock.ScanLockUnavailableException;
 import com.feipi.session.browser.scan.engine.ScanProgress;
@@ -21,6 +24,7 @@ import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -164,13 +168,20 @@ final class ScanCommand implements Callable<Integer> {
       }
     } catch (SQLException e) {
       if (isDatabaseLocked(e)) {
-        System.err.println("错误：数据库被锁定");
-        System.err.println("  " + e.getMessage());
+        System.err.println("错误：数据库被锁定 code=SCAN_DATABASE_LOCKED");
         System.err.println("  请等待其他进程释放锁后重试。");
         return 2;
       }
-      System.err.println("错误：数据库操作失败: " + e.getMessage());
+      System.err.printf(
+          "错误：数据库操作失败 code=SCAN_DATABASE_OPERATION_FAILED sqliteCode=%d%n", e.getErrorCode());
+      System.err.println("  检查当前版本的索引目录、数据库访问权限及磁盘可用空间。");
       return 1;
+    } catch (Error e) {
+      ScanFatalDiagnostics.reportAtBoundary(
+          e, incremental && !full ? "incremental" : "full", "COMMAND");
+      return 1;
+    } finally {
+      ScanFatalDiagnostics.clearReported();
     }
   }
 
@@ -191,7 +202,7 @@ final class ScanCommand implements Callable<Integer> {
             ? "complete; published successfully"
             : "FAILED; previous published index retained",
         elapsed);
-    printFailures(summary.issues());
+    printFailures(summary.scanLogId(), summary.issues());
     return summary.errorCount() == 0 ? 0 : 1;
   }
 
@@ -212,7 +223,7 @@ final class ScanCommand implements Callable<Integer> {
             ? "complete; published successfully"
             : "FAILED; previous published index retained",
         elapsed);
-    printFailures(summary.issues());
+    printFailures(summary.scanLogId(), summary.issues());
     return summary.errorCount() == 0 ? 0 : 1;
   }
 
@@ -278,14 +289,16 @@ final class ScanCommand implements Callable<Integer> {
 
   /** 判断 SQLException 是否为数据库锁定错误。 */
   private static boolean isDatabaseLocked(SQLException e) {
-    String msg = e.getMessage();
-    return msg != null && msg.toLowerCase().contains("database is locked");
+    int primaryCode = e.getErrorCode() & 0xff;
+    return primaryCode == 5 || primaryCode == 6; // 主错误码分别表示忙碌和锁定。
   }
 
   /** 打印不含会话键、路径、preview 或原始异常消息的失败摘要。 */
-  private static void printFailures(
-      java.util.List<com.feipi.session.browser.scan.engine.ScanIssue> issues) {
-    for (var failure : com.feipi.session.browser.scan.engine.ScanDiagnostics.failures(issues)) {
+  private static void printFailures(long scanLogId, List<ScanIssue> issues) {
+    if (issues.isEmpty()) return;
+    System.err.printf("  scanLogId=%s%n", scanLogId == 0 ? "unavailable" : scanLogId);
+    Set<String> shownHints = new HashSet<>();
+    for (var failure : ScanDiagnostics.failures(issues)) {
       System.err.printf(
           "  source=%s phase=%s code=%s line=%s%n",
           failure.source(),
@@ -295,10 +308,13 @@ final class ScanCommand implements Callable<Integer> {
       if ("NORMALIZED_CALL_LIMIT_EXCEEDED".equals(failure.code()))
         System.err.println(
             "  Supported normalized calls per session: 10000. Large-source support has not been restored by this failed scan.");
+      String hint = ScanDiagnostics.hint(failure.code());
+      if (!hint.isEmpty() && shownHints.add(failure.code())) {
+        System.err.printf("  hint[%s]: %s%n", failure.code(), hint);
+      }
     }
-    if (!issues.isEmpty())
-      System.err.println(
-          "  No partial results were published. Retry with the same scan command after resolving the cause.");
+    System.err.println(
+        "  No partial results were published. Retry with the same scan command after resolving the cause.");
   }
 
   /** 打印全量扫描汇总。 */

@@ -308,9 +308,11 @@ public final class CodexSourceAdapter implements SourceAdapter {
   @Override
   public Map<String, String> singleFileMetadata(Path filePath) throws IOException {
     CodexTokenProvenance provenance = new CodexTokenProvenance();
-    var result = CodexEventProjection.read(new JsonlReader(), filePath);
-    appendTokenProvenance(
-        CodexActivityRange.create(result.events(), result.diagnostics()).events(), provenance);
+    try (var batch = CodexEventBatch.read(new JsonlReader(), filePath)) {
+      appendTokenProvenance(
+          CodexActivityRange.create(batch.events(), batch.result().diagnostics()).events(),
+          provenance);
+    }
     return provenance.metadata();
   }
 
@@ -714,16 +716,16 @@ public final class CodexSourceAdapter implements SourceAdapter {
       return new SourceResult.Skipped(List.of(), "文件不存在: " + filePath);
     }
 
+    List<SourceDiagnostic> diagnostics = new ArrayList<>();
     try (var owner = new CodexRecordOwner()) {
       String locator = candidate.fingerprint().locator();
-      List<SourceDiagnostic> diagnostics;
       int candidateCount;
       try (var batch = CodexEventBatch.read(jsonlReader, filePath)) {
         JsonlReaderResult result = batch.result();
         // 从候选元数据初始化模型，确保早期事件可使用发现阶段提取的模型
         String metaModel = candidate.metadata().get("model");
         String initialModel = metaModel == null || metaModel.isBlank() ? "" : metaModel;
-        diagnostics = new ArrayList<>(result.diagnostics());
+        diagnostics.addAll(result.diagnostics());
         var range = CodexActivityRange.create(batch.events(), result.diagnostics());
         List<JsonNode> events = range.events();
         Map<String, String> parentMeta = readFirstSessionMeta(filePath);
@@ -783,11 +785,12 @@ public final class CodexSourceAdapter implements SourceAdapter {
       return owner.finish(boundedDiagnostics(diagnostics), candidateCount, candidate);
     } catch (CancelledMapping e) {
       return new SourceResult.Skipped(List.of(), "解析已取消");
+    } catch (CodexActivityRange.InvalidHistoryException e) {
+      return new SourceResult.Fatal(boundedDiagnostics(diagnostics), e.getMessage(), e.code());
     } catch (java.io.UncheckedIOException e) {
-      return new SourceResult.Fatal(List.of(), "事件重放读取失败: " + filePath + " - " + e.getMessage());
+      return SourceResult.Fatal.ioFailure("SOURCE_TEMP_IO_FAILED", e);
     } catch (IOException e) {
-      String detail = "文件读取失败: " + filePath + " - " + e.getMessage();
-      return new SourceResult.Fatal(List.of(), detail);
+      return SourceResult.Fatal.ioFailure("SOURCE_IO_FAILED", e);
     }
   }
 

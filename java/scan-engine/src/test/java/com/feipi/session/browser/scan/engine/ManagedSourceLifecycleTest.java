@@ -103,7 +103,8 @@ class ManagedSourceLifecycleTest {
     sequence.failClose = true;
     var result = process(sequence, List.of(), directory, false, new AtomicInteger());
     assertThat(result.outcome()).isEqualTo(FullScanEngine.CandidateOutcome.ERROR);
-    assertThat(result.message()).contains("synthetic-close-failure");
+    assertThat(result.code()).isEqualTo("SOURCE_RESOURCE_CLOSE_FAILED");
+    assertThat(result.message()).doesNotContain("synthetic-close-failure");
     assertThat(sequence.closes).isEqualTo(1);
   }
 

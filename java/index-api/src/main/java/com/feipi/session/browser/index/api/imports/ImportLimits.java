@@ -23,8 +23,8 @@ public record ImportLimits(
     }
   }
 
-  /** 返回默认策略：32 MiB 文件、万条记录、百万字符、8 个导入和 64 MiB 制品。 */
+  /** 返回默认策略：200 MiB 文件、万条记录、百万字符、8 个导入和 512 MiB 制品。 */
   public static ImportLimits defaults() {
-    return new ImportLimits(32L * 1024 * 1024, 10_000, 1_000_000, 8, 64L * 1024 * 1024);
+    return new ImportLimits(200L * 1024 * 1024, 10_000, 1_000_000, 8, 512L * 1024 * 1024);
   }
 }
