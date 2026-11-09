@@ -780,7 +780,7 @@ public final class CodexSourceAdapter implements SourceAdapter {
           }
         }
       }
-      return owner.finish(diagnostics, candidateCount, candidate);
+      return owner.finish(boundedDiagnostics(diagnostics), candidateCount, candidate);
     } catch (CancelledMapping e) {
       return new SourceResult.Skipped(List.of(), "解析已取消");
     } catch (java.io.UncheckedIOException e) {
@@ -789,6 +789,29 @@ public final class CodexSourceAdapter implements SourceAdapter {
       String detail = "文件读取失败: " + filePath + " - " + e.getMessage();
       return new SourceResult.Fatal(List.of(), detail);
     }
+  }
+
+  /** 仅在超限时合并重复的非错误诊断；真正的解析错误始终优先保留。 */
+  private static List<SourceDiagnostic> boundedDiagnostics(List<SourceDiagnostic> diagnostics) {
+    if (diagnostics.size() <= SourceResult.MAX_DIAGNOSTICS) return diagnostics;
+    int detailLimit = SourceResult.MAX_DIAGNOSTICS - 1;
+    List<SourceDiagnostic> retained = new ArrayList<>();
+    for (var severity : List.of(ParseSeverity.ERROR, ParseSeverity.WARNING, ParseSeverity.INFO)) {
+      Set<String> seenCodes = new HashSet<>();
+      for (var diagnostic : diagnostics) {
+        if (retained.size() == detailLimit) break;
+        if (diagnostic.severity() == severity
+            && (severity == ParseSeverity.ERROR || seenCodes.add(diagnostic.code()))) {
+          retained.add(diagnostic);
+        }
+      }
+    }
+    retained.add(
+        codexInfoDiagnostic(
+            "Additional Codex diagnostics omitted: " + (diagnostics.size() - retained.size()),
+            "CODEX_DIAGNOSTICS_TRUNCATED",
+            ""));
+    return retained;
   }
 
   /** 最终 spool 仅在 managed 工厂成功后转移所有权，小表示同时受数量和全部载荷预算约束。 */

@@ -3,12 +3,16 @@ package com.feipi.session.browser.source.codex;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.feipi.session.browser.source.spi.Candidate;
+import com.feipi.session.browser.source.spi.ParseSeverity;
+import com.feipi.session.browser.source.spi.SourceDiagnostic;
 import com.feipi.session.browser.source.spi.SourceResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class CodexLegacyUsageTruthTest {
   @TempDir Path directory;
@@ -39,6 +43,56 @@ class CodexLegacyUsageTruthTest {
     assertThat(metadata.get("tokenContainsUnknown")).isEqualTo("true");
     assertThat(metadata.get("freshInputTokenPrecision")).isEqualTo("mixed");
     assertThat(result.records()).hasSize(4);
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {SourceResult.MAX_DIAGNOSTICS, SourceResult.MAX_DIAGNOSTICS + 100})
+  void longRolloutWithAmbiguousCountersKeepsAllRecordsWithinDiagnosticBudget(int ambiguousCount)
+      throws Exception {
+    Path file = directory.resolve("synthetic-long-rollout.jsonl");
+    Files.writeString(
+        file,
+        legacy(100, 40, 20)
+            + legacy(20, 5, 4).repeat(ambiguousCount)
+            + message("user", "synthetic prompt after counter reset"));
+
+    try (var result = parse(file);
+        var cursor = result.recordSequence().openCursor()) {
+      assertThat(result.candidateCount()).isEqualTo(ambiguousCount + 2);
+      assertThat(result.diagnostics())
+          .extracting(SourceDiagnostic::code)
+          .containsExactly(
+              "TOKEN_USAGE_AMBIGUOUS", "TOKEN_COUNTER_RESET", "CODEX_DIAGNOSTICS_TRUNCATED");
+      assertThat(result.diagnostics().getLast().message())
+          .isEqualTo("Additional Codex diagnostics omitted: " + (ambiguousCount - 1));
+      assertThat(cursor.next().usage().total()).isEqualTo(120);
+      for (int i = 0; i < ambiguousCount; i++) {
+        assertThat(cursor.next().usage().total()).isZero();
+      }
+      assertThat(cursor.next().content()).isEqualTo("synthetic prompt after counter reset");
+      assertThat(cursor.hasNext()).isFalse();
+    }
+    assertThat(new CodexSourceAdapter().singleFileMetadata(file))
+        .containsEntry("tokenContainsUnknown", "true");
+  }
+
+  @Test
+  void diagnosticOverflowCannotHideALateParseError() throws Exception {
+    Path file = directory.resolve("synthetic-malformed-rollout.jsonl");
+    Files.writeString(file, "null\n".repeat(SourceResult.MAX_DIAGNOSTICS) + "{broken}\n");
+
+    try (var result = parse(file)) {
+      assertThat(result.diagnostics())
+          .extracting(SourceDiagnostic::code)
+          .containsExactly("BAD_JSON", "NON_OBJECT_SKIPPED", "CODEX_DIAGNOSTICS_TRUNCATED");
+      assertThat(result.diagnostics().stream().filter(d -> d.severity() == ParseSeverity.ERROR))
+          .singleElement()
+          .satisfies(
+              error -> {
+                assertThat(error.code()).isEqualTo("BAD_JSON");
+                assertThat(error.lineNo()).isEqualTo(SourceResult.MAX_DIAGNOSTICS + 1);
+              });
+    }
   }
 
   @Test
