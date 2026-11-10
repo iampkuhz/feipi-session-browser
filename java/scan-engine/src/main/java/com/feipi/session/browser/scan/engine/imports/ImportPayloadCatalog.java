@@ -55,26 +55,23 @@ final class ImportPayloadCatalog {
         }
         JsonNode event = MAPPER.readTree(line);
         int part = 0;
+        boolean hasNestedResult = false;
         for (JsonNode block : contentBlocks(event)) {
           if ("tool_result".equals(block.path("type").asText())) {
+            hasNestedResult = true;
             String id =
                 block
                     .path("tool_use_id")
                     .asText(block.path("call_id").asText(block.path("id").asText()));
-            put(
-                catalog,
-                entry(
-                    key + "/result/" + part,
-                    logicalPath,
-                    "tool_result",
-                    index,
-                    id,
-                    resultText(block),
-                    block.toString()));
+            result(catalog, key + "/result/" + part, logicalPath, index, id, block);
           } else if ("tool_use".equals(block.path("type").asText())) {
             declaration(catalog, key + "/tool/" + part, logicalPath, index, block);
           }
           part++;
+        }
+        if (!hasNestedResult && "tool_result".equals(event.path("type").asText())) {
+          String id = event.path("tool_use_id").asText(event.path("call_id").asText());
+          result(catalog, key + "/result", logicalPath, index, id, event);
         }
         JsonNode payload = event.path("payload");
         if (List.of("function_call", "custom_tool_call").contains(payload.path("type").asText())) {
@@ -137,6 +134,17 @@ final class ImportPayloadCatalog {
       if (!value.isMissingNode() && !value.isNull()) parts.add(text(value));
     }
     return String.join("\n", parts);
+  }
+
+  private static void result(
+      Map<String, SourceUnitCatalogEntry> catalog,
+      String key,
+      String path,
+      int order,
+      String id,
+      JsonNode source)
+      throws IOException {
+    put(catalog, entry(key, path, "tool_result", order, id, resultText(source), source.toString()));
   }
 
   private static void declaration(

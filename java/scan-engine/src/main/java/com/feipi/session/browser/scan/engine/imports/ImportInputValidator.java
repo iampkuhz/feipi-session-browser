@@ -145,10 +145,26 @@ final class ImportInputValidator {
       }
       return true;
     }
+    if (source == NormalizedAgent.QODER) {
+      if ("message".equals(type) && isQoderMessage(record)) {
+        return true;
+      }
+      if ("tool_result".equals(type)) {
+        return false; // 工具结果可随会话导入，但不能单独证明这是会话文件。
+      }
+    }
     if (!AUXILIARY_TYPES.contains(type) || source == NormalizedAgent.CODEX) {
       throw failure("unsupported_format");
     }
     return false;
+  }
+
+  private static boolean isQoderMessage(JsonNode record) {
+    // 与 Qoder 解析器一致：优先使用顶层角色，否则读 message.role。
+    JsonNode role = record.path("role");
+    String value = role.isTextual() ? role.textValue() : "";
+    return MESSAGE_TYPES.contains(
+        value.isEmpty() ? record.path("message").path("role").asText("") : value);
   }
 
   private static void addId(Set<String> ids, JsonNode value) throws IOException {

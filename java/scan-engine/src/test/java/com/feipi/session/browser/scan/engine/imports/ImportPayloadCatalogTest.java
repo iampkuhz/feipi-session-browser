@@ -10,16 +10,18 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /** 镜像容器只生成一份工具投影，完整原始事件仍然保留。 */
 class ImportPayloadCatalogTest {
   @TempDir Path directory;
 
-  @Test
-  void mirroredContainersDeduplicateDeclarationsAndObjectResultsWithoutDroppingRawEvents()
-      throws Exception {
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void mirroredContainersDeduplicateDeclarationsAndObjectResultsWithoutDroppingRawEvents(
+      boolean topLevelResult) throws Exception {
     var mapper = new ObjectMapper();
     var assistant = mapper.createObjectNode().put("role", "assistant");
     JsonNode declaration =
@@ -28,6 +30,7 @@ class ImportPayloadCatalogTest {
             [{"type":"tool_use","id":"tool-1","name":"Bash","input":{"command":"echo synthetic"}}]
             """);
     var user = mapper.createObjectNode().put("role", "user");
+    if (topLevelResult) user.put("type", "tool_result").put("tool_use_id", "tool-1");
     JsonNode result =
         mapper.readTree(
             """
