@@ -54,7 +54,12 @@ final class CodexMetadataProjection {
       copy(
           payload,
           projected,
-          List.of("id", "parent_thread_id", "forked_from_id", "subagent_history_start_ordinal"));
+          List.of(
+              "id",
+              "parent_thread_id",
+              "forked_from_id",
+              "history_mode",
+              "subagent_history_start_ordinal"));
       JsonNode parent =
           payload.path("source").path("subagent").path("thread_spawn").path("parent_thread_id");
       if (parent.isTextual()) {

@@ -43,21 +43,23 @@ class CodexMetadataProjectionTest {
       var raw = new ArrayList<>(events);
       raw.addAll(reverse ? List.of(output, call) : List.of(call, output));
       var projected = raw.stream().map(CodexMetadataProjection::project).toList();
+      var rawRange = CodexActivityRange.create(raw, List.of());
+      var projectedRange = CodexActivityRange.create(projected, List.of());
       var expected = new CodexTokenProvenance();
       var actual = new CodexTokenProvenance();
       var usage =
           CodexSourceAdapter.class.getDeclaredMethod(
-              "appendTokenProvenance", List.class, CodexTokenProvenance.class);
+              "appendTokenProvenance", CodexActivityRange.class, CodexTokenProvenance.class);
       usage.setAccessible(true);
-      usage.invoke(null, raw, expected);
-      usage.invoke(null, projected, actual);
+      usage.invoke(null, rawRange, expected);
+      usage.invoke(null, projectedRange, actual);
       assertThat(actual.metadata()).isEqualTo(expected.metadata());
       Class<?> selection =
           Class.forName(CodexSourceAdapter.class.getName() + "$CodexUsageSelection");
-      var constructor = selection.getDeclaredConstructor(List.class);
+      var constructor = selection.getDeclaredConstructor(CodexActivityRange.class);
       constructor.setAccessible(true);
-      Object rawSelection = constructor.newInstance(raw);
-      Object projectedSelection = constructor.newInstance(projected);
+      Object rawSelection = constructor.newInstance(rawRange);
+      Object projectedSelection = constructor.newInstance(projectedRange);
       for (String name :
           List.of("usageIndices", "resetEvents", "ambiguousEvents", "legacyDeltas")) {
         var field = selection.getDeclaredField(name);

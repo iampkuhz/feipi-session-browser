@@ -190,6 +190,58 @@ class ScanCommandTest {
     }
 
     @Test
+    void codexHistoryVariantsAndConflictingAttachedChildDoNotBlockFullScan() throws Exception {
+      Path home = tempDir.resolve("fixture-home");
+      Path sessions = Files.createDirectories(home.resolve(".codex/sessions"));
+      Files.writeString(
+          sessions.getParent().resolve("session_index.jsonl"),
+          """
+          {"id":"synthetic-parent"}
+          {"id":"synthetic-valid"}
+          {"id":"synthetic-conflict"}
+          """);
+      Files.writeString(
+          sessions.resolve("rollout-synthetic-parent.jsonl"),
+          """
+          {"type":"session_meta","payload":{"id":"synthetic-parent"}}
+          {"type":"response_item","payload":{"type":"function_call","name":"spawn_agent","call_id":"valid-spawn","arguments":"{}"}}
+          {"type":"response_item","payload":{"type":"function_call_output","call_id":"valid-spawn","output":{"agent_id":"synthetic-valid"}}}
+          {"type":"response_item","payload":{"type":"function_call","name":"spawn_agent","call_id":"conflict-spawn","arguments":"{}"}}
+          {"type":"response_item","payload":{"type":"function_call_output","call_id":"conflict-spawn","output":{"agent_id":"synthetic-conflict"}}}
+          {"type":"response_item","payload":{"type":"message","role":"assistant","content":"synthetic parent answer"}}
+          """);
+      Files.writeString(
+          sessions.resolve("rollout-synthetic-valid.jsonl"),
+          """
+          {"ordinal":0,"type":"session_meta","payload":{"id":"synthetic-valid","parent_thread_id":"synthetic-parent","history_mode":"paginated","subagent_history_start_ordinal":2}}
+          {"ordinal":1,"type":"response_item","payload":{"type":"message","role":"assistant","content":"synthetic inherited answer"}}
+          {"ordinal":2,"type":"response_item","payload":{"type":"message","role":"assistant","content":"synthetic child answer"}}
+          """);
+      Files.writeString(
+          sessions.resolve("rollout-synthetic-conflict.jsonl"),
+          """
+          {"ordinal":0,"type":"session_meta","payload":{"id":"synthetic-conflict","parent_thread_id":"synthetic-parent","forked_from_id":"synthetic-other","subagent_history_start_ordinal":2}}
+          {"ordinal":1,"type":"session_meta","payload":{"id":"synthetic-other"}}
+          """);
+      String oldHome = System.getProperty("user.home");
+      try {
+        System.setProperty("user.home", home.toString());
+        var result =
+            execute(
+                "scan",
+                "--full",
+                "--agent",
+                "codex",
+                "--index-dir",
+                tempDir.resolve("codex-scan-index").toString());
+        assertThat(result.exitCode()).as(result.stderr()).isZero();
+        assertThat(result.stdout()).contains("Codex:       1 sessions", "published successfully");
+      } finally {
+        System.setProperty("user.home", oldHome);
+      }
+    }
+
+    @Test
     @DisplayName("full scan 输出中 Total 等于各分项之和（回归：防止 Total 使用 successCount 导致不一致）")
     void fullScanTotalMatchesSumOfPerSourceCounts() throws Exception {
       Path indexDir = tempDir.resolve("total-consistency-index");

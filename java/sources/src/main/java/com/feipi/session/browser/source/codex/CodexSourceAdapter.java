@@ -264,22 +264,27 @@ public final class CodexSourceAdapter implements SourceAdapter {
     }
     try {
       var result = CodexMetadataProjection.read(new JsonlReader(), disc.rolloutPath());
-      List<JsonNode> events =
-          CodexActivityRange.create(result.events(), result.diagnostics()).events();
-      appendTokenProvenance(events, provenance);
+      var range = CodexActivityRange.create(result.events(), result.diagnostics());
+      appendTokenProvenance(range, provenance);
       Map<String, String> parentMeta = readFirstSessionMeta(disc.rolloutPath());
       List<Path> children =
           childRolloutFiles(
               disc.rolloutPath(), parentThreadIdForParent(parentMeta, "codex:" + disc.sessionId()));
       Map<String, SourceRecordRelation> relations =
-          spawnRelations(events, children, new ArrayList<>(), disc.rolloutPath().toString());
+          spawnRelations(
+              range.events(), children, new ArrayList<>(), disc.rolloutPath().toString());
       for (Path child : children) {
         String id = readFirstSessionMeta(child).getOrDefault("id", "").trim();
         if (relations.containsKey(id)) {
           var childResult = CodexMetadataProjection.read(new JsonlReader(), child);
-          appendTokenProvenance(
-              CodexActivityRange.create(childResult.events(), childResult.diagnostics()).events(),
-              provenance);
+          try {
+            appendTokenProvenance(
+                CodexActivityRange.create(childResult.events(), childResult.diagnostics()),
+                provenance);
+          } catch (CodexActivityRange.InvalidHistoryException e) {
+            if (!CodexActivityRange.PARENT_CONFLICT.equals(e.code())) throw e;
+            provenance.addUnknown();
+          }
         }
       }
     } catch (IOException e) {
@@ -290,8 +295,9 @@ public final class CodexSourceAdapter implements SourceAdapter {
   }
 
   private static void appendTokenProvenance(
-      List<JsonNode> events, CodexTokenProvenance provenance) {
-    CodexUsageSelection selection = new CodexUsageSelection(events);
+      CodexActivityRange range, CodexTokenProvenance provenance) {
+    List<JsonNode> events = range.events();
+    CodexUsageSelection selection = new CodexUsageSelection(range);
     selection.usageIndices.forEach(
         index ->
             provenance.addProvenance(
@@ -310,8 +316,7 @@ public final class CodexSourceAdapter implements SourceAdapter {
     CodexTokenProvenance provenance = new CodexTokenProvenance();
     try (var batch = CodexEventBatch.read(new JsonlReader(), filePath)) {
       appendTokenProvenance(
-          CodexActivityRange.create(batch.events(), batch.result().diagnostics()).events(),
-          provenance);
+          CodexActivityRange.create(batch.events(), batch.result().diagnostics()), provenance);
     }
     return provenance.metadata();
   }
@@ -340,9 +345,10 @@ public final class CodexSourceAdapter implements SourceAdapter {
     private int latestModernIndex = -1;
     private TokenTotals latestModernUsage = TokenTotals.zero();
 
-    private CodexUsageSelection(List<JsonNode> events) {
+    private CodexUsageSelection(CodexActivityRange range) {
+      List<JsonNode> events = range.events();
       Set<String> responseIds = new HashSet<>();
-      for (int index = 0; index < events.size(); index++) {
+      for (int index = range.start(); index < events.size(); index++) {
         JsonNode event = events.get(index);
         if (hasResponseUsage(event)) {
           String responseId = text(event.path("payload"), "response_id");
@@ -357,8 +363,14 @@ public final class CodexSourceAdapter implements SourceAdapter {
               mirrorTurns.computeIfAbsent(total.components(), ignored -> new HashSet<>()).add(turn);
             }
           }
+        } else if (range.inheritedUsage()
+            && isTokenCount(event)
+            && (hasCumulativeUsage(event) || hasLastTokenUsage(event))) {
+          ambiguousEvents.add(index);
         }
       }
+      // 继承区有计量证据时，不知道新旧累计计数器是否相接；只保留新活动的显式响应 usage。
+      if (range.inheritedUsage()) return;
       if (!modernEvents.isEmpty()) {
         selectLegacyEvents(events);
       } else {
@@ -778,6 +790,24 @@ public final class CodexSourceAdapter implements SourceAdapter {
                           childRange.events(), List.of(), diagnostics, childRollout.toString()),
                       diagnostics,
                       owner.spool);
+            } catch (CodexActivityRange.InvalidHistoryException e) {
+              if (!CodexActivityRange.PARENT_CONFLICT.equals(e.code())) throw e;
+              diagnostics.add(
+                  new SourceDiagnostic(
+                      ParseSeverity.WARNING,
+                      ParseIssueType.NON_OBJECT_SKIPPED,
+                      "Conflicting Codex child rollout omitted: " + e.getMessage(),
+                      1,
+                      Optional.empty(),
+                      e.code(),
+                      childRollout.toString(),
+                      OptionalInt.empty(),
+                      OptionalInt.empty(),
+                      OptionalInt.empty()));
+              LOG.log(
+                  Level.WARNING,
+                  "Codex 子会话已跳过，父会话继续扫描。source=codex phase=PARSE code={0}",
+                  e.getMessage());
             }
           }
         }
@@ -875,7 +905,7 @@ public final class CodexSourceAdapter implements SourceAdapter {
       List<JsonNode> events = range.events();
       String locator = state.locator;
       CancellationSignal cancellation = state.cancellation;
-      CodexUsageSelection selection = new CodexUsageSelection(events);
+      CodexUsageSelection selection = new CodexUsageSelection(range);
       boolean hasResponseUsage = !selection.modernEvents.isEmpty();
       boolean hasTokenUsage =
           hasResponseUsage || events.stream().anyMatch(CodexSourceAdapter::hasCumulativeUsage);

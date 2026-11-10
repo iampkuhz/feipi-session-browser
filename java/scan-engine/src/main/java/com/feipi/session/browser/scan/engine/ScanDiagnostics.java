@@ -88,7 +88,7 @@ public final class ScanDiagnostics {
       case "SOURCE_IO_FAILED" -> "检查来源文件可读性、临时目录权限和可用磁盘空间。";
       case "CODEX_HISTORY_READER_INCOMPLETE" -> "Codex 继承历史读取不完整；查看同次扫描的行号诊断，确认原始 JSONL 完整。";
       case "CODEX_HISTORY_BOUNDARY_INVALID" -> "Codex 子会话标记的继承历史边界不在有效记录范围内；检查导出文件是否完整。";
-      case "CODEX_HISTORY_PARENT_CONFLICT" -> "Codex 子会话的父会话标识互相冲突；请保留原始文件并反馈 Codex 版本和此错误码。";
+      case "CODEX_HISTORY_PARENT_CONFLICT" -> "Codex 继承历史头部的父会话证据缺失或冲突；请反馈 Codex 版本和此错误码，无需发送会话正文。";
       case "CODEX_HISTORY_ORDINAL_INVALID" -> "Codex 子会话记录序号缺失、不连续或重复；检查文件是否被截断、拼接或重新排序。";
       case "CODEX_HISTORY_USAGE_UNSUPPORTED" -> "Codex 子会话继承历史中的累计用量归属无法验证；请反馈 Codex 版本和此错误码。";
       case "SOURCE_RETRYABLE_INCOMPLETE" -> "读取未完成；等待会话文件停止写入后重试。";

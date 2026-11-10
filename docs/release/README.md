@@ -12,6 +12,8 @@
 
 先找终端中的 `code=`，不要只看 `errors=`。例如，`SOURCE_ACCESS_DENIED` 指向文件权限，`CODEX_HISTORY_PARENT_CONFLICT` 指向 Codex 继承历史中的父会话标识冲突，`SCAN_JVM_OUT_OF_MEMORY` 表示 JVM 因内存不足中止扫描。按同条日志或摘要中的 `hint` 排查。普通解析诊断有已知行号时才报告行号；JVM 致命错误会额外给出异常类型和有限的代码栈帧。
 
+如果日志是「Codex 子会话已跳过，父会话继续扫描」，只有父关系校验失败的附属子会话被隔离；不统计该子会话的活动或用量，父会话和其他有效会话仍可发布。日志中的 `event[0]` / `event[1]` 是从零开始的事件序号，不是 JSONL 行号。反馈时提供 Codex 版本、错误码和字段说明即可，无需提供会话正文或字段值。
+
 如需隔离单一来源，先停止占用扫描锁的 `serve`，再用发行包运行例如 `./bin/run scan --agent codex`（源码入口为 `./scripts/session-browser.sh scan --agent codex`）。反馈时附上应用版本、`scanLogId`、`source`、`phase`、`code` 和已有的行号或代码栈帧即可，不必发送原始会话、绝对路径或凭据。初始化阶段尚未建立扫描记录时，`scanLogId` 不可用。
 
 ## 发行流程
