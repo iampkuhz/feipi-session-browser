@@ -1,30 +1,22 @@
-## Summary
+## 修复结果
 
-<一句话描述本次质量门诊断变更，例如"修复 skill registry 缺失的 feipi-xxx 条目">
+<原症状、期望、根因分组与实际解决内容；区分事实和推断。>
 
-## Changed files
+## 验证证据
 
-- `scripts/gates/checks/<domain>/<gate-script>.py` — <修改说明>
-- `harness/skill-registry.yaml` — <修改说明>
-- ...
+| 层级 | 原生命令 / 输入 / 日志 | 实际结果 |
+|---|---|---|
+| 修前复现 | <原失败用例> | <原症状> |
+| 单点快验 | <相同原失败用例及行为断言> | <PASS/BLOCKED/FAIL/NOT_RUN> |
+| 相关回归 | <实际消费者与选择依据> | <PASS/BLOCKED/FAIL/NOT_RUN> |
+| 最终交付 | <整个工作区增量 Gate receipt；由 main 承接> | <PASS/BLOCKED/FAIL/NOT_RUN> |
 
-## Decisions
+缓存复用不是测试重跑；输入变化后的旧证明失效。不要把未触发的检查列为 PASS。
 
-- <关键决策及其理由，例如修复策略选择、最小修复范围确定等>
+## 进展与剩余事项
 
-## Gates
+<本轮确认的修复或新诊断证据、剩余失败、下一最小动作。阻塞时说明已试替代、外部条件/责任人及恢复入口，不能只写 Gate 未通过。>
 
-| Gate | Result |
-|---|---|
-| <触发失败的 gate> | <PASS/BLOCKED/FAIL/NOT_RUN> |
-| `governanceLayoutValidation` | <PASS/BLOCKED/FAIL/NOT_RUN> |
-| `minimal harness structure` | <PASS/BLOCKED/FAIL/NOT_RUN> |
-| `doctor.sh` | <PASS/BLOCKED/FAIL/NOT_RUN> |
+## 安全与范围
 
-## Risks
-
-- <回归风险、配置漂移风险或 none>
-
-## Follow-up
-
-- <后续事项或 none>
+<实际改动路径、反向效果检查、未覆盖项；不贴真实数据、凭据或大日志。>

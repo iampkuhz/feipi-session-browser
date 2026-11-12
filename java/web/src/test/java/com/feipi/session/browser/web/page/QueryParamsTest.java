@@ -13,6 +13,25 @@ import org.junit.jupiter.api.Test;
 @DisplayName("QueryParams 查询参数解析测试")
 class QueryParamsTest {
 
+  @Test
+  void removedSessionsSortsDoNotChangeSharedProjectSorts() {
+    for (String sort : new String[] {"failure", "duration", " FAILURE "}) {
+      Map<String, String> original = Map.of("sort", sort, "dir", "asc", "q", "synthetic");
+      var normalized = QueryParams.sessionsPageParams(original);
+      assertThat(normalized)
+          .containsEntry("sort", "updated")
+          .containsEntry("dir", "desc")
+          .containsEntry("q", "synthetic");
+      assertThat(original).containsEntry("sort", sort).containsEntry("dir", "asc");
+    }
+    assertThat(QueryParams.resolveSessionSortField("failure", "ended_at"))
+        .isEqualTo("failed_tool_count");
+    assertThat(QueryParams.resolveSessionSortField("duration", "ended_at"))
+        .isEqualTo("duration_seconds");
+    Map<String, String> tools = Map.of("sort", "tools", "dir", "asc");
+    assertThat(QueryParams.sessionsPageParams(tools)).isEqualTo(tools);
+  }
+
   @Nested
   @DisplayName("分页参数解析")
   class PaginationParsing {

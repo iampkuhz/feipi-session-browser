@@ -1,6 +1,7 @@
 version: 1
 size_limits:
   AGENTS.md: 2800
+  multica_runtime_bytes: 32768
   .claude/CLAUDE.md: 12000
 protected_roots:
   - .claude/

@@ -27,14 +27,17 @@ import io.javalin.testtools.JavalinTest;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.ServerSocket;
+import java.net.Socket;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.DriverManager;
 import java.time.Instant;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -273,6 +276,71 @@ class ImportedSessionApiTest {
   }
 
   @Test
+  void missingOriginPortIsAcceptedOnlyForCorroboratedLoopbackUpload() {
+    JavalinTest.test(
+        web.app(),
+        (app, client) -> {
+          String origin = "http://localhost";
+          String referer = origin + ":" + app.port() + "/imports?view=upload";
+          var evidence = Map.of("Sec-Fetch-Site", "same-origin", "Referer", referer);
+          assertThat(upload(app.port(), "{}", "qoder", origin, "", evidence).statusCode())
+              .isEqualTo(201);
+          for (var headers :
+              java.util.List.of(
+                  Map.of("Referer", referer),
+                  Map.of("Sec-Fetch-Site", "same-origin"),
+                  Map.of("Sec-Fetch-Site", "cross-site", "Referer", referer),
+                  Map.of("Sec-Fetch-Site", "same-origin", "Referer", origin + ":80/imports"),
+                  Map.of(
+                      "Sec-Fetch-Site",
+                      "same-origin",
+                      "Referer",
+                      "https://localhost:" + app.port() + "/imports"))) {
+            assertThat(upload(app.port(), "{}", "qoder", origin, "", headers).statusCode())
+                .isEqualTo(403);
+          }
+          for (String untrusted :
+              java.util.List.of("null", "http://127.0.0.1", "http://localhost:80", origin + ":")) {
+            assertThat(upload(app.port(), "{}", "qoder", untrusted, "", evidence).statusCode())
+                .isEqualTo(403);
+          }
+          // 客户端禁止改写 Host，因此通过回环连接直接发送测试请求。
+          try (var socket = new Socket("localhost", app.port())) {
+            socket.setSoTimeout(5000);
+            String request =
+                """
+                POST /api/imports HTTP/1.1
+                Host: synthetic.invalid:%1$d
+                Origin: http://synthetic.invalid
+                Sec-Fetch-Site: same-origin
+                Referer: http://synthetic.invalid:%1$d/imports
+                Content-Length: 0
+                Connection: close
+
+                """
+                    .formatted(app.port())
+                    .replace("\n", "\r\n");
+            socket.getOutputStream().write(request.getBytes(StandardCharsets.US_ASCII));
+            assertThat(new String(socket.getInputStream().readAllBytes(), StandardCharsets.UTF_8))
+                .startsWith("HTTP/1.1 403")
+                .contains("origin_forbidden");
+          }
+          assertThat(
+                  client
+                      .delete(
+                          BASE,
+                          "",
+                          request ->
+                              request
+                                  .header("Origin", origin)
+                                  .header("Sec-Fetch-Site", "same-origin")
+                                  .header("Referer", referer))
+                      .code())
+              .isEqualTo(403);
+        });
+  }
+
+  @Test
   void safeImportErrorsHaveExplicitStatusAndSchema() {
     JavalinTest.test(
         web.app(),
@@ -309,6 +377,17 @@ class ImportedSessionApiTest {
   private static HttpResponse<String> upload(
       int serverPort, String contents, String source, String origin, String extra)
       throws Exception {
+    return upload(serverPort, contents, source, origin, extra, Map.of());
+  }
+
+  private static HttpResponse<String> upload(
+      int serverPort,
+      String contents,
+      String source,
+      String origin,
+      String extra,
+      Map<String, String> headers)
+      throws Exception {
     String body =
         "--fixture\r\nContent-Disposition: form-data; name=\"source\"\r\n\r\n"
             + source
@@ -325,6 +404,7 @@ class ImportedSessionApiTest {
     if (origin != null) {
       request.header("Origin", origin);
     }
+    headers.forEach(request::header);
     try (HttpClient http = HttpClient.newHttpClient()) {
       return http.send(request.build(), HttpResponse.BodyHandlers.ofString());
     }

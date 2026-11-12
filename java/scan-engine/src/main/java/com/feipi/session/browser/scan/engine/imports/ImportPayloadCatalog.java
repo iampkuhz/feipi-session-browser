@@ -34,6 +34,40 @@ final class ImportPayloadCatalog {
 
   private ImportPayloadCatalog() {}
 
+  /** 将无调用输入附着到原事件身份，保留原始记录但不为每条输入复制一个目录槽位。 */
+  static void mergeObserved(
+      Map<String, SourceUnitCatalogEntry> catalog,
+      Map<String, SourceUnitCatalogEntry> normalized,
+      String logicalPath)
+      throws IOException {
+    for (var value : normalized.values()) {
+      if (!"observed_user_message".equals(value.candidate())) continue;
+      var raw = catalog.remove(logicalPath + "#raw[" + value.eventOrder() + "]");
+      var entry =
+          new SourceUnitCatalogEntry(
+              value.unitKey(),
+              value.originPath(),
+              value.canonicalSourceLocator(),
+              value.unitType(),
+              value.candidate(),
+              value.direction(),
+              value.eventOrder(),
+              value.partIndex(),
+              value.byteRange(),
+              value.contentHash(),
+              value.timestamp(),
+              value.label(),
+              value.priority(),
+              value.preview(),
+              value.text(),
+              raw == null ? value.payload() : raw.payload(),
+              value.subSource(),
+              value.sourceCandidate(),
+              value.diagnostics());
+      put(catalog, entry);
+    }
+  }
+
   static Map<String, SourceUnitCatalogEntry> read(Path file, String logicalPath)
       throws IOException {
     Map<String, SourceUnitCatalogEntry> catalog = new LinkedHashMap<>();
@@ -231,7 +265,7 @@ final class ImportPayloadCatalog {
 
   private static void put(Map<String, SourceUnitCatalogEntry> catalog, SourceUnitCatalogEntry entry)
       throws IOException {
-    if (catalog.size() >= NormalizedConstants.MAX_COLLECTION_SIZE) {
+    if (catalog.size() >= NormalizedConstants.MAX_SOURCE_UNIT_CATALOG_SIZE) {
       throw ImportInputValidator.failure("analysis_too_large");
     }
     catalog.put(entry.unitKey(), entry);

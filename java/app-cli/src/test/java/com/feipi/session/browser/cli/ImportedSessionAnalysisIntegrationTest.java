@@ -11,6 +11,7 @@ import com.feipi.session.browser.application.sessiondetail.PayloadLookup;
 import com.feipi.session.browser.application.sessiondetail.ToolInputContents;
 import com.feipi.session.browser.domain.normalized.NormalizedAgent;
 import com.feipi.session.browser.domain.normalized.NormalizedCallUsage;
+import com.feipi.session.browser.domain.normalized.NormalizedSessionContent;
 import com.feipi.session.browser.domain.normalized.TokenProvenance;
 import com.feipi.session.browser.index.api.imports.SessionImportException;
 import com.feipi.session.browser.query.api.PayloadVisibility;
@@ -26,6 +27,97 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 /** 使用真实三来源解析器证明导入保留计量、正文、工具及完整 payload。所有数据均为合成。 */
 class ImportedSessionAnalysisIntegrationTest {
+
+  @Test
+  void workspaceMetadataIsValidatedButDoesNotReachAnalysisOrPayloads() throws Exception {
+    String auxiliary =
+        """
+        {"type":"workspace-directories","sessionId":"shared-session","directories":["/synthetic/workspace"],"usage":{"input_tokens":999},"parts":[{"type":"tool_use","id":"ignored","name":"Ignored"}]}
+        {"type":"runtime-config","sessionId":"shared-session","content":"synthetic ignored config"}
+        {"type":"active-leaf","sessionId":"shared-session","content":"synthetic ignored leaf"}
+        """;
+    try (var service = service()) {
+      for (var source : List.of(NormalizedAgent.QODER, NormalizedAgent.CLAUDE_CODE)) {
+        var baseline = service.create(input(messageTranscript()), "baseline.jsonl", source);
+        var result =
+            service.create(input(auxiliary + messageTranscript()), "metadata.jsonl", source);
+        assertThat(result.sessionRow().userMessageCount()).isEqualTo(1);
+        assertThat(result.sessionRow().toolCallCount()).isEqualTo(1);
+        assertThat(result.sessionRow().totalTokens())
+            .isEqualTo(baseline.sessionRow().totalTokens());
+        assertThat(
+                result.artifact().sourceUnitCatalog().values().stream()
+                    .filter(unit -> "import_raw_event".equals(unit.unitType()))
+                    .map(unit -> unit.payload())
+                    .toList())
+            .containsExactlyInAnyOrderElementsOf(messageTranscript().lines().toList());
+      }
+      assertThatThrownBy(
+              () -> service.create(input(auxiliary), "metadata-only.jsonl", NormalizedAgent.QODER))
+          .isInstanceOfSatisfying(
+              SessionImportException.class,
+              e -> assertThat(e.code()).isEqualTo("unsupported_format"));
+      assertThatThrownBy(
+              () ->
+                  service.create(
+                      input(auxiliary.replace("shared-session", "other") + messageTranscript()),
+                      "mixed.jsonl",
+                      NormalizedAgent.QODER))
+          .isInstanceOfSatisfying(
+              SessionImportException.class,
+              e -> assertThat(e.code()).isEqualTo("multiple_sessions"));
+      assertThatThrownBy(
+              () ->
+                  service.create(
+                      input(codexTranscript() + "\n" + auxiliary),
+                      "codex.jsonl",
+                      NormalizedAgent.CODEX))
+          .isInstanceOfSatisfying(
+              SessionImportException.class,
+              e -> assertThat(e.code()).isEqualTo("unsupported_format"));
+    }
+  }
+
+  @Test
+  void longStandaloneImportRetainsAllTranscriptAndToolEntriesUnderSeparateLimits()
+      throws Exception {
+    String filler = "{\"type\":\"progress\"}\n";
+    try (var service = service()) {
+      var result =
+          service.create(
+              input(filler.repeat(12_065) + messageTranscript()),
+              "long.jsonl",
+              NormalizedAgent.QODER);
+      var artifact = result.artifact();
+      var catalog = artifact.sourceUnitCatalog().values();
+      assertThat(
+              catalog.stream().filter(unit -> "import_raw_event".equals(unit.unitType())).count())
+          .isEqualTo(12_068);
+      assertThat(catalog).hasSize(12_070);
+      assertThat(result.sessionRow().toolCallCount()).isEqualTo(1);
+      var content = NormalizedSessionContent.fromArtifact(artifact);
+      assertThat(content.toArtifact().sourceUnitCatalog()).isEqualTo(artifact.sourceUnitCatalog());
+      assertThatThrownBy(
+              () ->
+                  service.create(
+                      input(filler.repeat(19_998) + messageTranscript()),
+                      "too-many.jsonl",
+                      NormalizedAgent.QODER))
+          .isInstanceOfSatisfying(
+              SessionImportException.class,
+              e -> assertThat(e.code()).isEqualTo("too_many_records"));
+      assertThatThrownBy(
+              () ->
+                  service.create(
+                      input(filler.repeat(19_997) + messageTranscript()),
+                      "expanded.jsonl",
+                      NormalizedAgent.QODER))
+          .isInstanceOfSatisfying(
+              SessionImportException.class,
+              e -> assertThat(e.code()).isEqualTo("analysis_too_large"));
+      assertThat(service.find(result.metadata().importId())).contains(result);
+    }
+  }
 
   @ParameterizedTest
   @ValueSource(strings = {"mode", "permission-mode", "attachment", "all"})

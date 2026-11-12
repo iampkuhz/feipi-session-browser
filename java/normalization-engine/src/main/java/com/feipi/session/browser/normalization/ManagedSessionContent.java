@@ -88,8 +88,7 @@ final class ManagedSessionContent implements NormalizedSessionContent {
         frame.timestamp,
         frame.usage,
         new NormalizedCallRequest(frame.results),
-        new NormalizedCallResponse(
-            frame.fact.tools().stream().map(ManagedNormalizationPlan.ToolIdentity::id).toList()),
+        new NormalizedCallResponse(frame.declaredTools),
         List.of(),
         units,
         TokenAccountant.modelCallEvidence(frame.fact.callId().orElse("")),
@@ -163,6 +162,7 @@ final class ManagedSessionContent implements NormalizedSessionContent {
     private int toolIndex;
     private int diagnosticIndex;
     private int fileIndex;
+    private int observedIndex;
     private final Iterator<Map.Entry<String, SourceUnitCatalogEntry>> catalog =
         plan.catalog.entrySet().iterator();
     private long unitIndex;
@@ -177,6 +177,7 @@ final class ManagedSessionContent implements NormalizedSessionContent {
           || toolIndex < plan.tools.size()
           || diagnosticIndex < plan.diagnostics.size()
           || fileIndex < plan.sourceFiles.size()
+          || observedIndex < plan.observedInputs.size()
           || catalog.hasNext();
     }
 
@@ -228,6 +229,17 @@ final class ManagedSessionContent implements NormalizedSessionContent {
             List.of(),
             Map.of(),
             List.of());
+      if (observedIndex < plan.observedInputs.size()) {
+        var value = ObservedInputContents.entry(read(plan.observedInputs.get(observedIndex++)));
+        return new NormalizedContentUnit(
+            unitIndex++,
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            Map.of(value.unitKey(), value),
+            List.of());
+      }
       var entry = catalog.next();
       return new NormalizedContentUnit(
           unitIndex++,

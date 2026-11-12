@@ -85,15 +85,15 @@
                     <span class="sd-icon-btn-label" aria-hidden="true">&#x1F4CB;</span>
                 </button>
             </div>
-            <div class="sd-hero-url sd-hero-url--file" data-session-file-path hidden>
+            <div class="sd-hero-url sd-hero-url--file" data-session-file-path>
                 <span class="sd-hero-url-label">Session file</span>
-                <span class="sd-hero-url-text" title="" data-session-file-text>Loaded from /meta API</span>
+                <span class="sd-hero-url-text" title="" data-session-file-text>正在加载会话文件信息…</span>
                 <button type="button"
                         class="sd-icon-btn sd-btn--copy"
                         data-action="copy"
                         data-copy-text=""
                         aria-label="Copy session file path"
-                        title="Copy session file path">
+                        title="Copy session file path" hidden>
                     <span class="sd-icon-btn-label" aria-hidden="true">&#x1F4CB;</span>
                 </button>
             </div>
@@ -110,17 +110,7 @@
         </div>
 
         <div class="sd-kpis" aria-label="Session metrics" data-session-metrics-shell>
-            <div class="sd-kpi sd-kpi--stack sd-kpi--health" aria-label="Run Health" title="Issue signals in available content only; not proof of session completion. Payload Gaps checks selected source/result links, not original-content completeness. Attribution Gaps is N/A without coverage evidence.">
-                <div class="sd-kpi__value" title="Loaded from diagnostics API">Loading…</div>
-                <div class="sd-kpi__label">Run Health</div>
-                <div class="sd-kpi__subgrid">
-                    <span>Issue rows <b>Loading…</b></span>
-                    <span>Failed Tools <b class="sd-kpi-tone">Loading…</b></span>
-                    <span>Payload Gaps <b>Loading…</b></span>
-                    <span>Attribution Gaps <b>Loading…</b></span>
-                </div>
-            </div>
-            <div class="sd-kpi sd-kpi--stack" aria-label="Total Tokens" title="Loaded from /api/sessions/{agent}/{sessionId}/metrics">
+            <div class="sd-kpi sd-kpi--stack" aria-label="Total Tokens" title="会话互斥四段总量；来源与精度见计量说明，不代表 context window 占用率">
                 <div class="sd-kpi__value" title="Loaded from metrics API">Loading…</div>
                 <div class="sd-kpi__label">Total Tokens</div>
                 {% if imported_analysis is defined and imported_analysis %}
@@ -133,7 +123,7 @@
                     <span>Output <b class="sd-kpi-token-share">Loading…</b></span>
                 </div>
             </div>
-            <div class="sd-kpi sd-kpi--stack" aria-label="Cache Health" title="Loaded from metrics API">
+            <div class="sd-kpi sd-kpi--stack" aria-label="Cache Health" title="只用完整服务商上报输入计算缓存比例，分母不含 Output；未知或估算不当作 0%">
                 <div class="sd-kpi__value">Loading…</div>
                 <div class="sd-kpi__label">Cache Health</div>
                 <div class="sd-kpi__subgrid">
@@ -142,7 +132,7 @@
                     <span>Fresh-spike rows <b>Loading…</b></span>
                 </div>
             </div>
-            <div class="sd-kpi sd-kpi--stack" aria-label="Workload" title="Loaded from metrics API">
+            <div class="sd-kpi sd-kpi--stack" aria-label="Workload" title="本地归一化记录和工具体量，不等同独立服务商请求数">
                 <div class="sd-kpi__value">Loading…</div>
                 <div class="sd-kpi__label">Workload</div>
                 <div class="sd-kpi__subgrid">
@@ -150,6 +140,19 @@
                     <span>Subagent records <b>Loading…</b></span>
                     <span>Tool Calls <b>Loading…</b></span>
                     <span>Subagent Runs <b>Loading…</b></span>
+                </div>
+            </div>
+            <details class="sd-secondary-metrics" data-secondary-metrics>
+                <summary>运行诊断与耗时 · 按需查看</summary>
+                <div class="sd-secondary-metrics__grid">
+            <div class="sd-kpi sd-kpi--stack sd-kpi--health" aria-label="Run Health" title="仅检查可用内容中的问题信号，不证明会话已完成。Payload Gaps 只检查部分来源/结果关联，不代表原文完整性；缺少覆盖证据时 Attribution Gaps 为 N/A。">
+                <div class="sd-kpi__value" title="Loaded from diagnostics API">Loading…</div>
+                <div class="sd-kpi__label">Run Health</div>
+                <div class="sd-kpi__subgrid">
+                    <span>Issue rows <b>Loading…</b></span>
+                    <span>Failed Tools <b class="sd-kpi-tone">Loading…</b></span>
+                    <span>Payload Gaps <b>Loading…</b></span>
+                    <span>Attribution Gaps <b>Loading…</b></span>
                 </div>
             </div>
             <div class="sd-kpi sd-kpi--stack" aria-label="Source Task Active">
@@ -162,6 +165,8 @@
                     <span>Tool Execution <b>Loading…</b></span>
                 </div>
             </div>
+                </div>
+            </details>
         </div>
     </div>
 

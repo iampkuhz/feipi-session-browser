@@ -164,7 +164,7 @@ final class ContentPayloadReader {
         }
       }
     }
-    if (texts.isEmpty()) return Optional.empty();
+    if (texts.isEmpty()) return request ? observedInput(id, visibility) : Optional.empty();
     var sequenceKeys = roundSequenceKeys(sequences);
     var catalogTexts = new LinkedHashMap<String, String>();
     var readingRequiresRole = new LinkedHashMap<String, Boolean>();
@@ -217,6 +217,39 @@ final class ContentPayloadReader {
 
   private boolean inRound(NormalizedCall call, int round) {
     return reader.roundIndex().roundIndexForCall(call.callId()).orElse(0) == round;
+  }
+
+  private Optional<PayloadLookup.PayloadEntry> observedInput(
+      String id, PayloadVisibility visibility) throws IOException {
+    if (content.header().totals().getOrDefault("calls", 0L) != 0) return Optional.empty();
+    var text = new StringBuilder();
+    var reading = new PayloadCallContentExtractor.ReadingText(codexRequest(true));
+    var inputs = new java.util.TreeSet<>(PayloadCallContentExtractor.OBSERVED_INPUT_ORDER);
+    try (var cursor = content.openCursor()) {
+      while (cursor.hasNext()) {
+        for (var entry : cursor.next().sourceUnitCatalog().values()) {
+          if (!"observed_user_message".equals(entry.candidate())) continue;
+          inputs.add(entry);
+        }
+      }
+    }
+    for (var entry : inputs) {
+      String value = PayloadCallContentExtractor.catalogEntryText(entry);
+      if (!text.isEmpty()) text.append('\n');
+      text.append(value);
+      reading.add(value);
+    }
+    if (text.isEmpty()) return Optional.empty();
+    var policy = SensitiveFieldPolicy.fromVisibility(visibility);
+    return Optional.of(
+        new PayloadLookup.PayloadEntry(
+            id,
+            PayloadSourceKind.LLM_REQUEST,
+            "round:1",
+            policy.applyMasking(text.toString()),
+            false,
+            PayloadLookup.readingBlock(policy, reading.text()),
+            reading.unconfirmedContext()));
   }
 
   private boolean roundHasMain(int round) throws IOException {
@@ -370,6 +403,7 @@ final class ContentPayloadReader {
         Map<String, ToolInputContents.Input> tools,
         Map<String, Integer> order) {
       var text = new StringBuilder();
+      inputs.keySet().retainAll(toolIds);
       for (var ref : refs) append(text, catalog.get(ref.key()));
       if (text.isEmpty()) text.append(inline);
       toolIds.stream()
@@ -434,6 +468,7 @@ final class ContentPayloadReader {
       for (var unit : call.sourceUnits()) {
         if (!"user".equals(unit.get("role"))) ToolInputContents.collect(unit, inputs);
       }
+      inputs.keySet().retainAll(call.response().toolCallIds());
       for (String toolId : call.response().toolCallIds()) {
         if (!inputs.containsKey(toolId)) {
           inputs.put(
@@ -533,10 +568,11 @@ final class ContentPayloadReader {
         for (var entry : units.next().sourceUnitCatalog().values()) {
           Map<?, ?> payload = entry.payload() instanceof Map<?, ?> map ? map : Map.of();
           boolean result =
-              "tool_result".equals(entry.unitType()) || "tool_result".equals(payload.get("type"));
+              PayloadCallContentExtractor.isToolResult(entry.unitType())
+                  || PayloadCallContentExtractor.isToolResult(payload.get("type"));
           if (result
               && (entry.label().filter(id::equals).isPresent()
-                  || id.equals(payload.get("tool_call_id")))) {
+                  || id.equals(PayloadCallContentExtractor.toolResultId(payload)))) {
             return Optional.of(PayloadCallContentExtractor.catalogEntryText(entry));
           }
         }

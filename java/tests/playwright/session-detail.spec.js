@@ -515,8 +515,8 @@ test.describe('会话详情 — Phase 1', () => {
     const tokenbar = page.locator('[data-trace-round-row] .tokenbar-wrap').first();
     await expect(tokenbar, 'round rows should expose API-rendered tokenbar interaction').toBeVisible({ timeout: 10000 });
     await tokenbar.hover();
-    await expect(tokenbar.locator('.token-tooltip')).toBeVisible({ timeout: 3000 });
-    const tooltipText = await tokenbar.locator('.token-tooltip').innerText();
+    await expect(page.locator('#token-bar-popover')).toBeVisible({ timeout: 3000 });
+    const tooltipText = await page.locator('#token-bar-popover').innerText();
     expect(tooltipText, 'tooltip should keep structural labels only; numeric correctness is API-tested').toContain('Token Breakdown');
   });
 

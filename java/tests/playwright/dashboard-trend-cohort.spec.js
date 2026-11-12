@@ -184,7 +184,7 @@ for (const timezoneId of ['America/Los_Angeles', 'Asia/Shanghai']) {
           await expect(promptBars.locator('.tooltip-row--total .tooltip-value')).toHaveText(sample.prompts.map(String));
           await expect(sessionBars.locator('.tooltip-date')).toHaveText(sample.labels);
           await expect(promptBars.locator('.tooltip-date')).toHaveText(sample.labels);
-          await expect(tokenTargets.locator('.tooltip-date')).toHaveText(sample.labels);
+          expect(await tokenTargets.evaluateAll(targets => targets.map(target => JSON.parse(target.dataset.tokenBreakdown).title))).toEqual(sample.labels);
           const promptRows = await promptBars.evaluateAll(bars => bars.map(bar => ({
             average: bar.querySelector('.tooltip-row--line .tooltip-value')?.textContent,
             denominator: bar.querySelector('.tooltip-row--line .tooltip-share')?.textContent,
@@ -192,20 +192,20 @@ for (const timezoneId of ['America/Los_Angeles', 'Asia/Shanghai']) {
           expect(promptRows.map(row => row.average)).toEqual(sample.averages);
           expect(promptRows.map(row => row.denominator)).toEqual(sample.rows.map(row =>
             `/ measured session · samples ${row[3]} / ${row[0]} cohort`));
-          const tokenTotals = await tokenTargets.evaluateAll(targets => targets.map(target => {
-            const totalRow = [...target.querySelectorAll('.tooltip-row')].find(row =>
-              row.querySelector('.tooltip-label')?.textContent === 'Total');
-            return totalRow?.querySelector('.tooltip-value')?.textContent;
+          const tokenParts = await tokenTargets.evaluateAll(targets => targets.map(target => {
+            const data = JSON.parse(target.dataset.tokenBreakdown);
+            const panel = TokenProvenance.breakdown(data.tokens, data);
+            return { total: panel.querySelector('[data-token-part="total"] strong').textContent,
+              read: panel.querySelector('[data-token-part="cacheRead"] strong').textContent,
+              state: TokenProvenance.state(data.tokens), estimated: (data.tokens.provenance || {}).estimatedSessionCount > 0 };
           }));
-          expect(tokenTotals).toEqual(sample.rows.map(row => row[5] === 'provider_reported'
-            ? String(row[4]) : row[5] === 'partial' ? expect.stringContaining('Partial') : 'N/A · Unknown'));
-          const measuredZeroRows = await tokenTargets.evaluateAll((targets, indices) => indices.map(index =>
-            targets[index].querySelectorAll('.tooltip-row')[1]?.querySelector('.tooltip-value')?.textContent),
-          sample.rows.flatMap((row, index) => row[5] === 'provider_reported' ? [index] : []));
-          expect(measuredZeroRows).toEqual(sample.rows.filter(row => row[5] === 'provider_reported').map(() => '0'));
-          const partial = tokenTargets.filter({ hasText: 'Estimated' });
-          await expect(partial).toHaveCount(grain === 'day' ? 0 : 1);
-          if (grain !== 'day') await expect(partial).toContainText('Partial');
+          expect(tokenParts.map(part => part.total)).toEqual(sample.rows.map(row => row[5] === 'provider_reported'
+            ? String(row[4]) + ' · 服务商上报' : row[5] === 'partial' ? expect.stringContaining('部分数据') : 'N/A · 来源未知'));
+          expect(tokenParts.filter((part, index) => sample.rows[index][5] === 'provider_reported').map(part => part.read))
+            .toEqual(sample.rows.filter(row => row[5] === 'provider_reported').map(() => '0 · 服务商上报'));
+          const partial = tokenParts.filter(part => part.estimated);
+          expect(partial).toHaveLength(grain === 'day' ? 0 : 1);
+          if (grain !== 'day') expect(partial[0].state).toBe('mixed');
           await expect(page.locator('[data-stat="range-total-sessions"]')).toHaveText('Range total: ' + sample.totalSessions);
           await expect(page.locator('[data-stat="range-total-prompts"]')).toHaveText('Range total: ' + sample.totalPrompts);
           await expect(page.locator('[data-stat="range-total-tokens"]')).toContainText(String(sample.totalTokens));

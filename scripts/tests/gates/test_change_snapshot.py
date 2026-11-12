@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from typing import TYPE_CHECKING
 
 import pytest
-from scripts.gates.planning.change_snapshot import capture_change_snapshot
+from scripts.gates.planning.change_snapshot import (
+    ChangeSnapshotError,
+    capture_change_snapshot,
+    changed_snapshot_paths,
+)
 from scripts.gates.planning.plan_compiler import compile_gate_plan
 
 if TYPE_CHECKING:
@@ -131,3 +136,60 @@ def test_unmerged_index_cannot_produce_a_plan(tmp_path: Path) -> None:
     )
     with pytest.raises(RuntimeError, match='unresolved Git conflicts'):
         capture_change_snapshot(repo)
+
+
+def test_drift_names_content_addition_deletion_and_reverted_paths(tmp_path: Path) -> None:
+    repo = _repository(tmp_path)
+    (repo / 'working.txt').write_text('first edit\n')
+    (repo / 'staged.txt').write_text('will revert\n')
+    (repo / 'removed.txt').write_text('untracked\n')
+    before = capture_change_snapshot(repo)
+    (repo / 'working.txt').write_text('second edit\n')
+    (repo / 'staged.txt').write_text('staged.txt\n')
+    (repo / 'removed.txt').unlink()
+    (repo / 'added.txt').write_text('added\n')
+    after = capture_change_snapshot(repo)
+
+    assert changed_snapshot_paths(before, after) == (
+        'added.txt',
+        'removed.txt',
+        'staged.txt',
+        'working.txt',
+    )
+    assert changed_snapshot_paths(after, capture_change_snapshot(repo)) == ()
+
+
+def test_head_drift_is_not_mistaken_for_a_file_edit(tmp_path: Path) -> None:
+    repo = _repository(tmp_path)
+    before = capture_change_snapshot(repo)
+    _git(repo, 'commit', '--allow-empty', '-qm', 'new HEAD')
+    after = capture_change_snapshot(repo)
+    assert before != after
+    assert before.head != after.head
+    assert changed_snapshot_paths(before, after) == ()
+
+
+@pytest.mark.parametrize('operation', ['lstat', 'read_bytes', 'readlink'])
+def test_unavailable_file_retains_relative_path_without_exposing_error(
+    tmp_path: Path, monkeypatch, operation: str
+) -> None:
+    repo = _repository(tmp_path)
+    target = repo / 'working.txt'
+    target.write_text('changed\n')
+    if operation == 'readlink':
+        target.unlink()
+        target.symlink_to('stable.txt')
+    path_type = type(target)
+    owner = os if operation == 'readlink' else path_type
+    original = getattr(owner, operation)
+
+    def unavailable(path, *args, **kwargs):
+        if path == target:
+            raise PermissionError('synthetic private error detail')
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(owner, operation, unavailable)
+    with pytest.raises(ChangeSnapshotError) as error:
+        capture_change_snapshot(repo)
+    assert error.value.paths == ('working.txt',)
+    assert 'synthetic private error detail' not in str(error.value)

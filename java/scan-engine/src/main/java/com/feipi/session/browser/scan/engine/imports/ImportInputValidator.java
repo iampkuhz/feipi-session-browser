@@ -3,9 +3,9 @@ package com.feipi.session.browser.scan.engine.imports;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.feipi.session.browser.domain.normalized.NormalizedAgent;
 import com.feipi.session.browser.index.api.imports.ImportLimits;
 import com.feipi.session.browser.index.api.imports.SessionImportException;
+import com.feipi.session.browser.source.spi.SourceAdapter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PushbackReader;
@@ -21,43 +21,29 @@ import java.util.Set;
 final class ImportInputValidator {
   private static final ObjectMapper MAPPER = new ObjectMapper();
   private static final int LINE_BUFFER_CHARS = 8192;
-  private static final Set<String> CODEX_TYPES =
-      Set.of("session_meta", "response_item", "event_msg", "turn_context", "token_usage_record");
-  private static final Set<String> MESSAGE_TYPES = Set.of("user", "assistant");
-  private static final Set<String> AUXILIARY_TYPES =
-      Set.of(
-          "system",
-          "summary",
-          "progress",
-          "file-history-snapshot",
-          "queue-operation",
-          "last-prompt",
-          "custom-title",
-          "tag",
-          "agent-name",
-          "pr-link",
-          "mode",
-          "permission-mode",
-          "attachment");
 
   private ImportInputValidator() {}
 
-  static String validate(Path file, NormalizedAgent source, ImportLimits limits)
+  /**
+   * 已通过单文件校验的导入输入。
+   *
+   * @param sessionId 原始会话标识；未提供时为空字符串
+   * @param analysisFile 用于分析的私有文件路径，不包含需忽略的元数据
+   */
+  record ValidatedInput(String sessionId, Path analysisFile) {}
+
+  static ValidatedInput validate(Path file, SourceAdapter adapter, ImportLimits limits)
       throws IOException {
-    var decoder =
-        StandardCharsets.UTF_8
-            .newDecoder()
-            .onMalformedInput(CodingErrorAction.REPORT)
-            .onUnmappableCharacter(CodingErrorAction.REPORT);
     Set<String> sessionIds = new HashSet<>();
+    Set<Integer> ignoredLines = new HashSet<>();
     int count = 0;
+    int lineNo = 0;
     boolean transcript = false;
-    try (var reader =
-        new PushbackReader(
-            new InputStreamReader(Files.newInputStream(file), decoder), LINE_BUFFER_CHARS)) {
+    try (var reader = openReader(file)) {
       char[] lineBuffer = new char[LINE_BUFFER_CHARS];
       String line;
       while ((line = readLine(reader, limits.maxRecordChars(), lineBuffer)) != null) {
+        lineNo++;
         if (count == 0 && line.startsWith("\uFEFF")) {
           line = line.substring(1);
         }
@@ -68,7 +54,20 @@ final class ImportInputValidator {
           throw failure("too_many_records");
         }
         JsonNode record = parseObject(line);
-        transcript |= checkSource(record, source);
+        var kind =
+            adapter.classifyRecord(
+                text(record.path("type")),
+                text(record.path("role")),
+                text(record.path("message").path("role")));
+        switch (kind) {
+          case TRANSCRIPT -> transcript = true;
+          case IGNORED_METADATA -> ignoredLines.add(lineNo);
+          case AUXILIARY -> {
+            /* 辅助记录仍受单会话及资源校验。 */
+          }
+          case FOREIGN -> throw failure("source_mismatch");
+          case UNKNOWN -> throw failure("unsupported_format");
+        }
         addId(sessionIds, record.path("sessionId"));
         addId(sessionIds, record.path("session_id"));
         if ("session_meta".equals(record.path("type").asText())) {
@@ -88,7 +87,35 @@ final class ImportInputValidator {
     if (!transcript) {
       throw failure("unsupported_format");
     }
-    return sessionIds.stream().findFirst().orElse("");
+    return new ValidatedInput(
+        sessionIds.stream().findFirst().orElse(""),
+        ignoredLines.isEmpty() ? file : filterMetadata(file, limits, ignoredLines));
+  }
+
+  private static PushbackReader openReader(Path file) throws IOException {
+    var decoder =
+        StandardCharsets.UTF_8
+            .newDecoder()
+            .onMalformedInput(CodingErrorAction.REPORT)
+            .onUnmappableCharacter(CodingErrorAction.REPORT);
+    return new PushbackReader(
+        new InputStreamReader(Files.newInputStream(file), decoder), LINE_BUFFER_CHARS);
+  }
+
+  /** 只在确有兼容元数据时生成分析副本，不让元数据字段进入解析器或原始事件目录。 */
+  private static Path filterMetadata(Path file, ImportLimits limits, Set<Integer> ignoredLines)
+      throws IOException {
+    Path filtered = file.resolveSibling("analysis.jsonl");
+    try (var reader = openReader(file);
+        var writer = Files.newBufferedWriter(filtered, StandardCharsets.UTF_8)) {
+      char[] buffer = new char[LINE_BUFFER_CHARS];
+      int lineNo = 0;
+      String line;
+      while ((line = readLine(reader, limits.maxRecordChars(), buffer)) != null) {
+        if (!ignoredLines.contains(++lineNo)) writer.append(line).append('\n');
+      }
+    }
+    return filtered;
   }
 
   private static String readLine(PushbackReader reader, int maxChars, char[] buffer)
@@ -125,46 +152,8 @@ final class ImportInputValidator {
     }
   }
 
-  private static boolean checkSource(JsonNode record, NormalizedAgent source) throws IOException {
-    String type = record.path("type").asText();
-    if (CODEX_TYPES.contains(type)) {
-      if (source != NormalizedAgent.CODEX) {
-        throw failure("source_mismatch");
-      }
-      return true;
-    }
-    if (MESSAGE_TYPES.contains(type)) {
-      if (source == NormalizedAgent.CODEX) {
-        throw failure("source_mismatch");
-      }
-      return true;
-    }
-    if (type.isEmpty() && MESSAGE_TYPES.contains(record.path("role").asText())) {
-      if (source != NormalizedAgent.QODER) {
-        throw failure("source_mismatch");
-      }
-      return true;
-    }
-    if (source == NormalizedAgent.QODER) {
-      if ("message".equals(type) && isQoderMessage(record)) {
-        return true;
-      }
-      if ("tool_result".equals(type)) {
-        return false; // 工具结果可随会话导入，但不能单独证明这是会话文件。
-      }
-    }
-    if (!AUXILIARY_TYPES.contains(type) || source == NormalizedAgent.CODEX) {
-      throw failure("unsupported_format");
-    }
-    return false;
-  }
-
-  private static boolean isQoderMessage(JsonNode record) {
-    // 与 Qoder 解析器一致：优先使用顶层角色，否则读 message.role。
-    JsonNode role = record.path("role");
-    String value = role.isTextual() ? role.textValue() : "";
-    return MESSAGE_TYPES.contains(
-        value.isEmpty() ? record.path("message").path("role").asText("") : value);
+  private static String text(JsonNode value) {
+    return value.isTextual() ? value.textValue() : "";
   }
 
   private static void addId(Set<String> ids, JsonNode value) throws IOException {

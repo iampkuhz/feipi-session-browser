@@ -4,6 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.feipi.session.browser.application.sessiondetail.SessionDetail;
+import com.feipi.session.browser.domain.normalized.NormalizedAgent;
+import com.feipi.session.browser.domain.normalized.NormalizedConstants;
+import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
+import com.feipi.session.browser.domain.normalized.NormalizedSessionContent;
+import com.feipi.session.browser.index.api.query.RoundAssembler;
+import com.feipi.session.browser.index.store.sqlite.mapper.ArtifactRowMapper;
 import com.feipi.session.browser.index.store.sqlite.row.SessionRow;
 import com.feipi.session.browser.query.api.CallRound;
 import com.feipi.session.browser.query.api.PayloadVisibility;
@@ -14,12 +20,76 @@ import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /** Session Detail parity analyzer 的回归测试。 */
 @DisplayName("SessionDetailParityAnalyzer")
 class SessionDetailParityAnalyzerTest {
 
   @TempDir Path tempDir;
+
+  @ParameterizedTest
+  @ValueSource(longs = {0, 2})
+  void inputOnlyRoundReflectsObservedMessagesWithoutInventingCalls(long messages) throws Exception {
+    var artifact =
+        new NormalizedSessionArtifact(
+            NormalizedConstants.SCHEMA_VERSION,
+            NormalizedAgent.CODEX,
+            List.of(),
+            Map.of(
+                "session_key",
+                "codex:synthetic-input",
+                "session_id",
+                "synthetic-input",
+                "userMessageCount",
+                messages,
+                "userMessageCountMeasured",
+                messages > 0),
+            List.of(),
+            List.of(),
+            List.of(),
+            Map.of(),
+            Map.of());
+    var detail =
+        new SessionDetail(
+            ArtifactRowMapper.toSessionRow(artifact, 0, "synthetic"),
+            RoundAssembler.buildRounds(artifact, messages),
+            List.of(),
+            PayloadVisibility.STANDARD,
+            "",
+            "",
+            "synthetic");
+    var content = NormalizedSessionContent.fromArtifact(artifact);
+    var legacyParity = SessionDetailParityAnalyzer.analyze(detail, artifact, false);
+    var replayParity = SessionDetailParityAnalyzer.analyze(detail, null, content, false);
+    for (var rows :
+        List.of(
+            RoundIndexProjection.pageDtos(detail, artifact, legacyParity),
+            SessionContentProjection.rounds(detail, content))) {
+      if (messages == 0) {
+        assertThat(rows).isEmpty();
+      } else {
+        assertThat(rows)
+            .singleElement()
+            .satisfies(
+                round -> {
+                  assertThat(round.callCount()).isZero();
+                  assertThat(round.toolCallCount()).isZero();
+                  assertThat(round.tokens().total()).isZero();
+                  assertThat(round.parity())
+                      .containsEntry("isUserInput", true)
+                      .containsEntry("summary", "已记录 2 条用户输入");
+                });
+      }
+    }
+    if (messages > 0) {
+      for (var parity : List.of(legacyParity, replayParity)) {
+        assertThat(parity.round(1).toMap()).containsEntry("isUserInput", true);
+        assertThat(parity.metrics).containsEntry("workloadCalls", 0L);
+      }
+    }
+  }
 
   @Test
   void unimplementedAttributionMeasurementIsUnavailableNotAnObservedZero() {

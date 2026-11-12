@@ -144,6 +144,20 @@ public final class PayloadLookup {
       addRoundPayload(map, calls, round.roundIndex(), "resp", PayloadSourceKind.LLM_RESPONSE);
     }
 
+    if (artifact.calls().isEmpty()) {
+      try {
+        var reader =
+            new SessionContentReader(
+                com.feipi.session.browser.domain.normalized.NormalizedSessionContent.fromArtifact(
+                    artifact),
+                1);
+        reader
+            .payload("round:req:1", visibility)
+            .ifPresent(entry -> map.put(entry.payloadId(), entry));
+      } catch (java.io.IOException exception) {
+        throw new IllegalStateException("无法读取已验证的观测输入", exception);
+      }
+    }
     return new PayloadLookup(map);
   }
 

@@ -1,48 +1,13 @@
-## Goal
+# 诊断子任务
 
-<一句话描述本次质量门诊断目标，例如"修复 skill registry gate 失败">
+按[共享 subagent contract](../../feipi-openspec-orchestrate-change/references/subagent-contract.md)和 policy 填写 handoff 所有字段、互斥文件范围及身份，不在此复制协议。
 
-## Allowed scope
+## 必要问题证据
 
-- 允许修改的文件列表：
-  - `scripts/gates/checks/<domain>/<gate-script>.py` — 触发失败的 gate 脚本（如需修复 gate bug）
-  - `harness/skill-registry.yaml` — registry 配置（如适用）
-  - `harness/manifest.yaml` — minimal harness 配置（如适用）
-  - 其他与当前 gate 失败直接相关的文件（按需列出）
+- 原失败、期望行为、当前 receipt/日志与根因假设。
+- 本任务允许的最小修复范围及禁止范围；不读真实 session/凭据，不覆盖他人差异。
+- 单点复现命令与修前结果；无现有覆盖时补最小合成用例。
+- 单点通过后的实际消费者回归命令；失败返回局部诊断。
+- 由 main 负责最终整个工作区增量 Gate；子任务不每步重跑 doctor、其他 Gate 或整套。
 
-## Forbidden scope
-
-- 不改产品代码逻辑（Java、Python 产品功能），除非是 gate 失败的最小修复。
-- 不重新引入平台 Hook、Session Runtime 或自动 Git mutation。
-- 不改真实 session 数据、缓存、密钥、token、个人配置。
-- 不删 required gates。
-- 不新增 skip。
-- 不伪造 PASS。
-- 不安装依赖或修改运行环境。
-
-## Required reading
-
-- `skills/authoring/feipi-quality-gate-diagnosis/references/failure-diagnosis.md` — 失败诊断流程。
-- `skills/authoring/feipi-quality-gate-diagnosis/references/gate-taxonomy.md` — gate 分类。
-- 触发失败的 gate 脚本源码 — 只读与当前失败直接相关的部分。
-
-## Validation
-
-```bash
-# 重跑触发失败的 gate
-<失败的命令>
-
-# 运行 required baseline
-python3 scripts/gates/cli.py run --mode incremental --gate governanceLayoutValidation
-bash scripts/harness/doctor.sh
-python3 scripts/gates/cli.py run --mode incremental
-```
-
-## Expected output
-
-- 失败 gate 名称和 exit code。
-- 失败类别和最小修复内容。
-- 重跑结果（PASS/FAIL/BLOCKED）。
-- Required baseline 运行结果。
-- 未运行的 gate 及原因。
-- 后续风险或 TODO。
+先读[修复闭环](../references/repair-loop.md)，按需读[取证](../references/failure-diagnosis.md)或[分类](../references/gate-taxonomy.md)。单点和相关验证必须如实报告；越界或无安全替代时交回精确障碍，不擅自结束整个工作。

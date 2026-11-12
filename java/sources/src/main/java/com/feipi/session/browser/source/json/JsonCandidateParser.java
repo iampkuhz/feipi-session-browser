@@ -133,6 +133,7 @@ public final class JsonCandidateParser {
       for (int eventIndex = 0; eventIndex < events.size(); eventIndex++) {
         JsonNode event = events.get(eventIndex);
         String eventType = eventTypeExtractor.apply(event);
+        if (JsonRecordTypes.ignoredMetadata(eventType)) continue;
         diagnosticCollector.collect(event, eventIndex, eventType, locator, diagnostics);
         List<SourceRecord> eventRecords =
             JsonSourceRecordMapper.toSourceRecords(locator, eventIndex, event, eventType);

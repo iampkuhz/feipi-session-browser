@@ -80,14 +80,19 @@ public final class IsolatedSessionImportService implements SessionImportPort {
     try {
       Path file = workspace.resolve("upload.jsonl");
       long size = copy(input, file);
-      String originalId = ImportInputValidator.validate(file, source, limits);
-      NormalizedSessionArtifact artifact = analyze(file, id, source);
+      SourceAdapter adapter = adapters.apply(source);
+      if (adapter == null || !adapter.sourceId().getValue().equals(source.getValue())) {
+        throw ImportInputValidator.failure("source_mismatch");
+      }
+      var validated = ImportInputValidator.validate(file, adapter, limits);
+      NormalizedSessionArtifact artifact = analyze(validated.analysisFile(), id, source, adapter);
       long encodedSize = new CanonicalJsonWriter().serializedSize(artifact);
       if (encodedSize > limits.maxStoredBytes() - storedBytes) {
         throw ImportInputValidator.failure("capacity_exceeded");
       }
       var metadata =
-          new ImportedSessionMetadata(id, source, displayName, originalId, size, Instant.now());
+          new ImportedSessionMetadata(
+              id, source, displayName, validated.sessionId(), size, Instant.now());
       var result =
           new ImportedSessionAnalysis(
               metadata, new ImportedSessionRecord(metadata, artifact), artifact);
@@ -105,12 +110,8 @@ public final class IsolatedSessionImportService implements SessionImportPort {
     }
   }
 
-  private NormalizedSessionArtifact analyze(Path file, String id, NormalizedAgent source)
-      throws IOException {
-    SourceAdapter adapter = adapters.apply(source);
-    if (adapter == null || !adapter.sourceId().getValue().equals(source.getValue())) {
-      throw ImportInputValidator.failure("source_mismatch");
-    }
+  private NormalizedSessionArtifact analyze(
+      Path file, String id, NormalizedAgent source, SourceAdapter adapter) throws IOException {
     Map<String, String> metadata = adapter.singleFileMetadata(file);
     var candidate = new Candidate(adapter.fingerprint(file), "import:" + id, "", metadata);
     SourceResult result = adapter.parse(candidate, null);
@@ -184,7 +185,8 @@ public final class IsolatedSessionImportService implements SessionImportPort {
                   "SINGLE_FILE_ONLY",
                   "message",
                   "仅分析上传的单个文件；未读取本机邻居、子会话或 sidecar，外部上下文可能缺失。")));
-      var catalog = ImportPayloadCatalog.read(file, logicalPath);
+      var catalog = new LinkedHashMap<>(ImportPayloadCatalog.read(file, logicalPath));
+      ImportPayloadCatalog.mergeObserved(catalog, artifact.sourceUnitCatalog(), logicalPath);
       Map<String, Object> session = new LinkedHashMap<>(artifact.session());
       applySingleFileMetadata(session, metadata);
       return new NormalizedSessionArtifact(
@@ -201,8 +203,12 @@ public final class IsolatedSessionImportService implements SessionImportPort {
   }
 
   private static SourceRecord relocate(SourceRecord record, String logicalPath) {
+    int suffix = record.locator().lastIndexOf("#event[");
     return new SourceRecord(
-        logicalPath + "#event[" + record.eventIndex() + "]",
+        logicalPath
+            + (suffix < 0
+                ? "#event[" + record.eventIndex() + "]"
+                : record.locator().substring(suffix)),
         record.eventIndex(),
         record.eventType(),
         record.callId(),

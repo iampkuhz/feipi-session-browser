@@ -121,18 +121,16 @@
                         <th class="static-header col-agent" scope="col">Agent</th>
                         <th class="static-header col-model" scope="col">Model</th>
                         <th class="sortable col-tokens" data-sort-key="tokens"{% if sort_by == 'tokens' %} data-sort-dir="{{ sort_dir }}"{% endif %} scope="col"><a class="c-data-table__sort" data-action="sort" data-sort-key="tokens" href="{{ sort_urls.tokens }}">Tokens <span class="c-data-table__sort-icon" aria-hidden="true"></span></a></th>
-                        <th class="sortable col-rounds" data-sort-key="rounds"{% if sort_by == 'rounds' %} data-sort-dir="{{ sort_dir }}"{% endif %} scope="col"><a class="c-data-table__sort" data-action="sort" data-sort-key="rounds" href="{{ sort_urls.rounds }}">Rounds / groups <span class="c-data-table__sort-icon" aria-hidden="true"></span></a></th>
+                        <th class="sortable col-rounds" data-sort-key="rounds"{% if sort_by == 'rounds' %} data-sort-dir="{{ sort_dir }}"{% endif %} scope="col"><a class="c-data-table__sort" data-action="sort" data-sort-key="rounds" href="{{ sort_urls.rounds }}">Rounds <span class="c-data-table__sort-icon" aria-hidden="true"></span></a></th>
                         <th class="sortable col-tools" data-sort-key="tools"{% if sort_by == 'tools' %} data-sort-dir="{{ sort_dir }}"{% endif %} scope="col"><a class="c-data-table__sort" data-action="sort" data-sort-key="tools" href="{{ sort_urls.tools }}">Tools <span class="c-data-table__sort-icon" aria-hidden="true"></span></a></th>
                         <th class="sortable col-subagents" data-sort-key="subagents"{% if sort_by == 'subagents' %} data-sort-dir="{{ sort_dir }}"{% endif %} scope="col"><a class="c-data-table__sort" data-action="sort" data-sort-key="subagents" href="{{ sort_urls.subagents }}">Subagents <span class="c-data-table__sort-icon" aria-hidden="true"></span></a></th>
-                        <th class="sortable col-duration" data-sort-key="duration"{% if sort_by == 'duration' %} data-sort-dir="{{ sort_dir }}"{% endif %} scope="col"><a class="c-data-table__sort" data-action="sort" data-sort-key="duration" href="{{ sort_urls.duration }}">Wall Duration <span class="c-data-table__sort-icon" aria-hidden="true"></span></a></th>
                         <th class="sortable col-process-time" data-sort-key="process-time"{% if sort_by == 'process-time' %} data-sort-dir="{{ sort_dir }}"{% endif %} scope="col"><a class="c-data-table__sort" data-action="sort" data-sort-key="process-time" href="{{ sort_urls['process-time'] }}">Task Active <span class="c-data-table__sort-icon" aria-hidden="true"></span></a></th>
-                        <th class="sortable col-failure" data-sort-key="failure"{% if sort_by == 'failure' %} data-sort-dir="{{ sort_dir }}"{% endif %} scope="col"><a class="c-data-table__sort" data-action="sort" data-sort-key="failure" href="{{ sort_urls.failure }}">Failure <span class="c-data-table__sort-icon" aria-hidden="true"></span></a></th>
                         <th class="sortable col-created" data-sort-key="created"{% if sort_by == 'created' %} data-sort-dir="{{ sort_dir }}"{% endif %} scope="col"><a class="c-data-table__sort" data-action="sort" data-sort-key="created" href="{{ sort_urls.created }}">Created <span class="c-data-table__sort-icon" aria-hidden="true"></span></a></th>
                         <th class="sortable col-updated" data-sort-key="updated"{% if sort_by == 'updated' %} data-sort-dir="{{ sort_dir }}"{% endif %} scope="col"><a class="c-data-table__sort" data-action="sort" data-sort-key="updated" href="{{ sort_urls.updated }}">Updated <span class="c-data-table__sort-icon" aria-hidden="true"></span></a></th>
                     </tr>
                 </thead>
                 <tbody>
-                    <tr><td colspan="13">
+                    <tr><td colspan="11">
                         <div class="empty-state" role="status" aria-live="polite">
                             <div>
                                 <div class="empty-state__icon" aria-hidden="true">⏳</div>
@@ -166,6 +164,11 @@
         </div>
     </div>
 </section>
+
+<div id="sessions-task-active-help" class="sessions-timing-help" popover role="note" aria-label="Partial Task Active">
+    <strong>Partial Task Active</strong>
+    <p>Some main tasks are incomplete or cannot be paired. This value covers only locatable main-task windows, with overlaps counted once. It includes tools and waits within those windows, not the full session duration or model inference time. No usable windows = N/A.</p>
+</div>
 
 </div>
 {% endblock %}

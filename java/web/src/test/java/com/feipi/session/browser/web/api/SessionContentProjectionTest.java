@@ -107,8 +107,8 @@ class SessionContentProjectionTest {
           assertThat(metrics.at("/parity/contentMeasured").asBoolean()).isTrue();
           var diagnostics = mapper.readTree(client.get("/diagnostics").body().string());
           assertThat(diagnostics.at("/parity/contentMeasured").asBoolean()).isTrue();
-          assertThat(diagnostics.at("/parity/toolImpactAvailable").asBoolean()).isFalse();
-          assertThat(diagnostics.path("parity").has("toolImpact")).isFalse();
+          assertThat(diagnostics.at("/parity/toolImpactAvailable").asBoolean()).isTrue();
+          assertThat(diagnostics.at("/parity/toolImpact/allToolCalls").asLong()).isZero();
           assertThat(diagnostics.path("parity").has("payloadGaps")).isFalse();
           int payloads = 0;
           String next = null;

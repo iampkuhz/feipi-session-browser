@@ -45,6 +45,16 @@ public final class ToolInputContents {
     for (Map<String, Object> unit : call.sourceUnits()) {
       if (!"user".equals(unit.get("role"))) collect(unit, inputs);
     }
+    inputs.keySet().retainAll(call.response().toolCallIds());
+    return inputs;
+  }
+
+  /** 只解析响应方向的目录声明；调用方仍须按 response tool ID 选取，不按同名工具匹配。 */
+  public static Map<String, Input> catalog(
+      com.feipi.session.browser.domain.normalized.SourceUnitCatalogEntry entry) {
+    Map<String, Input> inputs = new LinkedHashMap<>();
+    if ("response".equals(entry.direction().getValue())
+        && entry.payload() instanceof Map<?, ?> payload) collect(payload, inputs);
     return inputs;
   }
 

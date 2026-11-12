@@ -101,7 +101,7 @@ class RoundIndexProjectionTest {
   }
 
   @Test
-  void plainTextSummaryUsesAssistantAndInternalContextIsNotUserInput() {
+  void plainTextSummaryPrefersVisibleUserAndInternalContextIsNotUserInput() {
     for (String user :
         List.of("please inspect", "<codex_internal_context>continue</codex_internal_context>")) {
       var call =
@@ -128,7 +128,8 @@ class RoundIndexProjectionTest {
           RoundContentProjection.from(
               new CallRound(1, List.of("c1"), List.of(), ""),
               buildArtifact(List.of(call), List.of()));
-      assertThat(content.summary()).isEqualTo("completed inspection");
+      assertThat(content.summary())
+          .isEqualTo(user.equals("please inspect") ? user : "completed inspection");
       assertThat(content.userInput()).isEqualTo(user.equals("please inspect"));
     }
   }

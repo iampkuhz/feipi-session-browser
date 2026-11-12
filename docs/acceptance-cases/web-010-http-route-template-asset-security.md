@@ -81,7 +81,7 @@
 
 ### CSS (18): tokens, base, shell, states, ui-primitives (10), dashboard, projects, glossary, sessions-list, session-detail (10)
 ### JS (21): app, arp-storage, view-state, ui_primitives, states, dashboard, projects, data-table, sessions-list, timeline, glossary, payload_viewer, session_detail_timeline, session-detail (11), trace-interactions
-### Images (1): favicon.svg
+### Images (2): favicon.svg（圆角正方形 Logo）、logo-circle.svg（圆形 Logo）
 
 ## 安全契约
 

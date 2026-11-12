@@ -465,6 +465,13 @@ class IsolatedSessionImportServiceTest {
     private List<SourceDiagnostic> diagnostics = List.of();
 
     @Override
+    public RecordKind classifyRecord(String type, String role, String messageRole) {
+      if (List.of("user", "assistant").contains(type)) return RecordKind.TRANSCRIPT;
+      if (type.isEmpty() && List.of("user", "assistant").contains(role)) return RecordKind.FOREIGN;
+      return RecordKind.UNKNOWN;
+    }
+
+    @Override
     public SourceId sourceId() {
       return SourceId.CLAUDE_CODE;
     }

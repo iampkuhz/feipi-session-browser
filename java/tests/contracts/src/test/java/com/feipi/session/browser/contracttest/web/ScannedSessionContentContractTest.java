@@ -178,7 +178,7 @@ class ScannedSessionContentContractTest {
     }
   }
 
-  private static SourceAdapter writeSource(String agent, Path root) throws Exception {
+  static SourceAdapter writeSource(String agent, Path root) throws Exception {
     return switch (agent) {
       case "claude_code" -> {
         // Claude 从 history 驱动发现，必须同时提供索引条目和对应 transcript。
@@ -202,6 +202,7 @@ class ScannedSessionContentContractTest {
           "codex_event_only",
           "codex_event_usage",
           "codex_dual",
+          "codex_tools",
           "codex_multiturn",
           "codex_response_only" -> {
         write(
@@ -228,8 +229,8 @@ class ScannedSessionContentContractTest {
         write(
             root.resolve("projects/synthetic/" + SESSION_ID + ".jsonl"),
             """
-            {"type":"message","role":"user","uuid":"u1","sessionId":"%s","timestamp":"2026-09-06T10:00:00Z","parts":[{"type":"text","text":"%s"}]}
-            {"type":"message","role":"assistant","uuid":"a1","sessionId":"%s","timestamp":"2026-09-06T10:00:01Z","parts":[{"type":"text","text":"%s"}]}
+            {"type":"user","role":"user","uuid":"u1","sessionId":"%s","timestamp":"2026-09-06T10:00:00Z","parts":[{"type":"text","text":"%s"}]}
+            {"type":"assistant","role":"assistant","uuid":"a1","sessionId":"%s","timestamp":"2026-09-06T10:00:01Z","parts":[{"type":"text","text":"%s"}]}
             """
                 .formatted(SESSION_ID, PROMPT, SESSION_ID, ANSWER));
         yield new QoderSourceAdapter();
@@ -239,6 +240,20 @@ class ScannedSessionContentContractTest {
   }
 
   private static String codexEventTranscript(String scenario) {
+    if (scenario.equals("codex_tools")) {
+      return """
+          {"type":"session_meta","timestamp":"2026-11-05T10:00:00Z","payload":{"id":"%s","cwd":"/synthetic"}}
+          {"type":"turn_context","payload":{"model":"synthetic-model"}}
+          {"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"%s"}]}}
+          {"type":"response_item","payload":{"type":"function_call","id":"item-a","call_id":"tool-a","name":"Read","arguments":{"file_path":"/synthetic/alpha.txt"}}}
+          {"type":"response_item","payload":{"type":"function_call","id":"item-b","call_id":"tool-b","name":"Read","arguments":"{\\\"file_path\\\":\\\"/synthetic/beta.txt\\\"}"}}
+          {"type":"response_item","payload":{"type":"function_call_output","call_id":"tool-b","output":"synthetic beta result"}}
+          {"type":"response_item","payload":{"type":"function_call_output","call_id":"tool-a","output":"synthetic alpha result"}}
+          {"type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"%s"}]}}
+          {"type":"event_msg","timestamp":"2026-11-05T10:00:09Z","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":10,"cached_input_tokens":0,"cache_creation_input_tokens":0,"output_tokens":5,"total_tokens":15}}}}
+          """
+          .formatted(SESSION_ID, PROMPT, ANSWER);
+    }
     if (scenario.equals("codex_response_only")) {
       return """
           {"type":"session_meta","timestamp":"2026-11-05T10:00:00Z","payload":{"id":"%s","cwd":"/synthetic"}}

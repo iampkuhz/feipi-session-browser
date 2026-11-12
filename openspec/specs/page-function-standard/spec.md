@@ -73,5 +73,24 @@ Sessions, Projects, and project-level sessions tables SHALL preserve search, fil
 - **When** 重组字段、控件、列宽中的任一项
 - **Then** UI MAY reorganize information
 - **And** UI SHALL NOT reduce visible or operable information
+- **And** Sessions SHALL use the compact list presentation defined below; the explicit removal of its Wall Duration column and failure sorting does not remove underlying metrics or affect other pages
 - **And** constrained layouts SHALL use horizontal scrolling, truncation, and tooltip
 - **And** constrained layouts SHALL NOT allow text overlap
+
+### Requirement: Sessions uses a compact, identifiable list
+
+Sessions SHALL preserve metric semantics and use the page-specific presentation in `docs/page-ui-specs/pages/02_sessions.md`.
+
+#### Scenario: Read a session row and its disclosures
+
+- **Given** synthetic sessions with known, partial, and unknown measurements
+- **When** viewing `/sessions` at desktop or narrower widths
+- **Then** Tokens SHALL keep the cell total and miniature bar, with four aligned category/bar/quantity/share rows in its hover/focus disclosure and no repeated total row or enlarged total bar
+- **And** Token shares SHALL retain the shown-total denominator, provenance and unknown markers
+- **And** Rounds SHALL retain its count and sorting semantics under the shorter header
+- **And** Tools SHALL show total(failed) for known failures, total alone for known zero failures, and explicit unknown markers otherwise, sorting only by call total
+- **And** Task Active Partial SHALL have a keyboard-operable explanation of locatable main-task windows, union accounting, incomplete/unpaired tasks and non-inference semantics; no usable windows SHALL remain N/A
+- **And** Sessions SHALL NOT expose Wall Duration or failure sorting, while retaining underlying metrics and other pages' behavior
+- **And** Updated SHALL display one decimal in its relative-time unit and sort by raw timestamps
+- **And** titles SHALL have stronger two-line hierarchy, subordinate ID/branch metadata, full-title disclosure and an Untitled session fallback without losing detail navigation
+- **And** loading, empty, search, filtering, pagination and row navigation SHALL remain usable

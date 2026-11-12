@@ -14,6 +14,9 @@ public final class NormalizedConstants {
   /** 集合类型字段的最大元素数量，防止内存溢出。 */
   public static final int MAX_COLLECTION_SIZE = 10_000;
 
+  /** 完整制品的来源目录可包含原始事件及独立工具载荷；不放宽其他集合或单个内容单元。 */
+  public static final int MAX_SOURCE_UNIT_CATALOG_SIZE = 20_000;
+
   /** 字符串字段的最大字符数。 */
   public static final int MAX_STRING_LENGTH = 1_000_000;
 

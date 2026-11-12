@@ -30,6 +30,8 @@
 ## 数据指标与口径
 
 - 所有用量、轮次、工具和 payload 只来自本次文件；缺少的 sidecar/外部会话不自动补入，不伪造缺失 token。
+- Qoder 和 Claude Code 的 `workspace-directories`、`runtime-config`、`active-leaf` 仅校验，不进入分析或 payload，也不读取其中的路径。
+- 原始 JSONL 记录（含元数据）和展开后的分析条目分别最多 20,000；超限时拒绝导入，不截断展示。
 - 每次导入使用独立 `import_id`，原 `sessionId` 或同名文件不能覆盖个人会话或其他导入。
 - 导入前后个人统计、会话列表、项目、趋势和 cache 汇总保持不变；不能只靠前端过滤保证这一点。
 

@@ -124,8 +124,8 @@ test('measurement helper distinguishes reported zero, unavailable, unknown and o
     unavailableRatio: 'N/A · Not reported', unknown: '53 · Unknown', unknownZero: 'N/A · Unknown',
     mixed: '≈9000000 · Partial', mixedRatio: 'N/A · Partial' });
   const evidence = page.locator('.token-evidence');
-  await expect(evidence.locator('dt')).toHaveText(['Estimated', 'Not reported', 'Unknown source', 'Estimate basis']);
-  await expect(evidence.locator('dd')).toHaveText(['2 sessions', '2 sessions', '1 session', 'method not documented in this view']);
+  await expect(evidence.locator('dt')).toHaveText(['本地估算（Estimated）', '未上报', '来源未知（Unknown）', '估算依据']);
+  await expect(evidence.locator('dd')).toHaveText(['2 个会话', '2 个会话', '1 个会话', '当前视图未提供估算方法']);
   await expect(page.locator('#measurement img')).toHaveCount(0);
 });
 
@@ -145,16 +145,16 @@ for (const [name, url, selector] of [
     const disclosure = measurement.locator('[data-token-provenance]').first();
     const toggle = disclosure.locator('summary');
     const evidence = disclosure.locator('.token-evidence').first();
-    await expect(toggle).toHaveText('Partial coverage');
+    await expect(toggle).toHaveText('部分数据（Partial）');
     await expect(evidence).toBeHidden();
     await page.setViewportSize({ width: 390, height: 900 });
     await toggle.focus();
     await toggle.press('Enter');
     await expect(evidence).toBeVisible();
-    await expect(evidence.locator('dt')).toHaveText(['Estimated', 'Not reported', 'Estimate basis']);
-    await expect(evidence.locator('dd').nth(0)).toHaveText('1 session');
-    await expect(evidence).toContainText('visible conversation context');
-    await expect(evidence).toContainText('local transcript cache');
+    await expect(evidence.locator('dt')).toHaveText(['本地估算（Estimated）', '未上报', '估算依据']);
+    await expect(evidence.locator('dd').nth(0)).toHaveText('1 个会话');
+    await expect(evidence).toContainText('可见对话上下文');
+    await expect(evidence).toContainText('本地 transcript 缓存');
     await expect(evidence).not.toContainText(/visible_context_v1|cache_transcript_v1/);
     await toggle.click();
     await expect(evidence).toBeHidden();
@@ -172,14 +172,14 @@ for (const [name, url, selector] of [
       await expect(page.locator('td.token-cell').first()).toContainText('≈9.5M');
       if (name !== 'Sessions') {
         const rowDisclosure = page.locator('td.token-cell [data-token-provenance]').first();
-        await expect(rowDisclosure).toContainText('Not reported');
+        await expect(rowDisclosure).toContainText('未上报');
         const listUrl = page.url();
         await rowDisclosure.locator('summary').click();
         await expect(rowDisclosure.locator('.token-composition')).toBeVisible();
         await expect(page).toHaveURL(listUrl);
         await rowDisclosure.locator('summary').click();
       }
-      const expectedCells = name === 'Sessions' ? 13 : name === 'Projects' ? 8 : 12;
+      const expectedCells = name === 'Sessions' ? 11 : name === 'Projects' ? 8 : 12;
       await expect(page.locator('td.token-cell').first().locator('..').locator(':scope > td')).toHaveCount(expectedCells);
     }
     await assertMeasurementLayout(page);
@@ -201,7 +201,7 @@ test('session estimate stays at session scope; round/call missing usage remains 
   await expect(row.locator('.metric-token')).toHaveText('N/A · Unknown');
   await row.locator('[data-action="toggle-round"]').click();
   await expect(page.locator('[data-trace-detail] .sd-tool-tokens')).toHaveText('N/A');
-  await expect(page.locator('[data-trace-detail] .sd-tool-tokens')).toHaveAttribute('title', /Unknown source/);
+  await expect(page.locator('[data-trace-detail] .sd-tool-tokens')).toHaveAttribute('title', /来源未知/);
   await expect(page.locator('[data-trace-detail]')).not.toContainText('9.5M');
   await assertMeasurementLayout(page);
   await page.locator('[data-action="status-low-cache"]').click();
@@ -307,12 +307,12 @@ test('Context precision marks partial shares and excludes huge tool estimates fr
   const bars = context.locator('.sd-context-segment');
   await expect(bars).toHaveCount(4);
   expect(await bars.evaluateAll((elements) => elements.map((element) => element.style.getPropertyValue('--seg-width')))).toEqual(['92.4%', '5%', '2%', '0.6%']);
-  await expect(context.locator('.sd-context-segment__pct')).toHaveText(['≈92.4% · Partial', '≈5% · Partial', '≈2% · Partial', '≈0.6% · Partial']);
+  await expect(context.locator('.sd-context-segment__pct')).toHaveText(['≈92.4% · 部分数据', '≈5% · 部分数据', '≈2% · 部分数据', '≈0.6% · 部分数据']);
   const tools = context.locator('.sd-context-budget__item').filter({ hasText: 'Tool Results' });
-  await expect(tools).toContainText('Estimated');
-  await expect(tools).toContainText('Not in usage');
+  await expect(tools).toContainText('本地估算');
+  await expect(tools).toContainText('不计入构成');
   await expect(tools).not.toContainText('99%');
-  await expect(context.locator('.sd-context-budget__item').filter({ hasText: 'System' })).toContainText('Not reported');
+  await expect(context.locator('.sd-context-budget__item').filter({ hasText: 'System' })).toContainText('未上报');
   for (const width of [1440, 800]) {
     await page.setViewportSize({ width, height: 1100 });
     expect(await context.locator('.sd-context-budget__item span, .sd-context-budget__item b').evaluateAll((elements) =>
@@ -332,14 +332,14 @@ test('Context precision preserves reported zero and identifies estimated, unknow
   await page.goto(detailPath);
   await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
   const context = page.locator('.sd-diagnostic-card--context');
-  await expect(context.locator('.sd-context-segment__pct')).toHaveText(['75%', '0%', '≈25% · Partial']);
+  await expect(context.locator('.sd-context-segment__pct')).toHaveText(['75%', '0%', '≈25% · 部分数据']);
   const rows = context.locator('.sd-context-budget__item');
-  await expect(rows.filter({ hasText: 'Reported zero' })).toContainText('0 · Provider reported');
-  await expect(rows.filter({ hasText: 'Unknown zero' })).toContainText('N/A · Unknown');
-  await expect(rows.filter({ hasText: 'Missing' })).toContainText('Not reported');
-  await expect(rows.filter({ hasText: 'Estimated' })).toContainText('≈10 · Estimated');
-  await expect(rows.filter({ hasText: 'Legacy' })).toContainText('40 · Unknown');
-  await expect(rows.filter({ hasText: 'Legacy' })).toContainText('Usage inclusion unknown');
+  await expect(rows.filter({ hasText: 'Reported zero' })).toContainText('0 · 服务商上报');
+  await expect(rows.filter({ hasText: 'Unknown zero' })).toContainText('N/A · 来源未知');
+  await expect(rows.filter({ hasText: 'Missing' })).toContainText('未上报');
+  await expect(rows.filter({ hasText: 'Estimated' })).toContainText('≈10 · 本地估算');
+  await expect(rows.filter({ hasText: 'Legacy' })).toContainText('40 · 来源未知');
+  await expect(rows.filter({ hasText: 'Legacy' })).toContainText('是否纳入构成未知');
 });
 
 for (const state of ['mixed', 'unknown', 'provider_reported']) {
@@ -431,9 +431,10 @@ test.describe('compact Sessions Token bar', () => {
     const listUrl = page.url();
     await cell.getByRole('button', { name: 'Token breakdown' }).tap();
     const panel = page.locator('#token-bar-popover');
-    await expect(panel.locator('.tokenbar-seg')).toHaveCount(2);
-    await expect(panel.locator('.token-composition dd')).toHaveText([
-      '≈9,500,000', /≈9,000,000.*94.7%/, 'Not reported', 'Not reported', /≈500,000.*5.3%/,
+    await expect(panel.locator('.tokenbar-seg')).toHaveCount(0);
+    await expect(panel.locator('[data-token-part]')).toHaveCount(5);
+    await expect(panel.locator('.token-breakdown__row')).toHaveText([
+      /Fresh≈9,000,000.*本地估算≈94.7%/, 'Cache ReadN/A · 未上报N/A', 'Cache WriteN/A · 未上报N/A', /Output≈500,000.*本地估算≈5.3%/, /Total≈9,500,000.*部分数据≈100.0%/,
     ]);
     expect(await panel.evaluate(node => {
       const b = node.getBoundingClientRect();
@@ -443,7 +444,7 @@ test.describe('compact Sessions Token bar', () => {
     await page.keyboard.press('Escape');
     const header = page.locator('.page-head__stats [data-token-provenance]');
     await header.locator('summary').press('Enter');
-    await expect(header.locator('.token-evidence dt')).toHaveText(['Estimated', 'Not reported', 'Estimate basis']);
-    await expect(header).toContainText('can overlap');
+    await expect(header.locator('.token-evidence dt')).toHaveText(['本地估算（Estimated）', '未上报', '估算依据']);
+    await expect(header).toContainText('会话数可能重叠，不能直接相加');
   });
 });

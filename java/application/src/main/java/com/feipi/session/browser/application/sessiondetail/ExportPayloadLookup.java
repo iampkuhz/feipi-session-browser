@@ -70,8 +70,9 @@ final class ExportPayloadLookup implements AutoCloseable {
           tools.addAll(call.response().toolCallIds());
           for (var source : call.sourceUnits()) {
             if (!"user".equals(source.get("role"))) collectInputs(source);
-            if ("tool_result".equals(source.get("type"))
-                && source.get("tool_call_id") instanceof String id
+            String id = PayloadCallContentExtractor.toolResultId(source);
+            if (PayloadCallContentExtractor.isToolResult(source.get("type"))
+                && !id.isEmpty()
                 && !inlineResults.containsKey(id)) {
               String text =
                   PayloadCallContentExtractor.resolveInline(
@@ -109,10 +110,12 @@ final class ExportPayloadLookup implements AutoCloseable {
           }
           Map<?, ?> payload = entry.payload() instanceof Map<?, ?> map ? map : Map.of();
           if ("response".equals(entry.direction().getValue())) collectInputs(payload);
-          if ("tool_result".equals(entry.unitType()) || "tool_result".equals(payload.get("type"))) {
+          if (PayloadCallContentExtractor.isToolResult(entry.unitType())
+              || PayloadCallContentExtractor.isToolResult(payload.get("type"))) {
             // 与单项读取器一致，标签和载荷工具身份可以指向同一条目。
             if (entry.label().isPresent()) collectResult(entry.label().get(), entry);
-            if (payload.get("tool_call_id") instanceof String id) collectResult(id, entry);
+            String id = PayloadCallContentExtractor.toolResultId(payload);
+            if (!id.isEmpty()) collectResult(id, entry);
           }
         }
       }

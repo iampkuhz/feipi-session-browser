@@ -183,3 +183,10 @@
 - 交互 smoke 固定点击排序、搜索 focus、tokenbar hover、round toggle、request/response attribution、payload call selector。
 - UI 修改后按影响范围选择并运行本次变更触达的 pytest、`python3 scripts/gates/cli.py run --target web-interface`、页面级 QA 脚本。
 - 验证失败必须保留失败命令和原因；未运行的命令不得描述为通过，失败的命令不得描述为通过。
+
+
+### Token Breakdown 共享弹框（TASK-57）
+
+- `TokenProvenance.breakdown` 统一四段 + Total 的色标/类型、数量/来源、占比三列；来源显示中文，长标签完整换行、不做省略截断。`bindTooltips` / Token Cell 复用同一 viewport popover，hover、键盘 focus、Escape 和触屏点击可达。
+- 不统一错误分母：分段相对当前总量（含 Output）；Dashboard 总量相对窗口的比例单独注明；缓存比率只用服务商完整上报输入，不含 Output。Partial/Estimated/Unknown/未上报保留区分，不从非零数值推断精确来源。
+- Context Budget 自有分类与纳入标记，不套四段构成；仅明确纳入且有可用 share 的分类进入条形，Tool Results 本地估算在外。

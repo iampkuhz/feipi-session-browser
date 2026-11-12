@@ -232,7 +232,7 @@ test.describe('real detail evidence regressions', () => {
       await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
       const health = page.locator('.sd-kpi[aria-label="Run Health"]');
       await expect(health).not.toContainText('Completed');
-      await expect(health.locator('.sd-kpi__value')).toHaveText(hasContent ? 'No issue signals detected' : 'Unknown');
+      await expect(health.locator('.sd-kpi__value')).toHaveText(hasContent ? '未发现问题信号' : '未知');
       await expect(health).toContainText('Attribution Gaps N/A');
       await expect(page.locator('[data-issue-strip]')).not.toContainText('All rounds completed successfully');
       if (hasContent) {
@@ -284,6 +284,14 @@ for (const scenario of ['subagent-only', 'mixed', 'unowned-fallback']) {
     if (scenario === 'unowned-fallback') {
       tools.push({ toolCallId: 'fixture-unowned-tool', name: 'Read', inputPreview: 'synthetic ownerless fallback' });
     }
+    // 只改展示文案，保留真实脚本、交互与分页数据，不依赖原来的语言或字串。
+    await page.addInitScript(() => {
+      new MutationObserver(() => {
+        document.querySelectorAll('[data-content-pagination] > span:first-child').forEach(label => {
+          if (label.textContent !== '合成分页说明') label.textContent = '合成分页说明';
+        });
+      }).observe(document, { childList: true, subtree: true });
+    });
     await openHydratedSession(page);
     const generation = await page.locator('body').getAttribute('data-index-generation');
     expect(generation).toBeTruthy();
@@ -303,15 +311,29 @@ for (const scenario of ['subagent-only', 'mixed', 'unowned-fallback']) {
     await row.locator('[data-action="toggle-round"]').click();
     await expect(row).toHaveAttribute('data-detail-loaded', 'true');
     const detail = page.locator('[data-trace-detail]').first();
-    await detail.locator('[data-content-pagination="round-members"] button').click();
-    await expect(detail.locator('[data-content-pagination="round-members"]')).toContainText(`${calls.length + 1} / ${calls.length + 1} loaded`);
+    const pager = detail.locator('[data-content-pagination="round-members"]');
+    await expect(pager).toHaveAttribute('data-loaded', '1');
+    await expect(pager).toHaveAttribute('data-total', String(calls.length + 1));
+    await expect(pager).toHaveAttribute('data-has-more', 'true');
+    await pager.locator('[data-action="load-content-page"]').click();
+    await expect(pager).toHaveAttribute('data-loaded', String(calls.length + 1));
+    await expect(pager).toHaveAttribute('data-total', String(calls.length + 1));
+    await expect(pager).toHaveAttribute('data-has-more', 'false');
+    await expect(pager.locator('button')).toHaveCount(0);
+    await expect(pager.locator('span').first()).toHaveText('合成分页说明');
     const expectedIds = tools.map((tool) => tool.toolCallId).sort();
     await expect.poll(() => detail.locator('[data-tool-call-id]').evaluateAll((nodes) =>
       nodes.map((node) => node.getAttribute('data-tool-call-id')).sort())).toEqual(expectedIds);
     for (const tool of tools) {
       await expect(detail.locator(`[data-tool-call-id="${tool.toolCallId}"]`)).toHaveCount(1);
     }
-    await expect(detail.locator('[data-subagent-block] [data-tool-call-id]')).toHaveCount(2);
+    const childTools = detail.locator('[data-subagent-block][data-subagent-id="fixture-agent"] [data-tool-call-id]');
+    await expect.poll(() => childTools.evaluateAll(nodes => nodes.map(node => node.dataset.toolCallId).sort()))
+      .toEqual(['fixture-declared-tool', 'fixture-response-tool']);
+    if (scenario === 'mixed') {
+      await expect(detail.locator('[data-tool-call-id="fixture-main-tool"]')).toBeVisible();
+      await expect(detail.locator('[data-subagent-block] [data-tool-call-id="fixture-main-tool"]')).toHaveCount(0);
+    }
     if (scenario === 'unowned-fallback') {
       await expect(detail.locator('[data-tool-call-id="fixture-unowned-tool"]')).toBeVisible();
     }
@@ -854,6 +876,24 @@ test('real audit: Prompt Activity uses the API summary and null failure efficien
   await expect(row.locator('td').last()).toHaveText('N/A');
 });
 
+test('an input-only group explains why the expanded trace has no model records', async ({ page }) => {
+  await page.route('**/api/sessions/*/*/rounds*', route => fulfillIndexedJson(route, {
+    rounds: [{ roundIndex: 1, callCount: 0, toolCallCount: 0, status: 'ok',
+      parity: { isUserInput: true, summary: '已记录 1 条用户输入' } }],
+  }));
+  await page.route('**/api/sessions/*/*/round/1*', route => fulfillIndexedJson(route, {
+    roundId: 1, round: { calls: [], tools: [] },
+  }));
+  await page.goto(SESSION_PATH);
+  const row = page.locator('[data-trace-round-row][data-round="1"]');
+  await expect(row).toHaveAttribute('data-is-user-input', 'true');
+  await expect(row).toContainText('已记录 1 条用户输入');
+  await expect(row.getByRole('button', { name: /Request|Response/ })).toHaveCount(0);
+  const toggle = row.getByRole('button', { name: 'Toggle round 1' });
+  if (await toggle.getAttribute('aria-expanded') !== 'true') await toggle.click();
+  await expect(page.locator('#round-1-detail')).toContainText('此轮没有可展示的输入正文或模型调用记录。');
+});
+
 test('real audit: an empty rounds response resolves the diagnostic timeline empty state', async ({ page }) => {
   await page.route('**/api/sessions/*/*/rounds*', route => fulfillIndexedJson(route, {
     rounds: [], state: { title: 'No readable log', message: 'Source transcript is missing.' },
@@ -862,8 +902,8 @@ test('real audit: an empty rounds response resolves the diagnostic timeline empt
   await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
   await expect(page.locator('.trace-table')).toContainText('No readable log');
   const diagnostics = page.locator('[data-session-diagnostics]');
-  await expect(diagnostics.getByRole('heading', { name: 'Content evidence unavailable', exact: true })).toBeVisible();
-  await expect(diagnostics).toContainText('Agent, tool and failure counts are N/A, not measured zero.');
+  await expect(diagnostics.getByRole('heading', { name: '内容证据不可用', exact: true })).toBeVisible();
+  await expect(diagnostics).toContainText('Agent、工具及失败次数均为 N/A，不代表实测为零。');
   await expect(diagnostics).not.toContainText('is loading');
   await expect(diagnostics.locator('.sd-subagent-timeline')).toHaveCount(0);
 });

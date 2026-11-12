@@ -141,6 +141,33 @@ def test_receipt_rendering_preserves_final_status(tmp_path) -> None:
     assert "next='python3 scripts/gates/cli.py plan --mode incremental'" in human
 
 
+def test_failed_receipt_points_to_step_diagnosis_before_whole_rerun(tmp_path):
+    step = SimpleNamespace(
+        status=SimpleNamespace(value='BLOCKED'),
+        recipe_step_name='focusedContracts',
+        reason='verification-failed',
+        canonical_rerun='native-test related-module',
+    )
+    receipt = SimpleNamespace(
+        run_id='failed',
+        status='BLOCKED',
+        reason='verification-failed',
+        duration_ms=1,
+        summary_path=tmp_path / 'summary.json',
+        canonical_rerun='python3 scripts/gates/cli.py run --mode incremental',
+        gate_results=(SimpleNamespace(gate_name='gateFrameworkTests', step_results=(step,)),),
+    )
+    human = render_run_receipt(receipt)
+    assert (
+        "next='inspect failed step logs; reproduce smallest native test; fix; related regression'"
+        in human
+    )
+    assert 'FEEDBACK gate=gateFrameworkTests recipe_step=focusedContracts' in human
+    assert "affected_rerun='native-test related-module'" in human
+    assert "rerun='python3 scripts/gates/cli.py run --mode incremental'" in human
+    assert 'final_delivery=whole-workspace-incremental-gate' in human
+
+
 def test_health_rendering_reports_static_plan_and_one_executed_process(tmp_path) -> None:
     audit = SimpleNamespace(
         status='PASS',

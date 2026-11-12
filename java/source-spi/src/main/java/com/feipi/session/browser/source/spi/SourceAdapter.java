@@ -38,6 +38,32 @@ public interface SourceAdapter {
    */
   SourceId sourceId();
 
+  /** 单条记录的来源识别结果；不是会话内容模型，也不替代入口的安全检查。 */
+  enum RecordKind {
+    /** 可证明本文件为会话的消息或来源事件。 */
+    TRANSCRIPT,
+    /** 可伴随消息出现，但不能单独证明会话的辅助记录。 */
+    AUXILIARY,
+    /** 校验身份后从分析正文中排除的配置元数据。 */
+    IGNORED_METADATA,
+    /** 具有另一来源的明确格式特征。 */
+    FOREIGN,
+    /** 本来源没有定义的记录，严格导入必须拒绝。 */
+    UNKNOWN
+  }
+
+  /**
+   * 识别记录的格式，不读取文件、邻居或 provider 载荷。
+   *
+   * @param type 顶层 type；非文本或未提供时为空字符串
+   * @param role 顶层 role；非文本或未提供时为空字符串
+   * @param messageRole message.role；非文本或未提供时为空字符串
+   * @return 本来源对记录的判断；未实现的来源默认拒绝严格导入
+   */
+  default RecordKind classifyRecord(String type, String role, String messageRole) {
+    return RecordKind.UNKNOWN;
+  }
+
   /**
    * 检查源根目录的安全性和可用性。
    *

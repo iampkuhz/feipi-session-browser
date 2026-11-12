@@ -190,6 +190,22 @@ function runChecked(command, args, label, options = {}) {
   throw new Error(`${label} failed: ${reason}${diagnostic.trim() ? `\n${diagnostic}` : ''}`);
 }
 
+function resolveJavaEnvironment() {
+  // npm 直跑也复用构建入口的 JDK 25 发现；必须先于合成 HOME 的隔离。
+  const result = spawnSync('bash', [path.join(ROOT, 'scripts/harness/java_env.sh')], {
+    cwd: ROOT,
+    env: process.env,
+    encoding: 'utf8',
+    timeout: 30_000,
+  });
+  if (result.status !== 0 || result.error) {
+    throw new Error(`fixture JDK discovery failed: ${tail(result.error?.message || result.stderr)}`);
+  }
+  const home = result.stdout.trim();
+  if (!home || home.includes('\n')) throw new Error('fixture JDK discovery returned an invalid home');
+  return { JAVA_HOME: home, PATH: `${home}/bin:${process.env.PATH || ''}` };
+}
+
 function copyFixtures(runtimeDir) {
   // fixture 数据只在启动 Java 服务前生成，避免端口与进程管理代码掺入数据准备细节。
   const { generateSessionFixtures } = require('../fixtures/generate-session-fixtures');
@@ -201,6 +217,54 @@ function copyFixtures(runtimeDir) {
   generateSessionFixtures(dataDir);
   fs.mkdirSync(indexDir, { recursive: true });
   return { homeDir, indexDir };
+}
+
+function copyDistribution(runtimeDir, source = path.join(ROOT, 'java', 'app-cli', 'build', 'install', 'app-cli')) {
+  const distribution = path.join(runtimeDir, 'app-cli');
+  fs.cpSync(source, distribution, {
+    recursive: true,
+    // Never share mutable build output through symlinks with the running JVM.
+    dereference: true,
+  });
+  return path.join(distribution, 'bin', 'app-cli');
+}
+
+async function validateStaticResources(pages) {
+  const resources = new Map();
+  for (const page of pages) {
+    const html = await page.text();
+    let count = 0;
+    for (const tag of html.matchAll(/<(script|link)\b[^>]*>/gi)) {
+      const attributes = Object.fromEntries([...tag[0].matchAll(/([\w-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g)]
+        .map((attribute) => [attribute[1].toLowerCase(), attribute[2] ?? attribute[3] ?? attribute[4]]));
+      const script = tag[1].toLowerCase() === 'script';
+      if (!script && !attributes.rel?.toLowerCase().split(/\s+/).includes('stylesheet')) continue;
+      const reference = script ? attributes.src : attributes.href;
+      if (!reference) continue;
+      const url = new URL(reference.replace(/&amp;/g, '&'), page.url);
+      if (url.origin !== new URL(page.url).origin) continue;
+      resources.set(url.href, script ? 'javascript' : 'css');
+      count += 1;
+    }
+    if (!count) throw new Error(`fixture static readiness: no same-origin JS/CSS in ${page.url}`);
+  }
+  for (const [url, kind] of resources) {
+    let response;
+    try {
+      response = await fetch(url, { signal: AbortSignal.timeout(5_000), redirect: 'manual' });
+      const contentType = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+      const validType = kind === 'css' ? contentType === 'text/css'
+        : ['text/javascript', 'application/javascript', 'application/ecmascript', 'text/ecmascript'].includes(contentType);
+      const body = await response.text();
+      const content = body.replace(/^(?:\s|<!--[\s\S]*?-->|\/\*[\s\S]*?\*\/)*/, '');
+      if (response.status !== 200 || !validType || !content
+          || /^(?:<!doctype\s+html|<html\b|<head\b|<body\b)/i.test(content)) {
+        throw new Error(`HTTP ${response.status}, content-type=${contentType || '(missing)'}, expected ${kind}`);
+      }
+    } catch (error) {
+      throw new Error(`fixture static readiness failed for ${url}: ${error.message}`);
+    }
+  }
 }
 
 async function fetchFixtureJson(baseURL, pathname) {
@@ -253,16 +317,22 @@ async function waitUntilReady(baseURL, server) {
   ];
   for (let attempt = 0; attempt < 30; attempt += 1) {
     if (server.exitCode !== null) return false;
+    let responses;
+    let scan;
     try {
-      const responses = await Promise.all(paths.map((item) => fetch(`${baseURL}${item}`, {
+      responses = await Promise.all(paths.map((item) => fetch(`${baseURL}${item}`, {
         signal: AbortSignal.timeout(2_000),
       })));
-      const scan = await fetchFixtureJson(baseURL, '/api/scan-status');
-      if (scan.status === 'failure') return false;
-      if (scan.status === 'success' && scan.errorCount === 0
-          && scan.publishedDataAvailable && responses.every((response) => response.ok)) return true;
+      scan = await fetchFixtureJson(baseURL, '/api/scan-status');
     } catch (_) {
       // 进程启动期间连接失败属于预期重试条件。
+    }
+    if (scan?.status === 'failure') return false;
+    if (scan?.status === 'success' && scan.errorCount === 0
+        && scan.publishedDataAvailable && responses.every((response) => response.ok)) {
+      // 已可用页面的静态资源失败不是启动瞬态；立即保留明确诊断，不重试掩盖。
+      await validateStaticResources(responses);
+      return true;
     }
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
@@ -278,7 +348,7 @@ async function startServer(claimToken) {
   const port = Number(new URL(baseURL).port);
   const outerClaimPath = consumePortClaim(port, claimToken);
   let innerClaimPath = null;
-  const launcher = path.join(ROOT, 'java', 'app-cli', 'build', 'install', 'app-cli', 'bin', 'app-cli');
+  let launcher;
   let innerPort;
   let runtimeDir = '';
   let javaEnv = {};
@@ -288,6 +358,7 @@ async function startServer(claimToken) {
     if (innerClaimPath) fs.rmSync(innerClaimPath, { force: true });
   };
   try {
+    javaEnv = resolveJavaEnvironment();
     const innerClaim = await reservePortClaim();
     innerPort = innerClaim.port;
     innerClaimPath = consumePortClaim(innerPort, innerClaim.token);
@@ -297,15 +368,17 @@ async function startServer(claimToken) {
       path.join(ROOT, 'java', 'gradlew'),
       ['-p', path.join(ROOT, 'java'), ':java:app-cli:installDist', '--console=plain'],
       'Gradle installDist',
-      { timeout: 300_000 },
+      { timeout: 300_000, env: javaEnv },
     );
 
     fs.mkdirSync(runTmpRoot, { recursive: true });
     runtimeDir = fs.mkdtempSync(path.join(runTmpRoot, 'playwright-java-fixture-'));
+    launcher = copyDistribution(runtimeDir);
     const { homeDir, indexDir } = copyFixtures(runtimeDir);
     fs.mkdirSync(path.join(homeDir, '.codex'), { recursive: true });
     fs.mkdirSync(path.join(homeDir, '.qoder'), { recursive: true });
     javaEnv = {
+      ...javaEnv,
       HOME: homeDir,
       // JVM 显式使用隔离主目录，不依赖宿主账户目录或 HOME 的平台行为。
       JAVA_OPTS: `"-Duser.home=${homeDir}"`,
@@ -364,16 +437,14 @@ async function startServer(claimToken) {
   });
 
   const innerURL = `http://127.0.0.1:${innerPort}`;
-  if (!await waitUntilReady(innerURL, server)) {
-    console.error(`[playwright-fixture] readiness timeout for synthetic Java server on ${innerURL}.`);
-    if (diagnostics.trim()) console.error(diagnostics);
-    stop('SIGTERM');
-    process.exit(1);
-  }
   try {
+    if (!await waitUntilReady(innerURL, server)) {
+      throw new Error(`readiness timeout for synthetic Java server on ${innerURL}`);
+    }
     await validateFixtureIsolation(innerURL);
   } catch (error) {
     console.error(`[playwright-fixture] ${error.message}`);
+    if (diagnostics.trim()) console.error(diagnostics);
     stop('SIGTERM', 1);
     return;
   }
@@ -392,14 +463,18 @@ function argumentValue(name) {
   return index >= 0 ? process.argv[index + 1] : '';
 }
 
-if (process.argv.includes('--reserve-port')) {
-  reservePortClaim().then((claim) => console.log(JSON.stringify(claim))).catch((error) => {
-    console.error(`[playwright-fixture] port claim failed: ${error.stack || error.message}`);
-    process.exit(1);
-  });
-} else {
-  startServer(argumentValue('--claim-token')).catch((error) => {
-    console.error(`[playwright-fixture] setup failed: ${error.stack || error.message}`);
-    process.exit(1);
-  });
+module.exports = { copyDistribution, resolveJavaEnvironment, validateStaticResources, waitUntilReady };
+
+if (require.main === module) {
+  if (process.argv.includes('--reserve-port')) {
+    reservePortClaim().then((claim) => console.log(JSON.stringify(claim))).catch((error) => {
+      console.error(`[playwright-fixture] port claim failed: ${error.stack || error.message}`);
+      process.exit(1);
+    });
+  } else {
+    startServer(argumentValue('--claim-token')).catch((error) => {
+      console.error(`[playwright-fixture] setup failed: ${error.stack || error.message}`);
+      process.exit(1);
+    });
+  }
 }

@@ -14,6 +14,7 @@ import com.feipi.session.browser.source.common.JsonlReaderResult;
 import com.feipi.session.browser.source.common.SourceTitleTexts;
 import com.feipi.session.browser.source.common.ToolFailureClassifier;
 import com.feipi.session.browser.source.json.JsonCandidateParser;
+import com.feipi.session.browser.source.json.JsonRecordTypes;
 import com.feipi.session.browser.source.spi.BoundedStream;
 import com.feipi.session.browser.source.spi.Candidate;
 import com.feipi.session.browser.source.spi.ParseIssueType;
@@ -88,6 +89,11 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
   public ClaudeSourceAdapter(JsonlReader jsonlReader) {
     Objects.requireNonNull(jsonlReader, "jsonlReader 不得为 null");
     this.jsonlReader = jsonlReader;
+  }
+
+  @Override
+  public RecordKind classifyRecord(String type, String role, String messageRole) {
+    return JsonRecordTypes.classify(sourceId(), type, role, messageRole);
   }
 
   @Override

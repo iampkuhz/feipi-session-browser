@@ -13,6 +13,7 @@
 .env
 
 # ── 本地运行数据、工具缓存与报告 ──
+/.multica/
 .local/
 /data/
 /output/

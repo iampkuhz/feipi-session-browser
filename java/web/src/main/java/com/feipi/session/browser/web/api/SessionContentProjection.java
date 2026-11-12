@@ -1,15 +1,14 @@
 package com.feipi.session.browser.web.api;
 
-import com.feipi.session.browser.application.sessiondetail.PayloadCallContentExtractor;
 import com.feipi.session.browser.application.sessiondetail.SessionContentReader;
 import com.feipi.session.browser.application.sessiondetail.SessionDetail;
 import com.feipi.session.browser.domain.enums.CallScope;
-import com.feipi.session.browser.domain.normalized.NormalizedAgent;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionContent;
 import com.feipi.session.browser.index.api.query.ContentRoundIndex;
 import com.feipi.session.browser.web.api.PageApiDtos.TokenSegments;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -27,11 +26,15 @@ final class SessionContentProjection {
    */
   static List<SessionDetailApiResponses.RoundIndexDto> rounds(
       SessionDetail detail, NormalizedSessionContent content) throws IOException {
-    var index =
-        new SessionContentReader(content, detail.sessionRow().userMessageCount()).roundIndex();
+    var reader = new SessionContentReader(content, detail.sessionRow().userMessageCount());
+    var index = reader.roundIndex();
     var summaries = new ArrayList<Summary>();
     for (int i = 0; i < index.roundCount(); i++) summaries.add(new Summary());
-    boolean codex = content.header().agent() == NormalizedAgent.CODEX;
+    var previews = SessionContentPreviews.read(content);
+    if (content.header().totals().getOrDefault("calls", 0L) == 0 && !summaries.isEmpty()) {
+      summaries.getFirst().userPreview = reader.observedInputPreview();
+      summaries.getFirst().observedInputAvailable = reader.hasObservedInput();
+    }
     try (var cursor = content.openCursor()) {
       while (cursor.hasNext()) {
         var unit = cursor.next();
@@ -39,18 +42,26 @@ final class SessionContentProjection {
           int round = index.roundIndexForCall(call.callId()).orElseThrow();
           var summary = summaries.get(round - 1);
           summary.calls++;
+          if (summary.time.isEmpty()) {
+            summary.time = RoundContentProjection.displayTime(previews.timestamp(call));
+          }
           if (summary.calls == 1) {
             summary.evidence = ContentRoundIndex.modelCallEvidence(content.header().agent(), call);
             summary.parent = call.parentCallId().orElse("");
           }
           summary.usage.add(call);
-          if ((call.scope() == CallScope.MAIN || summary.calls == 1)
-              && summary.userPreview.isEmpty()) {
-            summary.userPreview = PayloadCallContentExtractor.inlinePreview(call, true, codex);
-            if (summary.userPreview.isEmpty() && summary.assistantPreview.isEmpty()) {
-              summary.assistantPreview =
-                  PayloadCallContentExtractor.inlinePreview(call, false, false);
-            }
+          if (call.scope() == CallScope.MAIN || summary.calls == 1) {
+            String userText = previews.userText(call, round);
+            if (summary.userPreview.isEmpty()) summary.userPreview = userText;
+          }
+          if (summary.assistantPreview.isEmpty())
+            summary.assistantPreview = previews.text(call, false);
+          if (summary.toolPreview.isEmpty()) {
+            summary.toolPreview =
+                previews.toolInputs(call).values().stream()
+                    .filter(value -> !value.isEmpty())
+                    .findFirst()
+                    .orElse("");
           }
           var usage = call.usage();
           summary.fresh += usage.fresh();
@@ -64,6 +75,7 @@ final class SessionContentProjection {
           if (round.isEmpty()) continue;
           var summary = summaries.get(round.getAsInt() - 1);
           summary.tools++;
+          summary.toolCounts.merge(tool.name(), 1, Integer::sum);
           if (SessionDetailParityAnalyzer.hasFailedStatus(tool)) {
             summary.failed++;
           }
@@ -98,6 +110,25 @@ final class SessionContentProjection {
       var signals = new ArrayList<String>();
       if (summary.failed > 0) signals.add("Failed");
       if (summary.subagent) signals.add("Subagent");
+      String observedInput =
+          summary.calls == 0 && summary.tools == 0 && summary.userPreview.isEmpty()
+              ? RoundContentProjection.observedInputSummary(detail.sessionRow())
+              : "";
+      String toolSummary =
+          String.join(
+              " · ",
+              summary.toolCounts.entrySet().stream()
+                  .map(entry -> entry.getKey() + " × " + entry.getValue())
+                  .toList());
+      if (!toolSummary.isEmpty() && !summary.toolPreview.isEmpty())
+        toolSummary += " · " + summary.toolPreview;
+      String preview =
+          !summary.userPreview.isEmpty()
+              ? summary.userPreview
+              : !toolSummary.isEmpty() ? toolSummary : summary.assistantPreview;
+      if (preview.codePointCount(0, preview.length()) > 240) {
+        preview = preview.substring(0, preview.offsetByCodePoints(0, 240)) + "…";
+      }
       rows.add(
           new SessionDetailApiResponses.RoundIndexDto(
               i + 1,
@@ -119,13 +150,21 @@ final class SessionContentProjection {
               signals,
               Map.of(
                   "summary",
-                  summary.userPreview.isEmpty() ? summary.assistantPreview : summary.userPreview,
+                  observedInput.isEmpty() ? preview : observedInput,
                   "summaryRole",
                   !summary.userPreview.isEmpty()
                       ? "user"
-                      : summary.assistantPreview.isEmpty() ? "" : "assistant",
+                      : !toolSummary.isEmpty()
+                          ? "tool"
+                          : summary.assistantPreview.isEmpty() ? "" : "assistant",
+                  "time",
+                  summary.time,
                   "membersPaged",
                   true,
+                  "observedInputAvailable",
+                  summary.observedInputAvailable,
+                  "isUserInput",
+                  !observedInput.isEmpty() || !summary.userPreview.isEmpty(),
                   "hasIssues",
                   summary.failed > 0,
                   "isLowCache",
@@ -149,9 +188,13 @@ final class SessionContentProjection {
     long write;
     long output;
     boolean subagent;
+    boolean observedInputAvailable;
     String evidence = "";
     String parent = "";
     String userPreview = "";
     String assistantPreview = "";
+    String time = "";
+    String toolPreview = "";
+    final Map<String, Integer> toolCounts = new LinkedHashMap<>();
   }
 }

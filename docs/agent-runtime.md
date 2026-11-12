@@ -13,6 +13,7 @@ Session 状态，也不要求平台事件先完成初始化。机器契约见
 - commit 是完成验证后的显式 Git 操作，只作用于当前分支和精确文件范围。
 - 合并、发布及 primary 分支前进必须由用户后续明确选择；禁止 stash、reset、rebase、force 和未授权 push。
 - 不读取或提交真实 session、密钥、token、缓存、运行数据或个人配置。
+- 共享 checkout 的任务身份、并发数、Run 结束和 active-change 登记均不授予目录独占权。修复前区分本任务与继承差异，交付前核对其他聊天/进程的实际写入；操作与证据边界见[开发手册](development/README.md#共享-checkout-的实际写入边界)。不新增写入状态机或锁，不覆盖他人差异。
 
 ## OpenSpec 与策略
 
@@ -41,3 +42,12 @@ Qoder 工程派发已退役：旧 Qoder PASS 不能充当原生验收证据；�
 
 日常反馈见[开发手册](development/README.md#日常小改)，提交或交接以 `AGENTS.md` 的完整工作区 Gate 为准。
 `NOT_TRIGGERED` 表示未选择，不是执行结果；`BLOCKED` 表示发现阻断问题，`FAIL` 表示未完成。
+
+修复循环与停止规则以共享[分层反馈闭环](../skills/authoring/feipi-quality-gate-diagnosis/references/repair-loop.md)为准。
+Run completed 不是 Issue 验收通过；平台 max_attempts 不限制内部代码修复轮次。顺序启动也不是依赖验收，默认不绕过未验收的前置任务；用户明确授权前一 Run 终态后继续时可按该有界范围推进，但保留前项未解决责任，不宣称验收通过或取得目录锁。仓库约定不等于平台提供硬依赖锁。
+
+## Multica 临时规则
+
+仓库维护的 `AGENTS.md` 仍受 policy 的 2800-byte 限制。仅完整 Multica 任务环境、合法 UUID 身份及原生标记包裹的单个尾块，才按 `multica_runtime_bytes` 单独计费；HEAD/index 中不得存在该块，未知、损坏或持久化的标记均拒绝。
+这只是临时格式和任务环境的一致性校验，不是对环境变量的密码学认证，也不能把产品缺陷归为平台重试。
+Codex 的 `project_doc_max_bytes` 是完整物理指令的加载容量（含临时尾块），不是放宽源码上限。完整文件加安全余量必须能加载；不把尾块写入版本控制，不读取或打印 token，不改动个人配置或原生 Multica 注入器。

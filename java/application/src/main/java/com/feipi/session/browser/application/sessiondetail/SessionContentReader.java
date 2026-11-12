@@ -27,6 +27,52 @@ public final class SessionContentReader {
     return index;
   }
 
+  /** 区分实际保留的无调用输入与仅有消息计数的缺失正文。 */
+  public boolean hasObservedInput() throws IOException {
+    if (content.header().totals().getOrDefault("calls", 0L) != 0) return false;
+    try (var cursor = content.openCursor()) {
+      while (cursor.hasNext()) {
+        for (var entry : cursor.next().sourceUnitCatalog().values()) {
+          if ("observed_user_message".equals(entry.candidate())
+              && !PayloadCallContentExtractor.catalogEntryText(entry).isBlank()) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /** 只为没有调用的观测轮提取短输入；完整正文仍由 round Request 按需读取。 */
+  public String observedInputPreview() throws IOException {
+    if (content.header().totals().getOrDefault("calls", 0L) != 0) return "";
+    com.feipi.session.browser.domain.normalized.SourceUnitCatalogEntry first = null;
+    try (var units = content.openCursor()) {
+      while (units.hasNext()) {
+        for (var entry : units.next().sourceUnitCatalog().values()) {
+          if (!"observed_user_message".equals(entry.candidate())) continue;
+          String preview =
+              PayloadCallContentExtractor.catalogPreview(
+                  entry,
+                  Optional.of("user"),
+                  true,
+                  content.header().agent()
+                      == com.feipi.session.browser.domain.normalized.NormalizedAgent.CODEX);
+          if (!preview.isEmpty()
+              && (first == null
+                  || PayloadCallContentExtractor.OBSERVED_INPUT_ORDER.compare(entry, first) < 0))
+            first = entry;
+        }
+      }
+    }
+    return first == null
+        ? ""
+        : PayloadCallContentExtractor.catalogPreview(
+            first,
+            Optional.of("user"),
+            true,
+            content.header().agent()
+                == com.feipi.session.browser.domain.normalized.NormalizedAgent.CODEX);
+  }
+
   /** 按匹配成员的偏移量读取逻辑轮次，每页最多返回五百个成员。 */
   public Window<NormalizedCall> calls(int roundIndex, long cursor, int limit) throws IOException {
     return calls(roundIndex, cursor, limit, Function.identity());

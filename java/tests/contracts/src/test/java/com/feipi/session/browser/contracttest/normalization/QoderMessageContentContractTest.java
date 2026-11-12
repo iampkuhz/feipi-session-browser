@@ -8,6 +8,8 @@ import com.feipi.session.browser.domain.normalized.NormalizedAgent;
 import com.feipi.session.browser.index.api.imports.SessionImportException;
 import com.feipi.session.browser.normalization.NormalizationEngine;
 import com.feipi.session.browser.scan.engine.imports.IsolatedSessionImportService;
+import com.feipi.session.browser.source.claude.ClaudeSourceAdapter;
+import com.feipi.session.browser.source.codex.CodexSourceAdapter;
 import com.feipi.session.browser.source.qoder.QoderSourceAdapter;
 import com.feipi.session.browser.source.spi.SourceResult;
 import java.io.ByteArrayInputStream;
@@ -98,7 +100,14 @@ class QoderMessageContentContractTest {
   void standaloneImportStillRejectsInvalidMessagesUnknownTypesAndToolOnlyFiles()
       throws IOException {
     String message = "{\"type\":\"message\",\"role\":\"user\",\"content\":\"Synthetic question\"}";
-    try (var imports = new IsolatedSessionImportService(source -> new QoderSourceAdapter())) {
+    try (var imports =
+        new IsolatedSessionImportService(
+            source ->
+                switch (source) {
+                  case CLAUDE_CODE -> new ClaudeSourceAdapter();
+                  case CODEX -> new CodexSourceAdapter();
+                  case QODER -> new QoderSourceAdapter();
+                })) {
       for (String unsupported :
           List.of(
               "{\"type\":\"tool_result\",\"tool_use_id\":\"synthetic-tool\",\"content\":\"result\"}",

@@ -299,12 +299,35 @@ def render_run_receipt(receipt: ReceiptView) -> str:
         if receipt.reason == 'input-empty'
         else receipt.canonical_rerun
     )
+    feedback = []
+    if receipt.reason in {'input-changed', 'input-unavailable'}:
+        next_action = 'inspect inputValidation; stop conflicting writes; validate stable inputs'
+        validation = getattr(receipt, 'input_validation', None) or {}
+        feedback.append('INPUT_VALIDATION ' + json.dumps(validation, ensure_ascii=False))
+    elif receipt.status != 'PASS' and receipt.reason != 'input-empty':
+        next_action = (
+            'inspect failed step logs; reproduce smallest native test; fix; related regression'
+        )
+        for gate in getattr(receipt, 'gate_results', ()):
+            for step in gate.step_results:
+                if step.status.value != 'PASS':
+                    feedback.append(
+                        f'FEEDBACK gate={gate.gate_name} recipe_step={step.recipe_step_name} '
+                        f'reason={shlex.quote(step.reason)} '
+                        f'logs={shlex.quote(str(receipt.summary_path.parent / "logs"))} '
+                        f'affected_rerun={shlex.quote(step.canonical_rerun)}'
+                    )
+        feedback.append(
+            'REPAIR_LOOP skills/authoring/feipi-quality-gate-diagnosis/references/repair-loop.md '
+            'final_delivery=whole-workspace-incremental-gate'
+        )
     reason = f' reason={receipt.reason}' if receipt.reason else ''
-    return (
+    done = (
         f'DONE run={receipt.run_id} status={receipt.status}{reason} '
         f'duration_ms={receipt.duration_ms} receipt={receipt.summary_path} '
         f'rerun={shlex.quote(receipt.canonical_rerun)} next={shlex.quote(next_action)}'
     )
+    return '\n'.join([done, *feedback])
 
 
 def render_health_audit(audit: HealthAuditView, *, output_format: str = 'human') -> str:

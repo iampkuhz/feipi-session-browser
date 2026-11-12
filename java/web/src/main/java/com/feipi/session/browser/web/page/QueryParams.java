@@ -9,6 +9,7 @@ import com.feipi.session.browser.query.api.ProjectListFilter;
 import com.feipi.session.browser.query.api.SessionListFilter;
 import com.feipi.session.browser.query.api.Sort;
 import com.feipi.session.browser.query.api.TitleFilter;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -53,6 +54,18 @@ public final class QueryParams {
           Map.entry("last_active", "last_active"));
 
   private QueryParams() {}
+
+  /** 仅 Sessions 列表移除的排序入口回退到 Updated 降序，不影响 Project Detail。 */
+  public static Map<String, String> sessionsPageParams(Map<String, String> params) {
+    String sort = params.getOrDefault("sort", "").trim().toLowerCase();
+    if (!"failure".equals(sort) && !"duration".equals(sort)) {
+      return params;
+    }
+    Map<String, String> normalized = new HashMap<>(params);
+    normalized.put("sort", "updated");
+    normalized.put("dir", "desc");
+    return normalized;
+  }
 
   /**
    * 从 Javalin query param map 解析 page 参数。

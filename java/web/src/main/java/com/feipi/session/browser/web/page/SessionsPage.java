@@ -55,7 +55,7 @@ public final class SessionsPage {
    * @param ctx Javalin 请求上下文
    */
   public void handle(Context ctx) {
-    Map<String, String> params = flatQueryParams(ctx);
+    Map<String, String> params = QueryParams.sessionsPageParams(flatQueryParams(ctx));
     SessionListFilter filter = QueryParams.parseSessionListFilter(params);
 
     try {
@@ -118,15 +118,7 @@ public final class SessionsPage {
   private static Map<String, String> buildSortUrls(
       Map<String, String> params, String currentSort, String currentDir, int pageSize) {
     String[] keys = {
-      "tokens",
-      "rounds",
-      "tools",
-      "subagents",
-      "duration",
-      "process-time",
-      "failure",
-      "created",
-      "updated"
+      "tokens", "rounds", "tools", "subagents", "process-time", "created", "updated"
     };
     Map<String, String> urls = new HashMap<>();
     for (String key : keys) {

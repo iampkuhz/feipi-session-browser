@@ -6,6 +6,7 @@ import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedCallUsage;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
 import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
+import com.feipi.session.browser.domain.normalized.TokenProvenance;
 import com.feipi.session.browser.index.api.query.ContentRoundIndex;
 import com.feipi.session.browser.query.api.CallRound;
 import com.feipi.session.browser.web.api.PageApiDtos.TokenSegments;
@@ -75,6 +76,18 @@ final class RoundIndexProjection {
       NormalizedSessionArtifact artifact,
       SessionDetailParityAnalyzer.RoundParity parity) {
     var parityMap = new LinkedHashMap<>(parity.toMap());
+    if (artifact != null && artifact.calls().isEmpty()) {
+      try {
+        var reader =
+            new com.feipi.session.browser.application.sessiondetail.SessionContentReader(
+                com.feipi.session.browser.domain.normalized.NormalizedSessionContent.fromArtifact(
+                    artifact),
+                1);
+        parityMap.put("observedInputAvailable", reader.hasObservedInput());
+      } catch (java.io.IOException exception) {
+        throw new IllegalStateException("无法读取已验证的观测输入", exception);
+      }
+    }
     if (artifact != null && round.calls().size() == 1) {
       callsForRound(round, artifact).stream()
           .findFirst()
@@ -187,9 +200,13 @@ final class RoundIndexProjection {
       List<String> signals,
       Map<String, Object> parity) {
     Projection projection = project(round, artifact);
+    var calls =
+        artifact == null ? List.<NormalizedCall>of() : displayCalls(callsForRound(round, artifact));
+    var usage = new SessionContentUsage();
+    calls.forEach(usage::add);
     Map<String, Object> displayParity = new LinkedHashMap<>(parity);
     String toolSummary = toolCountSummary(projection.toolCallIds(), artifact);
-    if (!toolSummary.isBlank()) {
+    if (!toolSummary.isBlank() && displayParity.getOrDefault("summary", "").toString().isBlank()) {
       displayParity.put("summary", toolSummary);
     }
     List<String> safeFailedToolIds = safeList(failedToolIds);
@@ -202,7 +219,8 @@ final class RoundIndexProjection {
             projection.freshInputTokens(),
             projection.cacheReadTokens(),
             projection.cacheWriteTokens(),
-            projection.outputTokens()),
+            projection.outputTokens(),
+            calls.isEmpty() ? TokenProvenance.unknown() : usage.segments().provenance()),
         projection.callIds().size(),
         projection.toolCallIds().size(),
         safeFailedToolIds.size(),

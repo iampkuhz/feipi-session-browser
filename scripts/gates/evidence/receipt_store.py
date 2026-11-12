@@ -15,11 +15,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from scripts.gates.planning.change_snapshot import changed_snapshot_paths
+
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
 
     from scripts.gates.execution import GateResult, InvocationResult, StepResult
-    from scripts.gates.planning import CommandInvocation, GatePlan
+    from scripts.gates.planning import ChangeSnapshot, CommandInvocation, GatePlan
 
 SCHEMA_VERSION = 5
 _EXECUTION_STATUSES = frozenset({'PASS', 'BLOCKED', 'FAIL'})
@@ -46,6 +48,7 @@ class RunReceipt:
     canonical_rerun: str
     plan: GatePlan
     gate_results: tuple[GateResult, ...]
+    input_validation: dict[str, Any] | None = None
 
 
 def _utc_now() -> str:
@@ -283,6 +286,9 @@ def store_run_receipt(
     started_at: str | None = None,
     finished_at: str | None = None,
     additional_logs: Mapping[str, Path] | None = None,
+    observed_snapshot: ChangeSnapshot | None = None,
+    input_error: str = '',
+    input_error_paths: tuple[str, ...] = (),
 ) -> RunReceipt:
     """新建一次 schema v5 run；同名 run 永不覆盖。"""
 
@@ -306,6 +312,28 @@ def store_run_receipt(
     log_paths_by_step, log_paths = _write_step_logs(run_directory, results)
     log_paths.extend(_write_additional_logs(run_directory, additional_logs or {}))
     status, final_reason = _overall_status(results, reason)
+    input_validation = None
+    if observed_snapshot is not None or input_error:
+        invalid = bool(input_error) or observed_snapshot != plan.snapshot
+        input_validation = {
+            'status': 'FAIL' if invalid else 'PASS',
+            'reason': input_error or ('input-changed' if invalid else ''),
+            'beforeFingerprint': plan.snapshot.content_fingerprint,
+            'afterFingerprint': observed_snapshot.content_fingerprint
+            if observed_snapshot
+            else None,
+            'headBefore': plan.snapshot.head,
+            'headAfter': observed_snapshot.head if observed_snapshot else None,
+            'changedPaths': (
+                list(changed_snapshot_paths(plan.snapshot, observed_snapshot))
+                if observed_snapshot
+                else []
+            ),
+        }
+        if input_error:
+            input_validation['unavailablePaths'] = list(input_error_paths)
+        if invalid:
+            status, final_reason = 'FAIL', input_validation['reason']
     gate_payloads = [
         _gate_payload(
             result,
@@ -351,6 +379,8 @@ def store_run_receipt(
         },
     }
     plan_path = run_directory / 'plan.json'
+    if input_validation is not None:
+        summary_payload['inputValidation'] = input_validation
     summary_path = run_directory / 'summary.json'
     _write_json_exclusive(plan_path, plan_payload)
     _write_json_exclusive(summary_path, summary_payload)
@@ -371,4 +401,5 @@ def store_run_receipt(
         canonical_rerun=canonical_rerun,
         plan=plan,
         gate_results=results,
+        input_validation=input_validation,
     )

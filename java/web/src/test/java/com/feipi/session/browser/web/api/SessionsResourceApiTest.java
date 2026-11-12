@@ -106,6 +106,30 @@ class SessionsResourceApiTest {
   }
 
   @Test
+  @DisplayName("Sessions 移除的排序回退到原始 Updated 时间戳，不影响底层计时")
+  void removedListSortsFallBackToUpdated() {
+    JavalinTest.test(
+        createWebRoot().app(),
+        (testApp, client) -> {
+          var expectedResponse = client.get("/api/sessions/rows?sort=updated&dir=desc");
+          JsonNode expected = MAPPER.readTree(expectedResponse.body().string());
+          for (String sort : new String[] {"failure", "duration"}) {
+            var response = client.get("/api/sessions/rows?sort=" + sort + "&dir=asc");
+            assertThat(response.code()).isEqualTo(200);
+            JsonNode body = MAPPER.readTree(response.body().string());
+            assertThat(body.get("rows")).isEqualTo(expected.get("rows"));
+            assertThat(body.at("/filters/sort").asText()).isEqualTo("updated");
+            assertThat(body.at("/filters/dir").asText()).isEqualTo("desc");
+            assertThat(body.at("/rows/0/durationSeconds").isNumber()).isTrue();
+          }
+          var page = client.get("/sessions?sort=failure&dir=asc");
+          assertThat(page.body().string())
+              .contains("colspan=\"11\"", "name=\"sort\" value=\"updated\"")
+              .doesNotContain("data-sort-key=\"failure\"", "data-sort-key=\"duration\"");
+        });
+  }
+
+  @Test
   @DisplayName("rows 搜索覆盖 project key")
   void rowsSearchMatchesProjectKey() {
     WebCompositionRoot webRoot = createWebRoot();

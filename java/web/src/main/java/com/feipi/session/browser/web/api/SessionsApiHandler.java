@@ -37,7 +37,7 @@ public final class SessionsApiHandler {
 
   /** 处理 /api/sessions/summary 的 GET 请求。 */
   public void handleSummary(Context ctx) {
-    Map<String, String> params = ApiQueryParams.flat(ctx);
+    Map<String, String> params = QueryParams.sessionsPageParams(ApiQueryParams.flat(ctx));
     SessionListFilter filter = QueryParams.parseSessionListFilter(params);
     SessionListSummary summary = queryRoot.sessionList().summary(filter);
     ctx.json(
@@ -47,7 +47,7 @@ public final class SessionsApiHandler {
 
   /** 处理 /api/sessions/options 的 GET 请求。 */
   public void handleOptions(Context ctx) {
-    Map<String, String> params = ApiQueryParams.flat(ctx);
+    Map<String, String> params = QueryParams.sessionsPageParams(ApiQueryParams.flat(ctx));
     SessionListFilter filter = QueryParams.parseSessionListFilter(params);
     SessionListUseCase useCase = queryRoot.sessionList();
     List<SelectOptionDto> modelOptions =
@@ -68,7 +68,7 @@ public final class SessionsApiHandler {
 
   /** 处理 /api/sessions/rows 的 GET 请求。 */
   public void handleRows(Context ctx) {
-    Map<String, String> params = ApiQueryParams.flat(ctx);
+    Map<String, String> params = QueryParams.sessionsPageParams(ApiQueryParams.flat(ctx));
     SessionListFilter filter = QueryParams.parseSessionListFilter(params);
     SessionListUseCase.AnnotatedPageResult result =
         queryRoot.sessionList().listWithAnomalies(filter);
@@ -87,7 +87,7 @@ public final class SessionsApiHandler {
 
   /** 处理 /api/sessions/active-filters 的 GET 请求。 */
   public void handleActiveFilters(Context ctx) {
-    Map<String, String> params = ApiQueryParams.flat(ctx);
+    Map<String, String> params = QueryParams.sessionsPageParams(ApiQueryParams.flat(ctx));
     List<ActiveFilterDto> chips =
         Stream.of(
                 chip(

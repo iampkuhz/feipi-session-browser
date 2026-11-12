@@ -230,6 +230,7 @@ public final class SessionApiHandler {
           }
           var inputPreviews = new LinkedHashMap<String, String>();
           var assistantTexts = new LinkedHashMap<String, String>();
+          var previews = SessionContentPreviews.read(session.content());
           var policy = SensitiveFieldPolicy.fromVisibility(session.detail().visibility());
           var window =
               reader.calls(
@@ -237,14 +238,11 @@ public final class SessionApiHandler {
                   offset,
                   limit,
                   call -> {
-                    ToolInputContents.inline(call)
-                        .forEach(
-                            (id, input) ->
-                                inputPreviews.putIfAbsent(id, ToolInputPreview.from(input)));
-                    String preview = PayloadCallContentExtractor.inlinePreview(call, false, false);
+                    previews.toolInputs(call).forEach(inputPreviews::putIfAbsent);
+                    String preview = previews.text(call, false);
                     if (!preview.isEmpty())
                       assistantTexts.put(call.callId(), policy.applyMasking(preview));
-                    return callSummary(call);
+                    return callSummary(call, previews.timestamp(call));
                   });
           if (offset > window.total())
             throw new io.javalin.http.BadRequestResponse("cursor exceeds round total");
@@ -571,6 +569,10 @@ public final class SessionApiHandler {
 
   /** 从单个调用提取既有摘要字段，不保留来源单元或正文引用。 */
   private static CallSummary callSummary(NormalizedCall call) {
+    return callSummary(call, call.timestamp().orElse(""));
+  }
+
+  private static CallSummary callSummary(NormalizedCall call, String timestamp) {
     NormalizedCallUsage usage = call.usage();
     return new CallSummary(
         call.callId(),
@@ -587,7 +589,7 @@ public final class SessionApiHandler {
         call.scope().name().toLowerCase(),
         call.request().toolResultIds(),
         call.response().toolCallIds(),
-        call.timestamp().orElse(""),
+        timestamp,
         call.subagentId().orElse(""),
         call.parentCallId().orElse(""),
         call.parentToolCallId().orElse(""),

@@ -1,6 +1,6 @@
 # Sessions 页面规约
 
-- 列表 `Process Time` 改为 `Task Active`，`Duration` 明确为 `Wall Duration`；使用当前 row 的 typed `timing`，缺来源显示 `N/A`，不回退 legacy 数字。任务窗口非模型执行的说明常驻表格旁。
+- 列表仅保留 `Task Active`，不展示 `Wall Duration` 列；底层计时和其他页面不变。使用当前 row 的 typed `timing`，缺来源显示 `N/A`，不回退 legacy 数字。任务窗口非模型执行的说明常驻表格旁。
 
 - 总量 stat pill 与每行 Token Cell 遵循 `common.md` 的 `Token Measurement Provenance`；估算带 `≈`，缺来源/未上报不伪装成实测 0。
 
@@ -50,10 +50,11 @@ Sessions 是完整 session 检索和浏览页，负责让用户按 session、pro
 
 ### All Sessions 表格
 
-- 表格列固定为 `Session`、`Project`、`Agent`、`Model`、`Tokens`、`Rounds`、`Tools`、`Subagents`、`Wall Duration`、`Task Active`、`Failure`、`Created`、`Updated`。
-- `Session`：展示 session title、短 session id、git branch。
-  - 示例值：`Refine dashboard spec · a8120f1d · main`。
-  - title 为空时显示 `Untitled`。
+- 表格列固定为 `Session`、`Project`、`Agent`、`Model`、`Tokens`、`Rounds`、`Tools`、`Subagents`、`Task Active`、`Created`、`Updated`。
+- `Session`：主标题使用更大、更深的文字，最多两行；短 ID 与 branch 使用次级小字，不能抢占标题层级。
+  - 优先展示 API 的纯文本 `displayTitle`，缺该字段时使用 `title`；空白、只有当前 session ID / session key / 短 ID 或 UUID 的标题显示 `Untitled session`，保留次级 ID 区分会话。
+  - 过长标题两行截断，标题链接保留完整文本 tooltip 与可访问名称；过长 branch 单行截断并提供完整 tooltip，短 ID tooltip 保留完整 ID。
+  - 标题和整行仍可进入 Session Detail，不改标题搜索数据。
 - `Project`：展示 project name，tooltip 展示完整 cwd。
   - 示例值：`feipi-session-browser`。
 - `Agent`：展示标准 agent badge。
@@ -63,34 +64,31 @@ Sessions 是完整 session 检索和浏览页，负责让用户按 session、pro
   - 过长时截断并提供 tooltip。
 - `Tokens`：使用通用 `Token Cell`，展示 total tokens。
   - 示例值：`184k`。
-  - hover/focus tooltip 使用 `common.md` 的 `Chart Tooltip` 布局。
-- `Rounds`：展示 assistant round 数。
+  - hover/键盘 focus 弹框仅展示 Fresh input、Cache read、Cache write、Output 四行，每行类别、独立占比条、数量、占比同排并对齐；不重复放大总量堆叠条或独立 `Shown total` 行。
+  - 占比仍以单元格当前所示总量为分母，已知零显示 `0.0%`，未知不画占比、不伪装为零；保留测量来源、估算和未知说明。Enter 可打开，Escape 可关闭。
+- `Rounds`：仅简化标题，保留现有 logical groups / observed model call boundaries / partial / unknown 口径及排序。
   - 示例值：`18`。
-- `Tools`：展示 tool call 数。
-  - 示例值：`42`。
+- `Tools`：合并 tool call 总数和失败数，按 tool call 总数排序，不按失败数排序。
+  - 已知 100 次调用、5 次失败显示 `100(5)`；已知无失败仅显示 `100`。
+  - 失败数未知显示 `100(?)`，总数也未知显示 `—(?)`；仅失败数已知时可显示 `—(5)`。tooltip 和可访问名称明确说明各自未知状态，不将未知当 0。
 - `Subagents`：展示 subagent call 数。
   - 示例值：`2`。
   - 来源字段缺失时显示 `N/A` 并在 tooltip 说明来源缺失。
-- `Duration`：展示通用时间指标 `Duration`。
-  - 示例值：`36m`。
-  - tooltip 展示 created timestamp、最后可见输出 timestamp、fallback 状态。
 - `Task Active`：展示 typed MAIN source task-window union，缺测显示 `N/A`；不是模型执行。
   - 示例值：`9m 42s`。
-  - tooltip 展示主动处理耗时合计和被排除的等待时长。
-- `Failure`：展示 failed tool result 数量。
-  - 示例值：`3 failed`。
-  - 没有失败时显示 `No failures`。
+  - 存在可定位主任务窗口，同时存在不完整或无法配对任务时，保留 `Partial` 按钮；点击或键盘 Enter/Space 可查看含义，Escape 关闭说明，不能触发行跳转。
+  - Partial 值只覆盖可定位的主任务窗口，重叠部分只计一次，包含窗口内 tools/waits；不是完整会话耗时或模型推理时间。无可用窗口是 `N/A`，不显示 Partial。
 - `Created`：展示通用时间指标 `Created`。
   - 示例值：`2026-06-06 10:24`。
 - `Updated`：展示通用时间指标 `Updated`。
-  - 示例值：`2 min ago`。
+  - 相对时间按秒、分钟、小时、天选择单位，固定一位小数，例如 `12.5s ago`、`2.5m ago`、`1.3h ago`、`2.5d ago`；tooltip 保留原始时间戳。排序仍使用原始时间戳。
 
 ## 交互逻辑
 
 - 输入搜索后防抖更新结果，URL 保留 `q`。
 - 修改过滤器后结果更新，URL 保留对应过滤参数。
 - Active filter 的单项移除只删除该过滤条件，不清空其它条件。
-- 可排序列固定为 `Tokens`、`Rounds`、`Tools`、`Subagents`、`Wall Duration`、`Task Active`、`Failure`、`Created`、`Updated`。
+- 可排序列固定为 `Tokens`、`Rounds`、`Tools`、`Subagents`、`Task Active`、`Created`、`Updated`。Sessions 页面和资源 API 对手工传入的 `sort=failure` / `sort=duration` 回退到 Updated 降序，不影响 Project Detail 的排序。
 - 默认排序固定为 `Updated` 降序。
 - 点击可排序表头切换升序/降序，并保留搜索、过滤和 page size。
 - 翻页保留搜索、过滤、排序和 page size。
@@ -98,7 +96,18 @@ Sessions 是完整 session 检索和浏览页，负责让用户按 session、pro
 - Session Detail 首屏必须优先返回 Hero KPI、诊断卡和 Trace 摘要行；重型 round detail、payload 和 attribution 内容按需加载，避免从列表页进入详情页时长时间停留在列表页。
 - 点击 Project 列链接进入 Project Detail。
 - 行内复制按钮只复制目标值，不触发行跳转。
-- `Tokenbar` hover 使用 `common.md` 的 `Chart Tooltip` 布局展示四类 token 数量、占比和总量。
+- `Tokenbar` hover/focus 使用本页紧凑明细布局；列表单元格仍保留总量和缩略堆叠条，其他页面的 Token Cell 不变。
+
+### 合成示例：标题优化前后
+
+以下均为合成数据，不来自真实 session。
+
+| 场景 | 优化前 | 优化后 |
+| --- | --- | --- |
+| 长标题 | `修复合成订单服务的缓存失效与重复扣款，并补充…` 单行截断 | 主标题最多两行，完整标题可聚焦/悬浮查看；`synthetic-0 · feature/synthetic-checkout-cache-regression` 为次级信息 |
+| 短标题 | `Add synthetic checkout validation` 与辅助信息层级接近 | 深色 14px 主标题；`synthetic-1 · main` 使用更小的次级字 |
+| 仅 ID | 主标题 `synthetic-2`，下方再次显示 ID | 主标题 `Untitled session`，下方保留 `synthetic-2` |
+| 标题缺失 | 用 session ID 充当标题 | 主标题 `Untitled session`，仍可通过次级 ID、项目、时间与详情入口辨识 |
 
 ## 状态
 
@@ -112,3 +121,5 @@ Sessions 是完整 session 检索和浏览页，负责让用户按 session、pro
 - 不出现 Dense、Comfortable、Columns、Export、Keyboard shortcuts。
 - Token cell 内不出现多行 legend 和无意义 `tokens` 文案。
 - 不隐藏核心列来换取视觉留白。
+
+- Token bar 使用共享分列弹框（见 `common.md`），不再维护 Sessions 专属进度轨道布局；保持当前列表总量分母和来源状态。

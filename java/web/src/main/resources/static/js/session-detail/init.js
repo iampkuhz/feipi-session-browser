@@ -1,108 +1,7 @@
-  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Token tooltip dynamic positioning ──` */
+  var sessionDetailState = { diagnosticsParity: null, rounds: [], maxRoundTokens: 0 };
 
-  var TOOLTIP_FLIP_THRESHOLD = 180; // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`px from bottom of viewport to trigger flip`
-  var sessionDetailState = {
-    diagnosticsParity: null,
-    rounds: [],
-    maxRoundTokens: 0
-  };
-
-  function positionTokenTooltip(tokenbar) {
-    var tooltip = qs(tokenbar, '.token-tooltip');
-    if (!tooltip) return;
-    var rect = tokenbar.getBoundingClientRect();
-    var vpBottom = window.innerHeight || document.documentElement.clientHeight;
-    var spaceBelow = vpBottom - rect.bottom;
-    var shouldFlip = spaceBelow < TOOLTIP_FLIP_THRESHOLD;
-    tooltip.classList.toggle('token-tooltip--flip', shouldFlip);
-  }
-
-  function setupTokenTooltips() {
-    qsa(document, '.tokenbar-wrap, .sd-sub-tokenbar').forEach(function (bar) {
-      bar.addEventListener('mouseenter', function () {
-        positionTokenTooltip(bar);
-      });
-      bar.addEventListener('focusin', function () {
-        positionTokenTooltip(bar);
-      });
-    });
-  }
-
-  function positionTokenRoundTooltip(round, event) {
-    var tooltip = qs(round, '.sd-token-round-tooltip');
-    if (!tooltip) return;
-
-    if (tooltip.getAttribute('data-positioned') !== 'true') {
-      tooltip.removeAttribute('data-positioned');
-      tooltip.style.removeProperty('--token-round-tooltip-left');
-      tooltip.style.removeProperty('--token-round-tooltip-top');
-    }
-    window.requestAnimationFrame(function () {
-      var roundRect = round.getBoundingClientRect();
-      var viewportWidth = window.innerWidth || document.documentElement.clientWidth;
-      var viewportHeight = window.innerHeight || document.documentElement.clientHeight;
-      var viewportMargin = 8;
-      var pointerGap = 12;
-      var tooltipWidth = tooltip.offsetWidth || 260;
-      var tooltipHeight = tooltip.offsetHeight || tooltip.getBoundingClientRect().height;
-      var pointerX = event && typeof event.clientX === 'number'
-        ? event.clientX
-        : roundRect.left + (roundRect.width / 2);
-      var pointerY = event && typeof event.clientY === 'number'
-        ? event.clientY
-        : roundRect.top;
-      var spaceLeft = pointerX - viewportMargin;
-      var spaceRight = viewportWidth - viewportMargin - pointerX;
-      var shouldOpenRight = spaceRight >= spaceLeft;
-      var targetLeft = shouldOpenRight
-        ? pointerX + pointerGap
-        : pointerX - tooltipWidth - pointerGap;
-      var minLeft = viewportMargin;
-      var maxLeft = viewportWidth - viewportMargin - tooltipWidth;
-      if (maxLeft >= minLeft) {
-        targetLeft = Math.min(Math.max(targetLeft, minLeft), maxLeft);
-      }
-      var targetTop = pointerY - tooltipHeight - pointerGap;
-      var minTop = viewportMargin;
-      var maxTop = viewportHeight - viewportMargin - tooltipHeight;
-      if (maxTop >= minTop) targetTop = Math.min(Math.max(targetTop, minTop), maxTop);
-      else targetTop = minTop;
-      tooltip.style.setProperty(
-        '--token-round-tooltip-left',
-        Math.round(targetLeft) + 'px'
-      );
-      tooltip.style.setProperty('--token-round-tooltip-top', Math.round(targetTop) + 'px');
-      tooltip.setAttribute('data-positioned', 'true');
-    });
-  }
-
-  function resetTokenRoundTooltip(round) {
-    var tooltip = qs(round, '.sd-token-round-tooltip');
-    if (!tooltip) return;
-    tooltip.removeAttribute('data-positioned');
-    tooltip.style.removeProperty('--token-round-tooltip-left');
-    tooltip.style.removeProperty('--token-round-tooltip-top');
-  }
-
-  function setupTokenRoundTooltips() {
-    qsa(document, '.sd-token-round').forEach(function (round) {
-      round.addEventListener('mouseenter', function (event) {
-        positionTokenRoundTooltip(round, event);
-      });
-      round.addEventListener('mousemove', function (event) {
-        positionTokenRoundTooltip(round, event);
-      });
-      round.addEventListener('focusin', function () {
-        positionTokenRoundTooltip(round);
-      });
-      round.addEventListener('mouseleave', function () {
-        resetTokenRoundTooltip(round);
-      });
-      round.addEventListener('focusout', function () {
-        resetTokenRoundTooltip(round);
-      });
-    });
-  }
+  function setupTokenTooltips() { TokenProvenance.bindTooltips(document); }
+  function setupTokenRoundTooltips() { TokenProvenance.bindTooltips(document); }
 
   function hydrateSessionDetailApis() {
     if (!window.fetch || typeof getApiBase !== 'function') return;
@@ -182,10 +81,16 @@
     return fetch(url, { headers: headers, cache: 'no-store' }).then(function (response) {
       var current = document.body.getAttribute('data-index-generation') || '';
       var actual = response.headers.get('X-Session-Index-Generation') || '';
-      if (current !== expected || response.status === 409 || (expected && expected !== 'legacy' && actual !== expected)) {
+      if (current !== expected || response.status === 409 || (actual && expected && expected !== 'legacy' && actual !== expected)) {
         throw new Error('Index changed; refresh the page before continuing');
       }
-      if (!response.ok) throw new Error('HTTP ' + response.status);
+      // An error handler may omit snapshot headers. A server failure is not evidence of a new index.
+      if (!response.ok) {
+        return response.json().catch(function () { return {}; }).then(function (data) {
+          throw new Error('HTTP ' + response.status + (data.message ? ': ' + data.message : ''));
+        });
+      }
+      if (expected && expected !== 'legacy' && !actual) throw new Error('索引校验信息缺失，请重试；持续失败时刷新页面');
       return response.json();
     }).then(function (data) {
       if ((document.body.getAttribute('data-index-generation') || '') !== expected) throw new Error('Index changed; refresh the page before continuing');
@@ -196,10 +101,13 @@
   function contentPager(target, section, loaded, total, cursor, load, existing) {
     var pager = existing || document.createElement('div');
     pager.setAttribute('data-content-pagination', section);
+    pager.dataset.loaded = String(loaded);
+    pager.dataset.total = String(total);
+    pager.dataset.hasMore = String(Boolean(cursor));
     pager.replaceChildren();
     var label = document.createElement('span');
-    var sectionLabel = { rounds: 'Rounds', 'round-members': 'Round records', 'round-tools': 'Tools in this member page' }[section] || section;
-    label.textContent = sectionLabel + ': ' + loaded + ' / ' + total + ' loaded. ';
+    var sectionLabel = { rounds: '轮次', 'round-members': '调用记录', 'round-tools': '当前页工具' }[section] || section;
+    label.textContent = sectionLabel + ' · 已显示 ' + loaded + ' / ' + total + ' ';
     pager.appendChild(label);
     if (cursor) {
       var button = document.createElement('button');
@@ -281,6 +189,11 @@
   }
 
   function showSessionResourceError(name, err, retry) {
+    if (name === 'meta') {
+      setText('[data-session-file-text]', '会话文件信息加载失败；请重试');
+      var copyFile = qs(document, '[data-session-file-path] [data-action="copy"]');
+      if (copyFile) copyFile.hidden = true;
+    }
     var selectors = {
       meta: '[data-session-hero] h1, [data-session-meta-chips], [data-session-updated]',
       metrics: '[data-session-metrics-shell] .sd-kpi:not([aria-label="Run Health"]) .sd-kpi__value, [data-session-metrics-shell] .sd-kpi:not([aria-label="Run Health"]) .sd-kpi__subgrid',
@@ -347,12 +260,15 @@
     var fileRow = qs(document, '[data-session-file-path]');
     var fileText = qs(document, '[data-session-file-text]');
     var sessionFilePath = parity.sessionFilePath || meta.sessionFilePath || '';
-    if (fileRow && fileText && sessionFilePath) {
+    if (fileRow && fileText) {
       fileRow.hidden = false;
-      fileText.textContent = sessionFilePath;
+      fileText.textContent = sessionFilePath || '来源未提供可展示的会话文件路径';
       fileText.title = sessionFilePath;
       var copy = fileRow.querySelector('[data-action="copy"]');
-      if (copy) copy.setAttribute('data-copy-text', sessionFilePath);
+      if (copy) {
+        copy.hidden = !sessionFilePath;
+        copy.setAttribute('data-copy-text', sessionFilePath);
+      }
     }
     var chips = qs(document, '[data-session-meta-chips]');
     if (chips) {
@@ -416,7 +332,7 @@
     var parity = diagnostics.parity || {};
     var hasContent = hasSessionContent();
     var count = Number(parity.issueRounds || diagnostics.anomalyCount || 0);
-    setKpi('Run Health', !hasContent ? 'Unknown' : (count > 0 ? 'Issue signals detected' : 'No issue signals detected'), [
+    setKpi('Run Health', !hasContent ? '未知' : (count > 0 ? '发现问题信号' : '未发现问题信号'), [
       subline('Issue rows', hasContent ? formatNumber(count) : 'N/A'),
       hasContent ? rateSubline('Failed Tools', parity.failedTools || 0, parity.failedToolsTotal || parity.toolCalls || (parity.toolImpact && parity.toolImpact.allToolCalls) || 0, parity.failedToolsRate) : subline('Failed Tools', 'N/A'),
       subline('Payload Gaps', hasContent && typeof parity.payloadGaps === 'number' ? formatNumber(parity.payloadGaps) : 'N/A'),
@@ -429,7 +345,7 @@
       strip.replaceChildren();
       var title = document.createElement('span');
       title.className = 'sd-issue-title';
-      title.textContent = !hasContent ? 'Unknown · No round content available' : (count > 0 ? 'Issue Signals' : 'No issue signals detected');
+      title.textContent = !hasContent ? '未知 · 无可用轮次内容' : (count > 0 ? '问题线索' : '未发现问题信号');
       strip.appendChild(title);
       (parity.issueStrip || []).forEach(function (issue) {
         var button = document.createElement('button');
@@ -511,7 +427,7 @@
     var visualStatus = hasIssues ? 'failed' : (isUserInput ? 'user' : (round.status || 'ok'));
     var summary = String(parity.summary || '').trim();
     if (summary === 'Round ' + round.roundIndex || summary === '内容未记录') summary = '';
-    var summaryRole = { user: '用户', assistant: '助手' }[parity.summaryRole] || '';
+    var summaryRole = { user: '用户', assistant: '助手', tool: '工具' }[parity.summaryRole] || '';
     var label = (parity.modelCallEvidence ? 'R' : 'G') + round.roundIndex;
     var target = round.callCount === 1 ? '/attribution/' + round.roundIndex + '/1/' : '';
     var actions = round.callCount > 0 ? [
@@ -519,7 +435,9 @@
       contentPayloadButton('round:req:' + round.roundIndex, 'llm_request', label + ' · Request', 'Request', target && target + 'request'),
       contentPayloadButton('round:resp:' + round.roundIndex, 'llm_response', label + ' · Response', 'Response', target && target + 'response'),
       '</span>'
-    ].join('') : '<span class="muted">未记录调用</span>';
+    ].join('') : isUserInput && parity.observedInputAvailable
+      ? contentPayloadButton('round:req:' + round.roundIndex, 'llm_request', label + ' · 用户输入', 'Input', '')
+      : '<span class="muted">未记录调用</span>';
     tr.className = 'round-row sd-trace-round-row' + (isUserInput ? ' sd-user-round' : '') + (hasIssues ? ' sd-failed-round' : '');
     tr.setAttribute('data-trace-round-row', '');
     tr.setAttribute('data-round', String(round.roundIndex));
@@ -527,6 +445,7 @@
     tr.setAttribute('data-round-status', round.status || '');
     tr.setAttribute('data-has-issues', hasIssues ? 'true' : 'false');
     tr.setAttribute('data-is-user-input', isUserInput ? 'true' : 'false');
+    tr.setAttribute('data-observed-input-available', parity.observedInputAvailable ? 'true' : 'false');
     tr.setAttribute('data-is-low-cache', isLowCache ? 'true' : 'false');
     tr.setAttribute('data-is-fresh-spike', parity.isFreshSpike ? 'true' : 'false');
     tr.setAttribute('data-detail-loaded', 'false');
@@ -537,7 +456,7 @@
       '<td class="summary-col">', summaryRole ? '<span class="summary-role">' + summaryRole + '</span>' : '',
       '<span class="summary-title', summary ? '' : ' summary-title--missing', '"', summary ? ' title="' + escapeHtml(summary) + '"' : '',
       '>', escapeHtml(summary || '摘要未记录'), '</span></td>',
-      '<td class="metrics-col mono"><div class="metric-cell"><span class="metric-calls-tools"><span>', formatNumber(round.callCount), ' records</span><span>', formatNumber(round.toolCallCount), ' tools</span></span>', tokenbarHtml(tokens, maxRoundTokens), '</div></td>',
+      '<td class="metrics-col mono"><div class="metric-cell"><span class="metric-calls-tools" title="本地归一化调用记录数，不代表独立 provider 请求；工具仅计当前调用声明的执行，不重复计算消费的历史结果"><span>', formatNumber(round.callCount), ' records</span><span>', formatNumber(round.toolCallCount), ' tools</span></span>', tokenbarHtml(tokens, maxRoundTokens), '</div></td>',
       '<td class="attribution-col">', actions, '</td>',
       '<td class="status-col">', statusBadges(round, hasIssues, isLowCache), '</td>',
       '<td class="time-col"><span class="round-time">', escapeHtml(parity.time || '未记录'), '</span></td>'
@@ -550,7 +469,7 @@
     var root = qs(document, '[data-session-diagnostics]');
     if (!root || !parity) return;
     if (!hasSessionContent()) {
-      setMarkup(root, '<article class="sd-diagnostic-card sd-diagnostic-card--wide"><header class="sd-diagnostic-card__head"><h2>Content evidence unavailable</h2><span>Unknown</span></header><div class="sd-diagnostic-card__body"><div class="sd-card-empty">No round content is available. Agent, tool and failure counts are N/A, not measured zero.</div></div></article>');
+      setMarkup(root, '<article class="sd-diagnostic-card sd-diagnostic-card--wide"><header class="sd-diagnostic-card__head"><h2>内容证据不可用</h2><span>未知</span></header><div class="sd-diagnostic-card__body"><div class="sd-card-empty">无可用轮次内容。Agent、工具及失败次数均为 N/A，不代表实测为零。</div></div></article>');
       return;
     }
     var agents = parity.agents || [];
@@ -563,20 +482,24 @@
       + '<header class="sd-diagnostic-card__head"><h2>Agents Breakdown</h2><span>' + formatNumber(agents.length) + ' agents</span></header>'
       + '<div class="sd-diagnostic-card__body">' + agentsTableHtml(agents) + '</div></article>'
       + '<article class="sd-diagnostic-card sd-diagnostic-card--context">'
-      + '<header class="sd-diagnostic-card__head"><h2>Context Budget</h2><span>Session-level</span></header>'
-      + '<div class="sd-diagnostic-card__body">' + contextBudgetHtml(contextSegments) + '</div></article>'
-      + '<article class="sd-diagnostic-card">'
-      + '<header class="sd-diagnostic-card__head"><h2>Tool Impact</h2><span>' + formatNumber(toolImpact.allToolCalls || 0) + ' calls</span></header>'
-      + '<div class="sd-diagnostic-card__body">' + toolImpactHtml(toolImpact) + '</div></article>'
-      + '<article class="sd-diagnostic-card">'
-      + '<header class="sd-diagnostic-card__head"><h2>Issues &amp; Repro Seeds</h2><span>' + formatNumber(parity.issueCount || issues.length || 0) + ' issues</span></header>'
-      + '<div class="sd-diagnostic-card__body">' + issuesHtml(issuePreview) + '</div></article>';
+      + '<header class="sd-diagnostic-card__head"><h2>Context Budget</h2><span>会话级构成</span></header>'
+      + '<div class="sd-diagnostic-card__body">' + (parity.contextSegmentsAvailable === false ? diagnosticUnavailable('当前内容未提供可验证的上下文预算分解') : contextBudgetHtml(contextSegments)) + '</div></article>'
+      + '<details class="sd-diagnostic-card sd-diagnostic-details" data-tool-impact>'
+      + '<summary class="sd-diagnostic-card__head"><h2>Tool Impact</h2><span>' + (parity.toolImpactAvailable === false ? '未测量' : formatNumber(toolImpact.allToolCalls || 0) + ' 次调用') + ' · 按需查看</span></summary>'
+      + '<div class="sd-diagnostic-card__body">' + (parity.toolImpactAvailable === false ? diagnosticUnavailable('工具影响尚未分析；不代表没有工具调用') : toolImpactHtml(toolImpact)) + '</div></details>'
+      + '<details class="sd-diagnostic-card sd-diagnostic-details" data-issue-details' + (issues.length ? ' open' : '') + '>'
+      + '<summary class="sd-diagnostic-card__head"><h2>Issues &amp; Repro Seeds</h2><span>' + (parity.issuesAvailable === false ? '未测量' : formatNumber(parity.issueCount || issues.length || 0) + ' 条线索') + '</span></summary>'
+      + '<div class="sd-diagnostic-card__body">' + (parity.issuesAvailable === false ? diagnosticUnavailable('诊断种子尚未分析；不代表没有问题') : issuesHtml(issuePreview)) + '</div></details>';
     setMarkup(root, html);
     setupTokenRoundTooltips();
   }
 
+  function diagnosticUnavailable(message) {
+    return '<div class="sd-card-empty" data-evidence-state="unavailable">' + escapeHtml(message) + '</div>';
+  }
+
   function agentsTableHtml(agents) {
-    if (!agents.length) return '<div class="sd-card-empty">No agent runs indexed</div>';
+    if (!agents.length) return '<div class="sd-card-empty">未记录 Agent 运行</div>';
     var rows = agents.map(function (row, idx) {
       var active = idx === 0 ? ' is-active' : '';
       var scope = row.scope || (idx === 0 ? 'main' : 'subagent');
@@ -600,7 +523,7 @@
         + escapeHtml(row.sessionIdDisplay || '—') + '</span> <button type="button" class="sd-subagent-copy-btn" data-action="copy" data-copy-text="'
         + escapeHtml(row.sessionId || '') + '" aria-label="Copy session id" title="Copy full session id">Copy</button></td>'
         + '<td title="' + (scope === 'main' ? 'Main agent LLM calls' : 'Subagent internal LLM calls') + '">' + formatNumber(row.llmCalls) + ' LLM</td>'
-        + '<td>' + escapeHtml(diagnosticAgentTokens(row)) + '</td>'
+        + '<td><span tabindex="0" data-token-breakdown="' + escapeHtml(JSON.stringify({ tokens: row.tokenSegments || (typeof row.tokens === 'object' ? row.tokens : {}), providerOnly: true })) + '">' + escapeHtml(diagnosticAgentTokens(row)) + '</span></td>'
         + '<td>' + formatNumber(row.tools) + ' tools</td>'
         + '<td><b class="sd-rate' + rateClass + '">' + escapeHtml(failureLabel) + '</b></td>'
         + '</tr>';
@@ -619,7 +542,7 @@
     var active = idx === 0;
     var timeline = scope === 'main'
       ? tokenRoundChartHtml(sessionDetailState.rounds, agent.agent || 'main agent')
-      : '<div class="sd-card-empty">Subagent round timeline is loaded through Trace subagent details.</div>';
+      : '<div class="sd-card-empty">子 agent 的轮次信息可在 Trace 子任务详情中按需查看。</div>';
     return '<section class="sd-subagent-timeline' + (active ? ' is-active' : '') + '" data-subagent-timeline-panel data-subagent="'
       + escapeHtml(subagentId) + '" data-agent-scope="' + escapeHtml(scope) + '"' + (active ? '' : ' hidden') + '>'
       + '<div class="sd-subagent-timeline__head"><div><b>' + escapeHtml(agent.agent || 'agent') + '</b><span>'
@@ -645,8 +568,8 @@
   function tokenRoundChartHtml(rounds, label) {
     if (!rounds || !rounds.length) {
       return '<div class="sd-card-empty">' + (sessionDetailState.roundsLoaded
-        ? 'No normalized rounds available. The source log may be missing.'
-        : 'Round timeline is loading from /rounds API.') + '</div>';
+        ? '没有可用的归一化轮次，来源日志可能缺失。'
+        : '正在加载轮次时间线。') + '</div>';
     }
     var maxTotal = Math.max(1, sessionDetailState.maxRoundTokens || 1);
     var plotWidth = Math.max(320, rounds.length * 32 + 44);
@@ -674,27 +597,17 @@
       if (round.status === 'failed' || parity.hasIssues) tags.push('issue');
       if (TokenProvenance.measuredInput(tokens) && parity.isLowCache) tags.push('low cache');
       if (parity.isFreshSpike) tags.push('fresh spike');
-      return '<button type="button" class="sd-token-round" data-action="jump-round" data-round="' + escapeHtml(round.roundIndex) + '" aria-label="R' + escapeHtml(round.roundIndex) + ' token timeline">'
+      return '<button type="button" class="sd-token-round" data-action="jump-round" data-round="' + escapeHtml(round.roundIndex) + '" aria-label="R' + escapeHtml(round.roundIndex) + ' token timeline" data-token-breakdown="' + escapeHtml(JSON.stringify({ tokens: tokens, title: 'R' + round.roundIndex + ' · ' + (parity.time || '未记录'), ratio: true, providerOnly: true, navigate: true, scale: tags.length ? '诊断信号：' + tags.join(', ') : '' })) + '">'
         + '<span class="sd-token-round__bar" aria-label="R' + escapeHtml(round.roundIndex) + '" style="--bar-height-px:' + height.toFixed(1) + 'px">'
         + '<span class="sd-token-round__seg sd-token-round__seg--fresh" style="--seg-height:' + fresh + '%"></span>'
         + '<span class="sd-token-round__seg sd-token-round__seg--read" style="--seg-height:' + read + '%"></span>'
         + '<span class="sd-token-round__seg sd-token-round__seg--write" style="--seg-height:' + write + '%"></span>'
         + '<span class="sd-token-round__seg sd-token-round__seg--out" style="--seg-height:' + out + '%"></span></span>'
-        + '<span class="sd-token-round-tooltip" role="tooltip"><b>R' + escapeHtml(round.roundIndex) + ' · ' + escapeHtml(parity.time || '未记录') + '</b>'
-        + '<div>Token shares below use Total, including Output.</div>'
-        + '<span><i class="sd-tooltip-mark sd-tooltip-mark--fresh"></i><small>Fresh</small><em>' + escapeHtml(TokenProvenance.value(tokens, 'fresh', formatSessionCompact)) + '</em><strong>' + measuredShare(tokens, fresh) + '</strong></span>'
-        + '<span><i class="sd-tooltip-mark sd-tooltip-mark--read"></i><small>Cache Read</small><em>' + escapeHtml(TokenProvenance.value(tokens, 'cacheRead', formatSessionCompact)) + '</em><strong>' + measuredShare(tokens, read) + '</strong></span>'
-        + '<span><i class="sd-tooltip-mark sd-tooltip-mark--write"></i><small>Cache Write</small><em>' + escapeHtml(TokenProvenance.value(tokens, 'cacheWrite', formatSessionCompact)) + '</em><strong>' + measuredShare(tokens, write) + '</strong></span>'
-        + '<span><i class="sd-tooltip-mark sd-tooltip-mark--out"></i><small>Output</small><em>' + escapeHtml(TokenProvenance.value(tokens, 'output', formatSessionCompact)) + '</em><strong>' + measuredShare(tokens, out) + '</strong></span>'
-        + '<span class="sd-token-round-tooltip__total"><i></i><small>Total</small><em>' + escapeHtml(TokenProvenance.total(tokens, formatSessionCompact)) + '</em><strong>' + measuredShare(tokens, total > 0 ? 100 : 0) + '</strong></span>'
-        + '<span class="sd-token-round-tooltip__tags"><i class="sd-tooltip-mark sd-tooltip-mark--line"></i><small>Cache Read / Input</small><em>' + escapeHtml(TokenProvenance.ratio(tokens)) + '</em></span>'
-        + '<div>' + escapeHtml(TokenProvenance.note(tokens)) + '</div>'
-        + (tags.length ? '<span class="sd-token-round-tooltip__tags"><i class="sd-tooltip-mark sd-tooltip-mark--spike"></i><small>Badge Text</small><em>' + escapeHtml(tags.join(', ')) + '</em></span>' : '')
-        + '</span><span class="sd-token-round__signal-slot" aria-hidden="true">' + (tags.length ? '<span class="sd-token-round__spike"></span>' : '') + '</span>'
+        + '<span class="sd-token-round__signal-slot" aria-hidden="true">' + (tags.length ? '<span class="sd-token-round__spike"></span>' : '') + '</span>'
         + '<span class="sd-token-round__label">R' + escapeHtml(round.roundIndex) + '</span></button>';
     }).join('');
-    return '<div><small><i class="sd-tooltip-mark sd-tooltip-mark--line" aria-hidden="true"></i> Black line: Cache Read / Input (0–100%, excludes Output). Bars: token totals.</small></div>'
-      + '<div><small>Only provider-reported input forms the ratio. Not reported / Unknown / Estimated: N/A, not 0%.</small></div>'
+    return '<div><small><i class="sd-tooltip-mark sd-tooltip-mark--line" aria-hidden="true"></i> 黑线：Cache Read / Input（0–100%，不含 Output）；柱形：各轮 Token 总量。</small></div>'
+      + '<div><small>缓存比例仅使用完整的服务商上报输入；未上报、来源未知或估算输入显示 N/A，不是 0%。</small></div>'
       + '<div class="sd-token-round-chart" aria-label="' + escapeHtml(label || 'agent') + ' token composition">'
       + '<div class="sd-token-round-plot" style="--plot-width:' + plotWidth + 'px; --ratio-line-left:22px; --ratio-line-width:' + Math.max(0, plotWidth - 44) + 'px">'
       + '<svg class="sd-token-ratio-line" viewBox="0 0 ' + Math.max(1, plotWidth - 44) + ' 100" preserveAspectRatio="none" aria-label="Agent cache read ratio line">'
@@ -702,17 +615,17 @@
   }
 
   function contextBudgetHtml(segments) {
-    if (!segments.length) return '<div class="sd-card-empty">No context budget available</div>';
+    if (!segments.length) return '<div class="sd-card-empty">暂无可用的上下文构成</div>';
     function measurement(segment) {
       var precision = segment.precision || 'unknown';
       var numeric = typeof segment.tokens === 'number' && Number.isFinite(segment.tokens) && segment.tokens >= 0;
       var observed = numeric ? formatSessionCompact(segment.tokens) : (segment.tokensLabel || 'N/A');
-      var tokens = 'N/A · Unknown';
-      if (precision === 'provider_reported') tokens = observed + ' · Provider reported';
-      else if (precision === 'estimated') tokens = '≈' + observed.replace(/^[~≈]/, '') + ' · Estimated';
-      else if (precision === 'unavailable') tokens = 'Not reported';
-      else if (precision === 'mixed') tokens = (numeric && segment.tokens > 0 ? observed : 'N/A') + ' · Partial';
-      else if ((numeric && segment.tokens > 0) || (!numeric && observed !== '0' && observed !== 'N/A')) tokens = observed + ' · Unknown';
+      var tokens = 'N/A · 来源未知';
+      if (precision === 'provider_reported') tokens = observed + ' · 服务商上报';
+      else if (precision === 'estimated') tokens = '≈' + observed.replace(/^[~≈]/, '') + ' · 本地估算';
+      else if (precision === 'unavailable') tokens = '未上报';
+      else if (precision === 'mixed') tokens = (numeric && segment.tokens > 0 ? observed : 'N/A') + ' · 部分数据';
+      else if ((numeric && segment.tokens > 0) || (!numeric && observed !== '0' && observed !== 'N/A')) tokens = observed + ' · 来源未知';
       var known = ['provider_reported', 'estimated', 'mixed'].indexOf(precision) !== -1;
       var available = segment.includedInUsage === true && known
         && ['available', 'partial'].indexOf(segment.shareStatus) !== -1
@@ -721,16 +634,16 @@
       var share = 'N/A';
       if (available) {
         var partial = segment.shareStatus === 'partial' || precision !== 'provider_reported';
-        share = (partial ? '≈' : '') + String(Math.round(segment.shareValue * 10) / 10) + '%' + (partial ? ' · Partial' : '');
+        share = (partial ? '≈' : '') + String(Math.round(segment.shareValue * 10) / 10) + '%' + (partial ? ' · 部分数据' : '');
       }
-      if (segment.includedInUsage === false) share = 'N/A · Not in usage';
-      else if (segment.includedInUsage !== true) share = 'N/A · Usage inclusion unknown';
+      if (segment.includedInUsage === false) share = 'N/A · 不计入构成';
+      else if (segment.includedInUsage !== true) share = 'N/A · 是否纳入构成未知';
       return { tokens: tokens, share: share, available: available };
     }
     var bars = segments.map(function (segment, idx) {
       var measured = measurement(segment);
       if (!measured.available) return '';
-      return '<span class="sd-context-segment sd-context-segment--' + (idx + 1) + ' sd-context-segment--' + escapeHtml(segment.status || 'available')
+      return '<span title="' + escapeHtml((segment.label || '') + ' · ' + measured.tokens + ' · ' + measured.share) + '" class="sd-context-segment sd-context-segment--' + (idx + 1) + ' sd-context-segment--' + escapeHtml(segment.status || 'available')
         + '" style="--seg-width:' + escapeHtml(segment.shareValue) + '%"><span class="sd-context-segment__label">'
         + escapeHtml(segment.label || '') + '</span><span class="sd-context-segment__pct">' + escapeHtml(measured.share) + '</span></span>';
     }).join('');
@@ -741,42 +654,38 @@
         + escapeHtml(measured.tokens) + '<br>' + escapeHtml(measured.share) + '</b></div>';
     }).join('');
     return '<div class="sd-context-segmented" aria-label="Context budget segmented bar">' + bars + '</div>'
-      + '<div class="sd-context-note" aria-label="Context budget measurements">' + legend + '</div>'
-      + '<div class="sd-context-note">Usage composition includes only explicitly included segments with available shares. Partial shares are approximate, not provider-exact. Unknown or unavailable measurements are not 0%; tool results are local estimates outside usage composition.</div>';
-  }
-
-  function measuredShare(tokens, share) {
-    return TokenProvenance.state(tokens) === 'provider_reported' ? share + '%' : 'N/A';
+      + '<div class="sd-context-budget" aria-label="Context budget measurements">' + legend + '</div>'
+      + '<div class="sd-context-note">仅明确纳入且占比可用的分段参与构成；部分数据（Partial）的占比为近似值，并非服务商精确统计。未知、未上报或不可用不等于 0%；Tool Results 是构成之外的本地估算。</div>';
   }
 
   function toolImpactHtml(toolImpact) {
     var rows = toolImpact.rows || [];
-    if (!rows.length && !Number(toolImpact.allToolCalls || 0)) return '<div class="sd-card-empty">No tool calls indexed</div>';
+    if (!rows.length && !Number(toolImpact.allToolCalls || 0)) return '<div class="sd-card-empty">未记录工具调用</div>';
     var body = rows.map(function (row) {
       var rowTone = rateTone(row.failures, row.calls);
       return '<tr title="' + escapeHtml(row.splitNote || '') + '"><td>' + escapeHtml(row.tool || 'tool') + '</td><td>'
-        + formatNumber(row.calls) + '</td><td>' + escapeHtml(row.tokens || '0') + '</td><td><span class="sd-rate sd-rate--' + rowTone + '">'
+        + formatNumber(row.calls) + '</td><td>' + escapeHtml(row.tokens || 'N/A') + '</td><td><span class="sd-rate sd-rate--' + rowTone + '">'
         + formatNumber(row.failures) + ' · ' + escapeHtml(row.failureRate || 'N/A') + '</span></td></tr>';
     }).join('');
     var summaryTone = rateTone(toolImpact.failedTools, toolImpact.allToolCalls);
-    return '<table class="sd-compact-table"><thead><tr><th>Tool</th><th>Calls</th><th>Result Tokens</th><th>Failures</th></tr></thead><tbody>'
+    return '<table class="sd-compact-table"><thead><tr><th>工具</th><th>调用数</th><th>结果 Token（本地估算）</th><th>失败</th></tr></thead><tbody>'
       + body + '<tr class="sd-table-summary-row"><td>Summary</td><td>' + formatNumber(toolImpact.allToolCalls || 0)
       + '</td><td>' + formatNumber(toolImpact.distinctTools || 0) + ' tools</td><td><span class="sd-rate sd-rate--' + summaryTone + '">'
       + formatNumber(toolImpact.failedTools || 0) + ' · ' + escapeHtml(toolImpact.failedToolsRate || 'N/A') + '</span></td></tr></tbody></table>';
   }
 
   function issuesHtml(issues) {
-    if (!issues.length) return '<div class="sd-card-empty">No actionable issues detected</div>';
+    if (!issues.length) return '<div class="sd-card-empty">未发现可操作的问题线索</div>';
     var rows = issues.map(function (issue) {
       return '<tr><td><span class="sd-signal-badge sd-signal-badge--' + escapeHtml(issue.tone || 'warning') + '">'
         + escapeHtml(issue.issue || 'Issue') + '</span></td><td>' + escapeHtml(issue.evidence || '') + '</td><td>'
         + '<button type="button" class="sd-link-btn sd-link-btn--inline" data-action="jump-round" data-round="' + escapeHtml(issue.roundId || '') + '">'
         + escapeHtml(issue.roundLabel || ('R' + issue.roundId)) + '</button></td><td>'
-        + '<button type="button" class="sd-seed-btn" data-action="copy" data-copy-text="' + escapeHtml(issue.seed || '') + '" title="' + escapeHtml(issue.seed || '') + '">Copy locator</button>'
+        + '<button type="button" class="sd-seed-btn" data-action="copy" data-copy-text="' + escapeHtml(issue.seed || '') + '" title="' + escapeHtml(issue.seed || '') + '">复制定位串</button>'
         + '</td></tr>';
     }).join('');
-    return '<div class="sd-chart-note">Rows are the actionable issue locators used to jump back to Trace or copy a stable repro locator.</div>'
-      + '<table class="sd-compact-table"><thead><tr><th>Issue</th><th>Evidence</th><th>Round</th><th>Locator</th></tr></thead><tbody>'
+    return '<div class="sd-chart-note">这些线索可跳转到 Trace 或复制稳定定位串，不代表全部问题已被检测。</div>'
+      + '<table class="sd-compact-table"><thead><tr><th>问题</th><th>证据</th><th>Round</th><th>定位</th></tr></thead><tbody>'
       + rows + '</tbody></table>';
   }
 
@@ -869,27 +778,19 @@
 
   function tokenbarHtml(tokens, maxRoundTokens) {
     var total = Number(tokens && tokens.total || 0);
-    if (total <= 0) return '<span class="metric-token">' + escapeHtml(TokenProvenance.total(tokens, formatSessionCompact)) + '</span>';
     var fresh = pct(tokens.fresh, total);
     var read = pct(tokens.cacheRead, total);
     var write = pct(tokens.cacheWrite, total);
     var out = pct(tokens.output, total);
     var scale = maxRoundTokens > 0 ? Math.max(2, Math.min(100, Math.round((total / maxRoundTokens) * 1000) / 10)) : 100;
-    var scaleLabel = scale + '% of max round tokens';
+    var scaleLabel = '条宽为最大 Round 的 ' + scale + '%；各分段占比仍以本轮总量为分母';
     return '<div class="token-group"><span class="metric-token">' + escapeHtml(TokenProvenance.total(tokens, formatSessionCompact)) + '</span>'
-      + '<span class="tokenbar-wrap" tabindex="0" title="' + escapeHtml(scaleLabel) + '" aria-label="' + escapeHtml(scaleLabel) + '" style="--token-total-width:' + scale + '%;">'
+      + '<span class="tokenbar-wrap" tabindex="0" data-token-breakdown="' + escapeHtml(JSON.stringify({ tokens: tokens, providerOnly: true, scale: scaleLabel })) + '" aria-label="' + escapeHtml(scaleLabel) + '" style="--token-total-width:' + scale + '%;">'
       + '<span class="tokenbar"><span class="tokenbar-seg fresh" style="--segment-width:' + fresh + '%"></span>'
       + '<span class="tokenbar-seg read" style="--segment-width:' + read + '%"></span>'
       + '<span class="tokenbar-seg write" style="--segment-width:' + write + '%"></span>'
       + '<span class="tokenbar-seg out" style="--segment-width:' + out + '%"></span></span>'
-      + '<div class="token-tooltip" aria-hidden="true"><div class="token-tooltip__title">Token Breakdown</div>'
-      + '<div class="token-tooltip__row"><span>Fresh</span><span class="token-tooltip__value">' + escapeHtml(TokenProvenance.value(tokens, 'fresh', formatSessionCompact)) + '</span></div>'
-      + '<div class="token-tooltip__row"><span>Cache Read</span><span class="token-tooltip__value">' + escapeHtml(TokenProvenance.value(tokens, 'cacheRead', formatSessionCompact)) + '</span></div>'
-      + '<div class="token-tooltip__row"><span>Cache Write</span><span class="token-tooltip__value">' + escapeHtml(TokenProvenance.value(tokens, 'cacheWrite', formatSessionCompact)) + '</span></div>'
-      + '<div class="token-tooltip__row"><span>Output</span><span class="token-tooltip__value">' + escapeHtml(TokenProvenance.value(tokens, 'output', formatSessionCompact)) + '</span></div>'
-      + '<div class="token-tooltip__sep"></div><div class="token-tooltip__row token-tooltip__total"><span>Total</span><span class="token-tooltip__value">' + escapeHtml(TokenProvenance.total(tokens, formatSessionCompact)) + '</span></div>'
-      + '<div class="token-tooltip__row"><span>Scale</span><span class="token-tooltip__value">' + escapeHtml(scaleLabel) + '</span></div>'
-      + '</div></span></div>';
+      + '</span></div>';
   }
 
   function statusBadges(round, hasIssues, isLowCache) {

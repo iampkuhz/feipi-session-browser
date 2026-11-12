@@ -11,7 +11,7 @@ Session Detail 是单个 session 的运行分析页，用于在首屏回答本�
 - 路由固定为 `/sessions/<agent>/<session_id>`；模板固定为 `session.html`；HTML 和 MHTML 下载入口见 [Session Export Contract](../../session-export-contract.md)。
 - 面包屑固定为 `Dashboard / Sessions / <agent> / <short session id>`。
 - 首屏顺序固定为 Page Head、Hero KPI、诊断卡片区、主 tab。
-- Hero KPI 区展示 session 标题、agent、session id copy、session 本地文件路径 copy 和 5 张一级 KPI：`Run Health`、`Total Tokens`、`Cache Health`、`Workload`、`Source Task Active`。
+- Hero KPI 区展示 session 标题、agent、session id copy、session 本地文件路径 copy 和 3 张默认核心 KPI：`Total Tokens`、`Cache Health`、`Workload`；`Run Health` 与 `Source Task Active` 放入可键盘展开的“运行诊断与耗时”。
 - Hero 下方 summary strip 只展示未在 hero/meta/KPI 中重复出现的短状态信息，例如 `updated`、`branch`；不得重复展示 session id、model、project、created。
 - 诊断卡片区固定包含 `Agents Breakdown`、`Context Budget`、`Tool Impact`、`Issues & Repro Seeds`。
 - 主内容区固定包含 `Trace`、`Payload` 两个 tab。
@@ -100,10 +100,10 @@ Session Detail 是单个 session 的运行分析页，用于在首屏回答本�
 - 宽屏 `>= 1440px`：诊断区使用 2 列 grid。
 - 宽屏第 1 行：`Agents Breakdown` 跨 2 列。
 - 宽屏第 2 行：`Context Budget` 跨 2 列，独占整行。
-- 宽屏第 3 行固定为 `Tool Impact`、`Issues & Repro Seeds` 两列。
-- 标准桌面 `1024px-1439px`：诊断区保持 2 列 grid；`Agents Breakdown` 跨 2 列，`Context Budget` 跨 2 列独占整行，`Tool Impact` 与 `Issues & Repro Seeds` 左右排列。
+- 第 3 行保留 `Tool Impact`、`Issues & Repro Seeds` 两个按需入口；Tool 默认收起，Issues 有线索时自动展开。桌面并列、窄屏单列。
+- 标准桌面 `1024px-1439px`：诊断区保持 2 列 grid；`Agents Breakdown` 跨 2 列，`Context Budget` 跨 2 列独占整行，`Tool Impact` 与 `Issues & Repro Seeds` 的摘要左右排列。
 - 窄屏 `< 1024px`：诊断区改为单列，全部卡片按固定顺序纵向排列。
-- 每张卡 header 高度固定为 44px，body 最小高度固定为 220px。
+- 默认分析卡 header 为 44px；按需入口允许摘要回流，body 不保留空白占位高度。
 - 诊断卡不嵌套子卡；内部 stat 使用 compact stat 行，表格使用 `common.md` 的 `Compact Table`。
 
 ### Agents Breakdown
@@ -128,7 +128,7 @@ Session Detail 是单个 session 的运行分析页，用于在首屏回答本�
 - `main agent` tooltip header 固定展示 round id 和 round start time；subagent tooltip header 固定展示 subagent round、parent round 和 start time。
 - tooltip 行顺序固定为 `Fresh`、`Cache Read`、`Cache Write`、`Output`、`Total`、`Cache Read Ratio`、`Calls`。
 - tooltip value 列右对齐，share 列右对齐，Total 行上方显示 separator。
-- tooltip 必须使用 viewport 级 fixed 浮层，并基于鼠标位置渲染在鼠标上方；横向根据鼠标离左右屏幕边缘的剩余空间选择右上或左上，且不得遮挡当前 hover 的柱子、spike 或 x 轴标签。
+- tooltip 使用共享 `TokenProvenance` viewport popover；支持 hover、键盘 focus、Escape，按触发点和视口边缘限制位置，不被表格/图表容器裁剪。
 - tooltip note 区使用 `Badge Text` 作为标签名，展示 缺省处理、missing usage、fresh spike、low cache、payload gap、Token Driver 中命中的完整 badge 文本；红色 spike 三角只作为“该 round 有 badge text”的视觉提示，不承载截断文本。
 - 命中 Top 5 Token Driver 的主 agent call 必须在对应 round 的 `Badge Text` 中展示完整 driver、tokens、share、model。
 - `Call Token Footprint Distribution` 和 `Top Token Drivers` 不再作为独立诊断卡渲染；timeline tooltip 不展示 `Call Tokens`、`Call Token Footprint`、`Top Call`、`Top Lane` 或 main/subagent split。main agent token footprint由本卡 tooltip 表达，subagent token footprint由本卡候选行表达，tool result token footprint由 `Tool Impact` 表达。
@@ -156,21 +156,21 @@ Session Detail 是单个 session 的运行分析页，用于在首屏回答本�
 - `Round` 示例值：`R3`，点击跳到 Trace 对应 round。
 - `Locator` 展示 `Copy locator` 操作，点击复制完整复现定位串，定位串格式包含 session、round 和 payload/tool/call id。
 - severity 不单独占列，通过 `Issue` badge tone 表示：critical 使用红色，warning 使用琥珀色，info 使用灰色。
-- 没有问题时展示统一空态 `No actionable issues detected`；有失败时 Hero 不得显示 `No issue signals`。
+- 已分析且没有线索时展示“未发现可操作的问题线索”；未分析显示未测量，不是 0 条；有失败时 Hero 不得显示 `No issue signals`。
 
 ### Context Budget
 
-- 卡片定位：解释本次 session 的上下文预算被哪些内容消耗。
+- 卡片定位：解释当前 session 用量的可验证构成，而非模型 context window 占用率。
 - 图表类型固定为水平分段条形图。
-- 分段固定为 System、Provider Cached Input、Current User Input、Tool Results、Subagent Context、Output。
+- 分段来自 DTO 的真实分类/纳入状态；Tool Results 是构成之外的本地估算，不塞进构成条。
 - x 轴显示 token share，范围固定为 0% 到 100%。
 - y 轴只有一行，标题固定为 `Session Context`。
 - 分段条可在空间足够时内嵌分类名和占比；窄分段隐藏内嵌文字，但保留 tooltip。
-- 分段条下方固定展示 legend；legend 顺序和分段顺序一致，颜色必须和上方对应分段一一匹配。
+- 下方 legend 使用 `auto-fit` 内容驱动网格，标签、数值、占比和来源就近排列；长标签完整回流，窄屏不溢出。顺序/色标与构成条一致，不按页面复制样式。
 - 不渲染配套明细表或每分类独立 progress track；细节通过 `common.md` 的 `Chart Tooltip` 展示。
 - tooltip 固定展示 `Segment`、`Tokens`、`Share`、`Source`、`Precision`。
-- 卡片标题栏右侧固定显示统计层级，候选值固定为 `Session-level`、`Selected round`。
-- `unavailable` 不得静默显示为 `0.0%`；必须灰显并标注 `unavailable`。
+- 当前卡标题右侧显示“会话级构成”。
+- 仅明确纳入且有可用 share 的分段参与构成；Partial 为近似、非服务商精确统计。未知/未上报/不可用显示中文原因，不补 0%；实测零保留 0%。缓存比率仅使用完整服务商上报输入，分母不含 Output。
 
 ## Trace Tab
 
@@ -196,12 +196,12 @@ Session Detail 是单个 session 的运行分析页，用于在首屏回答本�
 - 表格固定使用 6 列：`Round`、`Summary`、`Metrics`、`Attribution`、`Signals`、`Time`。
 - `Round` 列宽固定为 72px，展示 `R<round_number>` 和状态色。
 - Codex 的 `R<round_number>` 表示第 N 个有效 LLM call round，而不是第 N 个可见 assistant 文本窗口；无可见文本但有 tool_use 或 usage 的 Codex call 也必须保留为 round。
-- `Summary` 列占剩余主宽，展示 round summary。
-- `Metrics` 列宽固定为 220px，只展示 tool count 和 `Token Cell`；不得展示 LLM call count。
+- `Summary` 列占剩余主宽，展示当前轮短摘要：优先可见用户输入，其次工具名称/次数与短操作预览，再回退助手文本。必须解析当前调用的 inline/catalog/sequence 引用，过滤系统上下文及工具结果；不得跨轮借文或嵌入长代码/输出。真正缺失显示 `摘要未记录`。
+- `Metrics` 列宽固定为 220px，展示本地归一化调用记录数（`records`）、当前声明的工具执行数（`tools`）和 `Token Cell`；tooltip 必须解释 records 不是独立 provider 请求数，消费历史工具结果不计为新执行。
 - `Token Cell` 的彩色 tokenbar 宽度必须按当前 session 最大 round token total 归一化，最大 round 为满宽，其他 round 按比例缩短；未占用的轨道使用灰色背景显示与最大 round 的差距。
 - `Attribution` 列宽固定为 180px，展示 main request/response attribution 入口；按钮可见文字固定为 `request` 和 `response`，title/tooltip 可展示 call id、payload id、覆盖率和可用性。
 - `Signals` 列宽固定为 180px，只在命中 `Failed`、`Subagent`、`Payload Gap`、`Attribution Gap` 时展示对应 badge；无信号时保持空白，不显示占位 badge。
-- `Time` 列宽固定为 132px，展示 round start time。
+- `Time` 列宽固定为 132px，展示当前调用或其响应来源引用中第一个已记录的时间点（Asia/Shanghai）；无源时间显示 `未记录`，不用 session 更新时间或耗时代替。
 - `Summary` 示例值：`Fix template macro scope`，表示该 round 的主要动作摘要。
 - `Metrics` 示例值：`2 tools · 24.1k`，token 数值后跟比例化 `Tokenbar`。
 - `Attribution` 示例值：`request · response`，按钮 title 展示 call id、payload id 和覆盖率。
@@ -419,3 +419,21 @@ Session Detail 是单个 session 的运行分析页，用于在首屏回答本�
 - 不展示 Selected LLM calls、Round diagnostics、sidecar filter。
 - 不恢复 Round Map、Inspector 默认三栏、Map/Inspector/Focus 模式按钮、Density toggle、无效占位按钮。
 - 不把 Trace 默认形态改成纯卡片列表；纯卡片列表只用于 round 展开后的 step detail。
+
+### TASK-56 内容证据与展开规则
+
+- 本地流式内容与独立导入的已物化制品使用相同短预览规则：优先本轮可见用户输入，其次工具计数及短操作，最后助手文本。catalog/sequence 引用同样提供摘要与源时间；历史用户引用只归属首次出现的轮次，不因导入入口退化为重复工具名。
+- Session File 显示加载中、已提供路径、来源未提供及加载失败；仅允许的本地详情展示冻结 source file 元数据，不猜路径，不探测原文件；导入详情不泄露个人路径。
+- Context Budget 未提供可验证分解时标明不可用；Tool Impact 可从归一化执行显示次数/失败次数，未测量结果 token 显示 N/A，不补零。Issues & Repro Seeds 尚未分析时不显示 `0 issues`；实际分析为空与加载失败分别展示。
+- 独立助手文本、真正无正文的独立调用、不同工具执行和子 Agent 可单列 timeline-item。纯工具响应仅复述工具名的 `TOOLS` 概览不得与工具执行重复单列；多成员调用的 Request/Response 操作附着首个对应工具行，保留稳定 call ID。
+- 工具类别筛选复用 `ui-select` / `ui-select__control`。右侧顺序为状态、时间/耗时、归属、token、操作；用标签区分时间点与执行时长，缺失明确显示。
+- 工具行的 `Input / Result` 展开项独立按需读取正文，桌面左右双栏，700px 以下单栏；Tool Input 是命令/参数，Tool Result 是执行输出，不是模型 Response。模型 Response 可包含该调用声明的工具指令列表；后续模型 Request 消费结果不表示重新执行。
+- 单页全量成员不渲染分页提示；实际分页显示 `调用记录 · 已显示 N / M` 和 Load more/Retry，加载完成仍保留已分页总数。
+- 延续请求保留 generation 检查。HTTP 500 缺 header 显示真实 HTTP 加载错误并允许 Retry；409 或真实不同 generation 阻断合并并提供 Refresh page。成功但缺 generation 不视作可信快照，不插入内容。
+
+
+## TASK-57 信息取舍与入口
+
+默认保留 Total Tokens（总量）、Cache Health（输入复用）、Workload（记录/工具体量），三者回答不同问题。Run Health 不是完成证明，且重复 Hero 问题摘要；与非 Token 核心的 typed timing 一同按需展开，仍保留精度/覆盖边界。Tool Impact 默认收起以减少 top 5 与 Workload 的重复，有需要再看工具明细和本地结果估算。Issues 只有实际线索时展开；未测量、已分析为空、加载失败继续分离，定位/复制不删除。Agents 和 Context 常驻，支持从构成下钻而非堆叠更多指标卡。
+
+共享弹框实际入口：Sessions Token bar；Projects 与 Project Detail 的 Token Cell；Dashboard Token 趋势；Session Detail 的 Agent 候选、Agent Round 柱、Trace Round bar、延迟加载的主/子 call（导入复用）。统一 `token-provenance.js/css` 色标/类型、数量/来源、占比列；列表可明确显示估算近似占比，Round/Trace 和 Dashboard 保留 provider-only 限制。Dashboard 的时间窗口占比单列说明，不与桶内构成分母混用。Project trend 目前只有来源 disclosure，没有已有四段悬浮入口，不虚构一个。缓存健康/消息数等其他图不属于四段总量构成，保留各自口径。

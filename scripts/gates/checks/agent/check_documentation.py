@@ -7,6 +7,9 @@
 
 from __future__ import annotations
 
+import os
+import re
+import subprocess
 import tomllib
 from dataclasses import dataclass
 
@@ -53,6 +56,21 @@ REQUIRED_HANDOFF_FIELDS = [
     'Failure policy',
 ]
 REQUIRED_OUTPUT_FIELDS = ['Status', 'Changed files', 'Validation', 'Effect checks', 'Risks']
+MULTICA_BEGIN = '<!-- BEGIN MULTICA-RUNTIME (auto-managed; do not edit) -->'
+MULTICA_END = '<!-- END MULTICA-RUNTIME -->'
+MULTICA_IDENTITY_KEYS = (
+    'MULTICA_TOKEN',
+    'MULTICA_TASK_ID',
+    'MULTICA_AGENT_ID',
+    'MULTICA_WORKSPACE_ID',
+    'MULTICA_SERVER_URL',
+)
+MULTICA_UUID_PATTERN = r'[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}'
+
+
+def _has_runtime_marker(text: str) -> bool:
+    """识别不完整或被修改的原生标记，不输出注入内容。"""
+    return 'MULTICA-RUNTIME' in text
 
 
 @dataclass(frozen=True)
@@ -70,7 +88,7 @@ def _load_document_inputs() -> DocumentInputs:
 
     root = ROOT
     manifest_text = (root / 'harness/agent-policy.manifest.yaml').read_text(encoding='utf-8')
-    agents_text = (root / 'AGENTS.md').read_text(encoding='utf-8')
+    agents_text = (root / 'AGENTS.md').read_bytes().decode('utf-8')
     documents = {
         relative: (root / relative).read_text(encoding='utf-8')
         for relative in PROTOCOL_DOCS.values()
@@ -118,20 +136,94 @@ def _check_required_manifest_roots(roots: list[str]) -> list[str]:
     ]
 
 
+def _git_runtime_errors() -> list[str]:
+    """读取提交和暂存源码身份，不记录文档内容。"""
+    errors: list[str] = []
+    for revision in ('HEAD:AGENTS.md', ':AGENTS.md'):
+        try:
+            result = subprocess.run(
+                ['git', '-C', str(ROOT), 'show', revision],
+                capture_output=True,
+                check=False,
+                timeout=10,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            raise OSError(f'AGENTS.md Git source unavailable: {revision}') from None
+        if result.returncode:
+            raise OSError(f'AGENTS.md Git source unavailable: {revision}')
+        try:
+            text = result.stdout.decode('utf-8')
+        except UnicodeDecodeError:
+            raise OSError(f'AGENTS.md Git source unreadable: {revision}') from None
+        if _has_runtime_marker(text):
+            errors.append(f'AGENTS.md runtime marker forbidden in Git source: {revision}')
+    return errors
+
+
+def _runtime_source(text: str) -> tuple[str, str, list[str]]:
+    """仅拆分环境一致的严格原生尾块，不暴露注入内容。"""
+    if not _has_runtime_marker(text):
+        return text, '', []
+    if not all(os.environ.get(key, '').strip() for key in MULTICA_IDENTITY_KEYS):
+        return text, '', ['AGENTS.md runtime block requires complete Multica task identity']
+    if not all(
+        re.fullmatch(MULTICA_UUID_PATTERN, os.environ[key])
+        for key in (
+            'MULTICA_TASK_ID',
+            'MULTICA_AGENT_ID',
+            'MULTICA_WORKSPACE_ID',
+        )
+    ):
+        return text, '', ['AGENTS.md runtime block has invalid Multica task identity']
+    if text.count(MULTICA_BEGIN) != 1 or text.count(MULTICA_END) != 1:
+        return text, '', ['AGENTS.md malformed runtime markers']
+    before, _, after = text.partition(MULTICA_BEGIN)
+    if not before.endswith('\n\n'):
+        return text, '', ['AGENTS.md runtime block requires exact separator']
+    if not after.endswith('\n' + MULTICA_END + '\n'):
+        return text, '', ['AGENTS.md runtime block must be a complete terminal suffix']
+    body = after[1 : -(len(MULTICA_END) + 2)]
+    # 原生首行边界元数据仅允许转义换行；完整原文仍计入 runtime 字节预算。
+    body = re.sub(
+        r'\A<!-- MULTICA-RUNTIME original-boundary: "(?:\\[nr])*" -->\n', '', body, count=1
+    )
+    if (
+        not after.startswith('\n')
+        or not body.strip()
+        or body.endswith('\n')
+        or _has_runtime_marker(body)
+        or _has_runtime_marker(before)
+    ):
+        return text, '', ['AGENTS.md malformed runtime body']
+    return before[:-2], text[len(before) - 2 :], []
+
+
 def _check_sizes(inputs: DocumentInputs) -> list[str]:
-    """用同一份 AGENTS 文本检查 manifest 与 Codex 的体积上限。"""
+    """分别约束维护源码和环境一致的临时尾块，并核对完整加载预算。"""
     manifest = inputs.manifest if isinstance(inputs.manifest, dict) else {}
     limits = manifest.get('size_limits', {})
     if not isinstance(limits, dict) or not isinstance(limits.get('AGENTS.md'), int):
         return ['policy manifest size_limits 缺少 AGENTS.md 限制']
-    size = len(inputs.agents_text.encode('utf-8'))
+    source, runtime, errors = _runtime_source(inputs.agents_text)
+    errors.extend(_git_runtime_errors())
+    size = len(source.encode('utf-8'))
+    physical_size = len(inputs.agents_text.encode('utf-8'))
     limit = limits['AGENTS.md']
-    errors = [f'AGENTS.md {size} bytes 超过限制 {limit} bytes'] if size > limit else []
+    if size > limit:
+        errors.append(f'AGENTS.md {size} bytes 超过限制 {limit} bytes')
+    if runtime:
+        runtime_limit = limits.get('multica_runtime_bytes')
+        if type(runtime_limit) is not int or runtime_limit <= 0:
+            errors.append('policy manifest size_limits 缺少有效 multica_runtime_bytes 限制')
+        elif len(runtime.encode('utf-8')) > runtime_limit:
+            errors.append(f'AGENTS.md runtime block 超过限制 {runtime_limit} bytes')
     codex_max = inputs.codex_config.get('project_doc_max_bytes')
-    if codex_max is not None and (not isinstance(codex_max, int) or codex_max < size + 100):
+    if (runtime or codex_max is not None) and (
+        type(codex_max) is not int or codex_max < physical_size + 100
+    ):
         errors.append(
-            f'.codex/config.toml project_doc_max_bytes={codex_max} '
-            f'< AGENTS.md size({size}) + 100 = {size + 100}'
+            '.codex/config.toml project_doc_max_bytes insufficient: '
+            f'AGENTS.md physical size({physical_size}) + 100 required'
         )
     return errors
 
@@ -176,6 +268,7 @@ def check(arguments: list[str]) -> CheckResult:
     argument_parser(description='检查 Agent document policy').parse_args(arguments)
     try:
         inputs = _load_document_inputs()
+        size_errors = _check_sizes(inputs)
     except OSError as exc:
         return CheckResult.execution_failure(
             [f'Agent document 输入读取失败: {exc}'], reason='input-unavailable'
@@ -184,7 +277,7 @@ def check(arguments: list[str]) -> CheckResult:
         return CheckResult.from_errors([f'Agent document 配置内容无效: {exc}'])
     return CheckResult.from_errors(
         [
-            *_check_sizes(inputs),
+            *size_errors,
             *_check_required_manifest_roots(_manifest_roots(inputs.manifest)),
             *_check_handoff(inputs),
         ]

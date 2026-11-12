@@ -235,7 +235,9 @@ class WebStaticResourceContractTest {
     assertThat(resource("static/js/token-provenance.js"))
         .contains(
             "tokenbar-seg",
-            "Share of shown total",
+            "token-breakdown__row",
+            "line.dataset.tokenPart = key",
+            "占比以当前总量为分母，包含 Output；N/A 不等于 0%。",
             "Fresh input",
             "Cache read",
             "Cache write",

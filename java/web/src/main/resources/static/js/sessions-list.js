@@ -112,10 +112,11 @@
     if (!value) return '—';
     var date = new Date(value);
     if (isNaN(date.getTime())) return value;
-    var seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
-    if (seconds < 3600) return Math.floor(seconds / 60) + 'm ago';
-    if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ago';
-    return Math.floor(seconds / 86400) + 'd ago';
+    var seconds = Math.max(0, (Date.now() - date.getTime()) / 1000);
+    if (seconds < 60) return seconds.toFixed(1) + 's ago';
+    if (seconds < 3600) return (seconds / 60).toFixed(1) + 'm ago';
+    if (seconds < 86400) return (seconds / 3600).toFixed(1) + 'h ago';
+    return (seconds / 86400).toFixed(1) + 'd ago';
   }
 
   function apiUrl(path, params) {
@@ -124,6 +125,10 @@
   }
 
   function cleanParams(params) {
+    if (['failure', 'duration'].indexOf((params.get('sort') || '').trim().toLowerCase()) >= 0) {
+      params.delete('sort');
+      params.delete('dir');
+    }
     var cleaned = new URLSearchParams();
     params.forEach(function (value, key) {
       var v = value == null ? '' : String(value).trim();
@@ -131,7 +136,8 @@
       if (!v) return;
       if (key === 'page' && v === '1') return;
       if (key === 'page_size' && v === '25') return;
-      if ((key === 'sort' && (v === 'ended-at' || v === 'updated')) || (key === 'dir' && v === 'desc' && !params.get('sort'))) return;
+      if ((key === 'sort' && (v === 'ended-at' || v === 'updated') && params.get('dir') !== 'asc')
+          || (key === 'dir' && v === 'desc' && !params.get('sort'))) return;
       cleaned.set(key, v);
     });
     if (!cleaned.get('sort')) cleaned.delete('dir');
@@ -486,7 +492,7 @@
   function showLoadingRow(tbody) {
     var row = document.createElement('tr');
     var cell = document.createElement('td');
-    cell.colSpan = 13;
+    cell.colSpan = 11;
     cell.className = 'sessions-loading-cell';
     cell.textContent = 'Loading...';
     row.appendChild(cell);
@@ -604,7 +610,7 @@
   function emptyRow(state) {
     var row = document.createElement('tr');
     var cell = document.createElement('td');
-    cell.colSpan = 13;
+    cell.colSpan = 11;
     var title = state && state.title ? state.title : 'No sessions found';
     var message = state && state.message ? state.message : 'No sessions match your current filters.';
     setMarkup(cell, '<div class="empty-state"><div><div class="empty-state__icon">🔎</div><h2 class="empty-state__title">'
@@ -614,10 +620,36 @@
     return row;
   }
 
+  function sessionTitle(row) {
+    var title = String(row.displayTitle == null ? row.title || '' : row.displayTitle).replace(/\s+/g, ' ').trim();
+    var id = row.sessionId || '';
+    return !title || title === id || title === row.sessionKey || title === id.slice(0, 12)
+      || /^[a-f\d]{8}-[a-f\d-]{27,}$/i.test(title) ? 'Untitled session' : title;
+  }
+
+  function toolsMarkup(row) {
+    var total = row.tools == null ? '—' : formatNumber(row.tools);
+    var known = row.failedTools != null;
+    var label = (row.tools == null ? 'Tool calls unknown' : formatNumber(row.tools) + ' tool calls') + '; '
+      + (known ? formatNumber(row.failedTools) + ' failed' : 'failures unknown');
+    return '<td class="num mono col-tools" title="' + escapeHtml(label) + '" aria-label="' + escapeHtml(label) + '">'
+      + total + (known && row.failedTools > 0 ? '<span class="sessions-tool-failures">(' + formatNumber(row.failedTools) + ')</span>'
+        : !known ? '<span class="sessions-tools-unknown">(?)</span>' : '') + '</td>';
+  }
+
+  function taskActiveMarkup(timing) {
+    var value = SessionTiming.value(timing, 'activeTaskSeconds');
+    if (SessionTiming.seconds(timing, 'activeTaskSeconds') != null && timing.activeTaskPrecision === 'partial') {
+      return escapeHtml(value.replace(' · Partial', ''))
+        + ' <button type="button" class="sessions-partial" popovertarget="sessions-task-active-help" aria-describedby="sessions-task-active-help">Partial</button>';
+    }
+    return escapeHtml(value);
+  }
+
   function sessionRowElement(row) {
     var tr = document.createElement('tr');
     var tokens = row.tokens || {};
-    var title = (row.displayTitle == null ? row.title : row.displayTitle) || row.sessionId;
+    var title = sessionTitle(row);
     var projectLabel = row.projectName || row.projectKey || '—';
     var agentClass = row.agent === 'claude_code' ? 'cc' : (row.agent === 'codex' ? 'cx' : 'qd');
     var agentDotClass = row.agent === 'claude_code' ? 'claude' : (row.agent === 'codex' ? 'codex' : 'qoder');
@@ -637,32 +669,31 @@
     tr.dataset.endedAt = row.updatedAt || '';
     tr.dataset.totalTokens = tokens.total || 0;
     tr.dataset.rounds = row.rounds || 0;
-    tr.dataset.toolCount = row.tools || 0;
+    tr.dataset.toolCount = row.tools == null ? '' : row.tools;
     tr.dataset.duration = SessionTiming.seconds(row.timing, 'wallSeconds');
     tr.dataset.processTime = SessionTiming.seconds(row.timing, 'activeTaskSeconds');
-    tr.dataset.failedTools = row.failedTools || 0;
+    tr.dataset.failedTools = row.failedTools == null ? '' : row.failedTools;
     tr.dataset.createdAt = row.createdAt || '';
     setMarkup(tr, [
-      '<td class="col-session"><div class="title-main"><a class="session-link" href="', escapeHtml(row.detailUrl), '" data-action="open-session" data-session-link>',
-      escapeHtml(title), '</a></div><div class="title-sub mono"><span class="mono">', escapeHtml((row.sessionId || '').slice(0, 12)), '</span>',
-      branch ? '<span class="session-branch">· ' + escapeHtml(branch) + '</span>' : '',
+      '<td class="col-session"><div class="title-main"><a class="session-link" href="', escapeHtml(row.detailUrl), '" title="', escapeHtml(title), '" data-action="open-session" data-session-link>',
+      escapeHtml(title), '</a></div><div class="title-sub mono"><span class="mono" title="', escapeHtml(row.sessionId || ''), '">', escapeHtml((row.sessionId || '').slice(0, 12)), '</span>',
+      branch ? '<span class="session-branch" title="' + escapeHtml(branch) + '">· ' + escapeHtml(branch) + '</span>' : '',
       '</div></td>',
       '<td class="col-project"><div class="project-cell"><span class="project-name"><a href="', escapeHtml(row.projectUrl || '#'), '" class="link-muted" data-project="', escapeHtml(row.projectKey || ''), '" title="', escapeHtml(row.cwd || ''), '">',
       escapeHtml(projectLabel), '</a></span></div></td>',
       '<td class="col-agent"><span class="badge ', agentClass, ' badge--has-dot" data-tooltip="', escapeHtml(agentLabel), '" role="status"><span class="badge-dot badge-dot--', agentDotClass, '" aria-hidden="true"></span>', agentText, '</span></td>',
       '<td class="mono col-model" title="', escapeHtml(row.model || ''), '">', escapeHtml(row.model || 'Unknown model'), '</td>',
-      '<td class="token-cell"></td>',
+      '<td class="token-cell col-tokens"></td>',
       '<td class="num mono col-rounds" title="', escapeHtml(rounds.note), '">', escapeHtml(rounds.value), '</td>',
-      '<td class="num mono col-tools">', (row.tools == null ? "—" : formatNumber(row.tools)), '</td>',
+      toolsMarkup(row),
       '<td class="num mono col-subagents">', (row.subagents == null ? "—" : formatNumber(row.subagents)), '</td>',
-      '<td class="mono col-duration" data-wall-duration>', escapeHtml(SessionTiming.value(row.timing, 'wallSeconds')), '</td>',
-      '<td class="mono col-process-time" data-task-active>', escapeHtml(SessionTiming.value(row.timing, 'activeTaskSeconds')), '</td>',
-      '<td class="col-failure ', Number(row.failedTools || 0) === 0 ? 'muted' : '', '">',
-      row.failedTools == null ? 'Unknown' : Number(row.failedTools) > 0 ? formatNumber(row.failedTools) + ' failed' : 'No failures', '</td>',
+      '<td class="mono col-process-time" data-task-active>', taskActiveMarkup(row.timing), '</td>',
       '<td class="mono col-created" title="', escapeHtml(row.createdAt || ''), '">', escapeHtml(formatDateTime(row.createdAt)), '</td>',
-      '<td class="muted col-updated">', escapeHtml(formatRelativeTime(row.updatedAt)), '</td>'
+      '<td class="muted col-updated" title="', escapeHtml(row.updatedAt || ''), '">', escapeHtml(formatRelativeTime(row.updatedAt)), '</td>'
     ].join(''));
-    TokenProvenance.renderCell(tr.querySelector('.token-cell'), tokens, formatCompact, true);
+    var partialBadge = tr.querySelector('.sessions-partial');
+    if (partialBadge) partialBadge.title = document.getElementById('sessions-task-active-help').textContent.trim();
+    TokenProvenance.renderCell(tr.querySelector('.token-cell'), tokens, formatCompact, true, 'compact');
     return tr;
   }
 
@@ -893,6 +924,7 @@
     if (!target || target.nodeType !== 1) return;
     var row = target.closest('.sessions-row');
     if (!row) return;
+    if (target.closest('button, input, select, textarea, summary')) return;
 
     // Don't navigate if clicking a link inside the row
     if (target.closest('a')) {

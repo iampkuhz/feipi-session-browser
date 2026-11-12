@@ -621,15 +621,15 @@
 }
 
 .sessions-page .data-table {
-  width: max-content;
-  min-width: 1510px;
+  width: 100%;
+  min-width: 1560px;
   border-collapse: collapse;
   table-layout: fixed;
 }
 
 /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`per-column widths applied to both th and td` */
 .sessions-page .data-table .col-session {
-  width: 280px;
+  width: 360px;
 }
 
 .sessions-page .data-table .col-project {
@@ -649,27 +649,19 @@
 }
 
 .sessions-page .data-table .col-rounds {
-  width: 80px;
+  width: 100px;
 }
 
 .sessions-page .data-table .col-tools {
-  width: 72px;
+  width: 88px;
 }
 
 .sessions-page .data-table .col-subagents {
   width: 90px;
 }
 
-.sessions-page .data-table .col-duration {
-  width: 120px;
-}
-
 .sessions-page .data-table .col-process-time {
-  width: 120px;
-}
-
-.sessions-page .data-table .col-failure {
-  width: 100px;
+  width: 144px;
 }
 
 .sessions-page .data-table .col-created {
@@ -754,11 +746,26 @@
 .sessions-page .data-table .title-main {
   font-weight: 790;
   color: var(--sessions-text);
-  font-size: 13px;
-  line-height: 1.24;
-  white-space: nowrap;
+  font-size: 14px;
+  line-height: 1.4;
+  padding-block: 6px 0;
+}
+
+.sessions-page .data-table .session-link {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  color: var(--sessions-text);
+  text-decoration: none;
+}
+
+.sessions-page .data-table .session-link:hover,
+.sessions-page .data-table .session-link:focus-visible {
+  color: var(--sessions-brand);
+  text-decoration: underline;
 }
 
 .sessions-page .data-table .title-sub.mono {
@@ -767,12 +774,62 @@
   gap: 6px;
   min-width: 0;
   color: var(--sessions-text-3);
-  font-size: 11.5px;
+  font-size: 10.5px;
   margin-top: 2px;
+  padding-bottom: 6px;
 }
 
 .sessions-page .data-table .title-sub .mono {
   font-family: var(--font-mono);
+  flex: 0 0 auto;
+}
+
+.sessions-page .data-table .title-sub .session-branch {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: inherit;
+}
+
+.sessions-page .sessions-tool-failures {
+  color: var(--danger);
+}
+
+.sessions-page .sessions-tools-unknown {
+  color: var(--sessions-text-3);
+}
+
+.sessions-page .sessions-partial {
+  padding: 2px 4px;
+  border: 1px dashed var(--sessions-line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--sessions-text-3);
+  font: inherit;
+  font-size: 11px;
+  cursor: help;
+}
+
+.sessions-page .sessions-partial:focus-visible {
+  outline: 2px solid var(--sessions-brand);
+  outline-offset: 2px;
+}
+
+.sessions-page .sessions-timing-help {
+  max-width: min(400px, calc(100vw - 32px));
+  padding: 16px;
+  border: 1px solid var(--sessions-line);
+  border-radius: 10px;
+  background: var(--card-bg);
+  color: var(--sessions-text-2);
+  box-shadow: var(--sessions-shadow);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.sessions-page .sessions-timing-help p {
+  margin: 6px 0 0;
 }
 
 .sessions-page .data-table .project-cell .project-name {

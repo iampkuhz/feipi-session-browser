@@ -292,14 +292,16 @@ test('Codex mixed project instructions preserve user text and use local Markdown
   await uploadAndOpen(page, 'codex', records.map(JSON.stringify).join('\n') + '\n');
   await page.locator('[data-trace-round-row]').first().getByRole('button', { name: 'Request', exact: true }).click();
   const modal = page.locator('dialog.payload-modal');
+  // 阅读正文与折叠保留的 raw 是两种视图；等待 raw 后检查，避免命中初始摘要的时序。
+  const raw = modal.locator('[data-payload-raw]');
+  await expect(raw.locator('summary')).toContainText('项目说明');
+  await expect(raw.locator('pre')).toBeHidden();
   const body = modal.locator('.sd-reading-markdown');
   await expect(body.locator('h1')).toHaveText('Synthetic request');
   await expect(body.locator('li')).toHaveCount(2);
   await expect(body).not.toContainText(/Synthetic project rules|Synthetic environment/);
   expect(await body.locator('h1').evaluate(e => parseFloat(getComputedStyle(e).fontSize))).toBeLessThanOrEqual(21);
   expect(await body.evaluate(e => e.scrollWidth <= e.clientWidth + 1 && parseFloat(getComputedStyle(e.querySelector('ul')).paddingInlineStart) >= 18)).toBe(true);
-  const raw = modal.locator('[data-payload-raw]');
-  await expect(raw.locator('summary')).toContainText('项目说明');
   await raw.locator('summary').click();
   await expect(raw.locator('pre')).toContainText(project + environment);
   await expect(raw.locator('pre')).toContainText(user);
@@ -514,4 +516,27 @@ test('拒绝服务响应中的外部详情 URL，不离开导入页', async ({ p
   await expect(page.locator('[data-import-error]')).toContainText('无效的导入链接');
   await expect(page).toHaveURL(/\/imports$/);
   await expect(page.getByRole('button', { name: '导入并分析', exact: true })).toBeEnabled();
+});
+
+test('无模型调用的实际输入仍可从摘要和展开读取，不伪造调用或工具', async ({ page }) => {
+  const input = 'Synthetic pending input\nsecond line remains readable';
+  const contents = JSON.stringify({ type: 'message', message: { role: 'user', content: input } }) + '\n';
+  const result = await uploadAndOpen(page, 'qoder', contents, 'synthetic-pending.jsonl');
+  const row = page.locator('[data-trace-round-row]').first();
+  await expect(row.locator('.metric-calls-tools')).toHaveText('0 records0 tools');
+  await expect(row).toHaveAttribute('data-is-user-input', 'true');
+  await expect(row.locator('.summary-title')).toContainText('Synthetic pending input');
+  const response = page.waitForResponse((r) => new URL(r.url()).pathname.startsWith(`/api/imports/${result.import_id}/payload/`));
+  await row.getByRole('button', { name: 'Input', exact: true }).click();
+  const actual = await response;
+  expect(actual.ok()).toBe(true);
+  expect((await actual.json()).content).toBe(input);
+  const modal = page.locator('dialog.payload-modal');
+  await expect(modal).toBeVisible();
+  await expect(modal.locator('[data-payload-body]')).toContainText('second line remains readable');
+  await closeRealPayload(modal);
+  await expandFirstRound(page);
+  const detail = page.locator('#round-1-detail');
+  await expect(detail.locator('[data-tool-call-id]')).toHaveCount(0);
+  await expect(detail.getByRole('button', { name: 'Input', exact: true })).toBeVisible();
 });

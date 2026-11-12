@@ -99,6 +99,8 @@ final class SessionDetailParityAnalyzer {
     Result base = analyze(detail, null, false);
     Map<String, Object> metrics = new LinkedHashMap<>(base.metrics);
     Map<String, Object> diagnostics = new LinkedHashMap<>(base.diagnostics);
+    Map<String, Object> meta = new LinkedHashMap<>(base.meta);
+    Map<String, long[]> toolCounts = new LinkedHashMap<>();
     long main = 0;
     long child = 0;
     long failed = 0;
@@ -108,6 +110,16 @@ final class SessionDetailParityAnalyzer {
     try (var cursor = content.openCursor()) {
       while (cursor.hasNext()) {
         var unit = cursor.next();
+        if (allowSourceFiles
+            && String.valueOf(meta.getOrDefault("sessionFilePath", "")).isEmpty()) {
+          unit.sourceFiles().stream()
+              .filter(file -> file.subagentId().isEmpty())
+              .filter(
+                  file ->
+                      !List.of("companion", "subagent_session").contains(file.role().getValue()))
+              .findFirst()
+              .ifPresent(file -> meta.put("sessionFilePath", file.path().toString()));
+        }
         for (var call : unit.calls()) {
           if (call.scope() == CallScope.MAIN) main++;
           else child++;
@@ -122,6 +134,9 @@ final class SessionDetailParityAnalyzer {
         }
         for (var tool : unit.toolExecutions()) {
           boolean failure = hasFailedStatus(tool);
+          var counts = toolCounts.computeIfAbsent(tool.name(), key -> new long[2]);
+          counts[0]++;
+          if (failure) counts[1]++;
           if (failure) failed++;
           String owner = tool.scope() == CallScope.MAIN ? "" : tool.subagentId().orElse("unknown");
           var group = agents.computeIfAbsent(owner, CompactAgent::new);
@@ -145,6 +160,10 @@ final class SessionDetailParityAnalyzer {
       for (var row : rows) {
         var parity = new RoundParity(row.roundIndex());
         parity.signals.addAll(row.signals());
+        if (Boolean.TRUE.equals(row.parity().get("isUserInput"))) {
+          parity.summary = row.parity().get("summary").toString();
+          parity.userInput = true;
+        }
         var tokens = row.tokens();
         var precision = tokens.provenance();
         boolean cacheMeasured =
@@ -199,6 +218,36 @@ final class SessionDetailParityAnalyzer {
       diagnostics.put(section + "Available", false);
       diagnostics.remove(section);
     }
+    diagnostics.put("toolImpactAvailable", true);
+    diagnostics.put(
+        "toolImpact",
+        Map.of(
+            "allToolCalls",
+            tools,
+            "failedTools",
+            failed,
+            "distinctTools",
+            toolCounts.size(),
+            "failedToolsRate",
+            ratioLabel(failed, tools),
+            "rows",
+            toolCounts.entrySet().stream()
+                .map(
+                    entry ->
+                        Map.of(
+                            "tool",
+                            entry.getKey(),
+                            "calls",
+                            entry.getValue()[0],
+                            "failures",
+                            entry.getValue()[1],
+                            "failureRate",
+                            ratioLabel(entry.getValue()[1], entry.getValue()[0]),
+                            "tokens",
+                            "N/A · 未测量",
+                            "splitNote",
+                            "仅统计已归一化工具执行；结果 token 未测量"))
+                .toList()));
     long observedTokens =
         agents.values().stream().mapToLong(value -> value.usage.segments().total()).sum();
     boolean allReported =
@@ -256,7 +305,7 @@ final class SessionDetailParityAnalyzer {
     diagnostics.put("agents", List.copyOf(agentRows));
     diagnostics.remove("issueCount");
     diagnostics.put("roundSignals", roundSignalMap(roundParity));
-    return new Result(base.meta, metrics, diagnostics, roundParity);
+    return new Result(meta, metrics, diagnostics, roundParity);
   }
 
   /** 仅保存一个已观测代理实例的用量、调用数与工具状态标量。 */
@@ -307,9 +356,7 @@ final class SessionDetailParityAnalyzer {
       }
     }
 
-    Map<Integer, RoundParity> rounds =
-        buildRoundParity(
-            detail.rounds(), parent, row.sessionId(), artifact, measuredCacheInput(row));
+    Map<Integer, RoundParity> rounds = buildRoundParity(detail.rounds(), parent, row, artifact);
     long subagentCalls = children.stream().mapToLong(child -> child.llmCalls).sum();
     long mainCalls = parent.llmCalls > 0 ? parent.llmCalls : detail.roundCount();
     if (artifact != null) {
@@ -790,9 +837,9 @@ final class SessionDetailParityAnalyzer {
   private static Map<Integer, RoundParity> buildRoundParity(
       List<CallRound> detailRounds,
       RolloutStats parent,
-      String sessionId,
-      NormalizedSessionArtifact artifact,
-      boolean measuredInput) {
+      SessionRecord row,
+      NormalizedSessionArtifact artifact) {
+    boolean measuredInput = measuredCacheInput(row);
     List<Long> freshValues =
         detailRounds.stream().map(CallRound::freshInputTokens).sorted().toList();
     double medianFresh = median(freshValues);
@@ -810,6 +857,7 @@ final class SessionDetailParityAnalyzer {
           .forEach(failedIds::add);
     }
     Map<Integer, RoundParity> result = new LinkedHashMap<>();
+    var previews = artifact == null ? null : SessionContentPreviews.readArtifact(artifact);
     for (CallRound round : detailRounds) {
       List<String> executionIds =
           artifact == null
@@ -834,7 +882,12 @@ final class SessionDetailParityAnalyzer {
       parity.time = firstNonBlank(raw.time, "");
       parity.userInput = raw.userInput;
       if (artifact != null) {
-        RoundContentProjection content = RoundContentProjection.from(round, artifact);
+        String observedInput =
+            round.isEmpty() ? RoundContentProjection.observedInputSummary(row, artifact) : "";
+        RoundContentProjection content =
+            observedInput.isEmpty()
+                ? RoundContentProjection.from(round, artifact, previews)
+                : new RoundContentProjection(observedInput, "", true);
         parity.summary = content.summary();
         parity.time = content.time();
         parity.userInput = content.userInput();
@@ -843,7 +896,7 @@ final class SessionDetailParityAnalyzer {
       parity.freshSpike = freshSpike;
       parity.failedToolIds.addAll(failedInRound);
       if (artifact != null) {
-        addArtifactIssues(parity, round, artifact, sessionId, recordedResults);
+        addArtifactIssues(parity, round, artifact, row.sessionId(), recordedResults);
       } else if (!failedInRound.isEmpty()) {
         parity.signals.add("Failed");
         for (String failedId : failedInRound) {
@@ -852,7 +905,7 @@ final class SessionDetailParityAnalyzer {
                   "Tool failure",
                   parent.toolName(failedId) + " · failed",
                   round.roundIndex(),
-                  sessionId + " + R" + round.roundIndex() + " + " + failedId,
+                  row.sessionId() + " + R" + round.roundIndex() + " + " + failedId,
                   TONE_CRITICAL));
         }
       }

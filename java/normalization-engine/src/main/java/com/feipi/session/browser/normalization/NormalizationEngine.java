@@ -188,7 +188,15 @@ public final class NormalizationEngine {
     session.put("eventActivity", eventActivity.snapshot());
 
     // 6. 构建源单元目录
-    Map<String, SourceUnitCatalogEntry> sourceUnitCatalog = buildSourceUnitCatalog(sourceFiles);
+    Map<String, SourceUnitCatalogEntry> sourceUnitCatalog =
+        new LinkedHashMap<>(buildSourceUnitCatalog(sourceFiles));
+    if (calls.isEmpty()) {
+      for (var record : records) {
+        if (!ObservedInputContents.isUser(record)) continue;
+        var entry = ObservedInputContents.entry(record);
+        sourceUnitCatalog.putIfAbsent(entry.unitKey(), entry);
+      }
+    }
 
     var typedDiagnostics =
         allDiagnostics.stream()

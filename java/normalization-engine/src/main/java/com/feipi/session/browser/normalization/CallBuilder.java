@@ -99,8 +99,7 @@ public final class CallBuilder {
         usage,
         new NormalizedCallRequest(
             toolResultIdsForCall(toolResults, context.toolResultConsumers(), frame.callId())),
-        new NormalizedCallResponse(
-            record.toolCalls().stream().map(SourceToolCall::toolCallId).toList()),
+        new NormalizedCallResponse(context.declaredTools().getOrDefault(frame.callId(), List.of())),
         List.of(),
         sourceUnits,
         TokenAccountant.modelCallEvidence(record.callId().orElse("")),
@@ -447,25 +446,34 @@ public final class CallBuilder {
    *
    * @param frames assistant 调用帧列表。
    * @param toolResultConsumers tool result 消费者映射。
+   * @param declaredTools 已确定声明归属的工具标识，包含独立 tool_use 记录。
    */
   private record CallBuildContext(
       /* assistant 调用帧列表 */
       @NotNull List<AssistantCallFrame> frames,
       /* tool result 消费者映射 */
-      @NotNull Map<String, String> toolResultConsumers) {
+      @NotNull Map<String, String> toolResultConsumers,
+      /* 已确定声明归属的工具标识 */
+      @NotNull Map<String, List<String>> declaredTools) {
 
     private static CallBuildContext create(
         List<? extends SourceRecord> records, List<SourceRecord> assistantMessages) {
       List<AssistantCallFrame> frames = assistantFrames(assistantMessages);
       Map<String, String> declarations = mapToolDeclarations(records, callIds(frames));
       frames = attachParentCallIds(frames, declarations);
-      return new CallBuildContext(frames, mapToolResultConsumers(records, callIds(frames)));
+      Map<String, List<String>> declaredTools = new LinkedHashMap<>();
+      declarations.forEach(
+          (id, owner) ->
+              declaredTools.computeIfAbsent(owner, ignored -> new ArrayList<>()).add(id));
+      return new CallBuildContext(
+          frames, mapToolResultConsumers(records, callIds(frames)), declaredTools);
     }
 
     public CallBuildContext {
       ValidationSupport.validateCanonicalConstructor(
-          CallBuildContext.class, frames, toolResultConsumers);
+          CallBuildContext.class, frames, toolResultConsumers, declaredTools);
       toolResultConsumers = Map.copyOf(toolResultConsumers);
+      declaredTools = Map.copyOf(declaredTools);
     }
 
     private static List<AssistantCallFrame> attachParentCallIds(

@@ -573,6 +573,10 @@
   cursor: help;
   z-index: 4;
 }
+/* Token 桶随视口收窄，不让固定命中区覆盖相邻桶的中心。 */
+#token-trend-chart .chart-hover-target {
+  width: calc(100% / var(--n, 1));
+}
 
 .prompt-line-markers {
   position: absolute;

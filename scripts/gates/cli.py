@@ -34,6 +34,7 @@ from scripts.gates.planning import (  # noqa: E402
     capture_change_snapshot,
     compile_gate_plan,
 )
+from scripts.gates.planning.change_snapshot import ChangeSnapshotError  # noqa: E402
 from scripts.gates.presentation import (  # noqa: E402
     render_explanation,
     render_gate_catalog,
@@ -133,10 +134,15 @@ def _run(args: argparse.Namespace, repo_root: Path) -> int:
             _event_sink(event)
 
     results = orchestrate_gate_run(plan, repo_root, event_sink=report)
-    if plan.snapshot.source == 'git-working-tree' and (
-        capture_change_snapshot(repo_root) != plan.snapshot
-    ):
-        raise RuntimeError('worktree inputs changed during validation; run again on stable inputs')
+    observed_snapshot, input_error = None, ''
+    input_error_paths: tuple[str, ...] = ()
+    if plan.snapshot.source == 'git-working-tree':
+        try:
+            observed_snapshot = capture_change_snapshot(repo_root)
+        except (OSError, RuntimeError, ValueError) as exc:
+            input_error = 'input-unavailable'
+            if isinstance(exc, ChangeSnapshotError):
+                input_error_paths = exc.paths
     finished_at = datetime.now(UTC).isoformat()
     receipt = store_run_receipt(
         plan,
@@ -145,9 +151,13 @@ def _run(args: argparse.Namespace, repo_root: Path) -> int:
         reason='input-empty' if not plan.gates else '',
         started_at=started_at,
         finished_at=finished_at,
+        observed_snapshot=observed_snapshot,
+        input_error=input_error,
+        input_error_paths=input_error_paths,
     )
-    for event in completion:
-        _event_sink(event)
+    if receipt.reason not in {'input-changed', 'input-unavailable'}:
+        for event in completion:
+            _event_sink(event)
     print(render_run_receipt(receipt))
     return {'PASS': 0, 'BLOCKED': 1}.get(receipt.status, 2)
 

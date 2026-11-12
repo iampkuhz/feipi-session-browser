@@ -680,6 +680,36 @@
   font-size: 12px;
 }
 
+.sd-tool-payload-pair {
+  margin: 6px 0 10px;
+  border: 1px solid var(--sd-line);
+  border-radius: 8px;
+  background: var(--sd-panel);
+  padding: 8px;
+}
+.sd-tool-payload-pair > summary { cursor: pointer; font-size: 12px; }
+.sd-tool-payload-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.sd-tool-payload-grid > section { min-width: 0; }
+.sd-tool-payload-grid h4 { margin: 8px 0; font-size: 12px; }
+.sd-tool-payload-grid pre {
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--sd-line-soft);
+  border-radius: 6px;
+  max-height: 360px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--sd-surface, #fff);
+}
+@media (max-width: 700px) {
+  .sd-tool-payload-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
 [data-tool-execution-kind][hidden] {
   display: none;
 }

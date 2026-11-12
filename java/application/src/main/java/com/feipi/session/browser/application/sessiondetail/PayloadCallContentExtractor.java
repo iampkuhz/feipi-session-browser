@@ -29,6 +29,13 @@ import java.util.regex.Pattern;
  */
 public final class PayloadCallContentExtractor {
 
+  // 目录 map 不承诺迭代顺序；观测输入按明确的源位置排序，不能按目录键的字典序猜测。
+  static final java.util.Comparator<SourceUnitCatalogEntry> OBSERVED_INPUT_ORDER =
+      java.util.Comparator.comparing(SourceUnitCatalogEntry::originPath)
+          .thenComparingInt(SourceUnitCatalogEntry::eventOrder)
+          .thenComparingInt(SourceUnitCatalogEntry::partIndex)
+          .thenComparing(SourceUnitCatalogEntry::canonicalSourceLocator);
+
   private static final String ROLE_USER = "user";
   private static final String ROLE_ASSISTANT = "assistant";
   private static final String TYPE_TOOL_RESULT = "tool_result";
@@ -36,7 +43,6 @@ public final class PayloadCallContentExtractor {
   private static final String FIELD_TYPE = "type";
   private static final String FIELD_TEXT = "text";
   private static final String FIELD_CONTENT = "content";
-  private static final String FIELD_TOOL_CALL_ID = "tool_call_id";
   private static final String FIELD_OUTPUT = "output";
   private static final int MAX_PREVIEW_LENGTH = 2000;
 
@@ -58,12 +64,8 @@ public final class PayloadCallContentExtractor {
   public static List<String> extractUserMessageTexts(
       NormalizedCall call, NormalizedSessionArtifact artifact) {
     List<String> texts = new ArrayList<>();
-    for (Map<String, Object> unit : call.sourceUnits()) {
-      if (isReadingInline(unit, ROLE_USER)) {
-        texts.add(extractTextValue(unit));
-      }
-    }
     for (SourceUnitRefRange range : call.sourceUnitRefRanges()) {
+      if (range.role().filter(role -> !ROLE_USER.equalsIgnoreCase(role)).isPresent()) continue;
       for (String ref : catalogRefs(range, artifact)) {
         SourceUnitCatalogEntry entry = artifact.sourceUnitCatalog().get(ref);
         if (entry != null
@@ -71,6 +73,12 @@ public final class PayloadCallContentExtractor {
             && isReadingEntry(entry, range.role(), true)) {
           texts.add(catalogEntryText(entry));
         }
+      }
+    }
+    if (texts.stream().noneMatch(text -> !text.isEmpty())) {
+      texts.clear();
+      for (Map<String, Object> unit : call.sourceUnits()) {
+        if (isReadingInline(unit, ROLE_USER)) texts.add(extractTextValue(unit));
       }
     }
     return List.copyOf(texts);
@@ -164,13 +172,32 @@ public final class PayloadCallContentExtractor {
         else if (PROJECT_INSTRUCTIONS_OPEN.matcher(value.stripLeading()).find()) continue;
         if (standaloneContext(value)) continue;
       }
-      String first = value.stripLeading().lines().findFirst().orElse("").stripTrailing();
-      if (first.isEmpty() || first.length() > 4096) continue;
-      String masked = SensitiveFieldPolicy.DEFAULT.applyMasking(first);
-      int length = masked.codePointCount(0, masked.length());
-      return length > 160 ? masked.substring(0, masked.offsetByCodePoints(0, 160)) + "…" : masked;
+      String preview = shortPreview(value);
+      if (!preview.isEmpty()) return preview;
     }
     return "";
+  }
+
+  /** 从可见目录文本生成短预览；沿用正文的角色、工具结果和上下文过滤，不暴露原始载荷。 */
+  public static String catalogPreview(
+      SourceUnitCatalogEntry entry, Optional<String> role, boolean request, boolean codex) {
+    if (!isReadingEntry(entry, role, request)) return "";
+    String value = catalogEntryText(entry);
+    if (request && codex) {
+      String suffix = projectInstructionsSuffix(value);
+      if (suffix != null) value = suffix;
+      else if (PROJECT_INSTRUCTIONS_OPEN.matcher(value.stripLeading()).find()) return "";
+      if (standaloneContext(value)) return "";
+    }
+    return shortPreview(value);
+  }
+
+  private static String shortPreview(String value) {
+    String first = value.stripLeading().lines().findFirst().orElse("").stripTrailing();
+    if (first.isEmpty() || first.length() > 4096) return "";
+    String masked = SensitiveFieldPolicy.DEFAULT.applyMasking(first);
+    int length = masked.codePointCount(0, masked.length());
+    return length > 160 ? masked.substring(0, masked.offsetByCodePoints(0, 160)) + "…" : masked;
   }
 
   /** 汇集可归属的对话；无法区分真实引用与上下文注入的独立段落只留在原始记录。 */
@@ -348,10 +375,10 @@ public final class PayloadCallContentExtractor {
     for (NormalizedCall call : artifact.calls()) {
       for (Map<String, Object> unit : call.sourceUnits()) {
         String type = stringField(unit, FIELD_TYPE);
-        if (!TYPE_TOOL_RESULT.equals(type)) {
+        if (!isToolResult(type)) {
           continue;
         }
-        String toolCallId = stringField(unit, FIELD_TOOL_CALL_ID);
+        String toolCallId = toolResultId(unit);
         if (toolCallId.isEmpty() || result.containsKey(toolCallId)) {
           continue;
         }
@@ -384,20 +411,20 @@ public final class PayloadCallContentExtractor {
       if (targetRole != null && !targetRole.equals(stringField(unit, FIELD_ROLE))) {
         continue;
       }
-      if (targetType != null && !targetType.equals(stringField(unit, FIELD_TYPE))) {
+      if (targetType != null
+          && !targetType.equals(stringField(unit, FIELD_TYPE))
+          && !(TYPE_TOOL_RESULT.equals(targetType) && isToolResult(unit.get(FIELD_TYPE)))) {
         continue;
       }
       if (toolCallId != null) {
-        String unitToolCallId = stringField(unit, FIELD_TOOL_CALL_ID);
+        String unitToolCallId = toolResultId(unit);
         if (!toolCallId.equals(unitToolCallId)) {
           continue;
         }
       }
       String text = extractTextValue(unit);
-      if (ROLE_USER.equals(targetRole)
-          && TYPE_TOOL_RESULT.equals(unit.get(FIELD_TYPE))
-          && !text.isEmpty()) {
-        text = "Tool result [" + stringField(unit, FIELD_TOOL_CALL_ID) + "]\n" + text;
+      if (ROLE_USER.equals(targetRole) && isToolResult(unit.get(FIELD_TYPE)) && !text.isEmpty()) {
+        text = "Tool result [" + toolResultId(unit) + "]\n" + text;
       }
       if (!text.isEmpty()) {
         if (!sb.isEmpty()) {
@@ -409,8 +436,20 @@ public final class PayloadCallContentExtractor {
     return sb.toString();
   }
 
+  static boolean isToolResult(Object type) {
+    return type != null
+        && List.of("tool_result", "function_call_output", "custom_tool_call_output").contains(type);
+  }
+
+  static String toolResultId(Map<?, ?> unit) {
+    for (String field : List.of("tool_call_id", "tool_use_id", "call_id")) {
+      if (unit.get(field) instanceof String value && !value.isEmpty()) return value;
+    }
+    return "";
+  }
+
   /** 从 sourceUnit 中提取文本值，支持 text、content、output 字段。 */
-  private static String extractTextValue(Map<String, Object> unit) {
+  private static String extractTextValue(Map<?, ?> unit) {
     Object text = unit.get(FIELD_TEXT);
     if (text instanceof String s && !s.isEmpty()) {
       return s;
@@ -498,9 +537,9 @@ public final class PayloadCallContentExtractor {
       String toolCallId, NormalizedSessionArtifact artifact) {
     for (SourceUnitCatalogEntry entry : artifact.sourceUnitCatalog().values()) {
       boolean resultUnit =
-          TYPE_TOOL_RESULT.equals(entry.unitType())
+          isToolResult(entry.unitType())
               || (entry.payload() instanceof Map<?, ?> value
-                  && TYPE_TOOL_RESULT.equals(value.get(FIELD_TYPE)));
+                  && isToolResult(value.get(FIELD_TYPE)));
       if (!resultUnit) {
         continue;
       }
@@ -513,12 +552,9 @@ public final class PayloadCallContentExtractor {
       }
       Object payload = entry.payload();
       if (payload instanceof Map<?, ?> map) {
-        Object id = map.get(FIELD_TOOL_CALL_ID);
+        Object id = toolResultId(map);
         if (toolCallId.equals(String.valueOf(id))) {
-          Object content = map.get(FIELD_CONTENT);
-          if (content instanceof String s && !s.isEmpty()) {
-            return s;
-          }
+          return catalogEntryText(entry);
         }
       }
     }
@@ -536,14 +572,7 @@ public final class PayloadCallContentExtractor {
       return s;
     }
     if (payload instanceof Map<?, ?> map) {
-      Object content = map.get(FIELD_CONTENT);
-      if (content instanceof String s && !s.isEmpty()) {
-        return s;
-      }
-      Object textInPayload = map.get(FIELD_TEXT);
-      if (textInPayload instanceof String s && !s.isEmpty()) {
-        return s;
-      }
+      return extractTextValue(map);
     }
     return "";
   }

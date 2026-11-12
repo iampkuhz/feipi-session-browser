@@ -550,20 +550,12 @@
             return tooltipShell(label, rows);
         }
 
-        function buildTokenTooltip(label, d, rangeTotal, previous) {
-            var rows = [];
+        function tokenTooltipData(label, d, rangeTotal, previous) {
             var total = totalTokens(d);
-            var measurement = trendMeasurement(d);
-            TOKEN_LAYERS.forEach(function(layer) {
-                var value = d[layer.key] || 0;
-                rows.push(tooltipRow(layer.cls, layer.label, TokenProvenance.value(measurement, layer.token, formatTokens), TokenProvenance.state(measurement) === 'provider_reported' ? share(value, total) : ''));
-            });
-            rows.push(tooltipRow('total', 'Total', TokenProvenance.total(measurement, formatTokens), share(total, rangeTotal), 'tooltip-row--total'));
-            rows.push(tooltipRow('total', 'Measurement', TokenProvenance.note(measurement) || 'Provider reported', ''));
             var prevTotal = previous ? plottableTokenTotal(previous) : null;
             var delta = prevTotal == null || plottableTokenTotal(d) == null ? 'N/A' : formatSignedTokens(total - prevTotal);
-            rows.push(tooltipRow('total', 'Delta', delta, ''));
-            return tooltipShell(label, rows);
+            return { tokens: trendMeasurement(d), title: label, providerOnly: true,
+                scale: '总量占当前时间窗口：' + (plottableTokenTotal(d) == null ? 'N/A' : share(total, rangeTotal)) + '；与前桶差值：' + delta };
         }
 
         function trendMeasurement(d) {
@@ -713,10 +705,10 @@
                 var total = plottableTokenTotal(d);
                 var x = xBandCenterPct(i, data.length);
                 var y = yPct(total, maxVal);
-                var tip = buildTokenTooltip(formatDisplayDate(d.date), d, rangeTotal, i > 0 ? data[i - 1] : null);
+                var tip = tokenTooltipData(formatDisplayDate(d.date), d, rangeTotal, i > 0 ? data[i - 1] : null);
                 var edge = edgeClass(i, data.length, 'chart-hover-target');
-                targets += '<span class="chart-hover-target' + (edge ? ' ' + edge : '') + '" style="--point-x:' + x.toFixed(2) + '%;--point-y:' + y.toFixed(2) + '%"><span class="chart-hover-guide"></span>'
-                    + (total == null ? '' : '<span class="area-point"></span>') + tip + '</span>';
+                targets += '<span class="chart-hover-target' + (edge ? ' ' + edge : '') + '" tabindex="0" data-token-breakdown="' + escapeHtml(JSON.stringify(tip)) + '" style="--point-x:' + x.toFixed(2) + '%;--point-y:' + y.toFixed(2) + '%"><span class="chart-hover-guide"></span>'
+                    + (total == null ? '' : '<span class="area-point"></span>') + '</span>';
             });
 
             var legend = TOKEN_LAYERS.map(function(layer) {
@@ -731,6 +723,7 @@
             setChartMarkup(container, '<div class="chart">' + yHtml +
                 '<div class="plot plot--area" style="--n:' + data.length + '"><svg class="area-plot line-plot--bar-aligned" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">' + paths + '</svg><div class="line-targets line-targets--bar-aligned">' + targets + '</div></div>' +
                 xAxisHtml(data) + '<div class="chart-legend">' + legend + '</div></div>');
+            TokenProvenance.bindTooltips(container);
         }
 
         function renderPromptChart() {

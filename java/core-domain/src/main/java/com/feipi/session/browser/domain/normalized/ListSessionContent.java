@@ -162,8 +162,13 @@ final class ListSessionContent implements NormalizedSessionContent {
   /** 仅在原有容量内重建旧制品，同时复核单元连续性、来源唯一性、序列偏移及总数。 */
   static NormalizedSessionArtifact toArtifact(NormalizedSessionContent content) throws IOException {
     var header = content.header();
-    if (header.totals().values().stream()
-        .anyMatch(value -> value > NormalizedConstants.MAX_COLLECTION_SIZE)) {
+    if (header.totals().entrySet().stream()
+        .anyMatch(
+            entry ->
+                entry.getValue()
+                    > ("sourceUnitCatalog".equals(entry.getKey())
+                        ? NormalizedConstants.MAX_SOURCE_UNIT_CATALOG_SIZE
+                        : NormalizedConstants.MAX_COLLECTION_SIZE))) {
       throw new IllegalArgumentException("content exceeds legacy artifact collection limit");
     }
     var sources = new ArrayList<NormalizedSourceFile>();
@@ -195,7 +200,7 @@ final class ListSessionContent implements NormalizedSessionContent {
           }
           append(keys, chunk.keys());
         }
-        if (catalog.size() > NormalizedConstants.MAX_COLLECTION_SIZE
+        if (catalog.size() > NormalizedConstants.MAX_SOURCE_UNIT_CATALOG_SIZE
             || sequences.size() > NormalizedConstants.MAX_COLLECTION_SIZE) {
           throw new IllegalArgumentException("content exceeds legacy artifact collection limit");
         }

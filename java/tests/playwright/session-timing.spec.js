@@ -75,6 +75,7 @@ for (const [label, sample] of [['measured', timing], ['unknown', undefined],
     await syntheticPage(page, { timingValue: sample === undefined ? null : sample });
     await page.goto(detailPath);
     await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+    await page.locator('[data-secondary-metrics] > summary').click();
     const card = page.locator('[data-session-timing]');
     await expect(card).toContainText('Source Task Active');
     await expect(card.locator('.sd-kpi__value')).toHaveText(sample ? (label === 'partial' ? '25s · Partial' : '2m 0s') : 'N/A');
@@ -114,7 +115,8 @@ for (const url of ['/sessions', '/projects/test-hifi-project']) {
     await page.goto(url);
     await expect(page.getByRole('columnheader', { name: 'Task Active' })).toBeVisible();
     await expect(page.locator('[data-task-active]').first()).toHaveText('2m 0s');
-    await expect(page.locator('[data-wall-duration]').first()).toHaveText('25h 0m');
+    if (url === '/sessions') await expect(page.locator('[data-wall-duration]')).toHaveCount(0);
+    else await expect(page.locator('[data-wall-duration]').first()).toHaveText('25h 0m');
     await expect(page.locator('[data-session-timing-description]')).toContainText('MAIN task windows');
   });
 }
@@ -131,7 +133,7 @@ for (const statistics of [
       String(statistics.eligibleSessions), statistics.eligibleSessions ? '0.0%' : 'N/A', String(statistics.lowReadSessions),
     ]);
     const toggle = card.locator('[data-token-provenance] summary');
-    await expect(toggle).toHaveText('Measurement details');
+    await expect(toggle).toHaveText('计量详情');
     await expect(card.locator('[data-cache-measurement]')).toBeHidden();
     await toggle.click();
     await expect(card.locator('[data-cache-measurement]')).toBeVisible();

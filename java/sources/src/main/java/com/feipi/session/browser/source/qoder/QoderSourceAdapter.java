@@ -12,6 +12,7 @@ import com.feipi.session.browser.source.common.JsonlReader;
 import com.feipi.session.browser.source.common.JsonlReaderResult;
 import com.feipi.session.browser.source.common.SourceTitleTexts;
 import com.feipi.session.browser.source.json.JsonCandidateParser;
+import com.feipi.session.browser.source.json.JsonRecordTypes;
 import com.feipi.session.browser.source.json.JsonSourceRecordMapper;
 import com.feipi.session.browser.source.qoder.QoderDiscovery.QoderDiscoveredSession;
 import com.feipi.session.browser.source.qoder.QoderDiscovery.QoderDiscoveryResult;
@@ -104,6 +105,11 @@ public final class QoderSourceAdapter implements SourceAdapter {
   }
 
   @Override
+  public RecordKind classifyRecord(String type, String role, String messageRole) {
+    return JsonRecordTypes.classify(sourceId(), type, role, messageRole);
+  }
+
+  @Override
   public SourceId sourceId() {
     return SourceId.QODER;
   }
@@ -114,18 +120,12 @@ public final class QoderSourceAdapter implements SourceAdapter {
     try (var events = new JsonNodeSpool()) {
       jsonlReader.readTo(filePath, events);
       events.seal();
-      boolean cache = events.stream().anyMatch(QoderSourceAdapter::isCacheRoleEvent);
-      boolean project =
-          events.stream()
-              .anyMatch(
-                  event ->
-                      "user".equals(text(event, "type"))
-                          || "assistant".equals(text(event, "type")));
+      var estimationKind = estimationSourceKind(events);
       boolean real = hasRealUsage(events);
-      if (!real && cache == project) {
+      if (!real && estimationKind.isEmpty()) {
         return Map.of();
       }
-      SourceKind kind = cache ? SourceKind.CACHE : SourceKind.PROJECTS;
+      SourceKind kind = estimationKind.orElse(SourceKind.PROJECTS);
       Map<String, String> metadata = new HashMap<>(tokenMetadata(events, kind));
       if (!real) {
         TokenEstimate estimate = estimateTokens(events, kind);
@@ -318,7 +318,8 @@ public final class QoderSourceAdapter implements SourceAdapter {
 
   /** 已知 SourceKind 优先；只为原估算法构建内容视图，不改原始事件。 */
   private static TokenEstimate estimateTokens(List<JsonNode> events, SourceKind sourceKind) {
-    if (hasRealUsage(events)) {
+    if (hasRealUsage(events)
+        || estimationSourceKind(events).filter(kind -> kind == sourceKind).isEmpty()) {
       return TokenEstimate.empty();
     }
     return sourceKind == SourceKind.CACHE
@@ -403,6 +404,7 @@ public final class QoderSourceAdapter implements SourceAdapter {
 
   private static boolean hasRealUsage(List<JsonNode> events) {
     return events.stream()
+        .filter(event -> !JsonRecordTypes.ignoredMetadata(text(event, "type")))
         .map(QoderSourceAdapter::eventUsage)
         .anyMatch(
             usage ->
@@ -410,6 +412,17 @@ public final class QoderSourceAdapter implements SourceAdapter {
                     || reported(usage, "output_tokens")
                     || reported(usage, "cache_read_input_tokens")
                     || reported(usage, "cache_creation_input_tokens"));
+  }
+
+  // 仅原估算法已支持的单一布局可估算；message 包装可读不代表已有计量依据。
+  private static Optional<SourceKind> estimationSourceKind(List<JsonNode> events) {
+    boolean cache = events.stream().anyMatch(QoderSourceAdapter::isCacheRoleEvent);
+    boolean project =
+        events.stream()
+            .anyMatch(event -> List.of("user", "assistant").contains(text(event, "type")));
+    return cache == project
+        ? Optional.empty()
+        : Optional.of(cache ? SourceKind.CACHE : SourceKind.PROJECTS);
   }
 
   private static Map<String, String> tokenMetadata(List<JsonNode> events, SourceKind sourceKind) {
@@ -422,6 +435,9 @@ public final class QoderSourceAdapter implements SourceAdapter {
     };
     boolean real = hasRealUsage(events);
     if (!real) {
+      if (estimationSourceKind(events).filter(kind -> kind == sourceKind).isEmpty()) {
+        return Map.of();
+      }
       metadata.put(keys[0], "estimated");
       metadata.put(keys[1], "unavailable");
       metadata.put(keys[2], "unavailable");
@@ -965,19 +981,9 @@ public final class QoderSourceAdapter implements SourceAdapter {
    * @return 非 null 的事件类型
    */
   private static String extractEventType(JsonNode event) {
-    JsonNode typeNode = event.get("type");
-    String type = typeNode != null && typeNode.isTextual() ? typeNode.asText() : "";
-    if ("message".equals(type)) {
-      String role = text(event, "role");
-      if (role.isEmpty()) {
-        role = text(JsonNodeReaders.objectChild(event, "message"), "role");
-      }
-      if ("user".equals(role) || "assistant".equals(role)) {
-        type = role;
-      }
-    } else if (typeNode == null || !typeNode.isTextual()) {
-      type = hasRoleField(event) ? text(event, "role") : QoderConstants.EVENT_TYPE_UNKNOWN;
-    }
+    String type =
+        JsonRecordTypes.qoderType(
+            text(event, "type"), text(event, "role"), text(event.path("message"), "role"));
     return "user".equals(type) && isMetaEvent(event) ? "meta" : type;
   }
 
@@ -1001,7 +1007,8 @@ public final class QoderSourceAdapter implements SourceAdapter {
 
   private static boolean isCacheRoleEvent(JsonNode event) {
     JsonNode typeNode = event.get("type");
-    return (typeNode == null || !typeNode.isTextual()) && hasRoleField(event);
+    return (typeNode == null || !typeNode.isTextual() || typeNode.asText().isEmpty())
+        && hasRoleField(event);
   }
 
   private static void addUnknownPartDiagnostics(

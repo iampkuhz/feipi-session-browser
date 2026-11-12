@@ -1,11 +1,11 @@
-/** Token measurement semantics shared by personal and isolated-import pages. */
+/** 个人与隔离导入页面共享的 Token 计量展示与弹框。 */
 (function () {
   'use strict';
   var keys = ['freshInput', 'cacheRead', 'cacheWrite', 'output'];
   var valid = ['provider_reported', 'estimated', 'unavailable', 'unknown', 'mixed'];
   var methods = {
-    visible_context_v1: 'visible conversation context in project records',
-    cache_transcript_v1: 'visible conversation context in the local transcript cache'
+    visible_context_v1: '项目记录中的可见对话上下文',
+    cache_transcript_v1: '本地 transcript 缓存中的可见对话上下文'
   };
   function provenance(tokens) { return tokens && tokens.provenance || {}; }
   function state(tokens, key) {
@@ -22,38 +22,32 @@
   function evidence(tokens) {
     var p = provenance(tokens);
     var parts = [];
-    [['estimated', 'Estimated', 'Includes estimated Token counts'],
-      ['unavailable', 'Not reported', 'Some Token counts were not reported'],
-      ['unknown', 'Unknown source', 'The measurement source was not recorded']].forEach(function (entry) {
+    [['estimated', '本地估算（Estimated）', '包含本地估算的 Token'],
+      ['unavailable', '未上报', '部分 Token 未由来源上报'],
+      ['unknown', '来源未知（Unknown）', '未记录计量来源']].forEach(function (entry) {
       if (!contains(tokens, entry[0])) return;
       var count = Number(p[entry[0] + 'SessionCount'] || 0);
-      parts.push([entry[1], count ? count.toLocaleString('en-US') + ' session' + (count === 1 ? '' : 's') : entry[2]]);
+      parts.push([entry[1], count ? count.toLocaleString('en-US') + ' 个会话' : entry[2]]);
     });
     if (p.estimationMethod && contains(tokens, 'estimated')) {
       var labels = new Set(p.estimationMethod.split(',').map(function (method) {
-        return Object.hasOwn(methods, method.trim()) ? methods[method.trim()] : 'method not documented in this view';
+        return Object.hasOwn(methods, method.trim()) ? methods[method.trim()] : '当前视图未提供估算方法';
       }));
-      parts.push(['Estimate basis', Array.from(labels).join('; ')]);
+      parts.push(['估算依据', Array.from(labels).join('; ')]);
     }
     if (!parts.length && state(tokens) === 'mixed') {
-      parts.push(['Measurement', 'Token components have different measurement sources']);
+      parts.push(['计量来源', '各 Token 分段的计量来源不同']);
     }
     return parts;
   }
   function note(tokens) {
     return evidence(tokens).map(function (part) { return part.join(': '); }).join(' · ');
   }
-  function addDefinition(list, label, value, color, share) {
+  function addDefinition(list, label, value) {
     var term = document.createElement('dt');
     term.textContent = label;
-    if (color) term.className = 'token-component token-component--' + color;
     var definition = document.createElement('dd');
     definition.textContent = value;
-    if (share != null) {
-      var portion = document.createElement('small');
-      portion.textContent = (share > 0 && share < 0.1 ? '<0.1' : share.toFixed(1)) + '%';
-      definition.append(portion);
-    }
     list.append(term, definition);
   }
   function amount(tokens, key, formatter) {
@@ -64,6 +58,66 @@
     var approximate = precision === 'estimated'
       || (key === 'total' && precision === 'mixed' && contains(tokens, 'estimated'));
     return (approximate ? '≈' : '') + formatter(n);
+  }
+  // 统一分列与色标；调用方明确占比分母策略，不借视觉统一改变计量口径。
+  function breakdown(tokens, options) {
+    options = options || {};
+    var block = document.createElement('section');
+    block.className = 'token-breakdown';
+    var title = document.createElement('b');
+    title.textContent = options.title || 'Token Breakdown';
+    var caption = document.createElement('p');
+    caption.textContent = '占比以当前总量为分母，包含 Output；N/A 不等于 0%。';
+    block.append(title, caption);
+    var total = Number(tokens && tokens.total);
+    var labels = { provider_reported: '服务商上报', estimated: '本地估算', unavailable: '未上报', unknown: '来源未知', mixed: '部分数据' };
+    function row(label, key, color) {
+      var line = document.createElement('div');
+      line.className = 'token-breakdown__row' + (key === 'total' ? ' token-breakdown__total' : '');
+      line.dataset.tokenPart = key;
+      var term = document.createElement('span');
+      term.className = 'token-component' + (color ? ' token-component--' + color : '');
+      term.textContent = label;
+      var quantity = document.createElement('strong');
+      var precision = state(tokens, key === 'total' ? null : key);
+      var formatted = amount(tokens, key, function (n) { return Number(n).toLocaleString('en-US'); });
+      quantity.textContent = formatted + ' · ' + labels[precision];
+      var portion = document.createElement('span');
+      portion.className = 'token-breakdown__share';
+      var n = Number(tokens && tokens[key]);
+      var available = precision !== 'unknown' && precision !== 'unavailable' && formatted !== 'N/A'
+        && (!options.providerOnly || state(tokens) === 'provider_reported');
+      var share = available && total > 0 && n >= 0 && n <= total ? n / total * 100 : null;
+      portion.textContent = share == null ? 'N/A' : (precision !== 'provider_reported' || state(tokens) !== 'provider_reported' ? '≈' : '')
+        + (share > 0 && share < 0.1 ? '<0.1' : share.toFixed(1)) + '%';
+      line.append(term, quantity, portion);
+      block.append(line);
+    }
+    [['Fresh', 'fresh', 'fresh'], ['Cache Read', 'cacheRead', 'read'], ['Cache Write', 'cacheWrite', 'write'], ['Output', 'output', 'out'], ['Total', 'total', '']]
+      .forEach(function (part) { row.apply(null, part); });
+    if (options.ratio) {
+      var ratioNote = document.createElement('p');
+      ratioNote.textContent = 'Cache Read / Input：' + ratio(tokens) + '（分母不含 Output，仅使用服务商上报的完整输入）';
+      block.append(ratioNote);
+    }
+    if (options.scale) {
+      var scale = document.createElement('p');
+      scale.textContent = options.scale;
+      block.append(scale);
+    }
+    var evidenceNote = document.createElement('p');
+    evidenceNote.textContent = state(tokens) === 'provider_reported' ? '' : '部分数据（Partial）不代表服务商精确统计；估算（Estimated）和来源未知（Unknown）均不能当作精确用量。';
+    if (evidenceNote.textContent) block.append(evidenceNote);
+    return block;
+  }
+  var boundTooltips = new WeakSet();
+  function bindTooltips(root) {
+    root.querySelectorAll('[data-token-breakdown]').forEach(function (trigger) {
+      if (boundTooltips.has(trigger)) return;
+      boundTooltips.add(trigger);
+      var data = JSON.parse(trigger.getAttribute('data-token-breakdown'));
+      bindBar(trigger, function () { return [breakdown(data.tokens || {}, data)]; }, data.navigate);
+    });
   }
   function renderCell(cell, tokens, formatter, showOnBar) {
     var total = document.createElement('div');
@@ -79,7 +133,6 @@
     bar.setAttribute('aria-hidden', 'true');
     var shown = Number(tokens && tokens.total);
     var exact = function (number) { return Number(number).toLocaleString('en-US'); };
-    var parts = [];
     [['fresh', 'Fresh input', 'fresh'], ['cacheRead', 'Cache read', 'read'],
       ['cacheWrite', 'Cache write', 'write'], ['output', 'Output', 'out']].forEach(function (part) {
       var key = part[0];
@@ -89,7 +142,6 @@
         && amount(tokens, key, exact) !== 'N/A';
       var share = available && display.textContent !== 'N/A' && shown > 0 && n >= 0 && n <= shown
         ? n / shown * 100 : null;
-      parts.push([part[1], value(tokens, key, exact), part[2], share]);
       if (share > 0) {
         var segment = document.createElement('span');
         segment.className = 'tokenbar-seg ' + part[2];
@@ -98,15 +150,9 @@
       }
     });
     function composition() {
-      var breakdown = document.createElement('div');
-      breakdown.className = 'token-composition';
-      var caption = document.createElement('p');
-      caption.textContent = 'Token breakdown · Share of shown total';
-      var list = document.createElement('dl');
-      addDefinition(list, 'Shown total', amount(tokens, 'total', exact));
-      parts.forEach(function (part) { addDefinition(list, part[0], part[1], part[2], part[3]); });
-      breakdown.append(caption, list);
-      return breakdown;
+      var block = breakdown(tokens);
+      block.classList.add('token-composition');
+      return block;
     }
     if (showOnBar) {
       var measurement = status(tokens);
@@ -127,11 +173,10 @@
       total.append(trigger);
       bindBar(trigger, function () {
         var block = composition();
-        if (bar.childElementCount) block.firstChild.after(bar.cloneNode(true));
         var evidenceList = document.createElement('dl');
         evidenceList.className = 'token-evidence';
         var rows = evidence(tokens);
-        (rows.length ? rows : [['Measurement', 'Provider reported']]).forEach(function (row) {
+        (rows.length ? rows : [['计量来源', '服务商上报']]).forEach(function (row) {
           addDefinition(evidenceList, row[0], row[1]);
         });
         return [block, evidenceList];
@@ -139,12 +184,27 @@
       return;
     }
     if (bar.childElementCount) total.append(bar);
+    bar.setAttribute('tabindex', '0');
+    bar.removeAttribute('aria-hidden');
+    bar.setAttribute('aria-label', 'Token breakdown');
+    bindBar(bar, function () { return [breakdown(tokens)]; });
     attach(cell, tokens, composition());
     if (!status(tokens)) cell.querySelector('summary').textContent = 'Token breakdown';
   }
   var tokenPopover;
   var tokenTrigger;
   var closeTimer;
+  function positionBar() {
+    if (!tokenTrigger || !tokenPopover.matches(':popover-open')) return;
+    var anchor = tokenTrigger.getBoundingClientRect();
+    var panel = tokenPopover.getBoundingClientRect();
+    if (anchor.bottom < 0 || anchor.top > window.innerHeight) { closeBar(); return; }
+    var left = Math.max(8, Math.min(anchor.right - panel.width, document.documentElement.clientWidth - panel.width - 8));
+    var top = anchor.bottom + 4;
+    if (top + panel.height > window.innerHeight - 8) top = Math.max(8, anchor.top - panel.height - 4);
+    tokenPopover.style.setProperty('--token-popover-x', left + 'px');
+    tokenPopover.style.setProperty('--token-popover-y', top + 'px');
+  }
   function closeBar() {
     clearTimeout(closeTimer);
     if (tokenTrigger) tokenTrigger.setAttribute('aria-expanded', 'false');
@@ -157,7 +217,9 @@
       if (tokenTrigger && !tokenTrigger.matches(':hover, :focus-visible') && !tokenPopover.matches(':hover')) closeBar();
     }, 160);
   }
-  function bindBar(trigger, contents) {
+  function bindBar(trigger, contents, navigate) {
+    trigger.setAttribute('aria-controls', 'token-bar-popover');
+    trigger.setAttribute('aria-expanded', 'false');
     function open() {
       clearTimeout(closeTimer);
       if (!tokenPopover) {
@@ -174,7 +236,9 @@
         });
         window.addEventListener('resize', closeBar);
         document.addEventListener('scroll', function (event) {
-          if (!tokenPopover.contains(event.target)) closeBar();
+          if (tokenPopover.contains(event.target)) return;
+          if (tokenTrigger && tokenTrigger.matches(':hover, :focus-visible')) requestAnimationFrame(positionBar);
+          else closeBar();
         }, true);
         document.body.append(tokenPopover);
       }
@@ -183,20 +247,20 @@
       tokenTrigger = trigger;
       tokenPopover.replaceChildren.apply(tokenPopover, contents());
       if (!tokenPopover.matches(':popover-open')) tokenPopover.showPopover();
-      var anchor = trigger.getBoundingClientRect();
-      var panel = tokenPopover.getBoundingClientRect();
-      var left = Math.max(8, Math.min(anchor.right - panel.width, document.documentElement.clientWidth - panel.width - 8));
-      var top = anchor.bottom + 4;
-      if (top + panel.height > window.innerHeight - 8) top = Math.max(8, anchor.top - panel.height - 4);
-      tokenPopover.style.setProperty('--token-popover-x', left + 'px');
-      tokenPopover.style.setProperty('--token-popover-y', top + 'px');
+      positionBar();
       trigger.setAttribute('aria-expanded', 'true');
     }
     trigger.addEventListener('pointerenter', function (event) { if (event.pointerType === 'mouse') open(); });
     trigger.addEventListener('pointerleave', scheduleClose);
-    trigger.addEventListener('focus', function () { if (trigger.matches(':focus-visible')) open(); });
+    trigger.addEventListener('focus', function () {
+      // Native keyboard focus may scroll the table; open after that scroll closes any stale panel.
+      requestAnimationFrame(function () {
+        if (document.activeElement === trigger && trigger.matches(':focus-visible')) open();
+      });
+    });
     trigger.addEventListener('blur', scheduleClose);
     trigger.addEventListener('click', function (event) {
+      if (navigate) { closeBar(); return; }
       event.stopPropagation();
       open();
     });
@@ -280,7 +344,7 @@
       details.addEventListener('click', function (event) { event.stopPropagation(); });
       host.appendChild(details);
     }
-    details.firstElementChild.textContent = status(tokens) || 'Measurement details';
+    details.firstElementChild.textContent = { 'Partial coverage': '部分数据（Partial）', 'Estimated': '本地估算（Estimated）', 'Not reported': '未上报', 'Unknown source': '来源未知（Unknown）' }[status(tokens)] || '计量详情';
     while (details.childElementCount > 1) details.lastElementChild.remove();
     if (extra) details.appendChild(extra);
     if (message) {
@@ -292,7 +356,7 @@
         return Number(provenance(tokens)[key + 'SessionCount']) > 0;
       }).length > 1) {
         var explanation = document.createElement('p');
-        explanation.textContent = 'Coverage counts can overlap; do not add them.';
+        explanation.textContent = '各状态的会话数可能重叠，不能直接相加。';
         details.appendChild(explanation);
       }
     }
@@ -314,7 +378,7 @@
   }
   window.TokenProvenance = {
     state: state, note: note, value: value, measuredInput: measuredInput, ratio: ratio, attach: attach, merge: merge,
-    amount: amount, renderCell: renderCell,
+    amount: amount, renderCell: renderCell, breakdown: breakdown, bindTooltips: bindTooltips,
     total: function (tokens, formatter) { return value(tokens, 'total', formatter); }
   };
 }());

@@ -181,6 +181,74 @@ def test_edit_during_run_does_not_publish_a_pass_receipt(tmp_path, monkeypatch, 
     monkeypatch.setattr(cli, 'orchestrate_gate_run', run)
     assert cli.main(['run', '--mode', 'incremental']) == 2
     output = capsys.readouterr()
-    assert 'worktree inputs changed' in output.err
+    assert 'reason=input-changed' in output.out
     assert 'status=PASS' not in output.err + output.out
-    assert not (tmp_path / 'tmp/quality/runs/latest.json').exists()
+    summary = next((tmp_path / 'tmp/quality/runs').glob('*/summary.json'))
+    payload = json.loads(summary.read_text())
+    assert payload['status'] == 'FAIL'
+    assert payload['inputValidation']['changedPaths'] == ['README.md']
+    assert (
+        payload['inputValidation']['beforeFingerprint']
+        != payload['inputValidation']['afterFingerprint']
+    )
+    assert (tmp_path / 'tmp/quality/runs/latest.json').exists()
+
+
+def test_input_recapture_failure_still_saves_a_fail_receipt(tmp_path, monkeypatch, capsys):
+    _init_repo(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    original_capture = cli.capture_change_snapshot
+    captures = 0
+
+    def capture(*args, **kwargs):
+        nonlocal captures
+        captures += 1
+        if captures == 2:
+            raise RuntimeError('synthetic unavailable input')
+        return original_capture(*args, **kwargs)
+
+    monkeypatch.setattr(cli, 'capture_change_snapshot', capture)
+    assert cli.main(['run', '--mode', 'incremental']) == 2
+    assert 'reason=input-unavailable' in capsys.readouterr().out
+    summary = next((tmp_path / 'tmp/quality/runs').glob('*/summary.json'))
+    payload = json.loads(summary.read_text())
+    assert payload['inputValidation']['status'] == payload['status'] == 'FAIL'
+    assert payload['inputValidation']['unavailablePaths'] == []
+
+
+def test_unavailable_input_points_to_path_without_leaking_private_error(
+    tmp_path, monkeypatch, capsys
+):
+    _init_repo(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    target = tmp_path / 'README.md'
+    target.write_text('changed\n')
+    path_type = type(target)
+    original = path_type.read_bytes
+
+    def unavailable(path):
+        if path == target:
+            raise PermissionError('synthetic private error detail')
+        return original(path)
+
+    def run(_plan, _root, *, event_sink):
+        from scripts.gates.execution import ExecutionEvent
+
+        monkeypatch.setattr(path_type, 'read_bytes', unavailable)
+        event_sink(ExecutionEvent(kind='DONE', status='PASS'))
+        return ()
+
+    monkeypatch.setattr(cli, 'orchestrate_gate_run', run)
+    assert cli.main(['run', '--mode', 'incremental']) == 2
+    output = capsys.readouterr()
+    summary = next((tmp_path / 'tmp/quality/runs').glob('*/summary.json'))
+    payload = json.loads(summary.read_text())
+    validation = payload['inputValidation']
+    assert validation['unavailablePaths'] == ['README.md']
+    assert validation['changedPaths'] == []  # 未能读取不等于已确认内容变化。
+    assert validation['beforeFingerprint'] == payload['snapshot']['contentFingerprint']
+    assert validation['afterFingerprint'] is None
+    assert payload['status'] == 'FAIL'
+    assert 'README.md' in output.out
+    assert 'status=PASS' not in output.out + output.err
+    assert 'synthetic private error detail' not in output.out + output.err + summary.read_text()

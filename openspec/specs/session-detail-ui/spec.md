@@ -11,7 +11,7 @@ Session Detail 由本地服务提供在线运行分析；下载的 HTML/MHTML �
 页面必须展示：
 - Session 标题。
 - Agent 名称、model、project、created/updated 时间、session id；已解析本地 JSONL 路径时展示索引源文件路径。
-- 正好 5 个主 KPI：Run Health、Total Tokens、Cache Health、Workload、Active Time。
+- 默认 3 个核心 KPI：Total Tokens、Cache Health、Workload。Run Health 与 typed Source Task Active 放入“运行诊断与耗时”按需入口，保留所有测量与覆盖边界。
 - Run Health 二级指标：Issue Rounds、Failed Tools、Payload Gaps、Attribution Gaps。
 - Total Tokens 二级指标：Fresh、Cache Read、Cache Write、Output。
 - Cache Health 二级指标：Input-side Tokens、Low-cache Rounds、Fresh Spike Rounds。
@@ -33,7 +33,7 @@ Token 指标必须只使用 5 个当前组件字段：
 
 #### Scenario: Analysis cards 展示
 
-页面必须展示 Agents Breakdown、Context Budget、Tool Impact、Issues & Repro Seeds。Agents Breakdown 在桌面端必须横跨完整分析网格宽度，并将 `main agent` 作为第一个可选项，后面列出 subagent runs。切换候选项时，同一卡片内的 token/cache timeline 必须同步切换。Context Budget 在桌面端必须横跨完整分析网格宽度并独占一行，Tool Impact 与 Issues & Repro Seeds 在下一行左右排列；窄屏使用单列布局并保持相同语义顺序。
+页面必须展示 Agents Breakdown、Context Budget、Tool Impact、Issues & Repro Seeds。Agents Breakdown 在桌面端必须横跨完整分析网格宽度，并将 `main agent` 作为第一个可选项，后面列出 subagent runs。切换候选项时，同一卡片内的 token/cache timeline 必须同步切换。Context Budget 在桌面端必须横跨完整分析网格宽度并独占一行，Tool Impact 与 Issues & Repro Seeds 在下一行提供可键盘展开的入口（工具默认收起，问题有线索时展开）；窄屏使用单列布局并保持相同语义顺序。
 
 #### Scenario: Removed token-driver cards are absent
 
@@ -201,3 +201,42 @@ Session Detail SHALL surface recognized Codex subagent runs through Agents Break
 - **When** the Trace round is expanded
 - **Then** the round SHALL show a `Subagent Run` event row
 - **And** each visible subagent round summary row SHALL expose `request` and `response` attribution actions when payload ids are available.
+
+
+### Requirement: Trace 内容证据与调用身份一致
+Session Detail SHALL 从当前轮所引用的 inline/catalog/sequence 可见文本或工具声明生成短摘要与源时间。它 MUST NOT 使用 session 更新时间、耗时或另一轮的文本代替当前轮时间或摘要；缺失来源 SHALL 明确标记。摘要 SHALL 过滤系统上下文、工具结果及长正文并应用默认脱敏。
+
+本地流式内容与独立导入的已物化制品 SHALL 使用相同预览规则，优先本轮可见用户输入，其次工具计数及短操作，最后助手文本。历史用户引用 SHALL 只归属首次出现的轮次；完整 Request 仍可保留历史上下文。
+
+#### Scenario: 纯工具轮及后续结果消费
+- **WHEN** R1 声明工具 A，R2 消费 A 的结果并声明同名工具 B
+- **THEN** R1 的模型 Response 与 Tool Input/Result SHALL 按 A 的身份关联，R2 SHALL 仅计 B 为新执行；可见摘要 SHALL 区分两个操作。
+
+### Requirement: 展开区域不得重复概览工具操作
+纯工具响应概览 SHALL NOT 与对应工具执行并列成为重复 timeline-item。独立助手文本、独立调用和子 Agent SHALL 保持可定位；成员操作 SHALL 绑定稳定 call ID。
+
+#### Scenario: 按需展开与布局
+- **WHEN** 用户展开 Round 的工具正文
+- **THEN** Tool Input 和 Tool Result SHALL 独立按需加载并在桌面双栏、窄屏单栏展示；单页全量成员 SHALL 不显示调试式分页文案。
+
+### Requirement: 缺失诊断和索引错误保持真实含义
+诊断未提供、未加载、加载失败及测量为空 SHALL 可区分。工具计数 SHALL 解释本地归一化口径。非成功响应缺少 generation header SHALL NOT 单独被判定为换代；成功续页仍 SHALL 验证 generation，真实换代 SHALL 阻断内容合并并给出刷新路径。
+
+#### Scenario: HTTP 错误不是索引换代
+- **WHEN** 同一快照的 Round 返回无 generation header 的 HTTP 500
+- **THEN** 页面 SHALL 显示可重试加载失败，不伪报 index changed；409 或不同 generation SHALL 显示刷新恢复路径。
+
+
+### Requirement: Token 展示层级与共享分列
+
+Context Budget SHALL 使用内容驱动的紧凑网格，保留分类标签、数值、占比、来源邻近。只有明确纳入且有可用 share 的分类参与构成；Partial SHALL 明确为近似非服务商精确统计，未知/未上报 SHALL 不补零。Tool Results SHALL 明确为构成之外的本地估算。缓存比率 SHALL 只用完整的服务商上报输入。
+
+#### Scenario: 共享入口与窄屏
+
+- **WHEN** 在桌面或 390px 视口查看列表、项目 Token Cell、Dashboard Token 趋势、详情 Agent/Round/Trace/call
+- **THEN** Token 构成弹框使用共享色标/类型、数量/来源、占比列及 viewport popover，支持 hover/focus/Escape，长标签不截断；每个入口保留自己正确的分母与估算/未知/实测零状态。
+
+#### Scenario: 按需诊断不删除能力
+
+- **WHEN** 打开“运行诊断与耗时”、Tool Impact 或 Issues & Repro Seeds
+- **THEN** 原有 typed timing、问题覆盖状态、工具明细、Round 跳转与定位串仍可达；没有分析不冒充零问题。

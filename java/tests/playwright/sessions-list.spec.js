@@ -85,7 +85,7 @@ test.describe('会话列表页', () => {
     await expect(page.locator('[data-api-rows="/api/sessions/rows"]')).toBeVisible();
     const firstDataRow = page.locator('.data-table tbody tr[data-action="row"]').first();
     await expect(firstDataRow).toBeVisible({ timeout: 10000 });
-    await expect(firstDataRow.locator(':scope > td')).toHaveCount(13);
+    await expect(firstDataRow.locator(':scope > td')).toHaveCount(11);
     const disclosure = firstDataRow.locator('.token-total__status');
     await expect(disclosure).toBeVisible();
     await expect(disclosure).toContainText(/Partial|Unknown/);
@@ -108,7 +108,7 @@ test.describe('会话列表页', () => {
       .every((key) => row.tokens?.provenance?.[key] === 'provider_reported'));
     expect(reported, 'Synthetic fixture 必须提供显式四段 provider_reported 的 compact 正例').toBeDefined();
     const compactRow = page.locator('.data-table tbody tr[data-action="row"]').filter({ has: page.locator(`[data-session-link][href="${reported.detailUrl}"]`) });
-    await expect(compactRow.locator(':scope > td')).toHaveCount(13);
+    await expect(compactRow.locator(':scope > td')).toHaveCount(11);
     const compactRowHeight = await compactRow.evaluate((row) => row.getBoundingClientRect().height);
     expect(compactRowHeight, '完整 reported 的 API 行应保持 compact table row 结构，不能因 <td> 被剥离而撑高').toBeLessThanOrEqual(70);
     await test.info().attach('session-row-layout', { contentType: 'application/json', body: JSON.stringify({
@@ -135,7 +135,10 @@ test.describe('会话列表页', () => {
     expect(combined).toContain('tokens');
     expect(combined).toContain('rounds');
     expect(combined).toContain('tools');
-    expect(combined).toContain('duration');
+    expect(headerTexts.map(text => text.trim())).toEqual([
+      'Session', 'Project', 'Agent', 'Model', 'Tokens', 'Rounds', 'Tools', 'Subagents', 'Task Active', 'Created', 'Updated',
+    ]);
+    await expect(page.locator('[data-sort-key="duration"], [data-sort-key="failure"]')).toHaveCount(0);
     expect(combined).toContain('updated');
   });
 
@@ -187,14 +190,20 @@ test.describe('会话列表页', () => {
     const trigger = cell.getByRole('button', { name: 'Token breakdown' });
     const panel = page.locator('#token-bar-popover');
     await trigger.hover();
-    await expect(panel.locator('.token-composition dt')).toHaveText(['Shown total', 'Fresh input', 'Cache read', 'Cache write', 'Output']);
+    await expect(panel.locator('.token-breakdown__row .token-component')).toHaveText(['Fresh', 'Cache Read', 'Cache Write', 'Output', 'Total']);
+    await expect(panel.locator('.token-composition > .tokenbar')).toHaveCount(0);
+    await expect(panel.locator('[data-token-part]')).toHaveCount(5);
     await page.keyboard.press('Escape');
     await expect(panel).toBeHidden();
     await trigger.press('Enter');
     await expect(trigger).toHaveAttribute('aria-expanded', 'true');
-    await expect(panel.locator('.token-composition')).toContainText('Share of shown total');
+    await expect(panel.locator('.token-composition')).toContainText('占比以当前总量为分母');
     await page.keyboard.press('Escape');
     await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    await page.locator('#session-search').focus();
+    await trigger.focus();
+    await expect(panel).toBeVisible();
+    await page.keyboard.press('Escape');
     expect(await cell.locator('.tokenbar-seg').evaluateAll(nodes =>
       nodes.every(node => parseFloat(node.style.getPropertyValue('--segment-width')) > 0))).toBe(true);
   });
@@ -213,6 +222,7 @@ test.describe('会话列表页', () => {
       await page.goto('/sessions?page=1');
       await expect(nextBtn).toBeVisible();
       await expect(nextBtn).toBeDisabled();
+      await expect(page.locator('.sessions-loading-cell')).toHaveAttribute('colspan', '11');
     } finally {
       releaseInitialRows();
     }
@@ -319,15 +329,13 @@ test.describe('会话列表页', () => {
   test('[UI-SESSIONS-006] 筛选表单提交并改变 URL', async ({ page }) => {
     await page.goto('/sessions');
     const searchInput = page.locator('#session-search');
-    if (await searchInput.isVisible()) {
-      await searchInput.fill('test-query-t082');
-      // 点击应用
-      const applyBtn = page.locator('button[data-action="apply"], input[type="submit"]');
-      if (await applyBtn.count() > 0) {
-        await applyBtn.first().click();
-        await page.waitForURL(/q=/);
-        expect(page.url()).toContain('q=test-query-t082');
-      }
-    }
+    await expect(page.locator('.sessions-row').first()).toBeVisible();
+    await searchInput.fill('test-query-t082-no-match');
+    await expect(page).toHaveURL(/q=test-query-t082-no-match/);
+    await expect(page.locator('.empty-state')).toContainText('No sessions match');
+    await expect(page.locator('.empty-state').locator('..')).toHaveAttribute('colspan', '11');
+    await page.locator('.empty-state [data-action="clear"]').click();
+    await expect(page.locator('.sessions-row').first()).toBeVisible();
+    await expect(searchInput).toHaveValue('');
   });
 });

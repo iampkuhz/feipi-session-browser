@@ -196,3 +196,37 @@ def test_incremental_selector_rerun_keeps_frozen_input(tmp_path: Path) -> None:
 
     assert '--gate javaBuildVerification' in receipt.canonical_rerun
     assert '--base base-sha' in receipt.canonical_rerun
+
+
+@pytest.mark.parametrize('drift', [False, True])
+def test_input_validation_keeps_original_results_and_logs(tmp_path: Path, drift: bool) -> None:
+    log = tmp_path / 'owner.log'
+    log.write_text('original owner diagnostics\n')
+    original = _blocked_result(log)
+    invocation = replace(
+        original.step_results[0].invocation_results[0],
+        status=ExecutionStatus.PASS,
+        reason='',
+        return_code=0,
+    )
+    step = replace(
+        original.step_results[0],
+        status=ExecutionStatus.PASS,
+        reason='',
+        invocation_results=(invocation,),
+    )
+    green = replace(original, status=ExecutionStatus.PASS, reason='', step_results=(step,))
+    plan = _plan(source='git-working-tree', base=None)
+    observed = replace(plan.snapshot, content_fingerprint='new-sha') if drift else plan.snapshot
+    receipt = store_run_receipt(plan, (green,), repo_root=tmp_path, observed_snapshot=observed)
+    payload = json.loads(receipt.summary_path.read_text())
+    assert (receipt.status, receipt.reason) == (
+        ('FAIL', 'input-changed') if drift else ('PASS', '')
+    )
+    assert payload['gateResults'][0]['status'] == 'PASS'
+    validation = payload['inputValidation']
+    assert validation['status'] == ('FAIL' if drift else 'PASS')
+    assert validation['changedPaths'] == (['java/App.java'] if drift else [])
+    assert validation['beforeFingerprint'] == plan.snapshot.content_fingerprint
+    assert validation['afterFingerprint'] == observed.content_fingerprint
+    assert receipt.log_paths[0].read_text() == 'original owner diagnostics\n'

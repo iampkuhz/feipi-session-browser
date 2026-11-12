@@ -29,6 +29,10 @@ _SOURCE_FULL = 'full'
 class ChangeSnapshotError(RuntimeError):
     """表示 Git 或文件系统故障导致无法生成可复现快照。"""
 
+    def __init__(self, message: str, *, paths: tuple[str, ...] = ()) -> None:
+        super().__init__(message)
+        self.paths = paths
+
 
 @dataclass(frozen=True, slots=True)
 class ChangeSnapshot:
@@ -39,6 +43,7 @@ class ChangeSnapshot:
     base: str | None
     files: tuple[str, ...]
     content_fingerprint: str
+    file_fingerprints: tuple[tuple[str, str], ...] = ()
 
 
 def _run_git(repo_root: Path, *args: str) -> str:
@@ -114,15 +119,26 @@ def _content_identity(repo_root: Path, repo_path: str) -> dict[str, object]:
         metadata = path.lstat()
     except FileNotFoundError:
         return {'path': repo_path, 'state': 'missing'}
+    except OSError as exc:
+        raise ChangeSnapshotError(
+            f'cannot inspect changed file {repo_path}', paths=(repo_path,)
+        ) from exc
     mode = stat.S_IMODE(metadata.st_mode)
     if stat.S_ISLNK(metadata.st_mode):
-        payload = os.readlink(path).encode('utf-8', errors='surrogateescape')
+        try:
+            payload = os.readlink(path).encode('utf-8', errors='surrogateescape')
+        except OSError as exc:
+            raise ChangeSnapshotError(
+                f'cannot read changed symlink {repo_path}', paths=(repo_path,)
+            ) from exc
         kind = 'symlink'
     elif stat.S_ISREG(metadata.st_mode):
         try:
             payload = path.read_bytes()
         except OSError as exc:
-            raise ChangeSnapshotError(f'cannot read changed file {repo_path}: {exc}') from exc
+            raise ChangeSnapshotError(
+                f'cannot read changed file {repo_path}', paths=(repo_path,)
+            ) from exc
         kind = 'file'
     elif stat.S_ISDIR(metadata.st_mode):
         payload = b''
@@ -145,15 +161,32 @@ def _fingerprint(
     head: str | None,
     base: str | None,
     files: tuple[str, ...],
-) -> str:
+) -> tuple[str, tuple[tuple[str, str], ...]]:
+    identities = [_content_identity(repo_root, path) for path in files]
     payload = {
         'source': source,
         'head': head,
         'base': base,
-        'files': [_content_identity(repo_root, path) for path in files],
+        'files': identities,
     }
     encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
-    return hashlib.sha256(encoded.encode('utf-8')).hexdigest()
+    per_file = tuple(
+        (str(item['path']), hashlib.sha256(json.dumps(item, sort_keys=True).encode()).hexdigest())
+        for item in identities
+    )
+    return hashlib.sha256(encoded.encode('utf-8')).hexdigest(), per_file
+
+
+def changed_snapshot_paths(before: ChangeSnapshot, after: ChangeSnapshot) -> tuple[str, ...]:
+    """只报告路径，不暴露内容；HEAD/base 变化另由 receipt 记录。"""
+
+    old, new = dict(before.file_fingerprints), dict(after.file_fingerprints)
+    paths = set(before.files) | set(after.files)
+    if before.content_fingerprint == after.content_fingerprint:
+        return ()
+    if not old and not new:
+        return tuple(sorted(paths))
+    return tuple(sorted(path for path in paths if old.get(path) != new.get(path)))
 
 
 def capture_change_snapshot(
@@ -192,16 +225,14 @@ def capture_change_snapshot(
     else:
         source, files = _SOURCE_WORKTREE, _capture_worktree_files(root)
 
+    fingerprint, file_fingerprints = _fingerprint(
+        root, source=source, head=head, base=resolved_base, files=files
+    )
     return ChangeSnapshot(
         source=source,
         head=head,
         base=resolved_base,
         files=files,
-        content_fingerprint=_fingerprint(
-            root,
-            source=source,
-            head=head,
-            base=resolved_base,
-            files=files,
-        ),
+        content_fingerprint=fingerprint,
+        file_fingerprints=file_fingerprints,
     )

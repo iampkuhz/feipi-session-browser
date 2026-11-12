@@ -197,7 +197,7 @@
 }
 .sd-kpis {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 .sd-kpi {
@@ -208,6 +208,24 @@
   padding: 10px;
   min-width: 0;
   text-align: left;
+}
+.sd-secondary-metrics {
+  grid-column: 1 / -1;
+  min-width: 0;
+  color: var(--sd-muted);
+  font-size: 12px;
+}
+.sd-secondary-metrics > summary {
+  cursor: pointer;
+  padding: 6px 0;
+}
+.sd-secondary-metrics__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 8px;
+}
+.sd-secondary-metrics:not([open]) > :not(summary) {
+  display: none;
 }
 .sd-kpi__value {
   font-family: var(--sd-mono);
@@ -325,6 +343,9 @@
   white-space: nowrap;
 }
 /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Hero URL line with copy button ──` */
+.sd-hero-url [hidden] {
+  display: none;
+}
 .sd-hero-url {
   display: flex;
   align-items: center;

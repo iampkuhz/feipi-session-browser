@@ -875,6 +875,7 @@ class NormalizationEngineTest {
               .createObjectNode()
               .put("type", "tool_use")
               .put("turnId", "function_call")
+              .put("id", "function-tool")
               .put("name", "shell");
       // 自定义工具调用，计入工具计数
       ObjectNode customCall =
@@ -882,6 +883,7 @@ class NormalizationEngineTest {
               .createObjectNode()
               .put("type", "tool_use")
               .put("turnId", "custom_tool_call")
+              .put("id", "custom-tool")
               .put("name", "custom");
 
       NormalizedSessionArtifact artifact =
@@ -894,6 +896,12 @@ class NormalizationEngineTest {
       assertThat(artifact.session()).containsEntry("userMessageCount", 1L);
       assertThat(artifact.session()).containsEntry("assistantMessageCount", 1L);
       assertThat(artifact.session()).containsEntry("toolCallCount", 2L);
+      assertThat(artifact.calls())
+          .singleElement()
+          .satisfies(
+              call ->
+                  assertThat(call.response().toolCallIds())
+                      .containsExactly("function-tool", "custom-tool"));
     }
 
     @Test

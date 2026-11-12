@@ -45,6 +45,9 @@
         tdDetail.addEventListener('change', function (event) {
           if (event.target.matches('[data-tool-kind-filter]')) applyToolKindFilter(tdDetail);
         });
+        tdDetail.addEventListener('toggle', function (event) {
+          if (event.target.matches('[data-tool-payload-pair]') && event.target.open) loadToolPayloadPair(event.target);
+        }, true);
         qsa(detailRow, '[data-sub-round-id]').forEach(function (subRound) {
           if (typeof syncSubRoundToggle === 'function') syncSubRoundToggle(subRound);
         });
@@ -55,6 +58,7 @@
         // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Mark as loaded`
         row.setAttribute('data-detail-loaded', 'true');
         setupRoundContentPages(tdDetail, data, roundId, row);
+        TokenProvenance.bindTooltips(tdDetail);
 
         // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Inject payload sources as <template> elements if present`
         if (data.payload_sources && data.payload_sources.length > 0) {
@@ -139,6 +143,7 @@
           var block = document.createElement('div');
           setMarkup(block, renderRoundDetailFromJson(next.round, roundId, row, next));
           target.insertBefore(block, memberPager);
+          TokenProvenance.bindTooltips(block);
           loaded += (next.round && next.round.calls || []).length;
           toolsPager(next, cursor, block);
           applyToolKindFilter(target);
@@ -147,7 +152,7 @@
       }, memberPager);
     }
     toolsPager(first, '', target);
-    if (first.nextCursor || first.membersPaged) membersPager(first);
+    if (first.nextCursor) membersPager(first);
   }
 
   function injectPayloadSources(sources) {
@@ -197,19 +202,24 @@
     var showMemberButtons = (page && page.total || callCount || calls.length) > 1;
     var html = '<div class="sd-round-detail">';
     if (tools.length && !row.nextElementSibling?.querySelector('[data-tool-kind-filter]')) {
-      html += '<label class="sd-tool-filter">工具类别 <select data-tool-kind-filter>'
+      html += '<label class="ui-select sd-tool-filter"><span class="ui-select__label">工具类别</span><select class="ui-select__control" data-tool-kind-filter>'
         + '<option value="">全部</option><option value="shell">Shell</option><option value="python">Python</option>'
         + '<option value="javascript">JavaScript</option><option value="tool">其他工具</option></select></label>';
     }
     html += '<div class="sd-timeline">';
     if (!calls.length) {
-      html += '<div class="sd-card-empty">No normalized calls returned by the round API.</div>';
+      var inputOnly = callCount === 0 && row.getAttribute('data-is-user-input') === 'true';
+      var inputAvailable = inputOnly && row.getAttribute('data-observed-input-available') === 'true';
+      html += '<div class="sd-card-empty">' + (inputAvailable
+        ? contentPayloadButton('round:req:' + roundId, 'llm_request', '用户输入', 'Input', '')
+        : inputOnly ? '此轮没有可展示的输入正文或模型调用记录。'
+        : 'No normalized calls returned by the round API.') + '</div>';
     } else {
       mainCalls.forEach(function (call, idx) {
         var callText = assistantTexts[call.callId] || '';
         var declared = toolsForCall(call, tools);
-        html += renderAssistantTimelineItem(roundId, call, idx + 1, callText, declared, showMemberButtons);
-        html += renderToolTimelineItems(declared, roundId, false);
+        if (callText || !declared.length) html += renderAssistantTimelineItem(roundId, call, idx + 1, callText, declared, showMemberButtons);
+        html += renderToolTimelineItems(declared, roundId, false, call, showMemberButtons && !callText);
       });
       if (!mainCalls.length && toolCallIds.length) {
         var unownedTools = tools.filter(function (tool) {
@@ -227,6 +237,7 @@
     return '<button type="button" class="sd-btn sd-btn--secondary sd-btn--sm" data-action="open-payload" data-payload-id="'
       + escapeRoundHtml(payloadId) + '" data-payload-kind="' + escapeRoundHtml(kind)
       + '" data-payload-title="' + escapeRoundHtml(title) + '"'
+      + ' title="' + escapeRoundHtml({llm_request: '模型 Request：可能消费此前工具结果，不代表重新执行', llm_response: '模型 Response：助手文本及工具调用声明；执行输出见 Tool Result', tool_input: 'Tool Input：工具命令与参数', tool_result: 'Tool Result：工具执行结果'}[kind] || title) + '"'
       + (attributionPath ? ' data-attribution-path="' + escapeRoundHtml(attributionPath) + '"' : '')
       + '>' + escapeRoundHtml(label) + '</button>';
   }
@@ -261,9 +272,9 @@
       + '<span class="sd-tool-kind">' + (callText ? 'TEXT' : tools.length ? 'TOOLS' : 'RESPONSE') + '</span>'
       + '<span class="sd-tool-cmd sd-event-row__text" title="' + escapeRoundHtml(displayText) + '">' + escapeRoundHtml(displayText) + '</span>'
       + '<span class="sd-tool-result"></span>'
-      + '<span class="sd-tool-time">' + escapeRoundHtml(timeDisplay) + '</span>'
+      + '<span class="sd-tool-time" data-meta-label="时间">' + escapeRoundHtml(timeDisplay) + '</span>'
       + '<span class="sd-exit sd-exit--muted" title="' + escapeRoundHtml(callTitle) + '">记录 ' + escapeRoundHtml(callLabel) + '</span>'
-      + '<span class="sd-tool-tokens" title="' + escapeRoundHtml(TokenProvenance.note(usage) || '调用 Token') + '">' + tokenDisplay + '</span>'
+      + '<span class="sd-tool-tokens" tabindex="0" data-token-breakdown="' + escapeRoundHtml(JSON.stringify({ tokens: usage, providerOnly: true })) + '" title="' + escapeRoundHtml(TokenProvenance.note(usage) || '调用 Token') + '">' + tokenDisplay + '</span>'
       + '<span class="sd-tool-actions">'
       + (showButtons ? memberPayloadButtons(call, roundId, payloadTitle) : '')
       + '</span></div></section></div>';
@@ -277,9 +288,9 @@
     });
   }
 
-  function renderToolTimelineItems(tools, roundId, isSubagent) {
+  function renderToolTimelineItems(tools, roundId, isSubagent, call, showButtons) {
     if (!tools || !tools.length) return '';
-    return tools.map(function (tool) {
+    return tools.map(function (tool, index) {
       var status = toolStatusLabel(tool);
       var failed = isFailedTool(tool);
       var preview = tool.inputPreview || '';
@@ -296,17 +307,55 @@
         + (status ? '' : ' sd-tool-row--quiet') + '" data-status="' + (failed ? 'failed' : 'ok') + '" data-tool-call-id="' + escapeRoundHtml(tool.toolCallId || '') + '">'
         + '<span class="sd-tool-kind" title="' + escapeRoundHtml(tool.name || 'Tool') + '">' + escapeRoundHtml(kindLabel) + '</span>'
         + '<span class="sd-tool-cmd" title="' + escapeRoundHtml(cmdTitle) + '">' + escapeRoundHtml(cmdText) + '</span>'
-        + '<span class="sd-tool-result' + (failed ? ' sd-tool-result--failed sd-tool-result--fail' : '') + '" title="' + escapeRoundHtml(status) + '">' + escapeRoundHtml(status) + '</span>'
-        + '<span class="sd-tool-time">' + escapeRoundHtml(timeText) + '</span>'
-        + '<span class="sd-exit' + (failed ? ' sd-exit--err' : '') + '">' + escapeRoundHtml(scopeText) + '</span>'
+        + '<span class="sd-tool-result' + (failed ? ' sd-tool-result--failed sd-tool-result--fail' : '') + '" title="状态：' + escapeRoundHtml(status) + '">' + escapeRoundHtml(status) + '</span>'
+        + '<span class="sd-tool-time" data-meta-label="耗时">' + escapeRoundHtml(timeText) + '</span>'
+        + '<span class="sd-exit' + (failed ? ' sd-exit--err' : '') + '" title="声明调用: ' + escapeRoundHtml(tool.declaredByCallId || '未记录') + '">' + escapeRoundHtml(scopeText + (call && call.callKey ? ' · ' + call.callKey : '')) + '</span>'
         + '<span class="sd-tool-tokens" aria-label="无独立 token 计量" title="无独立 token 计量；查看模型调用归因">—</span>'
         + '<span class="sd-tool-actions">'
+        + (showButtons && index === 0 ? memberPayloadButtons(call, roundId, 'R' + roundId + ' · ' + (call.callKey || call.callId)) : '')
         + contentPayloadButton('tool:input:' + (tool.toolCallId || ''), 'tool_input', (tool.name || 'Tool') + ' · Input', 'Input')
         + (tool.resultObserved === false ? '<span class="muted">未记录结果</span>'
           : contentPayloadButton('tool:result:' + (tool.toolCallId || ''), 'tool_result', (tool.name || 'Tool') + ' · Result', 'Result'))
         + '</span>'
-        + '</div></section></div>';
+        + '</div><details class="sd-tool-payload-pair" data-tool-payload-pair data-tool-id="' + escapeRoundHtml(tool.toolCallId || '') + '" data-result-observed="' + (tool.resultObserved !== false) + '">'
+        + '<summary>Input / Result</summary><div class="sd-tool-payload-grid"></div></details></section></div>';
     }).join('');
+  }
+
+  function loadToolPayloadPair(details) {
+    if (details.getAttribute('data-loaded') === 'true') return;
+    details.setAttribute('data-loaded', 'true');
+    var grid = details.querySelector('.sd-tool-payload-grid');
+    ['input', 'result'].forEach(function (side) {
+      var section = document.createElement('section');
+      var title = document.createElement('h4');
+      title.textContent = side === 'input' ? 'Tool Input' : 'Tool Result';
+      var body = document.createElement('pre');
+      body.textContent = '正在加载…';
+      section.append(title, body);
+      grid.appendChild(section);
+      if (side === 'result' && details.getAttribute('data-result-observed') === 'false') {
+        body.textContent = '结果未记录';
+        return;
+      }
+      function load() {
+        return readSessionContentPage(getApiBase().replace(/\/$/, '') + '/payload/' + encodeURIComponent('tool:' + side + ':' + details.getAttribute('data-tool-id')))
+          .then(function (data) { body.textContent = data.content || data.text || '内容未记录'; })
+          .catch(function (error) {
+            body.textContent = error.message;
+            var retry = document.createElement('button');
+            retry.className = 'sd-btn sd-btn--secondary sd-btn--sm';
+            retry.textContent = /refresh/i.test(error.message) ? 'Refresh page' : 'Retry';
+            retry.addEventListener('click', function () {
+              retry.remove();
+              if (/refresh/i.test(error.message)) window.location.reload();
+              else load();
+            });
+            section.appendChild(retry);
+          });
+      }
+      load();
+    });
   }
 
   function renderSubagentTimeline(subagentCalls, tools, roundId, assistantTexts, stableIdentity) {
@@ -412,10 +461,10 @@
   }
 
   function toolStatusLabel(tool) {
-    if (!tool) return '—';
+    if (!tool) return '状态未记录';
     if (tool.exitCode != null && Number(tool.exitCode) !== 0) return 'exit ' + tool.exitCode;
     if (tool.status && !/^(?:ok|success|completed)$/i.test(tool.status)) return tool.status;
-    return '';
+    return tool.status || (tool.exitCode === 0 ? '成功' : '状态未记录');
   }
 
   function durationLabel(ms) {
@@ -447,14 +496,12 @@
     var read = pct(usage.cacheRead, total);
     var write = pct(usage.cacheWrite, total);
     var out = pct(usage.output, total);
-    return '<span class="sd-sub-tokenbar" tabindex="0"><span>' + escapeRoundHtml(TokenProvenance.total(usage, compactTokens)) + '</span><span class="tokenbar-sub" aria-hidden="true">'
+    return '<span class="sd-sub-tokenbar" tabindex="0" data-token-breakdown="' + escapeRoundHtml(JSON.stringify({ tokens: usage, providerOnly: true })) + '"><span>' + escapeRoundHtml(TokenProvenance.total(usage, compactTokens)) + '</span><span class="tokenbar-sub" aria-hidden="true">'
       + '<span class="fresh" style="--segment-width:' + fresh + '%"></span>'
       + '<span class="read" style="--segment-width:' + read + '%"></span>'
       + '<span class="write" style="--segment-width:' + write + '%"></span>'
       + '<span class="out" style="--segment-width:' + out + '%"></span></span>'
-      + '<div class="token-tooltip" aria-hidden="true"><div class="token-tooltip__title">Token Breakdown</div>'
-      + '<div class="token-tooltip__row"><span>Total</span><span class="token-tooltip__value">' + escapeRoundHtml(TokenProvenance.total(usage, compactTokens)) + '</span></div>'
-      + '</div></span>';
+      + '</span>';
   }
 
   function pct(value, total) {

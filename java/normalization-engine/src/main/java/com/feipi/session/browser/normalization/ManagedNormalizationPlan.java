@@ -34,6 +34,7 @@ final class ManagedNormalizationPlan {
   final Map<String, String> declarations = new LinkedHashMap<>();
   final Map<String, Long> errors = new LinkedHashMap<>();
   final List<ToolRef> tools = new ArrayList<>();
+  final List<Long> observedInputs = new ArrayList<>();
   List<NormalizedSourceFile> sourceFiles;
   Map<String, SourceUnitCatalogEntry> catalog;
   List<NormalizedDiagnostic> diagnostics;
@@ -62,6 +63,15 @@ final class ManagedNormalizationPlan {
       throws IOException {
     var plan = new ManagedNormalizationPlan(records, sourceFiles);
     plan.scan(diagnostics);
+    if (plan.frames.isEmpty()) {
+      try (var cursor = plan.records.openCursor()) {
+        long ordinal = 0;
+        while (cursor.hasNext()) {
+          if (ObservedInputContents.isUser(cursor.next())) plan.observedInputs.add(ordinal);
+          ordinal++;
+        }
+      }
+    }
     plan.relations();
     plan.units();
     plan.metadata();
@@ -296,6 +306,10 @@ final class ManagedNormalizationPlan {
             new ToolRef(
                 frame.fact, i, frame.id, frame.fact.executionScope(), frame.fact.subagent()));
     }
+    declarations.forEach(
+        (id, owner) -> {
+          for (Frame frame : byId.getOrDefault(owner, List.of())) frame.declaredTools.add(id);
+        });
     for (Fact fact : facts) {
       if ("tool_result".equals(fact.type()))
         fact.toolUseId()
@@ -385,7 +399,7 @@ final class ManagedNormalizationPlan {
       read += frame.usage.cacheRead();
       write += frame.usage.cacheWrite();
       output += frame.usage.output();
-      frame.fact.tools().forEach(t -> declared.add(t.id()));
+      declared.addAll(frame.declaredTools);
       consumed.addAll(frame.results);
     }
     long failed = 0;
@@ -474,7 +488,7 @@ final class ManagedNormalizationPlan {
                 "sourceFiles",
                 (long) sourceFiles.size(),
                 "sourceUnitCatalog",
-                (long) catalog.size(),
+                (long) catalog.size() + observedInputs.size(),
                 "sourceUnitSequenceEntries",
                 0L));
   }
@@ -553,6 +567,7 @@ final class ManagedNormalizationPlan {
     final NormalizedCallUsage usage;
     final Map<String, String> provenance;
     final List<String> results = new ArrayList<>();
+    final List<String> declaredTools = new ArrayList<>();
     List<UnitRef> units = new ArrayList<>();
 
     /**

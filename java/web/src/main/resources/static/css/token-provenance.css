@@ -1,4 +1,4 @@
-/* Shared token measurement disclosure owns only token-provenance* classes. */
+/* 共享 Token 计量 disclosure 与分列弹框的样式所有者。 */
 .token-provenance {
   margin-top: 4px;
   font-size: 11px;
@@ -45,8 +45,7 @@
   flex-basis: 100%;
 }
 
-.token-evidence,
-.token-composition dl {
+.token-evidence {
   display: grid;
   grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
   gap: 3px 10px;
@@ -54,14 +53,12 @@
   text-align: start;
 }
 
-.token-evidence dt,
-.token-composition dt {
+.token-evidence dt {
   font-weight: 600;
   color: var(--text);
 }
 
-.token-evidence dd,
-.token-composition dd {
+.token-evidence dd {
   margin: 0;
 }
 
@@ -107,20 +104,6 @@
 .token-cell .token-evidence dt:not(:first-child) {
   margin-top: 4px;
 }
-.token-composition dl {
-  grid-template-columns: minmax(0, 1fr) minmax(0, max-content);
-  align-items: baseline;
-}
-.token-composition dd {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-.token-composition dd small {
-  display: block;
-  color: var(--text-subtle);
-  font-size: inherit;
-}
-
 .token-total__status {
   color: var(--text-subtle);
   font-size: 10px;
@@ -142,7 +125,7 @@
   inset: var(--token-popover-y, 8px) auto auto var(--token-popover-x, 8px);
   margin: 0;
   box-sizing: border-box;
-  width: min(320px, calc(100vw - 16px));
+  width: min(480px, calc(100vw - 16px));
   max-height: calc(100dvh - 16px);
   overflow: auto;
   padding: 10px 12px;
@@ -152,10 +135,47 @@
   color: var(--text);
   box-shadow: 0 6px 20px rgb(0 0 0 / 18%);
   font-size: 12px;
+  line-height: 1.45;
 }
 
 .token-bar-popover .tokenbar {
   display: flex;
   width: 100%;
   margin-block: 6px;
+}
+
+/* 所有 Token 弹框复用色标/类型、数量/来源、占比三列，不截断标签。 */
+.token-breakdown__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(42px, max-content);
+  gap: 8px;
+  align-items: center;
+  padding-block: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.token-breakdown__row > * {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.token-breakdown__row strong,
+.token-breakdown__share {
+  text-align: right;
+}
+.token-breakdown__share,
+.token-breakdown p {
+  color: var(--text-subtle);
+}
+.token-breakdown p {
+  margin: 6px 0;
+  font-weight: 400;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.token-breakdown__total {
+  border-top: 1px solid var(--line);
+  margin-top: 4px;
+}
+.token-breakdown__total .token-component::before {
+  visibility: hidden;
 }

@@ -179,7 +179,9 @@ public record NormalizedSessionArtifact(
     // sourceUnitCatalog 防御性拷贝，大小受限
     sourceUnitCatalog =
         ImmutableCopies.boundedMapOrEmpty(
-            sourceUnitCatalog, NormalizedConstants.MAX_COLLECTION_SIZE, "sourceUnitCatalog");
+            sourceUnitCatalog,
+            NormalizedConstants.MAX_SOURCE_UNIT_CATALOG_SIZE,
+            "sourceUnitCatalog");
 
     // sourceUnitSequences 防御性拷贝，大小受限
     sourceUnitSequences =

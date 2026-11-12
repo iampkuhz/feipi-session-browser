@@ -9,6 +9,7 @@ import com.feipi.session.browser.domain.source.SourceToolCall;
 import com.feipi.session.browser.source.common.JsonlReader;
 import com.feipi.session.browser.source.common.JsonlReaderResult;
 import com.feipi.session.browser.source.common.ToolFailureClassifier;
+import com.feipi.session.browser.source.json.JsonRecordTypes;
 import com.feipi.session.browser.source.json.JsonSourceRecordMapper;
 import com.feipi.session.browser.source.spi.BoundedStream;
 import com.feipi.session.browser.source.spi.Candidate;
@@ -95,6 +96,11 @@ public final class CodexSourceAdapter implements SourceAdapter {
   public CodexSourceAdapter(JsonlReader jsonlReader) {
     Objects.requireNonNull(jsonlReader, "jsonlReader 不得为 null");
     this.jsonlReader = jsonlReader;
+  }
+
+  @Override
+  public RecordKind classifyRecord(String type, String role, String messageRole) {
+    return JsonRecordTypes.classify(sourceId(), type, role, messageRole);
   }
 
   @Override

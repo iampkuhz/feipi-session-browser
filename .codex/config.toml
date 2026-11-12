@@ -7,7 +7,8 @@ model_reasoning_summary = "none"
 model_instructions_file = "./model-instructions.md"
 
 # 保留 AGENTS.md 作为触发和护栏；仓库 skill 真源在 skills/authoring/，Codex 通过 .agents/skills 链接发现。
-project_doc_max_bytes = 3000
+# 加载预算包含已认证 Multica 临时尾块；源码限额仍由 policy 的 AGENTS.md:2800 约束。
+project_doc_max_bytes = 36864
 tool_output_token_limit = 12000
 web_search = "disabled"
 
