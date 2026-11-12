@@ -12,6 +12,11 @@
     qsa(page, '[data-tab-panel]').forEach(function(panel) {
       panel.hidden = panel.getAttribute('data-tab-panel') !== tabName;
     });
+    var payloadIndex = qs(page, '[data-payload-index]');
+    if (tabName === 'payload' && payloadIndex && payloadIndex.dataset.loaded !== 'true'
+        && document.body.hasAttribute('data-index-generation')) {
+      loadExecutionPayloadIndex().catch(showPayloadIndexError);
+    }
     if (updateUrl && window.history && window.URLSearchParams) {
       var url = new URL(window.location.href);
       url.searchParams.set('tab', tabName);

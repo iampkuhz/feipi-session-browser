@@ -5,7 +5,7 @@ a copy of the live Session Detail interface.
 
 ## Published session content
 
-For a managed session, both formats include the session identity, export time,
+For a published session with content, both formats include the session identity, export time,
 Trace row and call record counts, and total token usage. The archive contains
 every indexed call and tool execution in the published snapshot, independent of the live
 page's pagination or filters. `R` denotes a confirmed model call; `G` denotes a
@@ -17,6 +17,13 @@ call record totals are not model API call counts:
   recorded Request and Response bodies.
 - Each tool includes its identity, main/subagent scope, declaring call and
   result-consuming call when recorded, and the recorded input and result.
+- Tool summaries preserve unknown, measured zero and positive submillisecond
+  durations, plus explicit executor observation provenance when present. They
+  never derive duration or parallelism from timestamps. Model duration remains
+  unmeasured. Fragment links point from each tool to its declaring record's
+  model input/output; IDs in fragment anchors are one-way hashes. HTML supports
+  this native in-page navigation; MHTML navigation is browser-dependent as
+  described below.
 - Each record opens and closes with native browser disclosure controls, using a
   mouse or keyboard. Missing source data is not reconstructed from hidden
   provider state.
@@ -26,10 +33,20 @@ HTML is self-contained. MHTML packages the same self-contained HTML as a
 styles, JavaScript, or network requests. Live tabs, filters, payload modals, and
 interactive attribution views are not part of the archive.
 
-Older artifacts that do not have managed content retain their static metadata
-export (session metrics, diagnostics, rounds, and payload source references).
-That compatibility path does not promise body recovery; re-index the original
-sources to obtain managed content where supported.
+Prefer HTML when navigating from a tool to its declaring record's model
+input/output. In the tested Chromium, MHTML fragment clicks did not navigate,
+even with the target record already expanded; the same HTML links worked.
+MHTML still contains the complete content and supports native disclosure
+controls, so the corresponding declaring record can be expanded manually.
+Both formats include this usage hint. This observed limitation is not a claim
+that fragment navigation is unavailable in every browser or MHTML implementation.
+
+Both current compact artifacts and unit-based content use the same full-content
+snapshot on all three download routes. Metadata-only rendering is reserved for
+sessions with no content; it does not recover unrecorded bodies. Each release
+builds a fresh index from the original sources; no old index is reused or migrated.
+The manifest counts the actual HTML or MIME-wrapped snapshot bytes (the larger
+MHTML size when both formats are requested), without changing the JSON data bundle.
 
 ## Visibility, safety, and size
 

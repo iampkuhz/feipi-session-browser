@@ -27,6 +27,48 @@ class CodexSourceSpecificContractTest {
   private final CodexSourceAdapter adapter = new CodexSourceAdapter();
 
   @Test
+  void explicitExecutorObservationsPreserveZeroAndRejectCoercionAndOverflow() throws Exception {
+    var durations =
+        List.of(
+            "{\"secs\":2,\"nanos\":1}",
+            "{\"secs\":0,\"nanos\":0}",
+            "null",
+            "{\"secs\":-1,\"nanos\":0}",
+            "{\"secs\":0,\"nanos\":1000000000}",
+            "{\"secs\":1.5,\"nanos\":0}",
+            "{\"secs\":9223372036854775807,\"nanos\":0}",
+            "{\"secs\":\"2\",\"nanos\":0}",
+            "{\"secs\":0}");
+    for (int index = 0; index < durations.size(); index++) {
+      try (var parsed =
+          parseContentFixture(
+              """
+          {"timestamp":"2026-01-01T00:00:00Z","type":"event_msg","payload":{"type":"exec_command_end","call_id":"tool","duration":%s,"exit_code":0,"status":"completed","process_id":"123","stdout":"Wall time: 99 seconds"}}
+          """
+                  .formatted(durations.get(index)))) {
+        var record = parsed.records().getFirst();
+        var value = record.toolObservation().orElseThrow();
+        assertThat(value.toolCallId()).isEqualTo("tool");
+        assertThat(value.exitCode()).isZero();
+        assertThat(value.status()).isEqualTo("completed");
+        assertThat(value.processId()).isEqualTo("123");
+        assertThat(value.source()).isEqualTo("codex:exec_command_end#event[0]");
+        assertThat(record.toolCalls()).isEmpty();
+        assertThat(record.toolUseId()).isEmpty();
+        assertThat(record.content()).isEmpty();
+        assertThat(record.timing().durationMs()).isEmpty();
+        if (index < 2) {
+          assertThat(value.durationNanos()).isEqualTo(index == 0 ? 2_000_000_001L : 0L);
+          assertThat(value.issue()).isNull();
+        } else {
+          assertThat(value.durationNanos()).isNull();
+          if (index > 2) assertThat(value.issue()).isNotBlank();
+        }
+      }
+    }
+  }
+
+  @Test
   void completeAdjacentRepresentationMirrorsHaveOneSourceInputAndCall() throws IOException {
     String event =
         """

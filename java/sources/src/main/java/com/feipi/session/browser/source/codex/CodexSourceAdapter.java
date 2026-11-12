@@ -6,6 +6,7 @@ import com.feipi.session.browser.domain.source.SourceRecord;
 import com.feipi.session.browser.domain.source.SourceRecordRelation;
 import com.feipi.session.browser.domain.source.SourceRecordUsage;
 import com.feipi.session.browser.domain.source.SourceToolCall;
+import com.feipi.session.browser.domain.source.SourceToolObservation;
 import com.feipi.session.browser.source.common.JsonlReader;
 import com.feipi.session.browser.source.common.JsonlReaderResult;
 import com.feipi.session.browser.source.common.ToolFailureClassifier;
@@ -1180,7 +1181,8 @@ public final class CodexSourceAdapter implements SourceAdapter {
         record.responseStopReason(),
         record.timing(),
         record.metaContext(),
-        record.messageRole());
+        record.messageRole(),
+        record.toolObservation());
   }
 
   /** 仅把连续完整、且源身份精确相同的问答表示视为镜像。 */
@@ -1453,7 +1455,8 @@ public final class CodexSourceAdapter implements SourceAdapter {
         record.responseStopReason(),
         record.timing(),
         record.metaContext(),
-        record.messageRole());
+        record.messageRole(),
+        record.toolObservation());
   }
 
   private static SourceRecordRelation relationForEvent(
@@ -1786,6 +1789,10 @@ public final class CodexSourceAdapter implements SourceAdapter {
                               : payload.get("content"))
                       : "")
               .withTiming(JsonSourceRecordMapper.extractTiming(event))
+              .withToolObservation(
+                  "exec_command_end".equals(payloadType)
+                      ? toolObservation(payload, eventIndex)
+                      : Optional.empty())
               .withMessageRole(
                   "user_message".equals(payloadType)
                       ? Optional.of("user")
@@ -1804,6 +1811,51 @@ public final class CodexSourceAdapter implements SourceAdapter {
 
     return new CodexRecordMapping(
         basicRecord(recordLocator, eventIndex, rawType, timestamp), previousTotals);
+  }
+
+  /** 只接受结构化非负整数；写出时间和结果正文不参与工具计时。 */
+  private static Optional<SourceToolObservation> toolObservation(JsonNode payload, int eventIndex) {
+    JsonNode id = payload.path("call_id");
+    if (!id.isTextual() || id.asText().isBlank()) return Optional.empty();
+    Long duration = null;
+    String issue = null;
+    JsonNode value = payload.get("duration");
+    if (value != null && !value.isNull()) {
+      JsonNode secs = value.path("secs");
+      JsonNode nanos = value.path("nanos");
+      if (!secs.isIntegralNumber()
+          || !secs.canConvertToLong()
+          || secs.longValue() < 0
+          || !nanos.isIntegralNumber()
+          || !nanos.canConvertToInt()
+          || nanos.intValue() < 0
+          || nanos.intValue() >= 1_000_000_000) {
+        issue = "invalid_duration";
+      } else {
+        try {
+          duration =
+              Math.addExact(Math.multiplyExact(secs.longValue(), 1_000_000_000L), nanos.intValue());
+        } catch (ArithmeticException overflow) {
+          issue = "duration_overflow";
+        }
+      }
+    }
+    JsonNode exit = payload.path("exit_code");
+    Integer exitCode = exit.isIntegralNumber() && exit.canConvertToInt() ? exit.intValue() : null;
+    if (!exit.isMissingNode() && !exit.isNull() && exitCode == null) issue = "invalid_exit_code";
+    JsonNode process = payload.path("process_id");
+    String processId = process.isTextual() || process.isIntegralNumber() ? process.asText() : null;
+    JsonNode status = payload.path("status");
+    return Optional.of(
+        new SourceToolObservation(
+            id.asText(),
+            duration,
+            exitCode,
+            status.isTextual() ? status.asText() : null,
+            processId,
+            "executor_reported",
+            "codex:exec_command_end#event[" + eventIndex + "]",
+            issue));
   }
 
   private static SourceRecord mapResponseItem(

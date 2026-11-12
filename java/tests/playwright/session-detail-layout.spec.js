@@ -26,7 +26,7 @@ test.describe('会话详情 Phase 1 外壳布局', () => {
     const resp = await page.goto(knownUrl, { waitUntil: 'domcontentloaded', timeout: 10000 }).catch(() => null);
     if (resp && resp.ok()) {
       // 检查是否拿到真实会话页面（非 404 重定向）
-      const hero = await page.locator('.page-head').first().isVisible({ timeout: 5000 }).catch(() => false);
+      const hero = await page.locator('.sd-hero').first().isVisible({ timeout: 5000 }).catch(() => false);
       if (hero) {
         detailUrl = knownUrl;
       }
@@ -49,6 +49,10 @@ test.describe('会话详情 Phase 1 外壳布局', () => {
     // 导航到会话详情
     await page.goto(detailUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
     await expect(page.locator('.session-detail-page').first()).toBeVisible({ timeout: 10000 });
+
+    await expect(page.locator('[data-execution-judgment]')).toBeVisible();
+    await expect(page.locator('[data-evidence-analysis]')).not.toHaveAttribute('open');
+    await page.locator('[data-evidence-analysis] > summary').click();
 
     // 评估布局指标
     const result = await page.evaluate(() => {
@@ -143,6 +147,7 @@ test.describe('正文弹框内的归因布局', () => {
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/sessions/claude_code/hifi-viz-session-001');
     await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+    await page.locator('[data-evidence-analysis] > summary').click();
     await page.locator('[data-attribution-path*="/response"]:visible').first().click();
     const modal = page.locator('dialog.payload-modal');
     const disclosure = modal.locator('[data-payload-attribution="response"]');

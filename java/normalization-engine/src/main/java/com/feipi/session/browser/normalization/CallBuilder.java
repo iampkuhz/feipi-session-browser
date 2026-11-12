@@ -66,6 +66,8 @@ public final class CallBuilder {
     ExecutionContext context =
         ExecutionContext.create(records, classified.assistantMessages(), calls);
     Map<String, String> toolErrors = buildToolErrorMap(classified.toolResults());
+    var observations = new ToolObservations();
+    records.forEach(record -> record.toolObservation().ifPresent(observations::accept));
     return Stream.concat(
             assistantToolExecutions(context, toolErrors).stream(),
             standaloneToolExecutions(
@@ -75,6 +77,7 @@ public final class CallBuilder {
                 toolErrors,
                 context.toolDeclarations())
                 .stream())
+        .map(tool -> withObservation(tool, observations))
         .toList();
   }
 
@@ -186,9 +189,28 @@ public final class CallBuilder {
         consumedByCallId,
         errorStatus,
         Optional.empty(),
-        0L,
+        null,
         List.of(),
-        subagentId);
+        subagentId,
+        Optional.empty());
+  }
+
+  /** 两种归一化路径共用同一观测投影；旧 status 只保留原错误语义。 */
+  static NormalizedToolExecution withObservation(
+      NormalizedToolExecution tool, ToolObservations observations) {
+    var observation = observations.get(tool.toolCallId());
+    return new NormalizedToolExecution(
+        tool.toolCallId(),
+        tool.name(),
+        tool.scope(),
+        tool.declaredByCallId(),
+        tool.resultConsumedByCallId(),
+        tool.status(),
+        observation.map(value -> value.exitCode()),
+        observation.map(value -> value.durationMs()).orElse(null),
+        tool.filesTouched(),
+        tool.subagentId(),
+        observation);
   }
 
   /**
@@ -227,27 +249,16 @@ public final class CallBuilder {
       if ("assistant".equals(record.eventType())) {
         nextIndices.put(scope, Math.min(nextAssistantIndex + 1, scopeCalls.size()));
       } else if ("tool_result".equals(record.eventType()) && !scopeCalls.isEmpty()) {
-        putConsumer(map, record, scopeCalls, nextAssistantIndex, scopeCalls.getLast());
+        putConsumer(map, record, scopeCalls, nextAssistantIndex);
       }
     }
     return map;
   }
 
   private static void putConsumer(
-      Map<String, String> map,
-      SourceRecord record,
-      List<String> callIds,
-      int nextAssistantIndex,
-      String lastCallId) {
-    record
-        .toolUseId()
-        .ifPresent(
-            toolUseId ->
-                map.put(
-                    toolUseId,
-                    nextAssistantIndex < callIds.size()
-                        ? callIds.get(nextAssistantIndex)
-                        : lastCallId));
+      Map<String, String> map, SourceRecord record, List<String> callIds, int nextAssistantIndex) {
+    if (nextAssistantIndex >= callIds.size()) return;
+    record.toolUseId().ifPresent(toolUseId -> map.put(toolUseId, callIds.get(nextAssistantIndex)));
   }
 
   private static Map<String, String> mapToolDeclarations(

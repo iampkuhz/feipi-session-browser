@@ -7,6 +7,7 @@ import com.feipi.session.browser.domain.source.SourceRecord;
 import com.feipi.session.browser.domain.source.SourceRecordRelation;
 import com.feipi.session.browser.domain.source.SourceRecordSequence;
 import com.feipi.session.browser.domain.source.SourceToolCall;
+import com.feipi.session.browser.domain.source.SourceToolObservation;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -21,6 +22,8 @@ import java.util.Set;
 final class ToolIdentityPlan {
   private final List<Declaration> declarations = new ArrayList<>();
   private final Map<Slot, String> ids = new HashMap<>();
+  private final Map<Long, Reference> observations = new LinkedHashMap<>();
+  private final Set<Long> boundObservations = new HashSet<>();
   private final Map<Long, Reference> results = new LinkedHashMap<>();
   private final Map<Long, SourceRecordRelation> relations = new LinkedHashMap<>();
   private final Set<String> reserved = new HashSet<>();
@@ -87,6 +90,9 @@ final class ToolIdentityPlan {
         rootSpawnSelfAnchors.add(ordinal);
       }
     }
+    record
+        .toolObservation()
+        .ifPresent(value -> observations.put(ordinal, new Reference(scope, value.toolCallId())));
     record.toolCalls().forEach(tool -> reserved.add(tool.toolCallId()));
     record
         .toolUseId()
@@ -137,6 +143,19 @@ final class ToolIdentityPlan {
           .computeIfAbsent(
               new Reference(declaration.scope(), declaration.raw()), ignored -> new ArrayList<>())
           .add(declaration);
+    // 观测不依赖物理顺序；仅唯一的同来源同 scope 声明可关联，重复裸 ID 不猜 occurrence。
+    observations.forEach(
+        (ordinal, reference) -> {
+          var candidates = local.getOrDefault(reference, List.of());
+          if (candidates.size() == 1) {
+            var declaration = candidates.getFirst();
+            ids.put(
+                new Slot(ordinal, -3),
+                id(declaration.slot().ordinal(), declaration.slot().index(), declaration.raw()));
+            boundObservations.add(ordinal);
+          }
+        });
+    observations.clear();
     results.forEach(
         (ordinal, reference) -> {
           var candidates = local.getOrDefault(reference, List.of());
@@ -389,7 +408,15 @@ final class ToolIdentityPlan {
         record.responseStopReason(),
         record.timing(),
         record.metaContext(),
-        record.messageRole());
+        record.messageRole(),
+        observation(ordinal, record.toolObservation()));
+  }
+
+  /** 只透传已唯一归属的观测，不制造声明或结果边。 */
+  Optional<SourceToolObservation> observation(long ordinal, Optional<SourceToolObservation> value) {
+    return boundObservations.contains(ordinal)
+        ? value.map(item -> item.withToolCallId(id(ordinal, -3, item.toolCallId())))
+        : Optional.empty();
   }
 
   SourceRecordSequence borrow(SourceRecordSequence source) {

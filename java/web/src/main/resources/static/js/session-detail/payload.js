@@ -425,7 +425,9 @@
       main.appendChild(details);
     }
     if (!reading.length) {
-      main.appendChild(makeEl("p", "sd-payload-empty", payload.unconfirmedContext ? "未确认可单列的正文，请查看原始记录。" : title + " 正文未记录"));
+      var empty = payload.unconfirmedContext ? "未确认可单列的正文，请查看原始记录。"
+        : title === "Request" && raw ? "未单列输入正文；仍有本地记录，请展开“原始记录”查证。" : title + " 正文未记录";
+      main.appendChild(makeEl("p", "sd-payload-empty", empty));
     } else {
       reading.forEach(function (block) {
         var label = reading.length > 1 && block.label ? title + " · " + block.label : title;

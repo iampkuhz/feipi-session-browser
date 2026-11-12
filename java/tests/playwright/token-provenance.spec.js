@@ -62,6 +62,7 @@ async function syntheticApis(page, agents = [{ agent: 'Synthetic agent', scope: 
     if (pathname.endsWith('/meta')) data = { title: 'Synthetic estimated session', filters: { agent: 'qoder', sessionId: 'synthetic-provenance-session' } };
     if (pathname.endsWith('/metrics')) data = summary;
     if (pathname.endsWith('/diagnostics')) data = { anomalyCount: 0, parity: { agents, contextSegments } };
+    if (pathname.endsWith('/execution')) data = { items: [], total: 0, offset: 0, nextCursor: null };
     if (pathname.endsWith('/rounds')) data = { roundCount: 1, rounds: [round] };
     if (pathname.endsWith('/payloads')) data = { payloadCount: 0, payloads: [] };
     if (pathname.endsWith('/round/1')) data = { round: { calls: [{ callId: 'synthetic-call', scope: 'main', usage: { total: 0 }, timestamp: '2026-01-01T00:00:00Z' }] } };
@@ -193,6 +194,7 @@ test('session estimate stays at session scope; round/call missing usage remains 
   await syntheticApis(page);
   await page.goto(detailPath);
   await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+  await page.locator('[data-evidence-analysis] > summary').click();
   await expect(page.locator('.sd-kpi[aria-label="Total Tokens"]')).toContainText('≈9.5M');
   await expect(page.locator('.sd-kpi[aria-label="Total Tokens"]')).toContainText('Cache Read Not reported');
   await expect(page.locator('.sd-kpi[aria-label="Cache Health"] .sd-kpi__value')).toHaveText('N/A · Partial');
@@ -224,6 +226,7 @@ test('Diagnostics uses own MAIN and child tokenSegments rather than legacy combi
   ]);
   await page.goto(detailPath);
   await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+  await page.locator('[data-evidence-analysis] > summary').click();
   await expect(page.locator('[data-subagent-row] td:nth-child(5)')).toHaveText(['10', '20']);
   await expect(page.locator('[data-subagent-timeline-panel][data-agent-scope="main"] .sd-subagent-timeline__head small')).toContainText('10 tokens');
   await expect(page.locator('[data-subagent-timeline-panel][data-agent-scope="subagent"] .sd-subagent-timeline__head small')).toContainText('20 tokens');
@@ -239,6 +242,7 @@ test('Diagnostics preserves reported zero, unknown and missing measurements with
   ]);
   await page.goto(detailPath);
   await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+  await page.locator('[data-evidence-analysis] > summary').click();
   await expect(page.locator('[data-subagent-row] td:nth-child(5)')).toHaveText([
     '0', 'N/A · Unknown', 'Not reported', '17 · Unknown', '29 · Unknown source',
   ]);
@@ -251,6 +255,7 @@ test('Diagnostics single MAIN estimate stays estimated without borrowing session
   ]);
   await page.goto(detailPath);
   await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+  await page.locator('[data-evidence-analysis] > summary').click();
   await expect(page.locator('[data-subagent-row]')).toHaveCount(1);
   await expect(page.locator('[data-subagent-row] td:nth-child(5)')).toHaveText('≈7');
   await expect(page.locator('[data-subagent-timeline-panel] .sd-subagent-timeline__head small')).toContainText('≈7 tokens');
@@ -268,6 +273,7 @@ test('Trace child calls without lifecycle evidence stay Unknown and retain tool 
   } }));
   await page.goto(detailPath);
   await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+  await page.locator('[data-evidence-analysis] > summary').click();
   await page.locator('[data-trace-round-row]').first().locator('[data-action="toggle-round"]').click();
   const child = page.locator('[data-trace-detail] [data-subagent-block]');
   await expect(child).toHaveCount(1);
@@ -303,6 +309,7 @@ test('Context precision marks partial shares and excludes huge tool estimates fr
   await syntheticApis(page, undefined, segments);
   await page.goto(detailPath);
   await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+  await page.locator('[data-evidence-analysis] > summary').click();
   const context = page.locator('.sd-diagnostic-card--context');
   const bars = context.locator('.sd-context-segment');
   await expect(bars).toHaveCount(4);
@@ -331,6 +338,7 @@ test('Context precision preserves reported zero and identifies estimated, unknow
   ]);
   await page.goto(detailPath);
   await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+  await page.locator('[data-evidence-analysis] > summary').click();
   const context = page.locator('.sd-diagnostic-card--context');
   await expect(context.locator('.sd-context-segment__pct')).toHaveText(['75%', '0%', '≈25% · 部分数据']);
   const rows = context.locator('.sd-context-budget__item');

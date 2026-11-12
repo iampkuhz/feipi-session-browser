@@ -119,17 +119,20 @@ final class ManagedSessionContent implements NormalizedSessionContent {
       Long errorOrdinal = plan.errors.get(id);
       error = errorOrdinal == null ? Optional.empty() : read(errorOrdinal).toolError();
     }
-    return new NormalizedToolExecution(
-        id,
-        name,
-        scope,
-        ref.owner(),
-        Optional.ofNullable(plan.consumers.get(id)),
-        error,
-        Optional.empty(),
-        0L,
-        List.of(),
-        subagent);
+    return CallBuilder.withObservation(
+        new NormalizedToolExecution(
+            id,
+            name,
+            scope,
+            ref.owner(),
+            Optional.ofNullable(plan.consumers.get(id)),
+            error,
+            Optional.empty(),
+            null,
+            List.of(),
+            subagent,
+            Optional.empty()),
+        plan.observations);
   }
 
   private static long payloadBytes(NormalizedCall call) {
@@ -163,6 +166,7 @@ final class ManagedSessionContent implements NormalizedSessionContent {
     private int diagnosticIndex;
     private int fileIndex;
     private int observedIndex;
+    private int resultIndex;
     private final Iterator<Map.Entry<String, SourceUnitCatalogEntry>> catalog =
         plan.catalog.entrySet().iterator();
     private long unitIndex;
@@ -178,6 +182,7 @@ final class ManagedSessionContent implements NormalizedSessionContent {
           || diagnosticIndex < plan.diagnostics.size()
           || fileIndex < plan.sourceFiles.size()
           || observedIndex < plan.observedInputs.size()
+          || resultIndex < plan.resultOrdinals.size()
           || catalog.hasNext();
     }
 
@@ -231,6 +236,18 @@ final class ManagedSessionContent implements NormalizedSessionContent {
             List.of());
       if (observedIndex < plan.observedInputs.size()) {
         var value = ObservedInputContents.entry(read(plan.observedInputs.get(observedIndex++)));
+        return new NormalizedContentUnit(
+            unitIndex++,
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            Map.of(value.unitKey(), value),
+            List.of());
+      }
+      if (resultIndex < plan.resultOrdinals.size()) {
+        long ordinal = plan.resultOrdinals.get(resultIndex++);
+        var value = ToolResultContents.entry(read(ordinal), ordinal);
         return new NormalizedContentUnit(
             unitIndex++,
             List.of(),

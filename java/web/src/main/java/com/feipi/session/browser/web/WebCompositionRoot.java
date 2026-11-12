@@ -355,6 +355,9 @@ public final class WebCompositionRoot {
         "/api/sessions/{agent}/{sessionId}/rounds",
         snapshot.wrap(sessionDetailApiHandler::handleRounds));
     javalinConfig.routes.get(
+        "/api/sessions/{agent}/{sessionId}/execution",
+        snapshot.wrap(sessionDetailApiHandler::handleExecution));
+    javalinConfig.routes.get(
         "/api/sessions/{agent}/{sessionId}/payloads",
         snapshot.wrap(sessionDetailApiHandler::handlePayloads));
 

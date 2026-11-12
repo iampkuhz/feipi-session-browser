@@ -9,6 +9,8 @@ import com.feipi.session.browser.domain.source.SourceRecord;
 import com.feipi.session.browser.domain.source.SourceRecordRelation;
 import com.feipi.session.browser.domain.source.SourceRecordSequence;
 import com.feipi.session.browser.domain.source.SourceRecordUsage;
+import com.feipi.session.browser.domain.source.SourceToolCall;
+import com.feipi.session.browser.domain.source.SourceToolObservation;
 import com.feipi.session.browser.index.api.imports.ImportLimits;
 import com.feipi.session.browser.index.api.imports.SessionImportException;
 import com.feipi.session.browser.scan.artifact.CanonicalJsonWriter;
@@ -42,6 +44,83 @@ import org.junit.jupiter.api.Test;
 class IsolatedSessionImportServiceTest {
   private static final String TRANSCRIPT =
       "{\"type\":\"assistant\",\"sessionId\":\"shared\",\"message\":{\"content\":\"synthetic\"}}";
+
+  @Test
+  void relocationRetainsExplicitObservationsWithoutInventingMissingMeasurements() throws Exception {
+    var adapter =
+        new RecordingAdapter() {
+          @Override
+          public SourceResult parse(Candidate candidate, CancellationSignal cancellation) {
+            var original = (SourceResult.Success) super.parse(candidate, cancellation);
+            String origin = candidate.fingerprint().locator();
+            var records = new ArrayList<SourceRecord>();
+            records.add(
+                new SourceRecord(
+                    origin + "#event[0]",
+                    0,
+                    "assistant",
+                    Optional.of("call-1"),
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty(),
+                    SourceRecordUsage.empty(),
+                    List.of(
+                        new SourceToolCall("zero", "exec_command", "{}"),
+                        new SourceToolCall("slow", "exec_command", "{}"),
+                        new SourceToolCall("unknown", "exec_command", "{}")),
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty(),
+                    SourceRecordRelation.empty(),
+                    ""));
+            for (var observation :
+                List.of(
+                    new SourceToolObservation(
+                        "zero",
+                        0L,
+                        0,
+                        "completed",
+                        "p1",
+                        "executor_reported",
+                        "codex:exec_command_end#event[1]",
+                        null),
+                    new SourceToolObservation(
+                        "slow",
+                        9_000_000_000L,
+                        7,
+                        "failed",
+                        "p2",
+                        "executor_reported",
+                        "codex:exec_command_end#event[2]",
+                        null))) {
+              records.add(
+                  SourceRecord.of(
+                          origin + "#event[" + records.size() + "]", records.size(), "event_msg")
+                      .withToolObservation(Optional.of(observation)));
+            }
+            return new SourceResult.Success(List.of(), 1, records, original.fingerprint(), origin);
+          }
+        };
+    try (var service = new IsolatedSessionImportService(source -> adapter)) {
+      var result =
+          service.create(
+              input(TRANSCRIPT), "synthetic-observations.jsonl", NormalizedAgent.CLAUDE_CODE);
+      var tools = result.artifact().toolExecutions();
+      assertThat(result.artifact().calls()).hasSize(1);
+      assertThat(tools).hasSize(3);
+      assertThat(tools.get(0).observation().orElseThrow().durationNanos()).isZero();
+      var slow = tools.get(1).observation().orElseThrow();
+      assertThat(slow.durationNanos()).isEqualTo(9_000_000_000L);
+      assertThat(slow.exitCode()).isEqualTo(7);
+      assertThat(slow.status()).isEqualTo("failed");
+      assertThat(slow.processId()).isEqualTo("p2");
+      assertThat(slow.source()).isEqualTo("codex:exec_command_end#event[2]");
+      assertThat(tools.get(2).observation()).isEmpty();
+      assertThat(tools.get(2).durationMs()).isNull();
+      assertThat(result.artifact().sourceFiles().getFirst().path().toString())
+          .isEqualTo("imports/" + result.metadata().importId() + "/upload.jsonl");
+    }
+  }
 
   @Test
   void managedImportRetainsLogicalPathsAndClosesItsRecordOwner() throws Exception {

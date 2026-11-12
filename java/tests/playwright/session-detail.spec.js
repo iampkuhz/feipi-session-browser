@@ -35,6 +35,7 @@ test('a round without local calls does not offer dead payload or attribution act
     await route.fulfill({ response, json: body });
   });
   await page.goto(sessionUrl);
+  await page.locator('[data-evidence-analysis] > summary').click();
   const first = page.locator('[data-trace-round-row]').first();
   await expect(first.locator('.attribution-col')).toHaveText('未记录调用', { timeout: 2500 });
   await expect(first.locator('.attribution-col button')).toHaveCount(0);
@@ -43,6 +44,7 @@ test('a round without local calls does not offer dead payload or attribution act
 test('long token provenance does not overlap the neighboring trace columns', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 960 });
   await page.goto(sessionUrl);
+  await page.locator('[data-evidence-analysis] > summary').click();
   const row = page.locator('[data-trace-round-row]').first();
   const toggle = row.locator('[data-action="toggle-round"]');
   await expect(toggle).toBeVisible();
@@ -73,6 +75,7 @@ test('request attribution fits narrow screens without borrowing response tokens'
     await route.fulfill({ response, json: body });
   });
   await page.goto(sessionUrl);
+  await page.locator('[data-evidence-analysis] > summary').click();
   const action = page.locator('[data-attribution-path*="/request"]:visible').first();
   await action.click();
   const card = page.locator('[data-payload-attribution="request"]');
@@ -112,6 +115,7 @@ function cssAttrValue(value) {
 
 async function gotoSessionDetail(page, url) {
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  if (!/[?&](?:tab=payload|round=)/.test(url)) await page.locator('[data-evidence-analysis] > summary').click();
 }
 
 // ── 会话详情 Phase 1 测试 ─────────────────────────────────────────
@@ -132,6 +136,7 @@ test.describe('会话详情 — Phase 1', () => {
 
     // Trace 是 Phase 1 的默认（也是唯一）视图 — 验证核心区域
     await expect(page.locator('.sd-hero').first()).toBeVisible({ timeout: 10000 });
+    await page.locator('[data-session-info] > summary').click();
     await expect(page.locator('[data-issue-strip]')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('[data-trace-panel]')).toBeVisible({ timeout: 10000 });
 
@@ -654,7 +659,7 @@ test.describe('会话详情 — Phase 1', () => {
     await waitForSessionApiHydrated(page);
     const modal = page.locator('dialog.payload-modal');
     for (const kind of ['request', 'response']) {
-      const button = page.locator(`[data-attribution-path*="/${kind}"]:visible`).first();
+      const button = page.locator(`[data-evidence-analysis] [data-attribution-path*="/${kind}"]:visible`).first();
       await expect(button).toHaveText(kind === 'request' ? 'Request' : 'Response');
       const path = await button.getAttribute('data-attribution-path');
       const response = page.waitForResponse(r => r.url().endsWith(path));
@@ -731,25 +736,26 @@ test.describe('会话详情 — Phase 1', () => {
 
   // ── Tab 切换测试（SD-19） ─────────────────────────────────────────
 
-  test('[UI-SD-010][UI-SD-023] 只渲染 trace 顶层视图', async ({ page }) => {
+  test('[UI-SD-010][UI-SD-023] 默认 Trace 与按需 Payload 双入口', async ({ page }) => {
     await gotoSessionDetail(page, sessionUrl);
     await expect(page.locator('.sd-hero').first()).toBeVisible({ timeout: 10000 });
 
     const tracePanel = page.locator('[data-tab-panel="trace"]');
     await expect(tracePanel).toBeVisible({ timeout: 5000 });
     await expect(page.locator('[data-tab="trace"]')).toHaveClass(/is-active/);
-    await expect(page.locator('[data-tab="payload"]')).toHaveCount(0);
+    await expect(page.locator('[data-tab="payload"]')).toBeVisible();
+    await expect(page.locator('[data-tab-panel="payload"]')).toBeHidden();
     await expect(page.locator('[data-payload-tab-panel]')).toHaveCount(0);
   });
 
-  test('[UI-SD-012] payload 深链回退到 trace 视图', async ({ page }) => {
+  test('[UI-SD-012] payload 深链恢复原文索引视图', async ({ page }) => {
     await gotoSessionDetail(page, `${sessionUrl}?tab=payload`);
     await expect(page.locator('.sd-hero').first()).toBeVisible({ timeout: 10000 });
 
-    const traceTab = page.locator('[data-tab="trace"]');
-    await expect(traceTab).toHaveClass(/is-active/);
-    await expect(page.locator('[data-tab-panel="trace"]')).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('[data-tab-panel="payload"]')).toHaveCount(0);
+    await expect(page.locator('[data-tab="payload"]')).toHaveClass(/is-active/);
+    await expect(page.locator('[data-tab-panel="trace"]')).toBeHidden();
+    await expect(page.locator('[data-tab-panel="payload"]')).toBeVisible();
+    await expect(page.locator('[data-payload-index] [data-payload-id]').first()).toBeVisible();
   });
 });
 

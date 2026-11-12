@@ -39,7 +39,7 @@ final class ContentSessionAggregate {
 
   void add(NormalizedToolExecution tool) {
     tools++;
-    toolDurationMs += tool.durationMs();
+    if (tool.durationMs() != null) toolDurationMs += tool.durationMs();
     if (tool.status().isPresent()) failedTools++;
   }
 }

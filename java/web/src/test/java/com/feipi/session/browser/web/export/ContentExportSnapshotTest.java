@@ -19,6 +19,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /** 使用合成内容验证完整重放导出，确保超出旧制品与页面上限的尾部内容仍被保留。 */
 public class ContentExportSnapshotTest {
@@ -31,6 +33,8 @@ public class ContentExportSnapshotTest {
     }
     String html = bytes.toString(java.nio.charset.StandardCharsets.UTF_8);
     assertThat(html)
+        .containsPattern("generated \\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{9}Z -->")
+        .contains("优先使用 HTML", "部分浏览器打开 MHTML 时页内跳转可能不可用，可展开对应声明记录查看。")
         .contains("synthetic response 10234", "synthetic-10234", "10234", "20468")
         .contains("[REDACTED]", "[LOCAL_PATH]", "&lt;unsafe&gt;")
         .doesNotContain("synthetic-secret", "/Users/alice", "fetch(", "<script src", "<link href");
@@ -63,8 +67,10 @@ public class ContentExportSnapshotTest {
         .isInstanceOf(java.nio.file.NoSuchFileException.class);
   }
 
-  @Test
-  void toolInputAndResultAcrossIndependentUnitsRemainInOfflineSnapshot() throws Exception {
+  @ParameterizedTest
+  @ValueSource(longs = {-1, 0, 500_000, 9_000_000_000L})
+  void toolInputAndResultAcrossIndependentUnitsRemainInOfflineSnapshot(long nanos)
+      throws Exception {
     var first =
         call(
             1,
@@ -102,9 +108,21 @@ public class ContentExportSnapshotTest {
             Optional.of("synthetic-2"),
             Optional.empty(),
             Optional.of(0),
-            0,
+            nanos < 0 ? null : nanos / 1_000_000,
             List.of(),
-            Optional.empty());
+            Optional.empty(),
+            nanos < 0
+                ? Optional.empty()
+                : Optional.of(
+                    new com.feipi.session.browser.domain.source.SourceToolObservation(
+                        "synthetic-tool",
+                        nanos,
+                        0,
+                        null,
+                        null,
+                        "executor_reported",
+                        "synthetic:end",
+                        null)));
     var units =
         List.of(
             new com.feipi.session.browser.domain.normalized.NormalizedContentUnit(
@@ -155,9 +173,14 @@ public class ContentExportSnapshotTest {
         ContentExportSnapshot.html(content, 1, PayloadVisibility.STANDARD, 1024 * 1024)) {
       snapshot.copyTo(bytes);
     }
-    assertThat(bytes.toString(java.nio.charset.StandardCharsets.UTF_8))
+    String html = bytes.toString(java.nio.charset.StandardCharsets.UTF_8);
+    assertThat(html)
         .contains("synthetic-tool", "synthetic-tool-input", "synthetic-tool-result", "[REDACTED]")
+        .contains("模型输入", "模型输出", "命令或参数", "执行结果", "href=\"#input-", "href=\"#output-")
+        .contains(nanos < 0 ? "— · 未测量" : nanos == 500_000 ? "&lt;1ms" : nanos / 1_000_000 + "ms")
         .doesNotContain("synthetic-secret");
+    var targets = java.util.regex.Pattern.compile("href=\"#([^\"]+)\"").matcher(html);
+    while (targets.find()) assertThat(html).contains("id=\"" + targets.group(1) + "\"");
   }
 
   public static NormalizedSessionContent content() {

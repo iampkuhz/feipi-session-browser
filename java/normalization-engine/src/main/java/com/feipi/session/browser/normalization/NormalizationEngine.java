@@ -190,6 +190,13 @@ public final class NormalizationEngine {
     // 6. 构建源单元目录
     Map<String, SourceUnitCatalogEntry> sourceUnitCatalog =
         new LinkedHashMap<>(buildSourceUnitCatalog(sourceFiles));
+    for (int i = 0; i < records.size(); i++) {
+      var record = records.get(i);
+      if (ToolResultContents.isResult(record)) {
+        var entry = ToolResultContents.entry(record, i);
+        sourceUnitCatalog.put(entry.unitKey(), entry);
+      }
+    }
     if (calls.isEmpty()) {
       for (var record : records) {
         if (!ObservedInputContents.isUser(record)) continue;

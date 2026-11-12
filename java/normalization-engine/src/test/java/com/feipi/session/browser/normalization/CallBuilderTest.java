@@ -299,11 +299,15 @@ class CallBuilderTest {
     }
 
     @Test
-    @DisplayName("tool_result 在最后无后续 assistant 时分配给最后一个调用")
-    void toolResultWithoutFollowingAssistantGoesToLastCall() {
+    @DisplayName("tool_result 在没有后续模型记录时不消费，也不倒灌过去请求")
+    void toolResultWithoutFollowingAssistantHasNoConsumer() {
       ObjectNode assistant1 = createAssistantWithToolUse("C1", "toolu_1", "Read");
       ObjectNode toolResult =
-          MAPPER.createObjectNode().put("type", "tool_result").put("tool_use_id", "toolu_1");
+          MAPPER
+              .createObjectNode()
+              .put("type", "tool_result")
+              .put("tool_use_id", "toolu_1")
+              .put("content", "synthetic-future-result");
 
       List<JsonNode> events = List.of(assistant1, toolResult);
       EventClassifier.ClassifiedEvents classified =
@@ -313,8 +317,11 @@ class CallBuilderTest {
           CallBuilder.buildCalls(TestSourceRecords.records(events), classified);
 
       assertThat(calls).hasSize(1);
-      // 无后续助手调用，tool_result 归因于最后一个调用
-      assertThat(calls.get(0).request().toolResultIds()).containsExactly("toolu_1");
+      assertThat(calls.get(0).response().toolCallIds()).containsExactly("toolu_1");
+      assertThat(calls.get(0).request().toolResultIds()).isEmpty();
+      assertThat(calls.get(0).sourceUnits())
+          .allSatisfy(unit -> assertThat(unit).doesNotContainEntry("type", "tool_result"));
+      assertThat(calls.get(0).sourceUnits().toString()).doesNotContain("synthetic-future-result");
     }
 
     @Test

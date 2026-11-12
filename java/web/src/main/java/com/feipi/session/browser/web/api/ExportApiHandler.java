@@ -14,6 +14,7 @@ import com.feipi.session.browser.web.api.PageApiDtos.TokenSegments;
 import com.feipi.session.browser.web.api.SessionDetailApiResponses.PayloadIndexDto;
 import com.feipi.session.browser.web.api.SessionDetailApiResponses.RoundIndexDto;
 import com.feipi.session.browser.web.export.ContentExportSnapshot;
+import com.feipi.session.browser.web.export.ExportHandler;
 import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
 import java.io.IOException;
@@ -57,7 +58,7 @@ public final class ExportApiHandler {
     long maxBytes = parseMaxBytes(ctx);
     long estimatedSizeBytes;
     try {
-      if (large(loaded)) {
+      if (loaded.annotated().content() != null) {
         try (var snapshot =
             ContentExportSnapshot.html(
                 loaded.annotated().content(),
@@ -65,7 +66,15 @@ public final class ExportApiHandler {
                 loaded.annotated().detail().visibility(),
                 maxBytes,
                 detail.sessionRow().sessionKey())) {
-          estimatedSizeBytes = snapshot.size() + ("html".equals(requestedFormat) ? 0 : 1024);
+          if ("html".equals(requestedFormat)) {
+            estimatedSizeBytes = snapshot.size();
+          } else {
+            try (var mime =
+                ExportHandler.mhtml(
+                    snapshot, "----=_Part_FeiPi_Export_" + java.util.UUID.randomUUID(), maxBytes)) {
+              estimatedSizeBytes = mime.size();
+            }
+          }
         }
       } else {
         estimatedSizeBytes = estimateSizeBytes(detail);

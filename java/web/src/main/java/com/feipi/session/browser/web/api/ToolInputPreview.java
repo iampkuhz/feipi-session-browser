@@ -22,7 +22,9 @@ final class ToolInputPreview {
         String command = first(node, "command", "cmd");
         String path = first(node, "file_path", "path", "filename");
         String query = first(node, "pattern", "query", "regex");
-        if (!command.isEmpty()) preview = command;
+        String waiting = waitingPreview(input.name(), node);
+        if (!waiting.isEmpty()) preview = waiting;
+        else if (!command.isEmpty()) preview = command;
         else if (!query.isEmpty()) preview = query + (path.isEmpty() ? "" : " · " + path);
         else if (!path.isEmpty()) preview = path;
       }
@@ -31,6 +33,28 @@ final class ToolInputPreview {
     }
     preview = SensitiveFieldPolicy.DEFAULT.applyMasking(preview).replaceAll("\\s+", " ").trim();
     return preview.length() <= 180 ? preview : preview.substring(0, 179) + "…";
+  }
+
+  private static String waitingPreview(String name, JsonNode node) {
+    JsonNode session = node.path("session_id");
+    JsonNode chars = node.path("chars");
+    if ("write_stdin".equals(name)
+        && session.isIntegralNumber()
+        && session.canConvertToLong()
+        && session.longValue() > 0
+        && chars.isTextual()
+        && chars.textValue().isEmpty()) {
+      return "等待读取输出 · session " + session.asText();
+    }
+    JsonNode cell = node.path("cell_id");
+    JsonNode terminate = node.path("terminate");
+    if ("wait".equals(name)
+        && cell.isTextual()
+        && !cell.textValue().isBlank()
+        && (!node.has("terminate") || (terminate.isBoolean() && !terminate.booleanValue()))) {
+      return "等待脚本返回 · " + cell.textValue();
+    }
+    return "";
   }
 
   static String executionKind(String name, String preview) {

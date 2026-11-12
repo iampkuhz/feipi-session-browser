@@ -148,7 +148,9 @@ for (const vp of viewports) {
   test(`[UI-SD-015] 会话详情 @ ${vp.label} — 结构 + 可见性`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto(FIXTURE_SESSION_URL, { waitUntil: 'domcontentloaded', timeout: 15000 });
-
+    await expect(page.locator('[data-execution-judgment]')).toBeVisible();
+    await expect(page.locator('[data-execution-items]')).toBeVisible();
+    await page.locator('[data-evidence-analysis] > summary').click();
     await expectPageStructure(page, sessionDetailChecks);
     await expectViewportFits(page);
   });

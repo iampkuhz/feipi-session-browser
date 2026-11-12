@@ -4,19 +4,19 @@
 
 ### Requirement: 单页 trace-first 调试体验
 
-Session Detail 由本地服务提供在线运行分析；下载的 HTML/MHTML 是另行打开的静态离线档案。首屏必须概览运行健康度、token 成本、缓存健康度、工作量和活跃耗时；Trace 与 Payload 作为下钻工作区保留。
+Session Detail 由本地服务提供在线运行分析；下载的 HTML/MHTML 是另行打开的静态离线档案。默认顺序为执行判断、可扫读的响应分组动作、按需 Token 分析与完整记录证据。Trace 与 Payload 保留为两个主入口。
 
 #### Scenario: 会话摘要展示
 
 页面必须展示：
 - Session 标题。
-- Agent 名称、model、project、created/updated 时间、session id；已解析本地 JSONL 路径时展示索引源文件路径。
-- 默认 3 个核心 KPI：Total Tokens、Cache Health、Workload。Run Health 与 typed Source Task Active 放入“运行诊断与耗时”按需入口，保留所有测量与覆盖边界。
+- 默认保留 Agent 与标题；model、project、created/updated 时间、session id 与源文件路径放入可键盘展开的会话信息，保留复制入口。
+- Total Tokens、Cache Health、Workload 与全部诊断卡片保留在执行过程之后的按需证据区域。Run Health 与 typed Source Task Active 保留原二级入口和测量边界。
 - Run Health 二级指标：Issue Rounds、Failed Tools、Payload Gaps、Attribution Gaps。
 - Total Tokens 二级指标：Fresh、Cache Read、Cache Write、Output。
 - Cache Health 二级指标：Input-side Tokens、Low-cache Rounds、Fresh Spike Rounds。
 - Workload 二级指标：Main records、Subagent records、Tool Calls、Subagent Runs；记录数不是可证明的模型调用数。
-- Active Time 二级指标：Duration、Waiting Time、Model Time、Tool Time。
+- Source Task Active 只使用来源任务窗口；Model Execution 和 Tool Execution 缺测不从差值推算。
 
 每个主 KPI 卡最多渲染 4 个二级指标。Hero 区在索引或 parser 已解析 JSONL 源路径时，必须以 `Session file` 行展示本地路径，并提供 `data-action="copy"` 与 `data-copy-text` 复制按钮；没有路径时省略该行。
 
@@ -59,8 +59,8 @@ round 展开后必须展示：
 - User prompt 摘要。
 - Assistant response 摘要。
 - 源 block 存在时展示 Assistant Thinking 与 Assistant Text 事件行。
-- Tool call 行，包含 status、duration、command preview、result preview、result token estimate 和 result payload action。duration 优先使用明确的 tool wall time；wall time 缺失或为 0 时，使用 tool call 到 tool output 的 timestamp 差值。
-- 只有同一 assistant block 触发多个 tool calls，或 tool_use timestamp 差值接近并发阈值时才渲染 Parallel Tool Group。
+- Tool call 行，包含 status、duration、command preview、result preview、result token estimate 和 result payload action。duration 只使用来源观测；未知不补零，显式零不回退到时间戳差值；毫秒摘要为零而纳秒正值时显示小于 1ms。
+- 多工具声明只表示同一来源组，不凭同一 block 或相邻 timestamp 宣称 Parallel Tool Group。只有可靠起止区间才可讨论实际重叠。
 - Subagent run 行，带局部 expand/collapse-all 控制和每个 subround 的展开/折叠开关。
 - Failed tool error 摘要。
 - 仅在存在 payload data 时展示 payload 按钮。
@@ -205,6 +205,14 @@ Session Detail SHALL surface recognized Codex subagent runs through Agents Break
 
 ### Requirement: Trace 内容证据与调用身份一致
 Session Detail SHALL 从当前轮所引用的 inline/catalog/sequence 可见文本或工具声明生成短摘要与源时间。它 MUST NOT 使用 session 更新时间、耗时或另一轮的文本代替当前轮时间或摘要；缺失来源 SHALL 明确标记。摘要 SHALL 过滤系统上下文、工具结果及长正文并应用默认脱敏。
+
+工具短摘要 SHALL 对契约明确且参数有效的等待读取操作说明动作含义：精确 `write_stdin` 的有效 session ID 与明确空 `chars`、精确 `wait` 的有效 cell ID 且未请求终止。非空输入、终止请求、未知工具或无效参数 SHALL 保留原摘要兜底。原工具名和完整 Input/Result SHALL 可达；摘要转换仍应用原脱敏和长度上限，不合并调用、不推断进程关系、任务完成或耗时。
+
+默认耗时诊断 SHALL 在确定执行上下文与可验证测量口径内，按原工具名展示已测累计工作量、单次最长、调用/测量覆盖及稳定代表动作入口。多次短调用的累计不得被单次最长替代；未知耗时不补零，合法零计入已测，部分覆盖和其他口径需就近说明。聚合取冻结全范围，不取当前分页或截断/脱敏preview；逐事件来源定位符不等于测量事件族。父子上下文、未知身份或不同口径不得混为全局排名；有界展示需披露截断，不给墙钟占比、模型耗时或完整瓶颈结论。
+
+同类有多个已测调用时，紧凑诊断卡 SHALL 提供默认收起的耗时明细，从同一冻结上下文/口径最多取单次耗时前3个独立调用，保留安全命令摘要、观测时长和稳定ID定位。当前摘要页之外的候选 SHALL 无需下载全部前缀即可发现并定位；不因同名/同preview合并调用，不预取全文、不重排执行时间线，明确有界候选并非全部慢项或根因。
+
+存在可信耗时卡且未观察工具失败时，零失败 SHALL 使用紧凑状态说明并保留不证明任务成功或记录完整的边界；通用完整计量和异步解释可复用既有计量说明。模型未测、累计非墙钟/关键路径、未知非零与覆盖 SHALL 默认近邻可见，非零未比较/缺测/其他口径及组截断不得隐藏。真实失败整卡、命令和首失败定位，以及无工具/无可信计量指导不得降级。
 
 本地流式内容与独立导入的已物化制品 SHALL 使用相同预览规则，优先本轮可见用户输入，其次工具计数及短操作，最后助手文本。历史用户引用 SHALL 只归属首次出现的轮次；完整 Request 仍可保留历史上下文。
 

@@ -42,6 +42,7 @@ async function syntheticPage(page, { timingValue = timing, statistics, injectSou
         totalCount: 1, sessionCount: 1, totalSessions: 1, cacheReadStatistics: statistics };
     }
     if (pathname.endsWith('/meta')) data = { title: 'Synthetic overnight task', filters: {} };
+    if (pathname.endsWith('/execution')) data = { items: [], total: 0, offset: 0, nextCursor: null };
     if (pathname.endsWith('/rounds')) data = { rounds: [], roundCount: 0 };
     if (pathname.endsWith('/payloads')) data = { payloads: [], payloadCount: 0 };
     if (pathname.endsWith('/rows')) data = { rows: [{ title: 'Synthetic overnight task', sessionId: 'synthetic-timing',
@@ -75,6 +76,7 @@ for (const [label, sample] of [['measured', timing], ['unknown', undefined],
     await syntheticPage(page, { timingValue: sample === undefined ? null : sample });
     await page.goto(detailPath);
     await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+  await page.locator('[data-evidence-analysis] > summary').click();
     await page.locator('[data-secondary-metrics] > summary').click();
     const card = page.locator('[data-session-timing]');
     await expect(card).toContainText('Source Task Active');

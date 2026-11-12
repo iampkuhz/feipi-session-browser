@@ -4,6 +4,7 @@ import com.feipi.session.browser.common.validation.ImmutableCopies;
 import com.feipi.session.browser.domain.annotation.CoreField;
 import com.feipi.session.browser.domain.annotation.DomainModel;
 import com.feipi.session.browser.domain.enums.CallScope;
+import com.feipi.session.browser.domain.source.SourceToolObservation;
 import com.feipi.session.browser.validation.ValidationSupport;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
@@ -11,6 +12,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -34,8 +36,9 @@ import java.util.Optional;
  * @param resultConsumedByCallId 消费该工具结果的后续调用标识符
  * @param status 可选的非完成状态详情
  * @param exitCode 可选的进程风格退出码
- * @param durationMs 非负的执行时长（毫秒）
+ * @param durationMs 非负的执行时长（毫秒），未知时为空
  * @param filesTouched 工具执行涉及的文件列表
+ * @param observation 显式执行器观测，与启发式 status 分开
  * @param subagentId 可选的关联子 agent 实例标识
  */
 @DomainModel
@@ -62,13 +65,40 @@ public record NormalizedToolExecution(
     Optional<Integer> exitCode,
 
     /* 非负的执行时长（毫秒）。 */
-    @PositiveOrZero long durationMs,
+    @PositiveOrZero Long durationMs,
 
     /* 工具执行涉及的文件列表。 */
     List<String> filesTouched,
 
     /* 可选的关联子 agent 实例标识。 */
-    Optional<String> subagentId) {
+    Optional<String> subagentId,
+    Optional<SourceToolObservation> observation) {
+
+  /** 未携带执行器观测的源码调用入口。 */
+  public NormalizedToolExecution(
+      String toolCallId,
+      String name,
+      CallScope scope,
+      String declaredByCallId,
+      Optional<String> resultConsumedByCallId,
+      Optional<String> status,
+      Optional<Integer> exitCode,
+      long durationMs,
+      List<String> filesTouched,
+      Optional<String> subagentId) {
+    this(
+        toolCallId,
+        name,
+        scope,
+        declaredByCallId,
+        resultConsumedByCallId,
+        status,
+        exitCode,
+        durationMs,
+        filesTouched,
+        subagentId,
+        Optional.empty());
+  }
 
   /**
    * 紧凑构造器，处理默认值并执行防御性拷贝。
@@ -76,6 +106,15 @@ public record NormalizedToolExecution(
    * @throws NullPointerException 当必填字段为 null 时
    */
   public NormalizedToolExecution {
+    observation = observation == null ? Optional.empty() : observation;
+    if (observation.isPresent()) {
+      var value = observation.orElseThrow();
+      if (!value.toolCallId().equals(toolCallId)
+          || !Objects.equals(value.durationMs(), durationMs)
+          || !Objects.equals(value.exitCode(), exitCode == null ? null : exitCode.orElse(null))) {
+        throw new IllegalArgumentException("工具观测与执行摘要不一致");
+      }
+    }
     // Optional 字段规范化
     resultConsumedByCallId =
         resultConsumedByCallId == null ? Optional.empty() : resultConsumedByCallId;
@@ -100,7 +139,8 @@ public record NormalizedToolExecution(
           exitCode,
           durationMs,
           filesTouched,
-          subagentId);
+          subagentId,
+          observation);
     } catch (ConstraintViolationException e) {
       translateValidation(e);
     }

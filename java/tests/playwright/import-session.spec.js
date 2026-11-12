@@ -142,6 +142,7 @@ async function readImportedPage(page, source, origin) {
   expect(meta.sessionKey).toBe(`import:${importId}`);
   await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
   await expect(page.locator('[data-import-scope]')).toContainText('不计入个人统计');
+  await page.locator('[data-evidence-analysis] > summary').click();
   await expect(page.locator('[data-trace-round-row]').first()).toBeVisible();
   return { import_id: importId, source: meta.filters.agent };
 }
@@ -479,9 +480,9 @@ test('恶意文件名和正文保持文本显示，窄宽范围提示不溢出',
   const filename = 'synthetic-<img src=x onerror=window.importXss=true>.jsonl';
   const attack = '<img src=x onerror=window.importBodyXss=true><script>window.importBodyXss=true</script>';
   const imported = await uploadAndOpen(page, 'claude_code', claudeJsonl(attack), filename);
-  await expect(page.locator('[data-import-scope]')).toContainText(filename);
+  await expect(page.locator('[data-session-hero] h1')).toContainText(filename);
   expect(await page.evaluate(() => window.importXss)).toBeUndefined();
-  expect(await page.locator('[data-import-scope] img').count()).toBe(0);
+  expect(await page.locator('[data-import-scope] img, [data-session-hero] img').count()).toBe(0);
   const geometry = await page.locator('[data-import-scope]').evaluate((element) => {
     const rect = element.getBoundingClientRect();
     return { left: rect.left, right: rect.right, viewport: window.innerWidth };
@@ -522,6 +523,9 @@ test('无模型调用的实际输入仍可从摘要和展开读取，不伪造�
   const input = 'Synthetic pending input\nsecond line remains readable';
   const contents = JSON.stringify({ type: 'message', message: { role: 'user', content: input } }) + '\n';
   const result = await uploadAndOpen(page, 'qoder', contents, 'synthetic-pending.jsonl');
+  await expect(page.locator('[data-execution-group]')).toContainText('用户输入记录');
+  await expect(page.locator('[data-execution-group]')).not.toContainText('响应记录');
+  await expect(page.locator('[data-execution-tool]')).toHaveCount(0);
   const row = page.locator('[data-trace-round-row]').first();
   await expect(row.locator('.metric-calls-tools')).toHaveText('0 records0 tools');
   await expect(row).toHaveAttribute('data-is-user-input', 'true');

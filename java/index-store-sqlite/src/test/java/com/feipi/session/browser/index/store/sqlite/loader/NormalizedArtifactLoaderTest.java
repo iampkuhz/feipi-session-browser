@@ -1,6 +1,7 @@
 package com.feipi.session.browser.index.store.sqlite.loader;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.feipi.session.browser.domain.normalized.NormalizedConstants;
 import java.util.List;
@@ -11,6 +12,62 @@ import org.junit.jupiter.api.Test;
 /** {@link NormalizedArtifactLoader} 紧凑制品测试。 */
 @DisplayName("NormalizedArtifactLoader 测试")
 class NormalizedArtifactLoaderTest {
+
+  @Test
+  void toolObservationRequiresExactNumbersAndConsistentProjection() {
+    var observation =
+        new java.util.HashMap<String, Object>(
+            Map.of(
+                "toolCallId",
+                "tool",
+                "durationNanos",
+                0L,
+                "exitCode",
+                0,
+                "kind",
+                "executor_reported",
+                "source",
+                "codex:exec_command_end#event[1]"));
+    var tool =
+        new java.util.HashMap<String, Object>(
+            Map.of(
+                "tool_call_id",
+                "tool",
+                "name",
+                "exec_command",
+                "declared_by_call_id",
+                "call",
+                "duration_ms",
+                0L,
+                "exit_code",
+                0,
+                "observation",
+                observation));
+    assertThat(NormalizedArtifactLoader.parseToolExecutions(List.of(tool)).getFirst().durationMs())
+        .isZero();
+    for (Object invalid :
+        List.of(
+            -1L,
+            "0",
+            new java.math.BigDecimal("0.5"),
+            new java.math.BigInteger("9223372036854775808"))) {
+      observation.put("durationNanos", invalid);
+      assertThatThrownBy(() -> NormalizedArtifactLoader.parseToolExecutions(List.of(tool)))
+          .isInstanceOfAny(IllegalArgumentException.class, ArithmeticException.class);
+    }
+    observation.put("durationNanos", 0L);
+    observation.put("exitCode", 4294967296L);
+    assertThatThrownBy(() -> NormalizedArtifactLoader.parseToolExecutions(List.of(tool)))
+        .isInstanceOf(ArithmeticException.class);
+    observation.put("exitCode", 0);
+    observation.put("toolCallId", "another-tool");
+    assertThatThrownBy(() -> NormalizedArtifactLoader.parseToolExecutions(List.of(tool)))
+        .isInstanceOf(IllegalArgumentException.class);
+    tool.remove("observation");
+    tool.remove("duration_ms");
+    assertThat(NormalizedArtifactLoader.parseToolExecutions(List.of(tool)).getFirst().durationMs())
+        .isNull();
+  }
 
   @Test
   void preservesInlinePayloadUnits() {

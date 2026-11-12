@@ -215,6 +215,8 @@
         event.preventDefault();
         event.stopPropagation();
         if (typeof selectSubagent === 'function') selectSubagent(actionEl);
+      } else if (action === 'load-payload-index') {
+        loadExecutionPayloadIndex().catch(showPayloadIndexError);
       } else if (action === 'open-payload') {
         event.preventDefault();
         event.stopPropagation();

@@ -40,6 +40,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /** 合成已发布索引贯通真实导出HTTP，不让legacy空壳测试代替managed完整内容与413。 */
 class ManagedContentExportHttpTest {
@@ -81,21 +83,43 @@ class ManagedContentExportHttpTest {
     if (index != null) index.close();
   }
 
-  @Test
-  void htmlAndMhtmlReachAll600CatalogCallsAndToolsRatherThanFirstWindow() {
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void htmlAndMhtmlReachAll600CatalogCallsAndToolsRatherThanFirstWindow(boolean compact)
+      throws Exception {
+    var content = ContentExportReplayTest.fixture(600);
     JavalinTest.test(
-        app(ContentExportReplayTest.fixture(600)),
+        app(compact ? NormalizedSessionContent.fromArtifact(content.toArtifact()) : content),
         (server, client) -> {
           for (String route :
               List.of(
-                  "/sessions/codex/synthetic-export/export.html?visibility=full",
-                  "/export/mhtml?agent=codex&session_id=synthetic-export&visibility=full")) {
+                  "/sessions/codex/synthetic-export/export.html",
+                  "/export/html?agent=codex&session_id=synthetic-export",
+                  "/export/mhtml?agent=codex&session_id=synthetic-export")) {
             var response = client.get(route);
             assertThat(response.code()).isEqualTo(200);
             String body = response.body().string();
+            String format = route.contains("mhtml") ? "mhtml" : "html";
+            String manifestRoute =
+                "/api/export/session/codex/synthetic-export/manifest?format=" + format;
+            var mapper = new ObjectMapper();
+            long bytes = body.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+            var manifest = mapper.readTree(client.get(manifestRoute).body().string());
+            assertThat(manifest.path("estimatedSizeBytes").asLong()).isEqualTo(bytes);
+            assertThat(
+                    mapper
+                        .readTree(
+                            client.get(manifestRoute + "&max_bytes=" + (bytes - 1)).body().string())
+                        .at("/state/kind")
+                        .asText())
+                .isEqualTo("too_large");
             assertThat(response.headers().get("Content-Disposition"))
                 .anySatisfy(value -> assertThat(value).contains("attachment"));
-            assertThat(body).doesNotContain("fetch(", "<script src");
+            assertThat(body)
+                .contains("优先使用 HTML", "部分浏览器打开 MHTML 时页内跳转可能不可用，可展开对应声明记录查看。")
+                .containsPattern(
+                    "generated \\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{9}Z -->")
+                .doesNotContain("fetch(", "<script src");
             var calls =
                 Pattern.compile(" · (call-\\d+) · tokens")
                     .matcher(body)

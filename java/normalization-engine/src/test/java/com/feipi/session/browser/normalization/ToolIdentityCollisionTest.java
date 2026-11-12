@@ -31,6 +31,7 @@ class ToolIdentityCollisionTest {
         .flatMap(
             managed ->
                 Stream.of(
+                    test(managed, "independent-tail-results", () -> tailResults(managed)),
                     test(managed, "main-and-two-children", () -> acrossScopes(managed)),
                     test(managed, "same-scope-distinct-origins", () -> acrossOrigins(managed)),
                     test(
@@ -69,6 +70,30 @@ class ToolIdentityCollisionTest {
 
   private static DynamicTest test(boolean managed, String name, Checked action) {
     return DynamicTest.dynamicTest((managed ? "managed/" : "list/") + name, action::run);
+  }
+
+  private static void tailResults(boolean managed) throws Exception {
+    var records = new ArrayList<SourceRecord>();
+    round(records, "root", "first", "shared", SourceRecordRelation.empty());
+    for (String origin : List.of("root", "other", "child-a", "child-b")) {
+      var relation =
+          origin.startsWith("child") ? child(origin, "spawn") : SourceRecordRelation.empty();
+      records.add(assistant(origin, 10, origin + "-tail", "shared", relation));
+      records.add(result(origin, 11, "shared", origin + "-error", relation));
+    }
+    var artifact = normalize(managed, records, List.of());
+    assertThat(artifact.toolExecutions()).hasSize(5);
+    assertThat(artifact.sourceUnitCatalog()).hasSize(5);
+    for (String origin : List.of("root", "other", "child-a", "child-b")) {
+      var tool = edge(artifact, origin + "-tail");
+      assertThat(tool.resultConsumedByCallId()).isEmpty();
+      assertThat(call(artifact, origin + "-tail").request().toolResultIds()).isEmpty();
+      assertThat(artifact.sourceUnitCatalog().values())
+          .filteredOn(entry -> entry.label().filter(tool.toolCallId()::equals).isPresent())
+          .singleElement()
+          .satisfies(entry -> assertThat(entry.text()).contains(origin + "-result"));
+    }
+    assertEdge(artifact, "first-declare", "first-consume", "first-error");
   }
 
   private static void acrossScopes(boolean managed) throws Exception {

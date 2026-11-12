@@ -29,6 +29,7 @@ test('round pages are explicitly loaded and retain the first page and exact tota
   const requests = await pagedRounds(page);
   await page.goto(SESSION);
   await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+  await page.locator('[data-evidence-analysis] > summary').click();
   await expect(page.locator('[data-trace-round-row]')).toHaveCount(1);
   expect(requests).toEqual([null]);
   await expect(page.locator('[data-content-pagination="rounds"]')).toContainText('1 / 2');
@@ -45,6 +46,7 @@ test('a page from another generation never appends to the existing rounds', asyn
   await pagedRounds(page, true);
   await page.goto(SESSION);
   await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+  await page.locator('[data-evidence-analysis] > summary').click();
   await page.locator('[data-content-pagination="rounds"] button').click();
   await expect(page.locator('[data-content-pagination="rounds"]')).toContainText(/refresh/i);
   await expect(page.locator('[data-trace-round-row][data-round="999"]')).toHaveCount(0);
@@ -54,6 +56,7 @@ test('a page from another generation never appends to the existing rounds', asyn
 test('small unpaged sessions have no ineffective load-more control', async ({ page }) => {
   await page.goto(SESSION);
   await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+  await page.locator('[data-evidence-analysis] > summary').click();
   await expect(page.locator('[data-content-pagination] button')).toHaveCount(0);
 });
 
@@ -95,6 +98,7 @@ test('long payload index stays internal and tail Request and Response open from 
   });
   await page.goto(SESSION);
   await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+  await page.locator('[data-evidence-analysis] > summary').click();
   await expect(page.locator('[data-content-payload-index], [data-content-pagination="payloads"]')).toHaveCount(0);
   await expect(page.locator('body')).not.toContainText('Payload index:');
   await expect(page.locator('[data-timeline-item]')).toHaveCount(0);
@@ -152,6 +156,7 @@ test('round members and tools each reach their final explicit page', async ({ pa
   });
   await page.goto(SESSION);
   await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+  await page.locator('[data-evidence-analysis] > summary').click();
   await page.locator('[data-trace-round-row][data-round="1"] [data-action="toggle-round"]').click();
   await expect(page.locator('#round-1-detail')).toContainText('synthetic-first-call');
   await page.locator('[data-content-pagination="round-tools"] button').click();
@@ -190,6 +195,7 @@ test('paged child Request uses stable call identity and retains child scope', as
   await stubMemberRequest(page, 'sa:req:child-call-final');
   await page.goto(SESSION);
   await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+  await page.locator('[data-evidence-analysis] > summary').click();
   await page.locator('[data-trace-round-row][data-round="1"] [data-action="toggle-round"]').click();
   await page.locator('[data-content-pagination="round-members"] button').click();
   await page.locator('#round-1-detail [data-payload-id="sa:req:child-call-final"]').click();

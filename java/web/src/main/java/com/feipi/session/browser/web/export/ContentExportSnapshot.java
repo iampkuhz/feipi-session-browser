@@ -84,10 +84,13 @@ public final class ContentExportSnapshot implements AutoCloseable {
           var writer = new OutputStreamWriter(output, StandardCharsets.UTF_8);
           writer.write(
               "<!DOCTYPE html><!-- Feipi offline export v1; generated "
-                  + java.time.Instant.now()
+                  + new java.time.format.DateTimeFormatterBuilder()
+                      .appendInstant(9)
+                      .toFormatter()
+                      .format(java.time.Instant.now())
                   + " --><html><head><meta charset=\"utf-8\"><title>Session"
                   + " export</title><style>body{font:16px system-ui;max-width:80em;margin:2em"
-                  + " auto}pre{white-space:pre-wrap;overflow-wrap:anywhere}details{border:1px"
+                  + " auto;overflow-wrap:anywhere}pre{white-space:pre-wrap;overflow-wrap:anywhere}details{border:1px"
                   + " solid #888;padding:.5em;margin:.5em}</style></head><body><h1>Session"
                   + " export</h1><p>");
           text(writer, sessionKey);
@@ -98,6 +101,9 @@ public final class ContentExportSnapshot implements AutoCloseable {
                   + content.header().totals().get("calls")
                   + "</p><p>R = confirmed model call; G = logical record group without a confirmed"
                   + " model-call boundary. Record and row totals are not model API call counts.</p>");
+          writer.write(
+              "<p>需要从工具定位到声明记录的模型输入/输出时，优先使用 HTML。部分浏览器打开 MHTML" + " 时页内跳转可能不可用，可展开对应声明记录查看。</p>");
+          writer.write("<p>模型耗时未测量。工具时长仅使用来源观测；— 为未知，不是零。工具工作量不能当作墙钟、重叠或关键路径。</p>");
           long tokens = 0;
           var provenance = TokenProvenance.empty();
           try (var cursor = content.openCursor()) {
@@ -110,7 +116,9 @@ public final class ContentExportSnapshot implements AutoCloseable {
                 String rowType =
                     ContentRoundIndex.modelCallEvidence(agent, call).isEmpty() ? "G" : "R";
                 writer.write(
-                    "<details><summary>"
+                    "<details id=\"call-"
+                        + anchor(call.callId())
+                        + "\"><summary>"
                         + rowType
                         + reader.roundIndex().roundIndexForCall(call.callId()).orElseThrow()
                         + " · ");
@@ -147,27 +155,57 @@ public final class ContentExportSnapshot implements AutoCloseable {
                 for (boolean request : new boolean[] {true, false}) {
                   var payload = payloads.payload(call, request, visibility);
                   field(writer, "payloadId", payload.payloadId());
-                  writer.write(request ? "<h3>Request</h3><pre>" : "<h3>Response</h3><pre>");
+                  writer.write(
+                      "<h3 id=\""
+                          + (request ? "input-" : "output-")
+                          + anchor(call.callId())
+                          + "\">");
+                  writer.write(
+                      request ? "模型输入 · Request（本地来源/重建）</h3><pre>" : "模型输出 · Response</h3><pre>");
                   text(writer, payload.content());
                   writer.write("</pre>");
                 }
                 writer.write("</details>");
               }
               for (var tool : unit.toolExecutions()) {
-                writer.write("<details><summary>Tool ");
+                writer.write(
+                    "<details id=\"tool-" + anchor(tool.toolCallId()) + "\"><summary>Tool ");
                 text(writer, tool.toolCallId());
                 writer.write(" · ");
                 text(writer, tool.name());
+                writer.write(" · ");
+                String duration = tool.durationMs() == null ? "— · 未测量" : tool.durationMs() + "ms";
+                if (Long.valueOf(0).equals(tool.durationMs())
+                    && tool.observation().isPresent()
+                    && tool.observation().get().durationNanos() != null
+                    && tool.observation().get().durationNanos() > 0) duration = "<1ms";
+                text(writer, duration);
+                writer.write(" · ");
+                text(writer, tool.exitCode().map(code -> "退出码 " + code).orElse("退出未知"));
                 writer.write("</summary>");
+                writer.write(
+                    "<p>来源：<a href=\"#input-"
+                        + anchor(tool.declaredByCallId())
+                        + "\">模型输入</a> · <a href=\"#output-"
+                        + anchor(tool.declaredByCallId())
+                        + "\">模型输出</a></p>");
                 field(writer, "scope", tool.scope().getValue());
                 field(writer, "declaredByCallId", tool.declaredByCallId());
                 field(writer, "resultConsumedByCallId", tool.resultConsumedByCallId().orElse(""));
                 field(writer, "subagentId", tool.subagentId().orElse(""));
+                if (tool.observation().isPresent()) {
+                  var observation = tool.observation().get();
+                  field(writer, "observationSource", observation.source());
+                  field(writer, "observationKind", observation.kind());
+                  field(writer, "observationStatus", observation.status());
+                  field(writer, "observationIssue", observation.issue());
+                }
                 for (String kind : new String[] {"input", "result"}) {
                   var payload =
                       payloads.payload("tool:" + kind + ":" + tool.toolCallId(), visibility);
                   if (payload.isEmpty()) throw new IOException("Export tool payload unavailable");
                   field(writer, "payloadId", payload.get().payloadId());
+                  writer.write("input".equals(kind) ? "<h3>命令或参数</h3>" : "<h3>执行结果</h3>");
                   writer.write("<pre>");
                   text(writer, payload.get().content());
                   writer.write("</pre>");
@@ -182,6 +220,17 @@ public final class ContentExportSnapshot implements AutoCloseable {
           writer.flush();
         },
         payloads::close);
+  }
+
+  private static String anchor(String id) {
+    try {
+      return java.util.HexFormat.of()
+          .formatHex(
+              java.security.MessageDigest.getInstance("SHA-256")
+                  .digest(id.getBytes(StandardCharsets.UTF_8)));
+    } catch (java.security.NoSuchAlgorithmException exception) {
+      throw new IllegalStateException("SHA-256 unavailable", exception);
+    }
   }
 
   /** 关闭收集器成功后才移交快照；关闭失败时仍由本方法清理已构造的文件。 */

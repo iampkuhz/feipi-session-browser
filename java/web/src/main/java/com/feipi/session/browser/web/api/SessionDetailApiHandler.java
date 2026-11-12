@@ -389,6 +389,95 @@ public final class SessionDetailApiHandler {
     return detailLoader.apply(ctx);
   }
 
+  /** 返回有界执行摘要；全量诊断与目标定位均由同范围的冻结内容计算。 */
+  public void handleExecution(Context ctx) {
+    LoadedDetail loaded = load(ctx);
+    if (loaded == null) return;
+    int limit = 20;
+    try {
+      if (ctx.queryParam("limit") != null) limit = Integer.parseInt(ctx.queryParam("limit"));
+      if (limit < 1 || limit > 100) throw new NumberFormatException();
+    } catch (NumberFormatException exception) {
+      throw (BadRequestResponse)
+          new BadRequestResponse("limit must be between 1 and 100").initCause(exception);
+    }
+    String filter = Optional.ofNullable(ctx.queryParam("status")).orElse("all");
+    if (!List.of("all", "failed").contains(filter))
+      throw new BadRequestResponse("invalid execution status");
+    String scope = cursorScope(ctx, loaded, "execution", filter + ":" + limit);
+    var content = loaded.annotated().content();
+    if (content == null && loaded.annotated().artifact() != null) {
+      content =
+          com.feipi.session.browser.domain.normalized.NormalizedSessionContent.fromArtifact(
+              loaded.annotated().artifact());
+    }
+    try {
+      if (content == null) {
+        if (ctx.queryParam("cursor") != null || ctx.queryParam("target") != null)
+          throw new BadRequestResponse("no execution content");
+        ctx.json(
+            new SessionExecutionProjection.Page(
+                ApiResponses.SCHEMA_VERSION,
+                List.of(),
+                0,
+                0,
+                null,
+                new SessionExecutionProjection.Diagnostics(0, 0, 0, 0, "", List.of(), 0, null)));
+        return;
+      }
+      var page =
+          SessionExecutionProjection.read(
+              content, scope, ctx.queryParam("cursor"), limit, ctx.queryParam("target"), filter);
+      if (page.total() == 0
+          && "all".equals(filter)
+          && loaded.annotated().detail().sessionRow().userMessageCount() > 0) {
+        var reader =
+            new com.feipi.session.browser.application.sessiondetail.SessionContentReader(
+                content, loaded.annotated().detail().sessionRow().userMessageCount());
+        if (reader.hasObservedInput()) {
+          var input =
+              new SessionExecutionProjection.Group(
+                  "observed-input:1",
+                  1,
+                  1,
+                  "用户输入记录",
+                  "main",
+                  "",
+                  "",
+                  reader.observedInputPreview(),
+                  0,
+                  false,
+                  "",
+                  true,
+                  false);
+          page =
+              new SessionExecutionProjection.Page(
+                  page.schemaVersion(),
+                  List.of(new SessionExecutionProjection.Item(input, null, 0)),
+                  1,
+                  0,
+                  null,
+                  null);
+        }
+      }
+      ctx.json(
+          new SessionExecutionProjection.Page(
+              page.schemaVersion(),
+              page.items(),
+              page.total(),
+              page.offset(),
+              page.nextCursor(),
+              SessionExecutionProjection.diagnostics(content)));
+    } catch (IllegalArgumentException exception) {
+      throw (BadRequestResponse)
+          new BadRequestResponse("invalid execution cursor").initCause(exception);
+    } catch (IOException exception) {
+      throw (io.javalin.http.InternalServerErrorResponse)
+          new io.javalin.http.InternalServerErrorResponse("normalized content read failed")
+              .initCause(exception);
+    }
+  }
+
   private static LoadedDetail loadPersonal(Context ctx, QueryCompositionRoot queryRoot) {
     String agent =
         ApiQueryParams.canonicalAgent(ApiResponses.decodePathParam(ctx.pathParam("agent")));

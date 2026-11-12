@@ -318,13 +318,14 @@ public final class CanonicalJsonWriter {
     map.put("result_consumed_by_call_id", optionalString(tool.resultConsumedByCallId()));
     putOptional(map, "status", tool.status());
     tool.exitCode().ifPresent(exitCode -> map.put("exit_code", exitCode));
-    if (tool.durationMs() > 0L) {
+    if (tool.durationMs() != null) {
       map.put("duration_ms", tool.durationMs());
     }
     if (!tool.filesTouched().isEmpty()) {
       map.put("files_touched", tool.filesTouched());
     }
     putOptional(map, "subagent_id", tool.subagentId());
+    tool.observation().ifPresent(value -> map.put("observation", value));
     return map;
   }
 

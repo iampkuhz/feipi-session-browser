@@ -34,6 +34,7 @@ import java.util.Optional;
  * @param responseStopReason assistant 响应的 stop_reason（如 end_turn、tool_use），缺失时为空
  * @param timing 源显式计时事实，缺失时为空计时
  * @param metaContext provider 显式声明的 meta 上下文，不作为人类 prompt 计数
+ * @param toolObservation 工具执行器显式观测，缺失时为空
  * @param messageRole 原始消息的显式 user/assistant 角色；usage、推理和派生表示默认无角色
  */
 @DomainModel
@@ -93,7 +94,52 @@ public record SourceRecord(
     boolean metaContext,
 
     /* 仅原始消息的显式角色；不得从 usage 或调用边界推断。 */
-    @NotNull Optional<String> messageRole) {
+    @NotNull Optional<String> messageRole,
+    @NotNull Optional<SourceToolObservation> toolObservation) {
+
+  /** 未提供执行器观测时保持未知。 */
+  public SourceRecord(
+      String locator,
+      int eventIndex,
+      String eventType,
+      Optional<String> callId,
+      Optional<String> model,
+      Optional<String> timestamp,
+      Optional<String> turnId,
+      SourceRecordUsage usage,
+      List<SourceToolCall> toolCalls,
+      Optional<String> toolUseId,
+      Optional<String> toolName,
+      Optional<String> toolError,
+      SourceRecordRelation relation,
+      String content,
+      Optional<String> responseMessageId,
+      Optional<String> responseStopReason,
+      SourceTiming timing,
+      boolean metaContext,
+      Optional<String> messageRole) {
+    this(
+        locator,
+        eventIndex,
+        eventType,
+        callId,
+        model,
+        timestamp,
+        turnId,
+        usage,
+        toolCalls,
+        toolUseId,
+        toolName,
+        toolError,
+        relation,
+        content,
+        responseMessageId,
+        responseStopReason,
+        timing,
+        metaContext,
+        messageRole,
+        Optional.empty());
+  }
 
   /** 兼容未携带原始消息角色证据的旧构造器，不从事件类型猜角色。 */
   public SourceRecord(
@@ -338,7 +384,8 @@ public record SourceRecord(
         responseStopReason,
         replacementTiming,
         metaContext,
-        messageRole);
+        messageRole,
+        toolObservation);
   }
 
   /** 返回仅替换文本内容的不可变副本，保留全部元数据。 */
@@ -362,7 +409,8 @@ public record SourceRecord(
         responseStopReason,
         timing,
         metaContext,
-        messageRole);
+        messageRole,
+        toolObservation);
   }
 
   /** 仅标注源明确提供的消息角色，不改变调用、内容或身份。 */
@@ -386,7 +434,33 @@ public record SourceRecord(
         responseStopReason,
         timing,
         metaContext,
-        role);
+        role,
+        toolObservation);
+  }
+
+  /** 仅替换执行器观测，不更改事件分类、结果或计数。 */
+  public SourceRecord withToolObservation(Optional<SourceToolObservation> observation) {
+    return new SourceRecord(
+        locator,
+        eventIndex,
+        eventType,
+        callId,
+        model,
+        timestamp,
+        turnId,
+        usage,
+        toolCalls,
+        toolUseId,
+        toolName,
+        toolError,
+        relation,
+        content,
+        responseMessageId,
+        responseStopReason,
+        timing,
+        metaContext,
+        messageRole,
+        observation);
   }
 
   /** 日志摘要不包含文本或其他 provider 原始字段。 */
@@ -401,6 +475,7 @@ public record SourceRecord(
    * <p>当 {@code eventType} 为空时默认为 {@code "unknown"}。新元数据规范化为 Optional.empty()。
    */
   public SourceRecord {
+    toolObservation = toolObservation == null ? Optional.empty() : toolObservation;
     // eventType 默认值处理
     if (eventType == null || eventType.isBlank()) {
       eventType = "unknown";
@@ -438,7 +513,8 @@ public record SourceRecord(
           responseStopReason,
           timing,
           metaContext,
-          messageRole);
+          messageRole,
+          toolObservation);
     } catch (ConstraintViolationException e) {
       translateValidation(e);
     }

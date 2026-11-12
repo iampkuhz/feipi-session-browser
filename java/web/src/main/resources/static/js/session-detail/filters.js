@@ -223,6 +223,8 @@
     options = options || {};
     var round = qs(page, '[data-trace-round-row][data-round="' + cssEscape(roundId) + '"]');
     if (!round) return;
+    var analysis = closest(round, '[data-evidence-analysis]');
+    if (analysis) analysis.open = true;
     if (typeof switchTab === 'function') switchTab(page, 'trace', true);
     if (round.classList.contains('is-filtered-out')) {
       setFilter(page, 'all');

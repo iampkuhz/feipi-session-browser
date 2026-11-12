@@ -4,19 +4,21 @@
 
 ## 定位
 
-Session Detail 是单个 session 的运行分析页，用于在首屏回答本次运行的健康状态、token footprint、缓存、工作量和耗时，并在诊断区解释token footprint来源、可疑 round/call/subagent、工具影响、payload 覆盖和上下文预算。目标结构只保留 `Trace`、`Payload` 两个主 tab，Trace/Payload 作为下钻工作区。
+Session Detail 是单个 session 的运行分析页。默认先回答已观察到什么失败、同名工具已测最长项及证据覆盖，再展示可扫读的响应分组动作；Token、缓存、上下文和完整记录按需查看。只保留 `Trace`、`Payload` 两个主入口。
 
 ## 页面布局
 
 - 路由固定为 `/sessions/<agent>/<session_id>`；模板固定为 `session.html`；HTML 和 MHTML 下载入口见 [Session Export Contract](../../session-export-contract.md)。
 - 面包屑固定为 `Dashboard / Sessions / <agent> / <short session id>`。
-- 首屏顺序固定为 Page Head、Hero KPI、诊断卡片区、主 tab。
-- Hero KPI 区展示 session 标题、agent、session id copy、session 本地文件路径 copy 和 3 张默认核心 KPI：`Total Tokens`、`Cache Health`、`Workload`；`Run Health` 与 `Source Task Active` 放入可键盘展开的“运行诊断与耗时”。
-- Hero 下方 summary strip 只展示未在 hero/meta/KPI 中重复出现的短状态信息，例如 `updated`、`branch`；不得重复展示 session id、model、project、created。
+- 默认顺序为身份摘要、Trace/Payload 入口、执行判断、紧凑执行过程、按需 Token 分析与完整记录证据。
+- 身份摘要默认只保留标题、agent 和原生“会话信息”展开入口。session id/file copy、model/project、原始标题、绝对时间和旧问题摘要保留在会话信息内，支持键盘展开，不占默认首屏。
+- `Total Tokens`、`Cache Health`、`Workload`、所有诊断卡片及原 Trace round 证据完整保留在过程后的原生 details；`Run Health` 与 `Source Task Active` 保留二级入口。
 - 诊断卡片区固定包含 `Agents Breakdown`、`Context Budget`、`Tool Impact`、`Issues & Repro Seeds`。
 - 主内容区固定包含 `Trace`、`Payload` 两个 tab。
-- Trace tab 固定为筛选条加 trace round table；round 展开后展示按时间顺序排列的步骤卡片。
-- Payload tab 固定为左右布局：左侧 call selector，右侧 selected call detail。
+- Trace 默认请求有界执行摘要，不展开每个 Round 或预载正文。响应 header 与缩进保留声明归属；同组跨页标记为续组。旧 round table 为按需证据工作区，仍支持筛选、分页、归因和深链。
+- 实际命令/参数短预览为操作行主信息；工具类别、状态和时长就近显示。证据入口不独占每条短工具行，长内容自然换行，无固定高度裁切。
+- 每个响应 header 提供一对模型输入/模型输出入口，不在每个工具重复；无可用本地证据时明确未记录。输入只表示本地可见来源或关联结果，不等同完整 HTTP。诊断卡给具体操作短摘要，kind 等实现枚举只在按需说明/来源证据内。
+- Payload tab 打开后才请求有界载荷索引；逐项共用现有原文/归因弹框，不自动爬取所有页或正文。
 - HTML 和 MHTML 是静态离线归档：保留已发布的调用、工具、正文、归属和 token 计量，用原生控件展开，不复制在线 tab、筛选和弹框。
 
 ### 导入分析范围
@@ -216,17 +218,17 @@ Session Detail 是单个 session 的运行分析页，用于在首屏回答本�
 - detail 内部固定为一条纵向 event timeline，左侧是 timeline rail，右侧是紧凑事件行。
 - detail 面板必须与展开 round 行和下一条 round 行保持可见间距；detail 外框不得与上下 round 边框贴合或重合。
 - step 顺序固定为原始 trace 顺序；assistant thinking/text、tool_use、tool_result、subagent run 必须按 timestamp 排列。
-- step 类型固定为 `User Message`、`Assistant Thinking`、`Assistant Text`、`Tool Call`、`Parallel Tool Group`、`Tool Result`、`Subagent Run`、`System Signal`；expanded timeline 不渲染 `LLM Summary` 或独立 `LLM Call` card。
+- step 类型为 `User Message`、`Assistant Thinking`、`Assistant Text`、`Tool Call`、来源工具组、`Tool Result`、`Subagent Run`、`System Signal`；同组多工具只表示声明来源，缺少可信执行区间重叠证据不得称为 `Parallel Tool Group`。expanded timeline 不渲染 `LLM Summary` 或独立 `LLM Call` card。
 - `User Message` 行展示 role、摘要、timestamp、输入 preview；preview 最长 3 行，长内容从 payload 打开。
 - `Assistant Thinking` 行展示 thinking 摘要、timestamp、source block 和 payload 入口；必须使用与 `Tool Call` 行同等高度的单行紧凑布局，长文本单行截断。
 - `Assistant Text` 行展示对用户可见文本摘要、timestamp 和 payload 入口；必须使用与 `Tool Call` 行同等高度的单行紧凑布局，长文本单行截断。该行 payload 只展示 assistant text / thinking 内容，不重复展示同一 LLM response 中已经在后续 `Tool Call` 行平铺展示的 tool call。
 - Codex 原始 JSONL 中同一 assistant 文案可能同时出现为 `event_msg.agent_message` 和 `response_item.message role=assistant`；Trace 必须把两者关联为同一个 assistant text 事件，优先使用 `response_item.message` 作为 canonical payload source，`event_msg` 只作为 UI/status mirror 或缺省处理，不得重复展示两行相同文本。
 - 单调用行的 Request/Response 不在展开内容中重复；多记录分组在展开后提供各成员的 Request/Response，正文与归因使用同一弹框。
 - `Fresh` 表示 tokenbar 和 Total 的互斥新输入分段；request attribution 摘要可单独展示 Provider Request Input / Provider 请求输入，用于解释归因分母。
-- `Tool Call` 行固定展示 tool name、command preview、result preview、timestamp、duration、result token estimate、`Result` action；duration 优先使用 tool wrapper 输出的 wall time，wall time 缺失或为 0 时使用 tool call 到 tool output 的 timestamp 差值兜底，不得把有明确时间跨度的 tool 统一显示为 `0s`；result token estimate 使用 `~<compact>`，且必须和 Result modal 中的 `result tokens` 数值一致。
+- `Tool Call` 行固定展示 tool name、command preview、result preview、timestamp、duration、result token estimate、`Result` action；duration 仅使用来源明确测得的耗时，保留测量口径与精度；零是实测零，正数不足 1ms 与未知分别显示，缺测不补值。不得用 call/output 或相邻 timestamp 差、TTFT、总时长减工具工作量推算模型或工具时间；result token estimate 使用 `~<compact>`，且必须和 Result modal 中的 `result tokens` 数值一致。
 - 点击 `Result` 打开的 tool result payload modal 必须在 metadata rail 和 modal subtitle 展示该 result 文本的估算 token 数，字段名固定为 `result tokens`，数值格式为 `~<compact> tokens`；该值表示该 tool result 大概率进入下一次 LLM request 的输入压力，不得标记为 provider reported。
-- 只有原始事件同一 assistant block 内触发多个 tool_use，或 tool_use timestamp 差值小于并发阈值时，才合并为 `Parallel Tool Group`；非并发 tool call 不得被无条件合并。
-- `Parallel Tool Group` header 展示并发原因、tool 数、失败数、duration，body 使用行式 tool 列表。
+- 同一响应声明多个 tool_use 仅表示来源分组，不表示并行；相邻时间戳不能证明执行区间重叠。
+- 工具组 header 展示本地响应边界和下发工具数；动作聚焦命令/参数短预览、状态和已测耗时。模型耗时未知只在组外集中说明，不用墙钟减工具工作量推算。
 - `Subagent Run` 行展示 subagent name、独立上下文 badge、status、sub-round 数、token summary 和局部 `Expand all` / `Collapse all` 控制。
 - `Subagent Run` 内部的 sub-round 按 `SR<sub_round_id>` 展示；每个 sub-round summary 行必须可点击或键盘切换自身展开/折叠，并直接展示 request/response attribution 状态和入口，不再默认展开内部 LLM call card。
 - `System Signal` 行展示 parser 缺省处理、payload missing、round API error、attribution error。
@@ -302,7 +304,7 @@ Session Detail 是单个 session 的运行分析页，用于在首屏回答本�
 - call selector 数据来自当前 session 的 LLM call、subagent call、tool result payload。
 - 列表按 trace 顺序排列，并按 round 分组。
 - 分组标题格式固定为 `R<round_number> · <round summary>`。
-- call item 标题格式固定为 `LLM Call #<index>`、`Subagent · <name>`、`Tool Result · <tool name>`。
+- call item 可保留 legacy 标题 `LLM Call #<index>`、`Subagent · <name>`、`Tool Result · <tool name>`；其中 `LLM Call #` 仅是本地 normalized 逻辑记录的展示标识，不表示一次真实 provider 请求，须就近说明此边界。
 - call item meta 固定展示 model、status、input token、output token、payload availability。
 - call item 右侧固定展示 status badge：`available`、`partial`、`missing`、`error`。
 - selector filter 固定为 `All`、`Failed`、`Missing`、`Error`。
@@ -392,7 +394,7 @@ Session Detail 是单个 session 的运行分析页，用于在首屏回答本�
 
 - Created、Updated 使用源 timestamp；Wall Duration、Task Active 使用 `common.md` 的 typed timing 口径。
 - Rounds 使用当前 session 的 assistant round 计数。
-- LLM Calls 使用主 agent 和 subagent 的 LLM call 合计。
+- legacy `LLM Calls` 仅汇总主 agent 和 subagent 的本地 normalized 逻辑记录数，须就近标明“本地记录”，不得将 records 相加宣称真实 provider 请求总量；只有来源边界证据充分时才另显示对应已确认边界计数及覆盖。
 - Tool Calls 使用 tool call 计数；Failed Tools 使用失败 tool result 计数。
 - Subagent Runs 使用独立 subagent 上下文启动次数。
 - Output 来自模型可见输出 token，不把 hidden reasoning token 混入可见输出。

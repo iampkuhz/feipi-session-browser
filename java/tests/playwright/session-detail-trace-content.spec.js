@@ -59,6 +59,7 @@ async function installTraceFixture(page) {
   });
   await page.goto(SESSION);
   await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+  await page.locator('[data-evidence-analysis] > summary').click();
   return page.locator('[data-trace-round-row][data-round="1"]');
 }
 
@@ -74,6 +75,46 @@ async function openContent(page, button, label, content) {
 async function closeContent(modal) {
   await modal.locator('[data-action="close-payload"]').click();
   await expect(modal).toBeHidden();
+}
+
+for (const scenario of [
+  { name: 'Request raw-only', title: 'Request', raw: true, empty: '未单列输入正文；仍有本地记录，请展开“原始记录”查证。' },
+  { name: 'Request no raw', title: 'Request', raw: false, empty: 'Request 正文未记录' },
+  { name: 'Request unconfirmed context', title: 'Request', raw: true, unconfirmedContext: true, empty: '未确认可单列的正文，请查看原始记录。' },
+  { name: 'Response raw-only', title: 'Response', raw: true, empty: 'Response 正文未记录' },
+  { name: 'Response no raw', title: 'Response', raw: false, empty: 'Response 正文未记录' },
+  { name: 'Request reading present', title: 'Request', raw: true, reading: [{ text: 'Synthetic request prose' }] },
+]) {
+  test(`conversation empty guidance guard: ${scenario.name}`, async ({ page }) => {
+    const row = await installTraceFixture(page);
+    const raw = scenario.raw ? 'Tool result [synthetic-previous]\nSynthetic stored evidence' : '';
+    await page.route(`**${API}/payload/*`, route => fulfillIndexedJson(route, {
+      kind: scenario.title === 'Request' ? 'llm_request' : 'llm_response', content: raw,
+      reading: scenario.reading || [], unconfirmedContext: !!scenario.unconfirmedContext,
+    }));
+    await page.route(`**${API}/attribution/1/1/*`, route => {
+      const url = new URL(route.request().url());
+      return fulfillIndexedJson(route, { kind: 'llm.' + url.pathname.split('/').at(-1) + '_attribution',
+        data: { callId: url.searchParams.get('call_id'), scope: 'main', responseTools: [] } });
+    });
+    await row.getByRole('button', { name: scenario.title, exact: true }).click();
+    const modal = page.locator('dialog.payload-modal');
+    await expect(modal).toBeVisible();
+    await expect(modal).toContainText('仅展示本地可见记录，不代表完整 provider context。');
+    if (scenario.empty) await expect(modal.locator('.sd-payload-empty')).toHaveText(scenario.empty);
+    else {
+      await expect(modal.locator('.sd-payload-empty')).toHaveCount(0);
+      await expect(modal).toContainText('Synthetic request prose');
+    }
+    const original = modal.locator('[data-payload-raw]');
+    await expect(original).toHaveCount(scenario.raw ? 1 : 0);
+    if (scenario.raw) {
+      await expect(original).not.toHaveAttribute('open');
+      if (scenario.unconfirmedContext) await expect(original.locator('summary')).toHaveText('原始记录（含项目说明或上下文，归属无法确认）');
+      await original.locator('summary').click();
+      await expect(original.locator('pre')).toHaveText(raw);
+    }
+  });
 }
 
 test('[UI-SD-043] Payload metadata 键值不重叠，窄屏保留完整正文', async ({ page }) => {
@@ -216,6 +257,7 @@ test('round HTTP failure without generation is retryable, real generation change
 
   await page.reload();
   await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+  await page.locator('[data-evidence-analysis] > summary').click();
   await page.route(`**${API}/round/1`, route => route.fulfill({ status: 409, contentType: 'application/json', json: { error: 'index_generation_changed' } }));
   await page.locator('[data-trace-round-row]').first().locator('[data-action="toggle-round"]').click();
   await expect(page.locator('[data-loading-for="1"]')).toContainText('Index changed');
@@ -234,6 +276,7 @@ test('unavailable diagnostics and file provenance are not measured empty values'
     contentMeasured: true, agents: [], contextSegmentsAvailable: false, toolImpactAvailable: false, issuesAvailable: false,
   } }));
   await installTraceFixture(page);
+  await page.locator('[data-session-info] > summary').click();
   await expect(page.locator('[data-session-file-text]')).toHaveText('来源未提供可展示的会话文件路径');
   await expect(page.locator('[data-session-file-path] [data-action="copy"]')).toBeHidden();
   const cards = page.locator('[data-session-diagnostics]');
@@ -264,6 +307,7 @@ test('paired tool bodies distinguish a failed read from missing content and reje
   mode = 'changed';
   await page.reload();
   await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+  await page.locator('[data-evidence-analysis] > summary').click();
   await page.locator('[data-trace-round-row] [data-action="toggle-round"]').click();
   await pair.locator('summary').click();
   await expect(input).toContainText('Index changed');
@@ -318,6 +362,7 @@ test('real Codex import keeps R1/R2 summaries, times and same-name tool payloads
     page.on('request', req => { if (req.url().includes(`${api}/payload/`)) bodyReads++; });
     await page.goto(`/imports/${importId}`);
     await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+  await page.locator('[data-evidence-analysis] > summary').click();
     const rows = page.locator('[data-trace-round-row]');
     await expect(rows).toHaveCount(2);
     for (const [index, marker, ids] of [[0, 'alpha', ['alpha', 'parallel']], [1, 'beta', ['beta', 'missing']]]) {

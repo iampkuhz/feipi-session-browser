@@ -12,7 +12,8 @@
       meta: applySessionMeta,
       metrics: applySessionMetrics,
       diagnostics: applySessionDiagnostics,
-      rounds: applySessionRounds
+      rounds: applySessionRounds,
+      execution: applyExecutionPage
     };
     Object.keys(resources).forEach(function (name) {
       document.body.setAttribute('data-session-api-' + name + '-state', 'loading');
@@ -70,7 +71,14 @@
           });
         }
       };
-    })).then(applyPublishedDeepLink);
+    })).then(function () {
+      applyPublishedDeepLink();
+      var target = new URLSearchParams(location.search).get('execution');
+      if (target) loadExecutionPage({ target: target }, false).catch(function (err) {
+        showSessionResourceError('execution', err, function () { return loadExecutionPage({ target: target }, false); });
+      });
+      if (new URLSearchParams(location.search).get('tab') === 'payload') loadExecutionPayloadIndex().catch(showPayloadIndexError);
+    });
   }
 
   // Continuations are bound to the already rendered IndexSnapshot, never a new snapshot.
@@ -189,6 +197,9 @@
   }
 
   function showSessionResourceError(name, err, retry) {
+    if (name === 'execution') {
+      setText('[data-execution-judgment]', '执行摘要加载失败，尚不能判断；请重试。');
+    }
     if (name === 'meta') {
       setText('[data-session-file-text]', '会话文件信息加载失败；请重试');
       var copyFile = qs(document, '[data-session-file-path] [data-action="copy"]');
@@ -206,6 +217,7 @@
     }
     var target = name === 'rounds' ? qs(document, '.trace-table[data-trace-list] tbody')
       : name === 'diagnostics' ? qs(document, '[data-session-diagnostics]')
+      : name === 'execution' ? qs(document, '[data-execution-items]')
       : qs(document, '[data-session-hero]') || document.body;
     if (!target) return;
     var previous = document.querySelector('[data-resource-error="' + name + '"]');
@@ -911,7 +923,7 @@
     // Initialize the trace panel; legacy payload deep links fall back to Trace.
     var page = document.querySelector('[data-trace-page]') || document;
     var params = new URLSearchParams(window.location.search || "");
-    var initialTab = "trace";
+    var initialTab = params.get('tab') === 'payload' ? 'payload' : 'trace';
     switchTab(page, initialTab, false);
     qsa(document, '[data-trace-round-row]').forEach(function (round) {
       var button = qs(round, '[data-action="toggle-round"]');

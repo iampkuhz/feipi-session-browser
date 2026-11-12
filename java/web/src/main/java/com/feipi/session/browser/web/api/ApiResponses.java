@@ -1,6 +1,7 @@
 package com.feipi.session.browser.web.api;
 
 import com.feipi.session.browser.common.validation.ParamChecks;
+import com.feipi.session.browser.domain.source.SourceToolObservation;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -146,6 +147,7 @@ public final class ApiResponses {
    * @param subagentId 子 agent 标识，主会话为空
    * @param inputPreview 安全输入预览（路径、查询或命令）
    * @param executionKind 依据工具名与参数识别的类别
+   * @param observation 显式执行器观测，缺失时为空，与启发式 status 分开
    * @param resultObserved 源中是否存在该工具结果边
    */
   public record ToolExecutionSummary(
@@ -159,7 +161,8 @@ public final class ApiResponses {
       String subagentId,
       String inputPreview,
       String executionKind,
-      boolean resultObserved) {
+      boolean resultObserved,
+      SourceToolObservation observation) {
 
     /** 校验字段和业务不变量。 */
     public ToolExecutionSummary {

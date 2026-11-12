@@ -9,10 +9,12 @@ import com.feipi.session.browser.domain.normalized.NormalizedSessionContent;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /** 只保留遮蔽后的短文本和引用元数据；不将完整载荷或工具输出物化到首屏。 */
 final class SessionContentPreviews {
@@ -21,6 +23,7 @@ final class SessionContentPreviews {
   private final Map<String, List<NormalizedSequenceChunk>> sequences = new HashMap<>();
   private final Map<String, String> tools = new HashMap<>();
   private final Map<String, Integer> firstUserRound = new HashMap<>();
+  private final Set<String> resultIds = new HashSet<>();
 
   private SessionContentPreviews(boolean codex) {
     this.codex = codex;
@@ -40,11 +43,15 @@ final class SessionContentPreviews {
     try (var cursor = content.openCursor()) {
       while (cursor.hasNext()) {
         var unit = cursor.next();
+        for (var call : unit.calls()) {
+          for (var source : call.sourceUnits()) result.observeResult(source, null, null);
+        }
         for (var chunk : unit.sourceUnitSequences()) {
           result.sequences.computeIfAbsent(chunk.name(), key -> new ArrayList<>()).add(chunk);
         }
         for (var entry : unit.sourceUnitCatalog().entrySet()) {
           var value = entry.getValue();
+          result.observeResult(value.payload(), value.unitType(), value.label().orElse(null));
           boolean request = "request".equals(value.direction().getValue());
           String role = request ? "user" : "assistant";
           result.entries.put(
@@ -62,6 +69,24 @@ final class SessionContentPreviews {
       }
     }
     return result;
+  }
+
+  boolean hasToolResult(String id) {
+    return resultIds.contains(id);
+  }
+
+  private void observeResult(Object value, String type, String label) {
+    Map<?, ?> payload = value instanceof Map<?, ?> map ? map : Map.of();
+    var types = List.of("tool_result", "function_call_output", "custom_tool_call_output");
+    if (!(type != null && types.contains(type))
+        && !types.contains(String.valueOf(payload.get("type")))) return;
+    for (String field : List.of("tool_call_id", "tool_use_id", "call_id")) {
+      if (payload.get(field) instanceof String id && !id.isBlank()) {
+        resultIds.add(id);
+        break;
+      }
+    }
+    if (label != null && !label.isBlank()) resultIds.add(label);
   }
 
   String text(NormalizedCall call, boolean request) {

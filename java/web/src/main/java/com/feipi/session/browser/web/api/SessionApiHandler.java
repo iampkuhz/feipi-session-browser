@@ -7,6 +7,7 @@ import com.feipi.session.browser.domain.enums.CallScope;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedCallUsage;
 import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
+import com.feipi.session.browser.domain.source.SourceToolObservation;
 import com.feipi.session.browser.index.api.IndexQueryException;
 import com.feipi.session.browser.query.api.CallRound;
 import com.feipi.session.browser.query.api.PayloadVisibility;
@@ -117,6 +118,14 @@ public final class SessionApiHandler {
           }
 
           PayloadLookup.PayloadEntry entry = entryOpt.get();
+          boolean available = !entry.content().isEmpty();
+          if (entry.kind() == com.feipi.session.browser.query.api.PayloadSourceKind.TOOL_RESULT) {
+            var previews =
+                sessionCtx.content() != null
+                    ? SessionContentPreviews.read(sessionCtx.content())
+                    : SessionContentPreviews.readArtifact(sessionCtx.artifact());
+            available = previews.hasToolResult(entry.callId());
+          }
           ctx.json(
               new PayloadResponse(
                   entry.payloadId(),
@@ -126,7 +135,7 @@ public final class SessionApiHandler {
                   entry.truncated(),
                   ApiResponses.SCHEMA_VERSION,
                   entry.content(),
-                  entry.content().isEmpty() ? "missing" : "available",
+                  available ? "available" : "missing",
                   entry.reading().stream()
                       .map(
                           block -> {
@@ -266,7 +275,11 @@ public final class SessionApiHandler {
               for (var tool : units.next().toolExecutions()) {
                 if (!memberIds.contains(tool.declaredByCallId())) continue;
                 if (toolTotal >= toolOffset && tools.size() < limit)
-                  tools.add(toolSummary(tool, inputPreviews.getOrDefault(tool.toolCallId(), "")));
+                  tools.add(
+                      toolSummary(
+                          tool,
+                          inputPreviews.getOrDefault(tool.toolCallId(), ""),
+                          previews.hasToolResult(tool.toolCallId())));
                 toolTotal++;
               }
             }
@@ -613,9 +626,15 @@ public final class SessionApiHandler {
         toolExecutions.stream().map(NormalizedToolExecution::toolCallId).toList();
     Map<String, ToolInputContents.Input> inputs =
         sessionCtx.artifact() == null ? Map.of() : ToolInputContents.all(sessionCtx.artifact());
+    var previews = SessionContentPreviews.readArtifact(sessionCtx.artifact());
     List<ToolExecutionSummary> toolSummaries =
         toolExecutions.stream()
-            .map(exec -> toolSummary(exec, ToolInputPreview.from(inputs.get(exec.toolCallId()))))
+            .map(
+                exec ->
+                    toolSummary(
+                        exec,
+                        ToolInputPreview.from(inputs.get(exec.toolCallId())),
+                        previews.hasToolResult(exec.toolCallId())))
             .toList();
 
     boolean isSubagent = !round.parentCallId().isEmpty();
@@ -663,7 +682,8 @@ public final class SessionApiHandler {
   }
 
   /** 构建工具执行摘要。 */
-  private static ToolExecutionSummary toolSummary(NormalizedToolExecution exec, String preview) {
+  static ToolExecutionSummary toolSummary(
+      NormalizedToolExecution exec, String preview, boolean resultObserved) {
     return new ToolExecutionSummary(
         exec.toolCallId(),
         exec.name(),
@@ -671,11 +691,26 @@ public final class SessionApiHandler {
         exec.declaredByCallId(),
         exec.status().orElse(""),
         exec.exitCode().orElse(null),
-        exec.durationMs() > 0 ? exec.durationMs() : null,
+        exec.durationMs(),
         exec.subagentId().orElse(""),
         preview,
         ToolInputPreview.executionKind(exec.name(), preview),
-        exec.resultConsumedByCallId().isPresent());
+        resultObserved,
+        exec.observation().map(SessionApiHandler::safeObservation).orElse(null));
+  }
+
+  /** 新增短字段仍使用默认脱敏，不让执行状态或进程标识成为正文旁路。 */
+  private static SourceToolObservation safeObservation(SourceToolObservation value) {
+    var policy = SensitiveFieldPolicy.DEFAULT;
+    return new SourceToolObservation(
+        value.toolCallId(),
+        value.durationNanos(),
+        value.exitCode(),
+        policy.applyMasking(value.status()),
+        policy.applyMasking(value.processId()),
+        value.kind(),
+        value.source(),
+        value.issue());
   }
 
   /** 构建 attribution 响应。 */

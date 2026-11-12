@@ -135,4 +135,34 @@ function generateSessionFixtures(dataDir) {
   writeJsonl(historyPath, [...committedHistory, ...generatedHistory]);
 }
 
-module.exports = { SPEC, generateSessionFixtures };
+// 原始 Codex 合成来源经正常发现、适配、归一化和 HTTP，不以 API mock 冒充来源链。
+function executionSourceRecords() {
+  const id = '11111111-2222-4333-8444-555555555555';
+  const records = [];
+  const add = (type, payload) => records.push({ type, timestamp: timestamp(5000 + records.length), payload });
+  add('session_meta', { id, timestamp: timestamp(5000), cwd: '/synthetic/execution', source: 'cli' });
+  add('turn_context', { turn_id: 'synthetic-turn', model: 'synthetic-codex' });
+  add('response_item', { type: 'message', role: 'user', content: [{ type: 'input_text', text: '检查项目，执行命令并验证结果（全部为合成数据）' }] });
+  let action = 0;
+  for (let response = 1; response <= 25; response += 1) {
+    const count = response === 1 ? 3 : 1;
+    add('response_item', { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: `合成模型输出 ${response}：${count === 3 ? '一次下发三个工具' : '执行一个工具'}` }] });
+    const ids = [];
+    for (let tool = 0; tool < count; tool += 1) {
+      action += 1;
+      const callId = `synthetic-action-${action}`;
+      ids.push(callId);
+      const cmd = action === 1 ? 'printf "first"; printf "second"; node --version' : action === 27 ? 'node synthetic-failure.js' : `printf "synthetic action ${action}"`;
+      add('response_item', { type: 'function_call', name: 'exec_command', call_id: callId, arguments: JSON.stringify({ cmd }) });
+    }
+    add('token_usage_record', { response_id: `synthetic-response-${response}`, turn_id: 'synthetic-turn', usage: { input_tokens: 100, cached_input_tokens: 40, cache_write_input_tokens: 0, output_tokens: 20 } });
+    for (const callId of ids) {
+      const n = Number(callId.split('-').pop());
+      add('response_item', { type: 'function_call_output', call_id: callId, output: n === 27 ? 'Synthetic failure: exit 7' : `Synthetic result ${n}` });
+      if (n !== 3) add('event_msg', { type: 'exec_command_end', call_id: callId, process_id: `synthetic-process-${n}`, duration: { secs: n === 24 ? 9 : n < 3 ? 0 : 1, nanos: n === 2 ? 500000 : 0 }, exit_code: n === 27 ? 7 : 0, status: n === 27 ? 'failed' : 'completed' });
+    }
+  }
+  return records;
+}
+
+module.exports = { SPEC, generateSessionFixtures, executionSourceRecords };

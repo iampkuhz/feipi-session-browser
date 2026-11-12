@@ -12,6 +12,7 @@ import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
 import com.feipi.session.browser.domain.normalized.NormalizedSourceFile;
 import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
 import com.feipi.session.browser.domain.normalized.SourceFileRole;
+import com.feipi.session.browser.domain.source.SourceToolObservation;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -246,7 +247,7 @@ public final class NormalizedArtifactLoader {
       Optional<String> resultConsumedByCallId = optionalString(em, "result_consumed_by_call_id");
       Optional<String> status = optionalString(em, "status");
       Optional<Integer> exitCode = optionalInt(em, "exit_code");
-      long durationMs = asLong(em, "duration_ms", 0);
+      Long durationMs = exactLong(em, "duration_ms");
       Optional<String> subagentId = optionalString(em, "subagent_id");
 
       result.add(
@@ -260,9 +261,39 @@ public final class NormalizedArtifactLoader {
               exitCode,
               durationMs,
               asStringList(em, "files_touched"),
-              subagentId));
+              subagentId,
+              parseObservation(em.get("observation"))));
     }
     return result;
+  }
+
+  /** 还原当前内容格式的显式观测；不存在即未知，不读取或迁移旧索引。 */
+  private static Optional<SourceToolObservation> parseObservation(Object value) {
+    if (value == null) return Optional.empty();
+    if (!(value instanceof Map<?, ?> fields)) throw new IllegalArgumentException("观测必须为对象");
+    return Optional.of(
+        new SourceToolObservation(
+            (String) fields.get("toolCallId"),
+            exactLong(fields, "durationNanos"),
+            exactInteger(fields, "exitCode"),
+            (String) fields.get("status"),
+            (String) fields.get("processId"),
+            (String) fields.get("kind"),
+            (String) fields.get("source"),
+            (String) fields.get("issue")));
+  }
+
+  /** 精确读取当前内容数字，不接受文本、分数或溢出。 */
+  private static Long exactLong(Map<?, ?> fields, String name) {
+    Object value = fields.get(name);
+    if (value == null) return null;
+    if (!(value instanceof Number)) throw new IllegalArgumentException("观测数字类型非法");
+    return new java.math.BigDecimal(value.toString()).longValueExact();
+  }
+
+  private static Integer exactInteger(Map<?, ?> fields, String name) {
+    Long value = exactLong(fields, name);
+    return value == null ? null : Math.toIntExact(value);
   }
 
   /** 解析源文件列表。 */

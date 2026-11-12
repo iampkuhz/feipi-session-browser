@@ -126,6 +126,11 @@ class ImportedSessionApiTest {
             }
           }
           assertThat(client.get(BASE + "/round/1").code()).isEqualTo(200);
+          var execution = client.get(BASE + "/execution");
+          assertThat(execution.code()).isEqualTo(200);
+          assertThat(execution.body().string())
+              .contains("alpha-call-1")
+              .doesNotContain("SYNTHETIC_ONLY");
           assertThat(client.get(BASE + "/payload/main%3Areq%3Aalpha-call-1").code()).isEqualTo(200);
           assertThat(client.get(BASE + "/attribution/1/1/request").code()).isEqualTo(200);
           assertThat(client.get(BASE + "/attribution/subagent/sa-alpha/1/request").code())

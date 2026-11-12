@@ -11,6 +11,7 @@ import com.feipi.session.browser.domain.normalized.NormalizedSourceFile;
 import com.feipi.session.browser.domain.normalized.SourceUnitCatalogEntry;
 import com.feipi.session.browser.domain.source.SourceRecord;
 import com.feipi.session.browser.domain.source.SourceRecordSequence;
+import com.feipi.session.browser.domain.source.SourceToolObservation;
 import com.feipi.session.browser.source.spi.SourceDiagnostic;
 import java.io.IOException;
 import java.time.Duration;
@@ -33,8 +34,10 @@ final class ManagedNormalizationPlan {
   final Map<String, String> consumers = new LinkedHashMap<>();
   final Map<String, String> declarations = new LinkedHashMap<>();
   final Map<String, Long> errors = new LinkedHashMap<>();
+  final ToolObservations observations = new ToolObservations();
   final List<ToolRef> tools = new ArrayList<>();
   final List<Long> observedInputs = new ArrayList<>();
+  final List<Long> resultOrdinals = new ArrayList<>();
   List<NormalizedSourceFile> sourceFiles;
   Map<String, SourceUnitCatalogEntry> catalog;
   List<NormalizedDiagnostic> diagnostics;
@@ -94,12 +97,17 @@ final class ManagedNormalizationPlan {
 
   private void scan(List<SourceDiagnostic> inputDiagnostics) throws IOException {
     var identities = new ToolIdentityPlan(sourceFiles);
+    Map<Long, SourceToolObservation> pendingObservations = new LinkedHashMap<>();
     Map<String, Integer> rounds = new HashMap<>();
     try (var cursor = records.openCursor()) {
       long ordinal = 0;
       while (cursor.hasNext()) {
         SourceRecord record = cursor.next();
         identities.accept(ordinal, record);
+        long observationOrdinal = ordinal;
+        record
+            .toolObservation()
+            .ifPresent(value -> pendingObservations.put(observationOrdinal, value));
         String type = record.eventType();
         var fact =
             new Fact(
@@ -118,6 +126,7 @@ final class ManagedNormalizationPlan {
                 CallBuilder.callScope(record),
                 CallBuilder.displaySubagentId(record));
         facts.add(fact);
+        if (ToolResultContents.isResult(record)) resultOrdinals.add(fact.ordinal());
         timing.accept(record);
         eventActivity.accept(record);
         observe(record);
@@ -140,6 +149,11 @@ final class ManagedNormalizationPlan {
       }
     }
     identities.finish();
+    pendingObservations.forEach(
+        (ordinal, value) ->
+            identities
+                .observation(ordinal, Optional.of(value))
+                .ifPresent(planValue -> observations.accept(planValue)));
     records = identities.borrow(records);
     sourceFiles = identities.sourceFiles();
     catalog = NormalizationEngine.buildSourceUnitCatalog(sourceFiles);
@@ -277,8 +291,8 @@ final class ManagedNormalizationPlan {
         next.put(fact.scope(), position + 1);
         latest.put(fact.scope(), frame);
         for (ToolIdentity tool : fact.tools()) declarations.put(tool.id(), frame.id);
-      } else if ("tool_result".equals(fact.type())) {
-        String consumer = scopeFrames.get(Math.min(position, scopeFrames.size() - 1)).id;
+      } else if ("tool_result".equals(fact.type()) && position < scopeFrames.size()) {
+        String consumer = scopeFrames.get(position).id;
         fact.toolUseId().ifPresent(id -> consumers.put(id, consumer));
       } else if ("tool_use".equals(fact.type())) {
         Frame current = latest.get(fact.scope());
@@ -488,7 +502,7 @@ final class ManagedNormalizationPlan {
                 "sourceFiles",
                 (long) sourceFiles.size(),
                 "sourceUnitCatalog",
-                (long) catalog.size() + observedInputs.size(),
+                (long) catalog.size() + observedInputs.size() + resultOrdinals.size(),
                 "sourceUnitSequenceEntries",
                 0L));
   }

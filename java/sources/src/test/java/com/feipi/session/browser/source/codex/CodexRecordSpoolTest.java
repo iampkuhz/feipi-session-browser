@@ -31,7 +31,19 @@ class CodexRecordSpoolTest {
 
   @Test
   void allFieldsRoundTripIncludingUnknownPrecisionPresentEmptyAndUtf16() throws Exception {
-    SourceRecord expected = record("prefix" + Character.toString(0xd800) + "后缀");
+    SourceRecord expected =
+        record("prefix" + Character.toString(0xd800) + "后缀")
+            .withToolObservation(
+                Optional.of(
+                    new com.feipi.session.browser.domain.source.SourceToolObservation(
+                        "tool",
+                        2_000_000_001L,
+                        0,
+                        "completed",
+                        "123",
+                        "executor_reported",
+                        "codex:exec_command_end#event[0]",
+                        null)));
     try (var spool = new CodexRecordSpool()) {
       spool.add(expected);
       spool.add(expected);

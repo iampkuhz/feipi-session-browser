@@ -24,6 +24,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /** Session Detail resource APIs 的契约测试。 */
 @DisplayName("Session Detail resource APIs")
@@ -286,9 +288,10 @@ class SessionDetailResourceApiTest {
     return new WebCompositionRoot(root, WebConfig.defaults());
   }
 
-  @Test
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
   @DisplayName("Round content 与工具 Input API 保留指令并与归因分离")
-  void roundAndToolContentRoutesPreserveInstructions() throws Exception {
+  void roundAndToolContentRoutesPreserveInstructions(boolean measuredZero) throws Exception {
     Path path = tempDir.resolve("alpha-001.normalized.json");
     ObjectNode artifact = (ObjectNode) MAPPER.readTree(path.toFile());
     String command =
@@ -311,7 +314,29 @@ class SessionDetailResourceApiTest {
                         "exec_command",
                         "input",
                         command))));
-    ((ObjectNode) artifact.at("/tool_executions/0")).put("duration_ms", 0);
+    var tool = (ObjectNode) artifact.at("/tool_executions/0");
+    if (measuredZero) {
+      tool.put("duration_ms", 0);
+      tool.put("exit_code", 0);
+      tool.set(
+          "observation",
+          MAPPER.valueToTree(
+              Map.of(
+                  "toolCallId",
+                  "tool-call-1",
+                  "durationNanos",
+                  0,
+                  "exitCode",
+                  0,
+                  "status",
+                  "completed token=synthetic-secret",
+                  "processId",
+                  "private_key=synthetic-secret",
+                  "kind",
+                  "executor_reported",
+                  "source",
+                  "codex:exec_command_end#event[1]")));
+    } else tool.remove("duration_ms");
     MAPPER.writeValue(path.toFile(), artifact);
 
     JavalinTest.test(
@@ -347,7 +372,15 @@ class SessionDetailResourceApiTest {
           JsonNode detail = MAPPER.readTree(round.body().string());
           assertThat(detail.at("/round/tools/0/inputPreview").asText())
               .isEqualTo("printf 'synthetic command'");
-          assertThat(detail.at("/round/tools/0/durationMs").isNull()).isTrue();
+          if (measuredZero) {
+            assertThat(detail.at("/round/tools/0/durationMs").isIntegralNumber()).isTrue();
+            assertThat(detail.at("/round/tools/0/durationMs").asLong()).isZero();
+            assertThat(detail.at("/round/tools/0/observation/status").asText())
+                .contains("[REDACTED]");
+            assertThat(detail.at("/round/tools/0/observation/processId").asText())
+                .contains("[REDACTED]");
+            assertThat(detail.toString()).doesNotContain("synthetic-secret");
+          } else assertThat(detail.at("/round/tools/0/durationMs").isNull()).isTrue();
         });
   }
 

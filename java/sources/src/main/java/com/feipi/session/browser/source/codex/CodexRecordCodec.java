@@ -5,6 +5,7 @@ import com.feipi.session.browser.domain.source.SourceRecordRelation;
 import com.feipi.session.browser.domain.source.SourceRecordUsage;
 import com.feipi.session.browser.domain.source.SourceTiming;
 import com.feipi.session.browser.domain.source.SourceToolCall;
+import com.feipi.session.browser.domain.source.SourceToolObservation;
 import java.io.BufferedInputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -72,6 +73,22 @@ final class CodexRecordCodec {
     w.string(timing.eventId());
     out.writeBoolean(r.metaContext());
     w.optional(r.messageRole());
+    out.writeBoolean(r.toolObservation().isPresent());
+    if (r.toolObservation().isPresent()) {
+      var observation = r.toolObservation().orElseThrow();
+      w.string(observation.toolCallId());
+      w.optionalLong(
+          observation.durationNanos() == null
+              ? OptionalLong.empty()
+              : OptionalLong.of(observation.durationNanos()));
+      out.writeBoolean(observation.exitCode() != null);
+      if (observation.exitCode() != null) out.writeInt(observation.exitCode());
+      w.optional(Optional.ofNullable(observation.status()));
+      w.optional(Optional.ofNullable(observation.processId()));
+      w.string(observation.kind());
+      w.string(observation.source());
+      w.optional(Optional.ofNullable(observation.issue()));
+    }
   }
 
   static SourceRecord read(InputStream stream, long bytes) throws IOException {
@@ -171,6 +188,23 @@ final class CodexRecordCodec {
       return count;
     }
 
+    private Optional<SourceToolObservation> observation() throws IOException {
+      if (!flag()) return Optional.empty();
+      String id = string();
+      var duration = optionalLong();
+      Integer exit = flag() ? integer() : null;
+      return Optional.of(
+          new SourceToolObservation(
+              id,
+              duration.isPresent() ? duration.getAsLong() : null,
+              exit,
+              optional().orElse(null),
+              optional().orElse(null),
+              string(),
+              string(),
+              optional().orElse(null)));
+    }
+
     private SourceRecord record() throws IOException {
       if (integer() != MAGIC) throw new IOException("未知记录编码");
       String locator = string();
@@ -211,6 +245,7 @@ final class CodexRecordCodec {
               string());
       boolean meta = flag();
       var role = optional();
+      var observation = observation();
       return new SourceRecord(
           locator,
           eventIndex,
@@ -230,7 +265,8 @@ final class CodexRecordCodec {
           stop,
           timing,
           meta,
-          role);
+          role,
+          observation);
     }
   }
 }

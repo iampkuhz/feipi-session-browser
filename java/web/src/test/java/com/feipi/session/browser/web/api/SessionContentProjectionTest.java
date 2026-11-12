@@ -80,6 +80,7 @@ class SessionContentProjectionTest {
               config.routes.get("/payloads", handler::handlePayloads);
               config.routes.get("/metrics", handler::handleMetrics);
               config.routes.get("/diagnostics", handler::handleDiagnostics);
+              config.routes.get("/execution", handler::handleExecution);
               config.routes.get("/round/1", ctx -> members.handleRound(ctx, "codex", "health", 1));
               config.routes.get(
                   "/tail",
@@ -105,6 +106,21 @@ class SessionContentProjectionTest {
           assertThat(attribution.code()).isEqualTo(200);
           assertThat(attribution.body().string()).contains("synthetic-10234");
           assertThat(metrics.at("/parity/contentMeasured").asBoolean()).isTrue();
+          var execution = mapper.readTree(client.get("/execution").body().string());
+          assertThat(execution.path("items").size()).isEqualTo(20);
+          assertThat(execution.path("total").asLong()).isEqualTo(10234);
+          var located =
+              mapper.readTree(client.get("/execution?target=synthetic-10234").body().string());
+          assertThat(located.path("items").size()).isEqualTo(1);
+          assertThat(located.at("/items/0/group/id").asText()).isEqualTo("synthetic-10234");
+          assertThat(located.path("offset").asLong()).isEqualTo(10233);
+          assertThat(client.get("/execution?limit=101").code()).isEqualTo(400);
+          String executionCursor = execution.path("nextCursor").asText();
+          assertThat(client.get("/execution?status=failed&cursor=" + executionCursor).code())
+              .isEqualTo(400);
+          var nextExecution =
+              mapper.readTree(client.get("/execution?cursor=" + executionCursor).body().string());
+          assertThat(nextExecution.at("/items/0/group/id").asText()).isEqualTo("synthetic-21");
           var diagnostics = mapper.readTree(client.get("/diagnostics").body().string());
           assertThat(diagnostics.at("/parity/contentMeasured").asBoolean()).isTrue();
           assertThat(diagnostics.at("/parity/toolImpactAvailable").asBoolean()).isTrue();

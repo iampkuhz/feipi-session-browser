@@ -27,6 +27,8 @@ test('Context grid and progressive diagnostics retain all capabilities on real H
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(detail);
   await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+  await expect(page.locator('[data-evidence-analysis]')).not.toHaveAttribute('open');
+  await page.locator('[data-evidence-analysis] > summary').click();
   await expect(page.locator('.sd-kpis > .sd-kpi')).toHaveCount(3);
   const more = page.locator('[data-secondary-metrics]');
   await expect(more).not.toHaveAttribute('open');
@@ -81,11 +83,13 @@ test('Context grid and progressive diagnostics retain all capabilities on real H
   expect(errors).toEqual([]);
 });
 
-test('shared popover covers Agent, Round, Trace and lazily loaded call without stealing navigation', async ({ page }) => {
+for (const width of [1440, 390]) {
+ test(`shared popover covers Agent, Round and Trace without stealing navigation at ${width}px`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 900 });
   await page.goto(detail);
   await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
-  for (const width of [1440, 390]) {
-    await page.setViewportSize({ width, height: 900 });
+  await page.locator('[data-evidence-analysis] > summary').click();
+  {
     for (const selector of ['[data-subagent-row] [data-token-breakdown]', '.sd-token-round', '.tokenbar-wrap']) {
       const trigger = page.locator(selector).first();
       await trigger.scrollIntoViewIfNeeded();
@@ -105,6 +109,14 @@ test('shared popover covers Agent, Round, Trace and lazily loaded call without s
       await expect(trigger).toHaveAttribute('aria-expanded', 'false');
     }
   }
+ });
+}
+
+test('shared popover preserves main call and lazily loaded child navigation', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto(detail);
+  await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+  await page.locator('[data-evidence-analysis] > summary').click();
   await page.locator('.sd-token-round').first().click();
   await expect(page).toHaveURL(/tab=trace.*round=1/);
   await expect(page.locator('[data-trace-detail]').first()).toBeVisible();

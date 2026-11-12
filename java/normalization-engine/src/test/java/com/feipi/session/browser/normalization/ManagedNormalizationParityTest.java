@@ -22,6 +22,71 @@ import org.junit.jupiter.api.Test;
 /** 对照旧列表路径的完整对象，保留文本 occurrence、关系和 header 的精确语义。 */
 class ManagedNormalizationParityTest {
   @Test
+  void recordedTailResultsRemainIndependentOfMissingConsumersIncludingEmptyBodies()
+      throws Exception {
+    for (String body : List.of("synthetic tail result", "")) {
+      for (boolean managed : List.of(false, true)) {
+        var records =
+            List.of(
+                record(0, "main", "assistant", "declaring response", "declare"),
+                record(1, "main", "tool_result", body, "result"));
+        try (var sequence = SourceRecordSequence.fromList(records)) {
+          var engine = new NormalizationEngine();
+          var content =
+              managed
+                  ? engine.normalizeContent(NormalizedAgent.CODEX, sequence, List.of(), List.of())
+                  : engine.normalizeContent(NormalizedAgent.CODEX, records, List.of(), List.of());
+          var artifact = content.toArtifact();
+          assertThat(artifact.calls()).hasSize(1);
+          assertThat(artifact.toolExecutions()).hasSize(1);
+          var tool = artifact.toolExecutions().getFirst();
+          assertThat(tool.resultConsumedByCallId()).isEmpty();
+          assertThat(artifact.calls().getFirst().request().toolResultIds()).isEmpty();
+          assertThat(artifact.calls().getFirst().sourceUnits())
+              .noneMatch(unit -> "tool_result".equals(unit.get("type")));
+          assertThat(artifact.session().get("consumedResults")).isEqualTo(0);
+          assertThat(content.header().totals().get("sourceUnitCatalog")).isEqualTo(1L);
+          assertThat(artifact.sourceUnitCatalog().values())
+              .singleElement()
+              .satisfies(
+                  entry -> {
+                    assertThat(entry.unitType()).isEqualTo("tool_result");
+                    assertThat(entry.label()).contains(tool.toolCallId());
+                    assertThat(entry.text()).contains(body);
+                  });
+          assertThat(content.toArtifact()).isEqualTo(artifact);
+        }
+      }
+    }
+  }
+
+  @Test
+  void onlyAnActualFollowingFrameConsumesTheRecordedResult() throws Exception {
+    var records =
+        List.of(
+            record(0, "main", "assistant", "declaring response", "declare"),
+            record(1, "main", "tool_result", "synthetic result", "result"),
+            SourceRecord.of("synthetic/main#event[2]", 2, "assistant"));
+    try (var sequence = SourceRecordSequence.fromList(records)) {
+      var engine = new NormalizationEngine();
+      for (var content :
+          List.of(
+              engine.normalizeContent(NormalizedAgent.CODEX, records, List.of(), List.of()),
+              engine.normalizeContent(NormalizedAgent.CODEX, sequence, List.of(), List.of()))) {
+        var artifact = content.toArtifact();
+        var tool = artifact.toolExecutions().getFirst();
+        assertThat(tool.resultConsumedByCallId()).contains(artifact.calls().getLast().callId());
+        assertThat(artifact.calls().getFirst().request().toolResultIds()).isEmpty();
+        assertThat(artifact.calls().getLast().request().toolResultIds())
+            .containsExactly(tool.toolCallId());
+        assertThat(artifact.sourceUnitCatalog().values())
+            .singleElement()
+            .satisfies(entry -> assertThat(entry.text()).contains("synthetic result"));
+      }
+    }
+  }
+
+  @Test
   void globalRelationsBodiesErrorsUnknownTimingAndRepeatedIdsMatchLegacyTwice() throws Exception {
     var records = new ArrayList<SourceRecord>();
     records.add(record(0, "main", "user", "question", "u"));

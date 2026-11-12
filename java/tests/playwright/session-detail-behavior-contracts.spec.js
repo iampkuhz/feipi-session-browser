@@ -155,13 +155,13 @@ test.describe('unbound legacy generation consistency regressions', () => {
     });
     await page.goto(SESSION_PATH);
     await expect(page.locator('[data-resource-error]').first()).toBeVisible();
-    expect(calls).toBe(12);
+    expect(calls).toBe(15);
     await expect(page.locator('body')).not.toHaveAttribute('data-session-api-hydrated', 'true');
     stable = true;
     await page.locator('[data-resource-error] button').first().click();
     await expect(page.locator('body')).toHaveAttribute('data-index-generation', 'stable');
     await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
-    expect(calls).toBe(16);
+    expect(calls).toBe(20);
   });
 
   test('project pagination refreshes all six resources when the index changes', async ({ page }) => {
@@ -200,6 +200,7 @@ test.describe('unbound legacy generation consistency regressions', () => {
     });
     await page.goto(SESSION_PATH);
     await expect(page.locator('[data-resource-error="metrics"]')).toContainText('HTTP 500');
+    await page.locator('[data-evidence-analysis] > summary').click();
     await expect(page.locator('[data-trace-round-row]').first()).toBeVisible();
     await page.locator('[data-resource-error="metrics"] button').click();
     await expect(page.locator('body')).toHaveAttribute('data-index-generation', 'G2');
@@ -265,6 +266,7 @@ async function openHydratedSession(page, path = SESSION_PATH) {
   const response = await page.goto(path, { waitUntil: 'domcontentloaded', timeout: 30_000 });
   expect(response && response.ok(), `fixture URL must return HTTP success: ${path}`).toBe(true);
   await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true', { timeout: 10_000 });
+  if (!/[?&]round=/.test(path)) await page.locator('[data-evidence-analysis] > summary').click();
   await expect(page.locator('[data-trace-round-row]').first()).toBeVisible({ timeout: 10_000 });
 }
 
@@ -341,7 +343,7 @@ for (const scenario of ['subagent-only', 'mixed', 'unowned-fallback']) {
 }
 
 async function openAttribution(page, kind) {
-  const button = page.locator(`[data-attribution-path*="/${kind}"]:visible`).first();
+  const button = page.locator(`[data-evidence-analysis] [data-attribution-path*="/${kind}"]:visible`).first();
   await expect(button).toHaveText(kind === 'request' ? 'Request' : 'Response');
   const path = await button.getAttribute('data-attribution-path');
   const pending = page.waitForResponse((response) => response.url().endsWith(path));
@@ -465,46 +467,52 @@ async function expectNoAlignmentRegression(page, baseline, label, visibleOnly = 
   expect(current.spread - baseline, `${label}: alignment regression must be <=2px`).toBeLessThanOrEqual(2);
 }
 
-test('[UI-SD-040] trace toggles remain aligned through interactions', async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 1100 });
-  await openHydratedSession(page);
+for (const interaction of ['round clicks', 'filters', 'expand/collapse all']) {
+  test(`[UI-SD-040] trace toggles remain aligned through ${interaction}`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1100 });
+    await openHydratedSession(page);
 
-  const baseline = await toggleAlignment(page);
-  expect(baseline.count, 'fixture must expose round toggles').toBeGreaterThan(0);
-  expect(baseline.spread, 'initial toggle spread must be <=20px').toBeLessThanOrEqual(20);
+    const baseline = await toggleAlignment(page);
+    expect(baseline.count, 'fixture must expose round toggles').toBeGreaterThan(0);
+    expect(baseline.spread, 'initial toggle spread must be <=20px').toBeLessThanOrEqual(20);
 
-  const toggles = page.locator('[data-trace-round-row] [data-action="toggle-round"]');
-  const toggleCount = await toggles.count();
-  for (const index of [0, 1, 7, 23].filter((item) => item < toggleCount)) {
-    await toggles.nth(index).click();
-    await expect(toggles.nth(index)).toHaveAttribute('aria-expanded', 'true', { timeout: 10_000 });
-    await toggles.nth(index).click();
-    await expect(toggles.nth(index)).toHaveAttribute('aria-expanded', 'false', { timeout: 5_000 });
-  }
-  await expectNoAlignmentRegression(page, baseline.spread, 'round clicks');
-
-  const failedFilter = page.locator('[data-action="status-failed"]').first();
-  const allFilter = page.locator('[data-action="status-all"]').first();
-  await expect(failedFilter).toBeVisible();
-  await failedFilter.click();
-  await expectNoAlignmentRegression(page, baseline.spread, 'failed filter', true);
-  await allFilter.click();
-  await expectNoAlignmentRegression(page, baseline.spread, 'all filter', true);
-
-  const toggleAll = page.locator('[data-action="toggle-all"]').first();
-  await expect(toggleAll).toBeVisible();
-  await toggleAll.click();
-  await expect.poll(
-    () => page.locator('[data-trace-round-row].is-open').count(),
-    { message: 'expand-all must open trace rounds', timeout: 25_000 },
-  ).toBeGreaterThan(0);
-  await toggleAll.click();
-  await expect.poll(
-    () => page.locator('[data-trace-round-row].is-open').count(),
-    { message: 'collapse-all must close trace rounds', timeout: 5_000 },
-  ).toBe(0);
-  await expectNoAlignmentRegression(page, baseline.spread, 'expand/collapse all');
-});
+    if (interaction === 'round clicks') {
+      const toggles = page.locator('[data-trace-round-row] [data-action="toggle-round"]');
+      const toggleCount = await toggles.count();
+      for (const index of [0, 1, 7, 23].filter((item) => item < toggleCount)) {
+        await toggles.nth(index).click();
+        await expect(toggles.nth(index)).toHaveAttribute('aria-expanded', 'true', { timeout: 10_000 });
+        await toggles.nth(index).click();
+        await expect(toggles.nth(index)).toHaveAttribute('aria-expanded', 'false', { timeout: 5_000 });
+      }
+      await expectNoAlignmentRegression(page, baseline.spread, 'round clicks');
+    }
+    if (interaction === 'filters') {
+      const failedFilter = page.locator('[data-action="status-failed"]').first();
+      const allFilter = page.locator('[data-action="status-all"]').first();
+      await expect(failedFilter).toBeVisible();
+      await failedFilter.click();
+      await expectNoAlignmentRegression(page, baseline.spread, 'failed filter', true);
+      await allFilter.click();
+      await expectNoAlignmentRegression(page, baseline.spread, 'all filter', true);
+    }
+    if (interaction === 'expand/collapse all') {
+      const toggleAll = page.locator('[data-action="toggle-all"]').first();
+      await expect(toggleAll).toBeVisible();
+      await toggleAll.click();
+      await expect.poll(
+        () => page.locator('[data-trace-round-row].is-open').count(),
+        { message: 'expand-all must open trace rounds', timeout: 25_000 },
+      ).toBeGreaterThan(0);
+      await toggleAll.click();
+      await expect.poll(
+        () => page.locator('[data-trace-round-row].is-open').count(),
+        { message: 'collapse-all must close trace rounds', timeout: 5_000 },
+      ).toBe(0);
+      await expectNoAlignmentRegression(page, baseline.spread, 'expand/collapse all');
+    }
+  });
+}
 
 test('[UI-SD-021][UI-SD-041] payload typed content remains accessible in the current single-view modal', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1100 });
@@ -577,6 +585,7 @@ test.describe('会话资源独立失败与恢复', () => {
   test('diagnostics failure preserves expandable rounds and retry restores hydration', async ({ page }) => {
     const recover = await failResource(page, '**/diagnostics');
     await page.goto(detail);
+    await page.locator('[data-evidence-analysis] > summary').click();
     const round = page.locator('[data-trace-round-row]').first();
     await expect(round).toBeVisible();
     await round.locator('[data-action="toggle-round"]').click();
@@ -592,6 +601,7 @@ test.describe('会话资源独立失败与恢复', () => {
   test('round failure replaces loading with retryable error', async ({ page }) => {
     const recover = await failResource(page, '**/rounds');
     await page.goto(detail);
+    await page.locator('[data-evidence-analysis] > summary').click();
     const table = page.locator('.trace-table[data-trace-list] tbody');
     await expect(table).toContainText('Unable to load rounds');
     await expect(table).not.toContainText('Loading');
@@ -784,6 +794,7 @@ for (const shape of ['event-only', 'event-usage', 'dual', 'anonymous-dual', 'mul
       await expect(page).toHaveURL(/\/imports\/[0-9a-f-]{36}$/);
       importId = new URL(page.url()).pathname.split('/').pop();
       await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+      await page.locator('[data-evidence-analysis] > summary').click();
       await expect(page.locator('[data-trace-round-row]')).toHaveCount(messages.length);
       await expect(page.locator('[aria-label="Total Tokens"] .sd-kpi__value')).toHaveText(
         shape === 'event-usage' || shape === 'multiturn' ? '15 · Partial' : 'N/A · Unknown',
@@ -885,6 +896,7 @@ test('an input-only group explains why the expanded trace has no model records',
     roundId: 1, round: { calls: [], tools: [] },
   }));
   await page.goto(SESSION_PATH);
+  await page.locator('[data-evidence-analysis] > summary').click();
   const row = page.locator('[data-trace-round-row][data-round="1"]');
   await expect(row).toHaveAttribute('data-is-user-input', 'true');
   await expect(row).toContainText('已记录 1 条用户输入');
@@ -900,6 +912,7 @@ test('real audit: an empty rounds response resolves the diagnostic timeline empt
   }));
   await page.goto(SESSION_PATH);
   await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+  await page.locator('[data-evidence-analysis] > summary').click();
   await expect(page.locator('.trace-table')).toContainText('No readable log');
   const diagnostics = page.locator('[data-session-diagnostics]');
   await expect(diagnostics.getByRole('heading', { name: '内容证据不可用', exact: true })).toBeVisible();

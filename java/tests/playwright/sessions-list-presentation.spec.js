@@ -113,7 +113,12 @@ test('Tokens share aligned category/value-source/share rows and keep zero distin
     expect(bounds.aligned).toBe(true);
     await page.keyboard.press('Escape');
   }
+  // resize 会关闭弹框；先等真实事件送达，再建立本段键盘 focus 的交互前置条件。
+  const resized = page.evaluate(() => new Promise(resolve => {
+    window.addEventListener('resize', () => resolve(), { once: true });
+  }));
   await page.setViewportSize({ width: 1440, height: 1000 });
+  await resized;
   await triggers.nth(1).focus();
   await expect(panel).toBeVisible();
   await expect(panel.locator('.token-breakdown__row').nth(0)).toHaveText('Fresh2,000 · 服务商上报≈20.0%');

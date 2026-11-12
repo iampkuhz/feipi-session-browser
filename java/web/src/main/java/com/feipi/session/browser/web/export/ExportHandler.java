@@ -151,7 +151,7 @@ public final class ExportHandler {
       }
 
       SessionDetailUseCase.AnnotatedDetailContext annotated = resultOpt.get();
-      if (annotated.content() != null && annotated.artifact() == null) {
+      if (annotated.content() != null) {
         try (var snapshot =
             ContentExportSnapshot.html(
                 annotated.content(),
@@ -269,7 +269,7 @@ public final class ExportHandler {
     var annotated = found.get();
     String boundary = "----=_Part_FeiPi_Export_" + java.util.UUID.randomUUID();
     try (var html =
-            annotated.artifact() == null && annotated.content() != null
+            annotated.content() != null
                 ? ContentExportSnapshot.html(
                     annotated.content(),
                     annotated.detail().sessionRow().userMessageCount(),
@@ -290,21 +290,7 @@ public final class ExportHandler {
                                         request.decodedSessionId(),
                                         request.visibility()))
                                 .getBytes(StandardCharsets.UTF_8)));
-        var mime =
-            ContentExportSnapshot.create(
-                MAX_EXPORT_BYTES,
-                output -> {
-                  output.write(
-                      ("MIME-Version: 1.0\r\nContent-Type: multipart/related; boundary=\""
-                              + boundary
-                              + "\"\r\n\r\n--"
-                              + boundary
-                              + "\r\nContent-Type: text/html; charset=utf-8\r\n"
-                              + "Content-Transfer-Encoding: 8bit\r\n\r\n")
-                          .getBytes(StandardCharsets.UTF_8));
-                  html.copyTo(output);
-                  output.write(("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
-                })) {
+        var mime = mhtml(html, boundary, MAX_EXPORT_BYTES)) {
       ctx.contentType(MHTML_CONTENT_TYPE + "; boundary=\"" + boundary + "\"");
       ctx.header(
           Header.CONTENT_DISPOSITION,
@@ -313,6 +299,33 @@ public final class ExportHandler {
               + ".mhtml\"");
       mime.copyTo(ctx.outputStream());
     }
+  }
+
+  /**
+   * 使用下载相同的 MIME 包装计算有界快照，供 manifest 精确计数。
+   *
+   * @param html 已生成的静态正文，调用者负责关闭
+   * @param boundary 本次附件的 MIME 边界
+   * @param maxBytes 包含 MIME 头尾的字节上限
+   * @return 调用者负责关闭的附件快照
+   * @throws IOException 写入失败或超过上限
+   */
+  public static ContentExportSnapshot mhtml(
+      ContentExportSnapshot html, String boundary, long maxBytes) throws IOException {
+    return ContentExportSnapshot.create(
+        maxBytes,
+        output -> {
+          output.write(
+              ("MIME-Version: 1.0\r\nContent-Type: multipart/related; boundary=\""
+                      + boundary
+                      + "\"\r\n\r\n--"
+                      + boundary
+                      + "\r\nContent-Type: text/html; charset=utf-8\r\n"
+                      + "Content-Transfer-Encoding: 8bit\r\n\r\n")
+                  .getBytes(StandardCharsets.UTF_8));
+          html.copyTo(output);
+          output.write(("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
+        });
   }
 
   /** 生成独立 HTML 导出（占位模式，无完整数据）。 */

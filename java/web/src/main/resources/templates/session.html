@@ -44,6 +44,7 @@
 <script src="/static/js/session-detail/lazy_rounds.js"></script>
 <script src="/static/js/session-detail/attribution.js"></script>
 <script src="/static/js/session-detail/events.js"></script>
+<script src="/static/js/session-detail/execution.js"></script>
 <script src="/static/js/session-detail/init.js"></script>
 {% endblock %}
 
@@ -52,7 +53,6 @@
 <section class="sd-import-scope" data-import-scope role="note" aria-label="导入分析范围">
     <div class="sd-import-scope__summary">
         <strong>导入会话 · 仅本文件分析 · 不计入个人统计</strong>
-        <span class="sd-import-scope__filename" title="{{ import_filename }}">{{ import_filename }}</span>
         <span>缺少的外部会话或子会话不会计入本文件分析。</span>
     </div>
     <div class="sd-import-scope__actions">
@@ -69,6 +69,8 @@
                 <span class="sd-agent-pill" data-session-agent>{{ current_agent }}</span>
                 <h1 title="Session metadata is loaded from /meta API">Loading session…</h1>
             </div>
+            <details class="sd-session-info" data-session-info>
+                <summary>会话信息</summary>
             <details class="sd-title-original" data-session-original-title hidden>
                 <summary>Original title</summary>
                 <pre></pre>
@@ -107,8 +109,35 @@
                  aria-label="Session issue summary">
                 <span class="sd-issue-title">Issue signals loading…</span>
             </div>
+            <div class="sd-summary-strip" data-summary-strip>
+                <div class="sd-summary-item"><b>updated</b><span data-session-updated>Loading…</span></div>
+            </div>
+            </details>
         </div>
 
+
+    </div>
+
+</section>
+
+
+<nav class="sd-tabs" data-session-tabs aria-label="Session view tabs" role="tablist">
+    <a class="sd-tab is-active" href="#" data-action="tab-trace" data-tab="trace" role="tab" aria-selected="true" aria-controls="sd-tab-panel-trace">
+        <span class="sd-tab-icon" aria-hidden="true">&#x1F9ED;</span>Trace
+    </a>
+    <a class="sd-tab" href="#" data-action="tab-payload" data-tab="payload" role="tab" aria-selected="false" aria-controls="sd-tab-panel-payload">Payload · 原文</a>
+</nav>
+
+<section class="sd-trace-panel" id="sd-tab-panel-trace" data-trace-panel data-tab-panel="trace" role="tabpanel">
+    <section class="se-judgment" data-execution-judgment aria-label="执行判断"><h2>执行判断</h2><p>正在加载同范围的全量工具证据…</p></section>
+    <section class="se-process" aria-label="执行过程">
+        <div class="se-process__head"><div><h2>执行过程</h2><p>分组表示本地来源关系，不表示并行；模型输入仅限本地可见记录。</p></div>
+            <div role="group" aria-label="执行筛选"><button type="button" class="sd-btn sd-btn--secondary sd-btn--md" data-execution-filter="all" aria-pressed="true">全部动作</button><button type="button" class="sd-btn sd-btn--secondary sd-btn--md" data-execution-filter="failed" aria-pressed="false">失败信号</button></div>
+        </div>
+        <p data-execution-status role="status" aria-live="polite"></p>
+        <div data-execution-items>正在加载过程摘要…</div><div data-execution-pagination></div>
+    </section>
+    <details class="se-analysis" data-evidence-analysis><summary>Token 分析与完整记录证据 · 按需查看</summary>
         <div class="sd-kpis" aria-label="Session metrics" data-session-metrics-shell>
             <div class="sd-kpi sd-kpi--stack" aria-label="Total Tokens" title="会话互斥四段总量；来源与精度见计量说明，不代表 context window 占用率">
                 <div class="sd-kpi__value" title="Loaded from metrics API">Loading…</div>
@@ -168,13 +197,6 @@
                 </div>
             </details>
         </div>
-    </div>
-
-    <div class="sd-summary-strip" data-summary-strip>
-        <div class="sd-summary-item"><b>updated</b><span data-session-updated>Loading…</span></div>
-    </div>
-</section>
-
 <section class="sd-diagnostics" data-session-diagnostics aria-label="Session diagnostics">
     <article class="sd-diagnostic-card sd-diagnostic-card--wide sd-diagnostic-card--agents">
         <div class="sd-diagnostic-card__head">
@@ -187,13 +209,6 @@
     </article>
 </section>
 
-<nav class="sd-tabs" data-session-tabs aria-label="Session view tabs" role="tablist">
-    <a class="sd-tab is-active" href="#" data-action="tab-trace" data-tab="trace" role="tab" aria-selected="true" aria-controls="sd-tab-panel-trace">
-        <span class="sd-tab-icon" aria-hidden="true">&#x1F9ED;</span>Trace
-    </a>
-</nav>
-
-<section class="sd-trace-panel" id="sd-tab-panel-trace" data-trace-panel data-tab-panel="trace" role="tabpanel">
     <div class="sd-trace-head">
         <div>
             <div class="sd-trace-sub"><span data-trace-boundaries></span> R：有本地模型响应边界；G：独立调用边界未确认的记录组。日志不包含全部 provider 请求或重试。</div>
@@ -237,7 +252,9 @@
             </td></tr>
         </tbody>
     </table>
+    </details>
 </section>
+<section id="sd-tab-panel-payload" data-tab-panel="payload" role="tabpanel" hidden><h2>Payload · 原文证据</h2><p>仅在打开时读取索引；模型输入为本地来源记录/重建，不等同完整原始 HTTP。</p><div data-payload-index><button type="button" class="sd-btn sd-btn--secondary sd-btn--md" data-action="load-payload-index">加载原文索引</button></div></section>
 
 <div data-payload-sources-container class="sd-hidden"></div>
 
