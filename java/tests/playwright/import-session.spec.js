@@ -174,10 +174,15 @@ async function openRealPayload(page, button, importId, title) {
   await button.click();
   const response = await responsePromise;
   expect(response.ok(), endpoint).toBe(true);
-  const payload = await response.json();
+  const data = await response.json();
+  const explicit = new URL(response.url()).searchParams.get('view') === 'local_results';
+  const payload = explicit ? data.payload : data;
+  if (explicit) { expect(data.localResults).not.toBeNull(); expect(data.relations).toBeNull(); }
   const modal = page.locator('dialog.payload-modal');
   await expect(modal).toBeVisible();
-  const block = modal.locator('.sd-content-block').filter({ has: page.getByText(title, { exact: true }) });
+  if (title === 'Result') await modal.locator('[data-tool-result-original] > summary').first().click();
+  const label = explicit && title === 'Request' ? '输入正文' : title;
+  const block = modal.locator('.sd-content-block').filter({ has: page.getByText(label, { exact: true }) });
   await expect(block.locator('pre')).toBeVisible();
   return { modal, block, payload };
 }

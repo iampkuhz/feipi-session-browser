@@ -58,6 +58,31 @@ class SessionDetailResourceApiTest {
   }
 
   @Test
+  void collaborationEvidenceMarkerRejectsInvalidCombinations() {
+    JavalinTest.test(
+        createWebRoot().app(),
+        (app, client) -> {
+          for (String query :
+              List.of(
+                  "evidence_window=unknown",
+                  "evidence_window=input_submission_error",
+                  "view=exchanges&evidence_window=input_submission_error",
+                  "view=exchanges&limit=5&evidence_window=input_submission_error&cursor=invalid",
+                  "view=participants&limit=20&evidence_window=input_submission_error&cursor=invalid",
+                  "view=exchanges&limit=20&selection=main&evidence_window=input_submission_error&cursor=invalid",
+                  "view=exchanges&limit=20&evidence_window=input_submission_error&cursor=invalid")) {
+            assertThat(client.get(ALPHA_URL + "/collaboration?" + query).code()).isEqualTo(400);
+          }
+          var response = client.get(ALPHA_URL + "/collaboration");
+          assertThat(response.code()).isEqualTo(200);
+          var body = MAPPER.readTree(response.body().string());
+          assertThat(body.path("evidenceWindow").asText()).isEmpty();
+          assertThat(body.path("inputSubmissionErrorReportTotal").asLong()).isZero();
+          assertThat(body.path("firstInputSubmissionError").isNull()).isTrue();
+        });
+  }
+
+  @Test
   void personalCompatibilityRowDoesNotReadUnpublishedSourceOrAdjacentChildren() throws Exception {
     Path raw = tempDir.resolve("synthetic-unpublished.jsonl");
     String usage =

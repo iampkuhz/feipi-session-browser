@@ -151,6 +151,30 @@ class DetailTypesTest {
   class SensitiveFieldPolicyTest {
 
     @Test
+    void hyphenatedApiKeyUsesTheDefaultPolicyWithoutChangingExplicitVisibility() {
+      for (String content :
+          java.util.List.of(
+              "node synthetic-check.js --api-key=synthetic-secret project-key=visible",
+              "--api-key='synthetic secret' project-key=visible",
+              "--api-key=\"synthetic secret\" project-key=visible",
+              "{\"api-key\":\"synthetic-secret\",\"project-key\":\"visible\"}")) {
+        assertThat(SensitiveFieldPolicy.DEFAULT.applyMasking(content))
+            .contains("[REDACTED]", "visible")
+            .doesNotContain("synthetic-secret", "synthetic secret");
+        assertThat(SensitiveFieldPolicy.noMasking().applyMasking(content)).isEqualTo(content);
+        assertThat(
+                SensitiveFieldPolicy.fromVisibility(PayloadVisibility.FULL).applyMasking(content))
+            .isEqualTo(content);
+        assertThat(
+                SensitiveFieldPolicy.custom(java.util.Set.of("token"), true).applyMasking(content))
+            .isEqualTo(content);
+      }
+      assertThat(SensitiveFieldPolicy.DEFAULT.isSensitive("api-key")).isTrue();
+      assertThat(SensitiveFieldPolicy.DEFAULT.applyMasking("--project-key=visible command=ok"))
+          .isEqualTo("--project-key=visible command=ok");
+    }
+
+    @Test
     @DisplayName("默认策略包含常见敏感字段")
     void defaultFields() {
       SensitiveFieldPolicy policy = SensitiveFieldPolicy.DEFAULT;

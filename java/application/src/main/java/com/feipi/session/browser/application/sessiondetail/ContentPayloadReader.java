@@ -527,58 +527,61 @@ final class ContentPayloadReader {
 
   private Optional<ToolInputContents.Input> toolInput(String id) throws IOException {
     if (bulk != null) return bulk.input(id);
+    var independent =
+        new ToolInputContents.IndependentInputs<ToolInputContents.Input>(
+            content.header(), input -> input);
+    ToolInputContents.Input found = null;
+    boolean unowned = false;
     try (var units = content.openCursor()) {
       while (units.hasNext()) {
         var unit = units.next();
+        independent.accept(unit);
+        for (var tool : unit.toolExecutions()) {
+          if (id.equals(tool.toolCallId()) && "unknown".equals(tool.declaredByCallId()))
+            unowned = true;
+        }
         for (var call : unit.calls()) {
           for (var source : call.sourceUnits()) {
             if ("user".equals(source.get("role"))) continue;
             var inputs = new LinkedHashMap<String, ToolInputContents.Input>();
             ToolInputContents.collect(source, inputs);
-            if (inputs.containsKey(id)) return Optional.of(inputs.get(id));
+            if (found == null) found = inputs.get(id);
           }
         }
         for (var entry : unit.sourceUnitCatalog().values()) {
-          if (!"response".equals(entry.direction().getValue())
+          if (ToolInputContents.isIndependent(entry)
+              || !"response".equals(entry.direction().getValue())
               || !(entry.payload() instanceof Map<?, ?> payload)) continue;
           var inputs = new LinkedHashMap<String, ToolInputContents.Input>();
           ToolInputContents.collect(payload, inputs);
-          if (inputs.containsKey(id)) return Optional.of(inputs.get(id));
+          if (found == null) found = inputs.get(id);
         }
       }
     }
-    return Optional.empty();
+    if (!unowned && found != null) return Optional.of(found);
+    return Optional.ofNullable(independent.finish().get(id));
   }
 
   private Optional<String> toolResult(String id) throws IOException {
     if (bulk != null) return bulk.result(id);
+    var results = new ToolResultContents<String>(text -> text);
     try (var units = content.openCursor()) {
       while (units.hasNext()) {
         var unit = units.next();
         for (var call : unit.calls()) {
-          String inline =
-              PayloadCallContentExtractor.resolveInline(
-                  call.sourceUnits(), null, "tool_result", id);
-          if (!inline.isEmpty()) return Optional.of(inline);
-        }
-      }
-    }
-    try (var units = content.openCursor()) {
-      while (units.hasNext()) {
-        for (var entry : units.next().sourceUnitCatalog().values()) {
-          Map<?, ?> payload = entry.payload() instanceof Map<?, ?> map ? map : Map.of();
-          boolean result =
-              PayloadCallContentExtractor.isToolResult(entry.unitType())
-                  || PayloadCallContentExtractor.isToolResult(payload.get("type"));
-          if (result
-              && (entry.label().filter(id::equals).isPresent()
-                  || id.equals(PayloadCallContentExtractor.toolResultId(payload)))) {
-            return Optional.of(PayloadCallContentExtractor.catalogEntryText(entry));
+          for (var source : call.sourceUnits()) {
+            if (id.equals(PayloadCallContentExtractor.toolResultId(source))) results.inline(source);
           }
         }
+        for (var entry : unit.sourceUnitCatalog().values()) {
+          Map<?, ?> payload = entry.payload() instanceof Map<?, ?> map ? map : Map.of();
+          if (entry.label().filter(id::equals).isPresent()
+              || id.equals(PayloadCallContentExtractor.toolResultId(payload)))
+            results.catalog(entry);
+        }
       }
     }
-    return Optional.empty();
+    return ToolResultContents.join(results.occurrences(id));
   }
 
   private boolean hasTool(String id) throws IOException {

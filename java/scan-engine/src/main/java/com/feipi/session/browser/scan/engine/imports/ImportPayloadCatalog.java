@@ -14,7 +14,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -88,20 +87,19 @@ final class ImportPayloadCatalog {
           continue;
         }
         JsonNode event = MAPPER.readTree(line);
-        int part = 0;
         boolean hasNestedResult = false;
-        for (JsonNode block : contentBlocks(event)) {
+        for (var located : contentBlocks(event).entrySet()) {
+          JsonNode block = located.getValue();
           if ("tool_result".equals(block.path("type").asText())) {
             hasNestedResult = true;
             String id =
                 block
                     .path("tool_use_id")
                     .asText(block.path("call_id").asText(block.path("id").asText()));
-            result(catalog, key + "/result/" + part, logicalPath, index, id, block);
+            result(catalog, key + "/result" + located.getKey(), logicalPath, index, id, block);
           } else if ("tool_use".equals(block.path("type").asText())) {
-            declaration(catalog, key + "/tool/" + part, logicalPath, index, block);
+            declaration(catalog, key + "/tool" + located.getKey(), logicalPath, index, block);
           }
-          part++;
         }
         if (!hasNestedResult && "tool_result".equals(event.path("type").asText())) {
           String id = event.path("tool_use_id").asText(event.path("call_id").asText());
@@ -144,21 +142,34 @@ final class ImportPayloadCatalog {
     return false;
   }
 
-  private static List<JsonNode> contentBlocks(JsonNode event) {
-    var blocks = new LinkedHashSet<JsonNode>();
-    for (JsonNode owner : List.of(event, event.path("message"), event.path("payload"))) {
-      for (String field : List.of("content", "parts")) {
-        JsonNode container = owner.path(field);
-        if (container.isArray()) {
-          for (JsonNode block : container) {
-            if (block.isObject()) blocks.add(block);
+  private static Map<String, JsonNode> contentBlocks(JsonNode event) {
+    var blocks = new LinkedHashMap<String, JsonNode>();
+    collectBlocks(event, "", blocks);
+    return blocks;
+  }
+
+  /** 按结构路径保存独立声明，相等内容不代表同一次 occurrence。 */
+  private static void collectBlocks(JsonNode owner, String path, Map<String, JsonNode> blocks) {
+    for (String field : List.of("content", "parts")) {
+      JsonNode container = owner.path(field);
+      String child = path + "/" + field;
+      if (container.isArray()) {
+        for (int index = 0; index < container.size(); index++) {
+          JsonNode block = container.get(index);
+          if (block.isObject()) {
+            blocks.put(child + "/" + index, block);
+            collectBlocks(block, child + "/" + index, blocks);
           }
-        } else if (container.isObject()) {
-          blocks.add(container);
         }
+      } else if (container.isObject()) {
+        blocks.put(child, container);
+        collectBlocks(container, child, blocks);
       }
     }
-    return List.copyOf(blocks);
+    for (String field : List.of("message", "payload")) {
+      if (owner.path(field).isObject())
+        collectBlocks(owner.path(field), path + "/" + field, blocks);
+    }
   }
 
   private static String resultText(JsonNode block) {

@@ -8,6 +8,51 @@ import org.junit.jupiter.api.Test;
 
 class ToolInputPreviewTest {
   @Test
+  void extractsOnlyLiteralCommandsFromExplicitWrappersWithoutSplittingScripts() {
+    assertThat(
+            preview(
+                "exec",
+                "const receipt = await tools.exec_command({cmd:'git push origin synthetic',yield_time_ms:1000}); text(JSON.stringify(receipt));"))
+        .isEqualTo("git push origin synthetic");
+    assertThat(
+            preview(
+                "exec",
+                "let arbitrary = await tools.exec_command({command:\"printf one; printf two\"}); text(arbitrary.output);"))
+        .isEqualTo("printf one; printf two");
+    assertThat(
+            preview(
+                "exec",
+                "{\"parameters\":{\"arguments\":{\"script\":\"echo first\\necho second\"}}}"))
+        .isEqualTo("echo first echo second");
+    assertThat(
+            preview(
+                "exec",
+                "{\"code\":\"const item = await tools.exec_command({cmd:'printf wrapped'}); text(item);\"}"))
+        .isEqualTo("printf wrapped");
+    assertThat(
+            preview(
+                "exec",
+                "const item = await tools.exec_command({cmd:'echo token=synthetic-private-value'});"))
+        .isEqualTo("echo token=[REDACTED]");
+  }
+
+  @Test
+  void retainsUnknownDynamicAmbiguousAndMultipleCallWrappers() {
+    for (String input :
+        List.of(
+            "const x = await tools.exec_command({cmd:buildCommand()});",
+            "const x = await tools.exec_command({cmd:`git push ${branch}`});",
+            "const x = await tools.exec_command({cmd:'first',cmd:'second'});",
+            "const x = await tools.exec_command({cmd:'first',command:'second'});",
+            "const x = await tools.exec_command({cmd:'first'}); await tools.exec_command({cmd:'second'});",
+            "const x = await tools.other({cmd:'not an execution wrapper'});",
+            "{\"cmd\":\"first\",\"script\":\"second\"}",
+            "{\"cmd\":\"first\"}; otherWork();")) {
+      assertThat(preview("exec", input)).isEqualTo(input);
+    }
+  }
+
+  @Test
   void previewsPathsQueriesAndCommandsFromTheFullInput() {
     assertThat(preview("Read", "{\"file_path\":\"/synthetic/a.md\"}")).isEqualTo("/synthetic/a.md");
     assertThat(preview("Grep", "{\"pattern\":\"needle\",\"path\":\"src\"}"))
@@ -127,6 +172,68 @@ class ToolInputPreviewTest {
         .endsWith("…");
     assertThat(preview("wait", "{\"cell_id\":\"" + "x".repeat(64 * 1024) + "\"}"))
         .isEqualTo("长参数 · 打开 Input 查看完整内容");
+  }
+
+  @Test
+  void qualifiedTextSummariesPreserveLiteralMarkupWhitespaceAndMasking() {
+    assertThat(operation("delegate", "{\"prompt\":\"Synthetic <b>task</b>\"}"))
+        .isEqualTo("委派任务：Synthetic <b>task</b>");
+    assertThat(operation("delegate", "{\"message\":\"Synthetic task\"}"))
+        .isEqualTo("委派任务：Synthetic task");
+    assertThat(operation("input", "{\"message\":\"one\\n two token=synthetic\"}"))
+        .isEqualTo("追加输入：one two token=[REDACTED]");
+    assertThat(
+            operation(
+                "input",
+                "{\"items\":[{\"type\":\"text\",\"text\":\"first\"},{\"type\":\"text\",\"text\":\"second\"}]}"))
+        .isEqualTo("追加输入：first · second");
+  }
+
+  @Test
+  void qualifiedTextRejectsAmbiguousMixedInvalidAndUnsupportedInputs() {
+    for (String input :
+        List.of(
+            "{}",
+            "[]",
+            "null",
+            "not json",
+            "{\"message\":\"first\",\"message\":\"second\"}",
+            "{\"message\":\"first\"} trailing",
+            "{\"message\":123}",
+            "{\"message\":\"   \"}",
+            "{\"message\":\"first\",\"items\":[]}",
+            "{\"items\":[]}",
+            "{\"items\":[{\"type\":\"image\",\"image_url\":\"synthetic\"}]}",
+            "{\"items\":[{\"type\":\"text\",\"text\":\"first\"},{\"type\":\"image\"}]}",
+            "{\"items\":[{\"type\":\"text\",\"text\":\"first\",\"image\":\"synthetic\"}]}")) {
+      assertThat(operation("input", input)).as(input).isEmpty();
+    }
+    assertThat(operation("delegate", "{\"message\":\"one\",\"prompt\":\"two\"}")).isEmpty();
+    assertThat(operation("wait", "{\"message\":\"one\"}")).isEmpty();
+    assertThat(
+            operation(
+                "input",
+                "{\"items\":["
+                    + "{\"type\":\"text\",\"text\":\"x\"},".repeat(128)
+                    + "{\"type\":\"text\",\"text\":\"x\"}]}"))
+        .isEmpty();
+  }
+
+  @Test
+  void qualifiedSummariesUseTheExistingCharacterBudgets() {
+    assertThat(operation("delegate", "{\"message\":\"" + "x".repeat(200) + "\"}"))
+        .startsWith("委派任务：")
+        .hasSize(180)
+        .endsWith("…");
+    String full = "{\"message\":\"" + "中".repeat(65522) + "\"}";
+    assertThat(full).hasSize(65536);
+    assertThat(operation("input", full)).hasSize(180);
+    assertThat(operation("input", full + " ")).isEmpty();
+  }
+
+  private static String operation(String kind, String input) {
+    return ToolInputPreview.collaboration(
+        new ToolInputContents.Input("synthetic-tool", "synthetic-name", input), kind);
   }
 
   private static String preview(String name, String input) {

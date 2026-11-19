@@ -24,10 +24,10 @@ final class ExportPayloadLookup implements AutoCloseable {
   private final Map<String, CatalogText> catalog = new HashMap<>();
   private final Map<String, java.util.TreeMap<Long, List<SequenceKey>>> sequences = new HashMap<>();
   private final Map<String, InputOffsets> inputs = new HashMap<>();
-  private final Map<String, Offset> inlineResults = new HashMap<>();
-  private final Map<String, Offset> catalogResults = new HashMap<>();
+  private final ToolResultContents<Offset> results = new ToolResultContents<>(this::write);
   private final Set<String> tools = new HashSet<>();
   private long sequenceOrder;
+  private final Map<String, Offset> inlineResults = new HashMap<>();
 
   private ExportPayloadLookup(Path path, RandomAccessFile file) {
     this.path = path;
@@ -63,25 +63,39 @@ final class ExportPayloadLookup implements AutoCloseable {
   }
 
   private void collect(NormalizedSessionContent content) throws IOException {
+    var unowned = new HashSet<String>();
+    var independent =
+        new ToolInputContents.IndependentInputs<InputOffsets>(
+            content.header(), input -> new InputOffsets(write(input.name()), write(input.input())));
+    int callOrdinal = 0;
     try (var cursor = content.openCursor()) {
       while (cursor.hasNext()) {
         var unit = cursor.next();
+        independent.accept(unit);
         for (var call : unit.calls()) {
           tools.addAll(call.response().toolCallIds());
+          int sourceIndex = 0;
           for (var source : call.sourceUnits()) {
             if (!"user".equals(source.get("role"))) collectInputs(source);
-            String id = PayloadCallContentExtractor.toolResultId(source);
+            Offset offset = results.inline(source);
             if (PayloadCallContentExtractor.isToolResult(source.get("type"))
-                && !id.isEmpty()
-                && !inlineResults.containsKey(id)) {
-              String text =
-                  PayloadCallContentExtractor.resolveInline(
-                      call.sourceUnits(), null, "tool_result", id);
-              if (!text.isEmpty()) inlineResults.put(id, write(text));
+                && inlineResults.size() < 65_536) {
+              inlineResults.put(
+                  callOrdinal + ":" + sourceIndex,
+                  offset == null
+                      ? write(
+                          PayloadCallContentExtractor.resolveInline(
+                              List.of(source), null, null, null))
+                      : offset);
             }
+            sourceIndex++;
           }
+          callOrdinal++;
         }
-        for (var tool : unit.toolExecutions()) tools.add(tool.toolCallId());
+        for (var tool : unit.toolExecutions()) {
+          tools.add(tool.toolCallId());
+          if ("unknown".equals(tool.declaredByCallId())) unowned.add(tool.toolCallId());
+        }
         for (var chunk : unit.sourceUnitSequences()) {
           var positions = sequences.computeIfAbsent(chunk.name(), key -> new java.util.TreeMap<>());
           for (int i = 0; i < chunk.keys().size(); i++) {
@@ -109,25 +123,14 @@ final class ExportPayloadLookup implements AutoCloseable {
                     write(PayloadCallContentExtractor.catalogEntryText(entry))));
           }
           Map<?, ?> payload = entry.payload() instanceof Map<?, ?> map ? map : Map.of();
-          if ("response".equals(entry.direction().getValue())) collectInputs(payload);
-          if (PayloadCallContentExtractor.isToolResult(entry.unitType())
-              || PayloadCallContentExtractor.isToolResult(payload.get("type"))) {
-            // 与单项读取器一致，标签和载荷工具身份可以指向同一条目。
-            if (entry.label().isPresent()) collectResult(entry.label().get(), entry);
-            String id = PayloadCallContentExtractor.toolResultId(payload);
-            if (!id.isEmpty()) collectResult(id, entry);
-          }
+          if (!ToolInputContents.isIndependent(entry)
+              && "response".equals(entry.direction().getValue())) collectInputs(payload);
+          results.catalog(entry);
         }
       }
     }
-  }
-
-  private void collectResult(
-      String id, com.feipi.session.browser.domain.normalized.SourceUnitCatalogEntry entry)
-      throws IOException {
-    if (!catalogResults.containsKey(id)) {
-      catalogResults.put(id, write(PayloadCallContentExtractor.catalogEntryText(entry)));
-    }
+    inputs.keySet().removeAll(unowned);
+    inputs.putAll(independent.finish());
   }
 
   private void collectInputs(Map<?, ?> source) throws IOException {
@@ -174,8 +177,18 @@ final class ExportPayloadLookup implements AutoCloseable {
   }
 
   Optional<String> result(String id) throws IOException {
-    var value = inlineResults.getOrDefault(id, catalogResults.get(id));
-    return value == null ? Optional.empty() : Optional.of(read(value));
+    var texts = new ArrayList<String>();
+    for (var offset : results.occurrences(id)) texts.add(read(offset));
+    return ToolResultContents.join(texts);
+  }
+
+  String localResultText(String catalogKey, int callOrdinal, int sourceIndex) throws IOException {
+    if (!catalogKey.isEmpty()) {
+      var value = catalog.get(catalogKey);
+      return value == null ? "" : read(value.text());
+    }
+    var offset = inlineResults.get(callOrdinal + ":" + sourceIndex);
+    return offset == null ? "" : read(offset);
   }
 
   boolean hasTool(String id) {

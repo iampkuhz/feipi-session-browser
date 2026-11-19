@@ -32,6 +32,47 @@ class ExportPayloadLookupTest {
   @TempDir Path directory;
 
   @Test
+  void bulkResultRetainsAllOccurrencesIncludingRepeatedEofText() throws Exception {
+    var content =
+        NormalizedSessionContent.fromArtifact(ToolPayloadSemanticsTest.resultOccurrencesArtifact());
+    try (var lookup = ExportPayloadLookup.build(content, directory)) {
+      assertThat(lookup.result("tool1").orElseThrow()).isEqualTo("R1\n\nR2\n\nR1");
+    }
+  }
+
+  @Test
+  void independentBulkInputUsesTheSameQualificationAndCleansPrivateIndex() throws Exception {
+    for (String mutation :
+        List.of(
+            "valid",
+            "raw",
+            "name",
+            "slot",
+            "actor",
+            "scope",
+            "key",
+            "extra",
+            "truncated",
+            "duplicate",
+            "execution-duplicate",
+            "fake-call",
+            "collision")) {
+      var artifact =
+          ToolPayloadSemanticsTest.independentArtifact(
+              "{\"cmd\":\"node synthetic-check.js\"}", mutation);
+      try (var lookup =
+          ExportPayloadLookup.build(NormalizedSessionContent.fromArtifact(artifact), directory)) {
+        assertThat(lookup.input("orphan").map(ToolInputContents.Input::input).orElse(""))
+            .as(mutation)
+            .isEqualTo(mutation.equals("valid") ? "{\"cmd\":\"node synthetic-check.js\"}" : "");
+      }
+      try (var files = Files.list(directory)) {
+        assertThat(files.toList()).isEmpty();
+      }
+    }
+  }
+
+  @Test
   void privateFileIsRandomReadableAndRemovedAfterClose() throws Exception {
     try (var lookup = ExportPayloadLookup.build(content(), directory)) {
       Path file = onlyFile();

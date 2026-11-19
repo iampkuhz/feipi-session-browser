@@ -143,6 +143,22 @@ class SessionApiHandlerTest {
   class PayloadApi {
 
     @Test
+    void optInWithoutNormalizedContentReturns404InsteadOfInventingEmptyResults() throws Exception {
+      insertTestSession();
+      JavalinTest.test(
+          createWebRoot().app(),
+          (app, client) -> {
+            var response =
+                client.get(
+                    "/api/sessions/claude_code/test-session-1/payload/main:req:C1?view=local_results");
+            assertThat(response.code()).isEqualTo(404);
+            assertThat(response.body().string())
+                .contains("not_found")
+                .doesNotContain("localResults");
+          });
+    }
+
+    @Test
     @DisplayName("不存在的会话返回 404")
     void sessionNotFoundReturns404() {
       WebCompositionRoot webRoot = createWebRoot();

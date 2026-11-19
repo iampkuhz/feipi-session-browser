@@ -68,6 +68,10 @@ final class ManagedSessionContent implements NormalizedSessionContent {
         unit.put("name", tool.name());
         unit.put("input", tool.input());
       } else {
+        if (ToolResultContents.isResult(record)) {
+          unit.put(
+              "result_source_unit_key", ToolResultContents.sourceUnitKey(record, ref.ordinal()));
+        }
         unit.put("type", record.eventType());
         unit.put("role", ref.role());
         unit.put("text", record.content());
@@ -119,20 +123,22 @@ final class ManagedSessionContent implements NormalizedSessionContent {
       Long errorOrdinal = plan.errors.get(id);
       error = errorOrdinal == null ? Optional.empty() : read(errorOrdinal).toolError();
     }
-    return CallBuilder.withObservation(
-        new NormalizedToolExecution(
-            id,
-            name,
-            scope,
-            ref.owner(),
-            Optional.ofNullable(plan.consumers.get(id)),
-            error,
-            Optional.empty(),
-            null,
-            List.of(),
-            subagent,
-            Optional.empty()),
-        plan.observations);
+    return plan.collaboration.apply(
+        CallBuilder.withObservation(
+            new NormalizedToolExecution(
+                id,
+                name,
+                scope,
+                ref.owner(),
+                Optional.ofNullable(plan.consumers.get(id)),
+                error,
+                Optional.empty(),
+                null,
+                List.of(),
+                subagent,
+                Optional.empty()),
+            plan.observations),
+        plan.actors.getOrDefault(ref.owner(), Optional.empty()));
   }
 
   private static long payloadBytes(NormalizedCall call) {
@@ -167,6 +173,7 @@ final class ManagedSessionContent implements NormalizedSessionContent {
     private int fileIndex;
     private int observedIndex;
     private int resultIndex;
+    private int independentIndex;
     private final Iterator<Map.Entry<String, SourceUnitCatalogEntry>> catalog =
         plan.catalog.entrySet().iterator();
     private long unitIndex;
@@ -183,6 +190,7 @@ final class ManagedSessionContent implements NormalizedSessionContent {
           || fileIndex < plan.sourceFiles.size()
           || observedIndex < plan.observedInputs.size()
           || resultIndex < plan.resultOrdinals.size()
+          || independentIndex < plan.independentInputs.size()
           || catalog.hasNext();
     }
 
@@ -248,6 +256,19 @@ final class ManagedSessionContent implements NormalizedSessionContent {
       if (resultIndex < plan.resultOrdinals.size()) {
         long ordinal = plan.resultOrdinals.get(resultIndex++);
         var value = ToolResultContents.entry(read(ordinal), ordinal);
+        return new NormalizedContentUnit(
+            unitIndex++,
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            Map.of(value.unitKey(), value),
+            List.of());
+      }
+      if (independentIndex < plan.independentInputs.size()) {
+        var ref = plan.independentInputs.get(independentIndex++);
+        var value =
+            ToolInputSourceContents.entry(read(ref.ordinal()), ref.ordinal(), ref.toolIndex());
         return new NormalizedContentUnit(
             unitIndex++,
             List.of(),

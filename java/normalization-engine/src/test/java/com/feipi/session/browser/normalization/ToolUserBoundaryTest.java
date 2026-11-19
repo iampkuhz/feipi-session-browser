@@ -83,6 +83,11 @@ class ToolUserBoundaryTest {
     var artifact = normalize(managed, records);
     assertThat(artifact.calls()).hasSize(count);
     assertThat(artifact.toolExecutions()).hasSize(count);
+    var resultTexts =
+        artifact.sourceUnitCatalog().values().stream()
+            .filter(entry -> "tool_result".equals(entry.unitType()))
+            .flatMap(entry -> entry.text().stream())
+            .toList();
     for (int round = 1; round <= count; round++) {
       var call = artifact.calls().get(round - 1);
       var tool = artifact.toolExecutions().get(round - 1);
@@ -92,11 +97,26 @@ class ToolUserBoundaryTest {
       assertThat(call.turnId()).isEmpty();
       assertThat(tool.toolCallId()).isEqualTo("tool-" + round);
       assertThat(tool.declaredByCallId()).as("round %s tool owner", round).isEqualTo(call.callId());
-      assertThat(tool.resultConsumedByCallId()).contains(call.callId());
-      assertThat(call.request().toolResultIds()).containsExactly(tool.toolCallId());
+      if (round < count) {
+        assertThat(tool.resultConsumedByCallId()).contains("reply-" + (round + 1));
+      } else {
+        assertThat(tool.resultConsumedByCallId()).isEmpty();
+      }
+      if (round == 1) {
+        assertThat(call.request().toolResultIds()).isEmpty();
+      } else {
+        assertThat(call.request().toolResultIds()).containsExactly("tool-" + (round - 1));
+        assertThat(call.sourceUnits())
+            .anySatisfy(
+                unit ->
+                    assertThat(unit)
+                        .containsEntry("text", "result-body-" + (call.callIndex() - 1)));
+      }
       assertThat(call.sourceUnits())
           .extracting(unit -> unit.get("text"))
-          .contains("user-body-" + round, "result-body-" + round, "assistant-body-" + round);
+          .contains("user-body-" + round, "assistant-body-" + round)
+          .doesNotContain("result-body-" + round);
+      assertThat(resultTexts).contains("result-body-" + round);
       assertThat(call.sourceUnits())
           .anySatisfy(
               unit ->
@@ -104,8 +124,8 @@ class ToolUserBoundaryTest {
                       .containsEntry("type", "tool_use")
                       .containsEntry("id", tool.toolCallId())
                       .containsEntry("input", expectedInput));
-      // 每个正文 occurrence 属于此段，而不是只检查全局尾字符串。
-      assertThat(call.sourceUnits()).hasSize(4);
+      // 当前响应正文不变；从第二轮开始仅消费前轮结果。
+      assertThat(call.sourceUnits()).hasSize(round == 1 ? 3 : 4);
     }
   }
 
@@ -207,9 +227,9 @@ class ToolUserBoundaryTest {
         .satisfies(
             tool -> {
               assertThat(tool.declaredByCallId()).isEqualTo(call.callId());
-              assertThat(tool.resultConsumedByCallId()).contains(call.callId());
+              assertThat(tool.resultConsumedByCallId()).isEmpty();
             });
-    assertThat(call.request().toolResultIds()).containsExactly("tool-2");
+    assertThat(call.request().toolResultIds()).isEmpty();
     assertThat(call.sourceUnits())
         .anySatisfy(
             unit ->
@@ -219,7 +239,10 @@ class ToolUserBoundaryTest {
                     .containsEntry("isMeta", true));
     assertThat(call.sourceUnits())
         .extracting(unit -> unit.get("text"))
-        .contains("result-body-2", "assistant-body-2");
+        .contains("assistant-body-2")
+        .doesNotContain("result-body-2");
+    assertThat(artifact.sourceUnitCatalog().values())
+        .anySatisfy(entry -> assertThat(entry.text()).contains("result-body-2"));
     assertThat(call.sourceUnits())
         .anySatisfy(
             unit ->

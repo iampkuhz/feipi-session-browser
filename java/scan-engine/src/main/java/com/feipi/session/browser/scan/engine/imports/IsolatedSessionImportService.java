@@ -85,7 +85,7 @@ public final class IsolatedSessionImportService implements SessionImportPort {
         throw ImportInputValidator.failure("source_mismatch");
       }
       var validated = ImportInputValidator.validate(file, adapter, limits);
-      NormalizedSessionArtifact artifact = analyze(validated.analysisFile(), id, source, adapter);
+      NormalizedSessionArtifact artifact = analyze(validated, id, source, adapter);
       long encodedSize = new CanonicalJsonWriter().serializedSize(artifact);
       if (encodedSize > limits.maxStoredBytes() - storedBytes) {
         throw ImportInputValidator.failure("capacity_exceeded");
@@ -111,7 +111,14 @@ public final class IsolatedSessionImportService implements SessionImportPort {
   }
 
   private NormalizedSessionArtifact analyze(
-      Path file, String id, NormalizedAgent source, SourceAdapter adapter) throws IOException {
+      ImportInputValidator.ValidatedInput validated,
+      String id,
+      NormalizedAgent source,
+      SourceAdapter adapter)
+      throws IOException {
+    Path file = validated.analysisFile();
+    if (source == NormalizedAgent.CODEX) requireSingleFile(file);
+    byte[] fingerprint = contentFingerprint(file);
     Map<String, String> metadata = adapter.singleFileMetadata(file);
     var candidate = new Candidate(adapter.fingerprint(file), "import:" + id, "", metadata);
     SourceResult result = adapter.parse(candidate, null);
@@ -119,6 +126,9 @@ public final class IsolatedSessionImportService implements SessionImportPort {
       throw ImportInputValidator.failure("parse_failed");
     }
     try (success) {
+      if (source == NormalizedAgent.CODEX && success.candidateCount() != validated.objectCount()) {
+        throw ImportInputValidator.failure("parse_failed");
+      }
       if (success.diagnostics().stream()
           .anyMatch(diagnostic -> diagnostic.severity() == ParseSeverity.ERROR)) {
         throw ImportInputValidator.failure("parse_failed");
@@ -170,8 +180,13 @@ public final class IsolatedSessionImportService implements SessionImportPort {
                   Path.of(logicalPath),
                   Optional.empty(),
                   Optional.empty()));
-      NormalizedSessionArtifact artifact =
-          new NormalizationEngine().normalize(source, records, diagnostics, files);
+      var engine = new NormalizationEngine();
+      var normalized =
+          source == NormalizedAgent.CODEX
+              ? engine.normalizeWithBindings(source, records, diagnostics, files)
+              : new NormalizationEngine.BoundNormalization(
+                  engine.normalize(source, records, diagnostics, files), List.of());
+      NormalizedSessionArtifact artifact = normalized.artifact();
       if (artifact.calls().isEmpty() && !hasUser) {
         throw ImportInputValidator.failure("empty_input");
       }
@@ -187,6 +202,20 @@ public final class IsolatedSessionImportService implements SessionImportPort {
                   "仅分析上传的单个文件；未读取本机邻居、子会话或 sidecar，外部上下文可能缺失。")));
       var catalog = new LinkedHashMap<>(ImportPayloadCatalog.read(file, logicalPath));
       ImportPayloadCatalog.mergeObserved(catalog, artifact.sourceUnitCatalog(), logicalPath);
+      var calls =
+          source == NormalizedAgent.CODEX
+              ? ImportToolDeclarations.bind(
+                  artifact.calls(),
+                  artifact.toolExecutions(),
+                  catalog,
+                  normalized.bindings(),
+                  logicalPath)
+              : ImportToolDeclarations.restore(
+                  artifact.calls(), artifact.toolExecutions(), catalog);
+      if (source == NormalizedAgent.CODEX) requireSingleFile(file);
+      if (!java.util.Arrays.equals(fingerprint, contentFingerprint(file))) {
+        throw ImportInputValidator.failure("parse_failed");
+      }
       Map<String, Object> session = new LinkedHashMap<>(artifact.session());
       applySingleFileMetadata(session, metadata);
       return new NormalizedSessionArtifact(
@@ -194,7 +223,7 @@ public final class IsolatedSessionImportService implements SessionImportPort {
           artifact.agent(),
           artifact.sourceFiles(),
           session,
-          ImportToolDeclarations.restore(artifact.calls(), artifact.toolExecutions(), catalog),
+          calls,
           artifact.toolExecutions(),
           allDiagnostics,
           catalog,
@@ -202,8 +231,46 @@ public final class IsolatedSessionImportService implements SessionImportPort {
     }
   }
 
+  private static void requireSingleFile(Path file) throws IOException {
+    try (var entries = Files.list(file.getParent())) {
+      if (!entries.allMatch(file::equals)) throw ImportInputValidator.failure("parse_failed");
+    }
+  }
+
+  /** 私有上传目录没有其它写入者；指纹用于检测读取期变化，不充当并发锁。 */
+  private byte[] contentFingerprint(Path file) throws IOException {
+    java.security.MessageDigest digest;
+    try {
+      digest = java.security.MessageDigest.getInstance("SHA-256");
+    } catch (java.security.NoSuchAlgorithmException exception) {
+      throw new IllegalStateException(exception);
+    }
+    long count = 0;
+    byte[] buffer = new byte[8192];
+    try (var input = Files.newInputStream(file)) {
+      int read;
+      while ((read = input.read(buffer)) != -1) {
+        count += read;
+        if (count > limits.maxFileBytes()) throw ImportInputValidator.failure("file_too_large");
+        digest.update(buffer, 0, read);
+      }
+    }
+    return digest.digest();
+  }
+
   private static SourceRecord relocate(SourceRecord record, String logicalPath) {
     int suffix = record.locator().lastIndexOf("#event[");
+    var relation = record.relation();
+    if (relation.subagentId().filter(id -> id.startsWith("unknown-sidechain:")).isPresent()) {
+      relation =
+          new com.feipi.session.browser.domain.source.SourceRecordRelation(
+              Optional.of(
+                  "unknown-sidechain:" + logicalPath + "#event[" + record.eventIndex() + "]"),
+              relation.parentThreadId(),
+              relation.parentToolCallId(),
+              relation.parentCallId(),
+              relation.parentToolName());
+    }
     return new SourceRecord(
         logicalPath
             + (suffix < 0
@@ -220,14 +287,29 @@ public final class IsolatedSessionImportService implements SessionImportPort {
         record.toolUseId(),
         record.toolName(),
         record.toolError(),
-        record.relation(),
+        relation,
         record.content(),
         record.responseMessageId(),
         record.responseStopReason(),
         record.timing(),
         record.metaContext(),
         record.messageRole(),
-        record.toolObservation());
+        record.toolObservation(),
+        record.collaboration().stream()
+            .map(
+                fact ->
+                    "delegate".equals(fact.kind()) && fact.targetId().isPresent()
+                        ? new com.feipi.session.browser.domain.source.SourceCollaborationEvidence(
+                            fact.toolCallId(),
+                            fact.kind(),
+                            fact.phase(),
+                            fact.targetId(),
+                            fact.reportedStatus(),
+                            "single_file_not_included")
+                        : fact)
+            .map(
+                fact -> fact.withSourceLocator(logicalPath + "#event[" + record.eventIndex() + "]"))
+            .toList());
   }
 
   /** 来源精度独立于数值；只覆盖显式估算段，正式 usage 保持解析器原值。 */

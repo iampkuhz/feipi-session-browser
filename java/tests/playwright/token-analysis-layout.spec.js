@@ -35,7 +35,7 @@ test('Context grid and progressive diagnostics retain all capabilities on real H
   await more.locator(':scope > summary').focus();
   await page.keyboard.press('Enter');
   await expect(more.locator('[aria-label="Run Health"]')).toBeVisible();
-  await expect(more.locator('[aria-label="Source Task Active"]')).toBeVisible();
+  await expect(more.locator('[aria-label="主会话任务活动时间"]')).toBeVisible();
   await more.locator(':scope > summary').click();
   const tools = page.locator('[data-tool-impact]');
   await expect(tools).not.toHaveAttribute('open');

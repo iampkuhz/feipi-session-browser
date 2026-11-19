@@ -52,7 +52,7 @@ final class ContentWriteValidation {
       if (!toolIds.add(tool.toolCallId())) {
         throw new IOException("duplicate global toolCallId");
       }
-      callReferences.add(tool.declaredByCallId());
+      if (!"unknown".equals(tool.declaredByCallId())) callReferences.add(tool.declaredByCallId());
       tool.resultConsumedByCallId().ifPresent(callReferences::add);
     }
     for (var entry : unit.sourceUnitCatalog().entrySet()) {

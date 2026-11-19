@@ -133,18 +133,34 @@ class ToolOwnerFailurePublicationContractTest {
       }
       assertThat(calls).hasSize(2);
       assertThat(tools).hasSize(2);
+      var resultTexts =
+          NormalizedArtifactLoader.load(artifact).sourceUnitCatalog().values().stream()
+              .filter(entry -> "tool_result".equals(entry.unitType()))
+              .flatMap(entry -> entry.text().stream())
+              .toList();
       for (int number = 1; number <= 2; number++) {
         int segment = number;
         var call = calls.get(number - 1);
         assertThat(call.sourceUnits().stream().map(unit -> unit.get("text")))
-            .contains("synthetic-question-" + number, "synthetic-answer-" + number);
+            .contains("synthetic-question-" + number, "synthetic-answer-" + number)
+            .doesNotContain("synthetic-result-" + number);
+        assertThat(resultTexts).contains("synthetic-result-" + number);
+        if (number == 1) {
+          assertThat(call.request().toolResultIds()).isEmpty();
+        } else {
+          assertThat(call.request().toolResultIds()).containsExactly("tool-" + (number - 1));
+        }
         assertThat(tools)
             .filteredOn(tool -> tool.toolCallId().equals("tool-" + segment))
             .singleElement()
             .satisfies(
                 tool -> {
                   assertThat(tool.declaredByCallId()).isEqualTo(call.callId());
-                  assertThat(tool.resultConsumedByCallId()).contains(call.callId());
+                  if (segment < calls.size()) {
+                    assertThat(tool.resultConsumedByCallId()).contains(calls.get(segment).callId());
+                  } else {
+                    assertThat(tool.resultConsumedByCallId()).isEmpty();
+                  }
                 });
       }
     }

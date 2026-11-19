@@ -31,9 +31,11 @@ class SessionContentPaginationTest {
               config.routes.get("/rounds", handler::handleRounds);
               config.routes.get("/payloads", handler::handlePayloads);
               config.routes.get("/execution", handler::handleExecution);
+              config.routes.get("/collaboration", handler::handleCollaboration);
             }),
         (app, client) -> {
-          for (String route : new String[] {"/rounds", "/payloads", "/execution"}) {
+          for (String route :
+              new String[] {"/rounds", "/payloads", "/execution", "/collaboration"}) {
             for (String query :
                 new String[] {"?limit=0", "?limit=501", "?limit=no", "?cursor=broken"}) {
               var response = client.get(route + query);

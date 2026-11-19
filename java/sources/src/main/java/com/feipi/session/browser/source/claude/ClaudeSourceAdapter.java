@@ -567,6 +567,7 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
     return records.stream()
         .map(
             record -> {
+              record = collaborationRecord(record, events.get(record.eventIndex()));
               UsageTotals usage = record.responseMessageId().map(totals::get).orElse(null);
               if (!"assistant".equals(record.eventType())) {
                 return record;
@@ -600,9 +601,44 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
                   record.responseStopReason(),
                   record.timing(),
                   record.metaContext(),
-                  record.messageRole());
+                  record.messageRole(),
+                  record.toolObservation(),
+                  record.collaboration());
             })
         .toList();
+  }
+
+  /** 只保留 Claude 明确字段；匿名 sidechain 用原点隔离，不推实例等同。 */
+  private static SourceRecord collaborationRecord(SourceRecord record, JsonNode event) {
+    String rawId = text(event, "agentId");
+    boolean sidechain =
+        event.path("isSidechain").isBoolean() && event.path("isSidechain").booleanValue();
+    Optional<String> agent = rawId.isBlank() ? Optional.empty() : Optional.of(rawId);
+    String parent = text(event, "parent_tool_use_id");
+    if (agent.isEmpty() && (sidechain || !parent.isBlank()))
+      agent = Optional.of("unknown-sidechain:" + record.locator());
+    var relation =
+        new com.feipi.session.browser.domain.source.SourceRecordRelation(
+            agent,
+            Optional.empty(),
+            parent.isBlank() ? Optional.empty() : Optional.of(parent),
+            Optional.empty(),
+            Optional.empty());
+    var facts =
+        record.toolCalls().stream()
+            .filter(tool -> List.of("Agent", "Task").contains(tool.name()))
+            .limit(128)
+            .map(
+                tool ->
+                    new com.feipi.session.browser.domain.source.SourceCollaborationEvidence(
+                        tool.toolCallId(),
+                        "delegate",
+                        "declaration",
+                        Optional.empty(),
+                        Optional.empty(),
+                        "target_unknown"))
+            .toList();
+    return record.withRelation(relation).withCollaboration(facts);
   }
 
   private static long countFailedToolResults(List<JsonNode> events, Map<String, String> toolNames) {

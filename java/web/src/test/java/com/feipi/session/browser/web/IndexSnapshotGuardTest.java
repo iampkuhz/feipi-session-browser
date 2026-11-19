@@ -28,6 +28,33 @@ class IndexSnapshotGuardTest {
   @TempDir Path directory;
 
   @Test
+  void frozenGenerationIsVisibleInsideHandlerAndCrossingStillRejectsBody() {
+    var generation = new java.util.concurrent.atomic.AtomicReference<>("first");
+    var guard = new IndexSnapshotGuard(generation::get);
+    var app =
+        io.javalin.Javalin.create(
+            config ->
+                config.routes.get(
+                    "/snapshot",
+                    guard.wrap(
+                        ctx -> {
+                          assertThat((String) ctx.attribute(IndexSnapshotGuard.PAGE_GENERATION))
+                              .isEqualTo("first");
+                          ctx.json(Map.of("business", "frozen"));
+                          generation.set("second");
+                        })));
+    JavalinTest.test(
+        app,
+        (server, client) -> {
+          var response = client.get("/snapshot");
+          assertThat(response.code()).isEqualTo(409);
+          assertThat(response.body().string())
+              .contains("index_generation_changed")
+              .doesNotContain("business");
+        });
+  }
+
+  @Test
   void summaryRejectsCommitBetweenItsTwoQueriesBeforeSendingBody() throws Exception {
     String url = "jdbc:sqlite:" + directory.resolve("crossing.db");
     try (var connection = DriverManager.getConnection(url);

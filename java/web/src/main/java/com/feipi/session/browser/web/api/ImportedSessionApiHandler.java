@@ -164,6 +164,7 @@ public final class ImportedSessionApiHandler {
       case "diagnostics" -> details.handleDiagnostics(ctx);
       case "rounds" -> details.handleRounds(ctx);
       case "execution" -> details.handleExecution(ctx);
+      case "collaboration" -> details.handleCollaboration(ctx);
       case "payloads" -> details.handlePayloads(ctx);
       default -> router.routeResource(ctx, metadata.get().source().getValue(), id, suffix);
     }

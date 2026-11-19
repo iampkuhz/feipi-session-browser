@@ -79,29 +79,33 @@ for (const [label, sample] of [['measured', timing], ['unknown', undefined],
   await page.locator('[data-evidence-analysis] > summary').click();
     await page.locator('[data-secondary-metrics] > summary').click();
     const card = page.locator('[data-session-timing]');
-    await expect(card).toContainText('Source Task Active');
+    await expect(card).toContainText('主会话任务活动时间');
     await expect(card.locator('.sd-kpi__value')).toHaveText(sample ? (label === 'partial' ? '25s · Partial' : '2m 0s') : 'N/A');
-    await expect(card).toContainText(sample ? 'Agent Turn 45s' : 'Agent Turn N/A');
-    await expect(card).toContainText('Model Execution N/A');
-    await expect(card).toContainText('Tool Execution N/A');
+    await expect(card).toContainText(sample ? '主会话轮次累计 45s' : '主会话轮次累计 N/A');
+    await expect(card).toContainText('来源模型计时 N/A');
+    await expect(card).toContainText('来源工具计时 N/A');
     const disclosure = card.locator('[data-session-timing-note]');
     const toggle = disclosure.locator('summary');
-    await expect(toggle).toHaveText('Timing details');
-    await expect(disclosure.locator('p')).toBeHidden();
+    await expect(toggle).toHaveText('计时口径与来源');
+    await expect(disclosure.locator(':scope > p')).toHaveCount(3);
+    for (let i = 0; i < 3; i++) await expect(disclosure.locator(':scope > p').nth(i)).toBeHidden();
     await page.setViewportSize({ width: 390, height: 900 });
     await toggle.focus();
     await toggle.press('Enter');
-    await expect(disclosure.locator('p')).toBeVisible();
+    for (let i = 0; i < 3; i++) await expect(disclosure.locator(':scope > p').nth(i)).toBeVisible();
+    await expect(disclosure.locator('p').nth(0)).toContainText('计时口径：');
+    await expect(disclosure.locator('p').nth(1)).toContainText('来源依据：');
+    await expect(disclosure.locator('p').nth(2)).toContainText('缺测与记录：');
     if (sample) {
-      await expect(disclosure).toContainText('Completed: 2');
-      await expect(disclosure).toContainText('recorded main-agent turn durations');
+      await expect(disclosure).toContainText('已结束：2');
+      await expect(disclosure).toContainText('记录中的主会话轮次时长累计');
       await expect(disclosure).not.toContainText(/main_task_windows|main_agent_turn_duration/);
     }
-    await expect(card).toContainText('Non-task Wall Time');
+    await expect(card).toContainText('任务外记录跨度');
     await expect(card).not.toContainText('Waiting Time');
-    await expect(card).toContainText('not model inference');
+    await expect(card).toContainText('不是模型推理耗时');
     await expect(page.locator('.sd-kpi[aria-label="Cache Health"]')).toContainText('Low-cache rows N/A');
-    await expect(card).toContainText('Non-task Wall Time: ' + (label === 'measured' ? '24h 58m' : 'N/A'));
+    await expect(card).toContainText('任务外记录跨度：' + (label === 'measured' ? '24h 58m' : 'N/A'));
     for (const width of [1440, 390]) {
       await page.setViewportSize({ width, height: 1100 });
       const overflow = await card.evaluate((element) => Array.from(element.querySelectorAll('.session-timing-note, .session-timing-value'))
@@ -143,3 +147,41 @@ for (const statistics of [
     await expect(card.locator('[data-cache-measurement]')).toContainText('provider-reported input');
   });
 }
+
+test('source timing Chinese basis and record states stay presentation-only', async ({ page }) => {
+  // UI-only basis/count boundary data, not additional provider/parser evidence.
+  await page.setContent('<div class="sd-kpi" tabindex="-1"><div class="sd-kpi__value">0s</div><div class="sd-kpi__label"></div></div>');
+  await page.addScriptTag({ path: path.join(resourceRoot, 'static/js/session-timing.js') });
+  const proof = await page.evaluate(sample => {
+    const card = document.querySelector('.sd-kpi'); SessionTiming.applyDetail(card, sample);
+    const note = card.querySelector('details'), summary = note.querySelector('summary'); note.open = true; summary.focus();
+    const fallback = SessionTiming.description({ ...sample, activeTaskBasis: 'other', agentTurnBasis: 'main_task_duration_sum', activeTaskPrecision: 'partial', incompleteTaskCount: 1, abortedTaskCount: 2 });
+    const unknown = SessionTiming.description({});
+    const methods = [
+      { ...sample, activeTaskSeconds: 0, activeTaskPrecision: 'measured' },
+      { ...sample, activeTaskSeconds: 25, activeTaskPrecision: 'partial' },
+      { ...sample, activeTaskSeconds: null, activeTaskPrecision: 'unknown', completedTaskCount: 0, incompleteTaskCount: 0, abortedTaskCount: 0 },
+      { ...sample, activeTaskSeconds: -1, activeTaskPrecision: 'measured' }
+    ].map(value => ({ text: SessionTiming.description(value), value: SessionTiming.value(value, 'activeTaskSeconds') }));
+    const updates = [sample, { ...sample, activeTaskBasis: 'other', agentTurnBasis: 'main_task_duration_sum' }, {}, { ...sample, activeTaskSeconds: 0, activeTaskPrecision: 'measured' }, { ...sample, activeTaskPrecision: 'partial' }, sample].map(value => {
+      SessionTiming.applyDetail(card, value);
+      return { count: note.querySelectorAll(':scope > p').length, paragraphs: Array.from(note.querySelectorAll(':scope > p'), p => p.textContent), same: note === card.querySelector('details') && summary === note.querySelector('summary'), focus: document.activeElement === summary, open: note.open };
+    });
+    return { methods, updates, text: note.textContent, fallback, unknown, sameCard: card === document.querySelector('[data-session-timing]'), sameNote: note === card.querySelector('details'), sameSummary: summary === note.querySelector('summary'), focused: document.activeElement === summary, open: note.open, value: card.querySelector('.sd-kpi__value').textContent, aria: card.getAttribute('aria-label') };
+  }, timing);
+  expect(proof).toMatchObject({ sameCard: true, sameNote: true, sameSummary: true, focused: true, open: true, value: '0s', aria: '主会话任务活动时间' });
+  for (const update of proof.updates) { expect(update).toMatchObject({ count: 3, same: true, focus: true, open: true }); expect(update.paragraphs.map(p => p.split('：')[0])).toEqual(['计时口径', '来源依据', '缺测与记录']); }
+  expect(proof.updates[1].paragraphs[1]).toContain('不冒称实测轮次'); expect(proof.updates[1].paragraphs[1]).not.toContain('重叠窗口只计一次');
+  expect(proof.updates[2].paragraphs[1]).not.toContain('轮次依据'); expect(proof.updates[2].paragraphs[1]).not.toContain('主任务时间窗口');
+  expect(proof.updates[5].paragraphs[1]).not.toContain('不冒称实测轮次');
+  expect(proof.methods.map(method => method.value)).toEqual(['0s', '25s · Partial', 'N/A', 'N/A']);
+  for (const method of proof.methods) {
+    expect(method.text).toContain('任务汇总方法：按主任务时间窗口计时，重叠窗口只计一次。');
+    expect(method.text).not.toContain('任务依据：记录中的主任务时间窗口');
+  }
+  expect(proof.text).toContain('重叠窗口只计一次'); expect(proof.text).toContain('记录中的主会话轮次时长累计');
+  expect(proof.fallback).toContain('无可用时间窗口时的主任务时长累计，不冒称实测轮次'); expect(proof.fallback).not.toContain('重叠窗口只计一次');
+  expect(proof.fallback).toContain('已结束：2 · 未闭合：1 · 中止：2'); expect(proof.fallback).toContain('任务外记录跨度：N/A');
+  expect(proof.unknown).toContain('已结束：未报告 · 未闭合：未报告 · 中止：未报告'); expect(proof.unknown).not.toContain('重叠窗口只计一次');
+  expect(proof.unknown).toContain('N/A 表示未知而非 0'); expect(proof.unknown).toContain('Partial 表示部分测量'); expect(proof.text).toContain('不表示业务成功');
+});
