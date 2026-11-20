@@ -23,6 +23,8 @@ module.exports = defineConfig({
   testDir: '.',
   testMatch: ['**/*.spec.{js,ts}'],
   fullyParallel: true,
+  // 共享导入服务最多保留 8 份；每个 worker 的典型用例可能同时保留 2 份。
+  workers: 4,
   forbidOnly: true,
   retries: 0,
   timeout: 30_000,

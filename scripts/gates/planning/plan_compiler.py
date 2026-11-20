@@ -152,9 +152,21 @@ def compile_gate_plan(
         selected = tuple(candidate for candidate in GATES if candidate.name in matched_names)
 
     selected_names = {candidate.name for candidate in selected}
+    # 根 check 的同一次 Java 执行已经包含全部 Web 模块测试。
+    web_covered = {'webResourceContracts', 'javaBuildVerification'} <= selected_names
+    if web_covered:
+        selected = tuple(
+            candidate for candidate in selected if candidate.name != 'webResourceContracts'
+        )
+        selected_names.remove('webResourceContracts')
     reason = 'excluded-by-selector' if selector_kind else 'no-trigger-pattern-matched'
     not_triggered = tuple(
-        NotTriggeredGate(candidate.name, reason)
+        NotTriggeredGate(
+            candidate.name,
+            'covered-by-javaBuildVerification'
+            if web_covered and candidate.name == 'webResourceContracts'
+            else reason,
+        )
         for candidate in GATES
         if candidate.name not in selected_names
     )

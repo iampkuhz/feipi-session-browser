@@ -390,6 +390,16 @@ class SessionExecutionInputsTest {
   }
 
   @Test
+  void allDistinctInputsDoNotCreateARepeatedHotspot() throws Exception {
+    var tools = List.of(tool("a", 10L), tool("b", 20L), tool("c", 30L));
+    var declarations =
+        tools.stream()
+            .map(t -> declaration(t.toolCallId(), "synthetic-unique-" + t.toolCallId()))
+            .toList();
+    assertThat(maximum(content(tools, declarations)).isNull()).isTrue();
+  }
+
+  @Test
   void stableRepresentativesAndTiesUseCompleteIdentityNotReadOrder() throws Exception {
     var tools = List.of(tool("d", 1L), tool("c", 1L), tool("b", 1L), tool("a", 1L));
     var sources =

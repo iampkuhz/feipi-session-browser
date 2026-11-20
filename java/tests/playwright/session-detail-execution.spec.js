@@ -1,23 +1,25 @@
-const { test, expect } = require('@playwright/test');
+const { test: base, expect } = require('@playwright/test');
 
 const { executionSourceRecords } = require('../fixtures/generate-session-fixtures');
 const { createHash } = require('crypto');
-let detail;
-let api;
-test.beforeEach(async ({ request, baseURL }) => {
-  api = undefined;
-  const response = await request.post('/api/imports', {
-    headers: { Origin: new URL(baseURL).origin },
-    multipart: { source: 'codex', file: { name: 'synthetic-execution.jsonl', mimeType: 'application/x-ndjson',
-      buffer: Buffer.from(executionSourceRecords().map(JSON.stringify).join('\n') + '\n') } },
-  });
-  expect(response.status()).toBe(201);
-  const result = await response.json();
-  detail = result.detail_url;
-  api = '/api/imports/' + result.import_id;
-});
-test.afterEach(async ({ request, baseURL }) => {
-  if (api) expect((await request.delete(api, { headers: { Origin: new URL(baseURL).origin } })).status()).toBe(204);
+// 只为显式消费默认会话的测试保留一个导入槽；自带数据的测试不上传无关会话。
+const test = base.extend({
+  executionSession: async ({ request, baseURL }, use) => {
+    const headers = { Origin: new URL(baseURL).origin };
+    const response = await request.post('/api/imports', {
+      headers,
+      multipart: { source: 'codex', file: { name: 'synthetic-execution.jsonl', mimeType: 'application/x-ndjson',
+        buffer: Buffer.from(executionSourceRecords().map(JSON.stringify).join('\n') + '\n') } },
+    });
+    expect(response.status()).toBe(201);
+    const result = await response.json();
+    const api = '/api/imports/' + result.import_id;
+    try {
+      await use({ detail: result.detail_url, api });
+    } finally {
+      expect((await request.delete(api, { headers })).status()).toBe(204);
+    }
+  },
 });
 
 // TASK-75 唯一原始合成源，固定字节以复用只读审查原点。
@@ -147,7 +149,7 @@ for (const width of [1440, 390]) {
 }
 
 // 与 TASK-74 只读对照的两份 synthetic raw JSONL 字节相同，不依赖 ignored 文件。
-test('diagnostic presentation keeps zero measurements, gaps and failure priority visible', async ({ page, request }) => {
+test('diagnostic presentation keeps zero measurements, gaps and failure priority visible', async ({ page, request, executionSession: { api, detail } }) => {
   const data = await (await request.get(api + '/execution')).json();
   await page.setViewportSize({ width: 390, height: 900 });
   await page.goto(detail);
@@ -450,7 +452,7 @@ for (const inputRecorded of [true, false]) {
   });
 }
 
-test('raw Codex end survives actual import, execution API and page without DTO replacement', async ({ page, request }) => {
+test('raw Codex end survives actual import, execution API and page without DTO replacement', async ({ page, request, executionSession: { api, detail } }) => {
   await page.goto(detail);
   await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
   const response = await request.get(api + '/execution?target=synthetic-action-24');
@@ -463,7 +465,7 @@ test('raw Codex end survives actual import, execution API and page without DTO r
 });
 
 for (const width of [1440, 1024, 390]) {
-  test(`execution comprehension from raw Codex import at ${width}px`, async ({ page }) => {
+  test(`execution comprehension from raw Codex import at ${width}px`, async ({ page, executionSession: { detail } }) => {
     await page.setViewportSize({ width, height: 1100 });
     const requests = [];
     page.on('request', request => requests.push(new URL(request.url()).pathname));
@@ -512,7 +514,7 @@ for (const width of [1440, 1024, 390]) {
   });
 }
 
-test('global diagnosis locates off-page tools once and exact upstream/output evidence remains lazy', async ({ page }) => {
+test('global diagnosis locates off-page tools once and exact upstream/output evidence remains lazy', async ({ page, executionSession: { detail } }) => {
   const executionRequests = [];
   page.on('request', request => { if (/\/api\/.*\/execution(?:\?|$)/.test(request.url())) executionRequests.push(request.url()); });
   await page.goto(detail);
@@ -579,7 +581,7 @@ async function settleExecutionRequests(page) {
 
 for (const origin of ['locate', 'continuation']) {
   for (const outcome of [200, 500, 409]) {
-    test(`stale ${origin} ${outcome} cannot mutate a newer successful filter`, async ({ page }) => {
+    test(`stale ${origin} ${outcome} cannot mutate a newer successful filter`, async ({ page, executionSession: { detail } }) => {
       await page.goto(detail);
       await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
       await observeExecutionRequests(page);
@@ -620,7 +622,7 @@ for (const origin of ['locate', 'continuation']) {
   }
 }
 
-test('stale locate completion cannot clear loading or restore an obsolete pager while the filter is pending', async ({ page }) => {
+test('stale locate completion cannot clear loading or restore an obsolete pager while the filter is pending', async ({ page, executionSession: { detail } }) => {
   await page.goto(detail);
   await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
   await observeExecutionRequests(page);
@@ -654,7 +656,7 @@ test('stale locate completion cannot clear loading or restore an obsolete pager 
 });
 
 for (const outcome of [500, 409]) {
-  test(`current locate ${outcome} retains real Retry or Refresh recovery`, async ({ page }) => {
+  test(`current locate ${outcome} retains real Retry or Refresh recovery`, async ({ page, executionSession: { detail } }) => {
     await page.goto(detail);
     await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
     let fail = true;
@@ -680,7 +682,7 @@ for (const outcome of [500, 409]) {
 }
 
 for (const failure of ['server', 'stale', 'missing-generation']) {
-  test(`execution continuation rejects ${failure} without merging a bad page`, async ({ page }) => {
+  test(`execution continuation rejects ${failure} without merging a bad page`, async ({ page, executionSession: { detail } }) => {
     // 导入 UUID 本来是不可变、无 generation header 的范围。仅此故障注入建立有名快照前置条件。
     if (failure === 'missing-generation') {
       await page.route('**/api/imports/*/*', async route => {
@@ -713,7 +715,7 @@ for (const failure of ['server', 'stale', 'missing-generation']) {
   });
 }
 
-test('presentation-only: a long single response continues with an explicit stable group boundary', async ({ page }) => {
+test('presentation-only: a long single response continues with an explicit stable group boundary', async ({ page, executionSession: { detail } }) => {
   await page.route('**/execution*', async route => {
     const url = new URL(route.request().url());
     if (!url.pathname.startsWith('/api/')) return route.continue();
@@ -751,7 +753,7 @@ test('presentation-only: a long single response continues with an explicit stabl
 });
 
 for (const width of [1440, 390]) {
-  test(`presentation-only: wait/poll and same-name main/child tools remain distinct at ${width}px`, async ({ page }) => {
+  test(`presentation-only: wait/poll and same-name main/child tools remain distinct at ${width}px`, async ({ page, executionSession: { detail } }) => {
     await page.setViewportSize({ width, height: 1100 });
     // 明确为 presentation fixture，不声称这些 DTO 来自源 parser 或 typed 异步生命周期。
     await page.route('**/execution', async route => {
@@ -836,7 +838,7 @@ for (const width of [1440, 390]) {
   });
 }
 
-test('execution pagination and filters preserve global coverage, Payload is a separate lazy entry', async ({ page, request }) => {
+test('execution pagination and filters preserve global coverage, Payload is a separate lazy entry', async ({ page, request, executionSession: { api, detail } }) => {
   const response = await request.get(api + '/execution');
   const first = await response.json();
   expect(first.total).toBe(27);
@@ -861,7 +863,7 @@ test('execution pagination and filters preserve global coverage, Payload is a se
 });
 
 
-test('说明层级 UI guard counts actual context-kind blocks, not totals or operation rows', async ({ page, request }) => {
+test('说明层级 UI guard counts actual context-kind blocks, not totals or operation rows', async ({ page, request, executionSession: { api, detail } }) => {
   await page.goto(detail); await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
   const source = await (await request.get(api + '/execution')).json();
   const guard = await page.evaluate(source => {
@@ -899,7 +901,7 @@ test('说明层级 UI guard counts actual context-kind blocks, not totals or ope
 });
 
 
-test('记录身份 presentation-only guard preserves unnumbered input, unknown source and plain text', async ({ page, request }) => {
+test('记录身份 presentation-only guard preserves unnumbered input, unknown source and plain text', async ({ page, request, executionSession: { api, detail } }) => {
   await page.goto(detail); await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
   const data = await (await request.get(api + '/execution')).json();
   await page.evaluate(source => {
@@ -988,7 +990,7 @@ for (const width of [1440, 390]) test('无计时指路 mature Qoder real import 
 });
 
 // UI-only guards for the AND predicate; these synthetic diagnostics are not parser claims.
-test('无计时指路 UI-only AND boundary preserves zero, partial, untrusted, no-tool and failure branches', async ({ page, request }) => {
+test('无计时指路 UI-only AND boundary preserves zero, partial, untrusted, no-tool and failure branches', async ({ page, request, executionSession: { api, detail } }) => {
   const original = await (await request.get(api + '/execution')).json();
   await page.goto(detail); await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
   const results = await page.evaluate(original => {
@@ -1464,7 +1466,7 @@ async function localResultFixture(page, api, setup) {
   await setup({ trigger, rootPath, targetPath, target, relation, item, result, input });
 }
 
-test('local result inclusion manual bounded references and exact late window', async ({ page }) => {
+test('local result inclusion manual bounded references and exact late window', async ({ page, executionSession: { api, detail } }) => {
   await page.goto(detail); await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
   await localResultFixture(page, api, async ({ trigger, rootPath, targetPath, target, relation, item, result, input }) => {
     const requests = [];
@@ -1496,7 +1498,7 @@ test('local result inclusion manual bounded references and exact late window', a
   });
 });
 
-test('local result inclusion null empty unknown ambiguous partial and safe complete raw', async ({ page }) => {
+test('local result inclusion null empty unknown ambiguous partial and safe complete raw', async ({ page, executionSession: { api, detail } }) => {
   await page.goto(detail); await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
   await localResultFixture(page, api, async ({ trigger, rootPath, relation, item, result }) => {
     await page.route('**' + rootPath + '?**', route => route.fulfill({ json: result([
@@ -1517,7 +1519,7 @@ test('local result inclusion null empty unknown ambiguous partial and safe compl
   });
 });
 
-for (const status of [500, 400, 409]) test(`local result inclusion target HTTP ${status} preserves scoped recovery`, async ({ page }) => {
+for (const status of [500, 400, 409]) test(`local result inclusion target HTTP ${status} preserves scoped recovery`, async ({ page, executionSession: { api, detail } }) => {
   await page.goto(detail); await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
   await localResultFixture(page, api, async ({ trigger, rootPath, targetPath, item, result, input }) => {
     const requests = []; let targetReads = 0;
@@ -1552,7 +1554,7 @@ for (const status of [500, 400, 409]) test(`local result inclusion target HTTP $
   });
 });
 
-test('local result inclusion same ID reopening rejects late payload', async ({ page }) => {
+test('local result inclusion same ID reopening rejects late payload', async ({ page, executionSession: { api, detail } }) => {
   await page.goto(detail); await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
   await localResultFixture(page, api, async ({ trigger, rootPath, item, result }) => {
     let release, arrived; const gate = new Promise(r => { release = r; }), waiting = new Promise(r => { arrived = r; }); let reads = 0;
@@ -1570,7 +1572,7 @@ test('local result inclusion same ID reopening rejects late payload', async ({ p
   });
 });
 
-for (const action of ['focus', 'return', 'close']) test(`local result inclusion delayed target respects later ${action}`, async ({ page }) => {
+for (const action of ['focus', 'return', 'close']) test(`local result inclusion delayed target respects later ${action}`, async ({ page, executionSession: { api, detail } }) => {
   await page.goto(detail); await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
   await localResultFixture(page, api, async ({ trigger, rootPath, item, result, input }) => {
     let release, arrived; const gate = new Promise(r => { release = r; }), waiting = new Promise(r => { arrived = r; });
@@ -1592,7 +1594,7 @@ for (const action of ['focus', 'return', 'close']) test(`local result inclusion 
   });
 });
 
-test('local result inclusion typed empty input survives missing legacy status and copies safe original', async ({ page }) => {
+test('local result inclusion typed empty input survives missing legacy status and copies safe original', async ({ page, executionSession: { api, detail } }) => {
   await page.goto(detail); await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
   await page.evaluate(() => { window.syntheticResultCopies = []; Object.defineProperty(navigator, 'clipboard', { configurable: true,
     value: { writeText: async text => window.syntheticResultCopies.push(text) } }); });
@@ -1619,7 +1621,7 @@ test('local result inclusion typed empty input survives missing legacy status an
   });
 });
 
-test('local result inclusion late relationship page cannot revive closed source', async ({ page }) => {
+test('local result inclusion late relationship page cannot revive closed source', async ({ page, executionSession: { api, detail } }) => {
   await page.goto(detail); await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
   await localResultFixture(page, api, async ({ trigger, rootPath, relation, target, item, result }) => {
     let release, arrived; const gate = new Promise(r => { release = r; }), waiting = new Promise(r => { arrived = r; }); let reads = 0;
@@ -1638,7 +1640,7 @@ test('local result inclusion late relationship page cannot revive closed source'
   });
 });
 
-test('local result inclusion rejects a target from another API scope without fallback', async ({ page }) => {
+test('local result inclusion rejects a target from another API scope without fallback', async ({ page, executionSession: { api, detail } }) => {
   await page.goto(detail); await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
   await localResultFixture(page, api, async ({ trigger, rootPath, target, relation, item, result }) => {
     const requests = []; page.on('request', r => { if (r.url().includes('/payload/')) requests.push(r.url()); });
@@ -1652,7 +1654,7 @@ test('local result inclusion rejects a target from another API scope without fal
   });
 });
 
-for (const status of [500, 409]) test(`local result inclusion delayed attribution ${status} respects newer focus`, async ({ page }) => {
+for (const status of [500, 409]) test(`local result inclusion delayed attribution ${status} respects newer focus`, async ({ page, executionSession: { api, detail } }) => {
   await page.goto(detail); await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
   await localResultFixture(page, api, async ({ trigger, rootPath, target, relation, item, result, input }) => {
     let release, arrived; const gate = new Promise(r => { release = r; }), waiting = new Promise(r => { arrived = r; });
@@ -1673,7 +1675,7 @@ for (const status of [500, 409]) test(`local result inclusion delayed attributio
   });
 });
 
-test('local result inclusion input pagination keeps pending attribution and its Retry alive', async ({ page }) => {
+test('local result inclusion input pagination keeps pending attribution and its Retry alive', async ({ page, executionSession: { api, detail } }) => {
   await page.goto(detail); await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
   await localResultFixture(page, api, async ({ trigger, rootPath, target, relation, item, result, input }) => {
     let release, arrived; const gate = new Promise(r => { release = r; }), waiting = new Promise(r => { arrived = r; }); let reads = 0;
@@ -1706,7 +1708,7 @@ test('local result inclusion input pagination keeps pending attribution and its 
   });
 });
 
-test('local result inclusion result page Retry retains current rows and original cursor', async ({ page }) => {
+test('local result inclusion result page Retry retains current rows and original cursor', async ({ page, executionSession: { api, detail } }) => {
   await page.goto(detail); await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
   await localResultFixture(page, api, async ({ trigger, rootPath, relation, item, result }) => {
     const pages = []; let reads = 0;
@@ -1727,7 +1729,7 @@ test('local result inclusion result page Retry retains current rows and original
 });
 
 
-test('local result inclusion tool-level truncation stays explicit without changing Copy', async ({ page }, testInfo) => {
+test('local result inclusion tool-level truncation stays explicit without changing Copy', async ({ page, executionSession: { api, detail } }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 900 });
   await page.goto(detail); await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
   await page.evaluate(() => { window.syntheticResultCopies = []; Object.defineProperty(navigator, 'clipboard', { configurable: true,
@@ -1749,7 +1751,7 @@ test('local result inclusion tool-level truncation stays explicit without changi
   });
 });
 
-test('local result inclusion expired target recovery cannot reopen an old ID in a new API scope', async ({ page }) => {
+test('local result inclusion expired target recovery cannot reopen an old ID in a new API scope', async ({ page, executionSession: { api, detail } }) => {
   await page.goto(detail); await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
   await localResultFixture(page, api, async ({ trigger, rootPath, item, result }) => {
     const otherApi = api + '-synthetic-other-scope', crossed = [];

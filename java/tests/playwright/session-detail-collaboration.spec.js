@@ -1,4 +1,32 @@
-const { test, expect } = require('@playwright/test');
+const { test: baseTest, expect } = require('@playwright/test');
+
+// 只读场景共享本 worker 内已完整发布的合成索引；每个用例仍有独立页面。
+const test = baseTest.extend({
+  readLongOperationNormal: [async ({}, use) => {
+    const servers = new Map();
+    try {
+      await use(async (request, partial, read, inputForChild08) => {
+        if (inputForChild08 && inputForChild08 !== hotspotInput) {
+          throw new Error('Custom synthetic input must use an isolated long-operation server');
+        }
+        const key = (partial ? 'partial' : 'full') + (inputForChild08 ? '-hotspot' : '');
+        if (!servers.has(key)) {
+          servers.set(key, await startLongOperationNormal(request, partial, inputForChild08));
+        }
+        const server = servers.get(key);
+        try {
+          if (!server.running()) throw new Error('Shared synthetic long-operation server stopped: ' + key);
+          await read(structuredClone(server.snapshot));
+        } catch (error) {
+          server.failed = true;
+          throw error;
+        }
+      });
+    } finally {
+      await Promise.all([...servers.values()].map(server => server.close(server.failed === true)));
+    }
+  }, { scope: 'worker' }],
+});
 
 // 合成原始记录进入真实 single-file import；没有替换 collaboration/execution DTO。
 function claudeSource(nested) {
@@ -46,6 +74,14 @@ async function upload(request, baseURL, source, records) {
 async function openEvidence(button) {
   await expect(button).toBeAttached();
   if (!await button.isVisible()) await button.locator('xpath=ancestor::details[1]').locator('summary').click();
+}
+
+async function openRelatedExchanges(host) {
+  const entry = host.locator('[data-collaboration-exchanges]').first();
+  await openEvidence(entry);
+  await entry.click();
+  // 旧视图的 Result 已可见也不能提前打开；新往来窗口会替换并折叠它。
+  await expect(host.locator('[data-collaboration-context]')).toHaveText(/ · 协作往来$/);
 }
 
 // 完整 Result 经真实 HTTP、modal 与复制核对；仅替换浏览器剪贴板权限边界。
@@ -377,15 +413,13 @@ test('normal raw Codex sources distinguish nested/siblings and locate off-page t
         try {
           await page.goto(base + imported.detail_url);
           await assertRecordedResult(page, request, importApi, page.locator('[data-collaboration]').getByRole('button', { includeHidden: true, name: '委派返回 Result', exact: true }).first(), JSON.stringify({ agent_id: 'worker-same-prefix-001' }));
-          await openEvidence(page.locator('[data-collaboration-exchanges]').first());
-          await page.locator('[data-collaboration-exchanges]').first().click();
+          await openRelatedExchanges(page.locator('[data-collaboration]'));
           await assertRecordedResult(page, request, importApi, page.locator('[data-collaboration]').getByRole('button', { includeHidden: true, name: '报告 Result', exact: true }).last(),
             JSON.stringify({ status: { 'worker-same-prefix-001': { completed: 'Synthetic tail report' } } }));
         } finally { expect((await request.delete(importApi)).status()).toBe(204); }
       }
       await page.goto(base + '/sessions/codex/normal-' + (nested ? 'nested' : 'siblings'));
-      await openEvidence(page.locator('[data-collaboration-exchanges]').first());
-      await page.locator('[data-collaboration-exchanges]').first().click();
+      await openRelatedExchanges(page.locator('[data-collaboration]'));
       await assertRecordedResult(page, request, api, page.locator('[data-collaboration]').getByRole('button', { includeHidden: true, name: '报告 Result', exact: true }).last(),
         JSON.stringify({ status: { 'worker-same-prefix-001': { completed: 'Synthetic tail report' } } }));
       await test.info().attach(`normal-${nested ? 'nested' : 'siblings'}-facts.json`, { body: JSON.stringify(facts, null, 2), contentType: 'application/json' });
@@ -1111,8 +1145,17 @@ test('失败归属 real normal child exit7 remains distinct from completed paren
   } finally { child.kill('SIGTERM'); await new Promise(resolve => child.once('exit', resolve)); fs.writeFileSync(path.join(directory, 'service.log'), logs); }
 });
 
-// Each behaviour owns a fresh synthetic HOME/index and one loopback service; no shared runtime state.
+// 会改变来源形状、观测停机日志或验证独立代际的测试继续用全新的 HOME 和索引。
 async function withLongOperationNormal(request, partial, read, inputForChild08, childIdentities) {
+  const server = await startLongOperationNormal(request, partial, inputForChild08, childIdentities);
+  try {
+    await read(server.snapshot);
+  } finally {
+    await server.close();
+  }
+}
+
+async function startLongOperationNormal(request, partial, inputForChild08, childIdentities) {
   const fs = require('fs'), path = require('path'), { spawn } = require('child_process');
   const { runTmpRoot } = require('./runtime-paths'), { copyDistribution, resolveJavaEnvironment } = require('./start-java-fixture-server');
   fs.mkdirSync(runTmpRoot, { recursive: true }); const directory = fs.mkdtempSync(path.join(runTmpRoot, 'long-operation-')), home = path.join(directory, 'home');
@@ -1131,6 +1174,14 @@ async function withLongOperationNormal(request, partial, read, inputForChild08, 
   fs.writeFileSync(path.join(home, '.codex/session_index.jsonl'), [rootId, ...children].map(id => JSON.stringify({ id, thread_name: 'Synthetic long operations ' + id })).join('\n') + '\n');
   const child = spawn(copyDistribution(directory), ['serve', '--host', '127.0.0.1', '--port', '0'], { env: { ...process.env, ...resolveJavaEnvironment(), HOME: home, INDEX_DIR: path.join(directory, 'index'), JAVA_OPTS: `"-Duser.home=${home}"`, APP_CLI_OPTS: '', JAVA_TOOL_OPTIONS: '', JDK_JAVA_OPTIONS: '', _JAVA_OPTIONS: '' }, stdio: ['ignore', 'pipe', 'pipe'] });
   let logs = '';
+  const running = () => child.exitCode === null && child.signalCode === null;
+  const close = async (retainRuntime = true) => {
+    if (running()) { child.kill('SIGTERM'); await new Promise(resolve => child.once('exit', resolve)); }
+    fs.writeFileSync(path.join(directory, 'service.log'), logs);
+    if (!retainRuntime) {
+      for (const name of ['app-cli', 'index']) fs.rmSync(path.join(directory, name), { force: true, recursive: true });
+    }
+  };
   try {
     // HTTP readiness precedes the first automatic scan; wait for source readiness, not a longer assertion timeout.
     const base = await new Promise((resolve, reject) => {
@@ -1146,15 +1197,15 @@ async function withLongOperationNormal(request, partial, read, inputForChild08, 
     expect(signals).toMatchObject({ totalTools: 232, measuredTools: partial ? 231 : 232, unknownTools: partial ? 1 : 0, otherKindTools: 0, unconfirmedIdentityTools: 0 });
     expect(data.diagnostics.workloadSignals.candidates[0]).toMatchObject({ subagentId: children[7], measuredWorkNanos: partial ? '99500000000' : '100000000000', measuredTools: partial ? 199 : 200, totalTools: 200, longest: { durationNanos: '500000000' } });
     expect(signals.candidates[0]).toMatchObject({ durationNanos: '35000000000', tool: { toolCallId: 'long-check-09-0', subagentId: children[8] } });
-    await read({ base, rootId, children, raws, api, data, signals, directory });
-  } finally {
-    if (child.exitCode === null && child.signalCode === null) { child.kill('SIGTERM'); await new Promise(resolve => child.once('exit', resolve)); }
-    fs.writeFileSync(path.join(directory, 'service.log'), logs);
+    return { snapshot: { base, rootId, children, raws, api, data, signals, directory }, close, running };
+  } catch (error) {
+    await close();
+    throw error;
   }
 }
 
-for (const partial of [false, true]) for (const width of [1440, 390]) test('分层耗时线索 defaults precision and scope ' + (partial ? 'partial199of200' : 'full200of200') + ' at ' + width + 'px', async ({ page, request }) => {
-  await withLongOperationNormal(request, partial, async ({ base, rootId, children, raws, api, data, signals }) => {
+for (const partial of [false, true]) for (const width of [1440, 390]) test('分层耗时线索 defaults precision and scope ' + (partial ? 'partial199of200' : 'full200of200') + ' at ' + width + 'px', async ({ page, request, readLongOperationNormal }) => {
+  await readLongOperationNormal(request, partial, async ({ base, rootId, children, raws, api, data, signals }) => {
     const requests = []; page.on('request', r => { if (r.url().includes('/api/')) requests.push(r.url()); });
     await page.setViewportSize({ width, height: 1000 }); await page.goto(base + '/sessions/codex/' + rootId);
     const section = page.locator('[data-execution-long-operations]'); await expect(section).toBeVisible();
@@ -1253,8 +1304,8 @@ for (const partial of [false, true]) for (const width of [1440, 390]) test('分�
   });
 });
 
-for (const width of [1440, 390]) test('证据分层 分层耗时线索 task08/task09 native navigation chain at ' + width + 'px', async ({ page, request }) => {
-  await withLongOperationNormal(request, false, async ({ base, rootId, children, raws, api, data, signals }) => {
+for (const width of [1440, 390]) test('证据分层 分层耗时线索 task08/task09 native navigation chain at ' + width + 'px', async ({ page, request, readLongOperationNormal }) => {
+  await readLongOperationNormal(request, false, async ({ base, rootId, children, raws, api, data, signals }) => {
     const requests = []; page.on('request', r => { if (r.url().includes('/api/')) requests.push(r.url()); });
     await page.setViewportSize({ width, height: 1000 }); await page.goto(base + '/sessions/codex/' + rootId);
     const section = page.locator('[data-execution-long-operations]'); await expect(section).toBeVisible();
@@ -1305,8 +1356,8 @@ for (const width of [1440, 390]) test('证据分层 分层耗时线索 task08/ta
   });
 });
 
-for (const kind of ['metric', 'other', 'append', 'lastTarget', 'task']) test('分层耗时线索 pending native response respects ' + kind + ' reading', async ({ page, request }) => {
-  await withLongOperationNormal(request, false, async ({ base, rootId, children, raws, api, data, signals }) => {
+for (const kind of ['metric', 'other', 'append', 'lastTarget', 'task']) test('分层耗时线索 pending native response respects ' + kind + ' reading', async ({ page, request, readLongOperationNormal }) => {
+  await readLongOperationNormal(request, false, async ({ base, rootId, children, raws, api, data, signals }) => {
       // Actual normal HTTP passthrough delayed only for timing; no DTO/parser facts replaced.
       await page.setViewportSize({ width: 1440, height: 900 });
       async function delayedReading(kind) {
@@ -1502,8 +1553,8 @@ test('证据分层 strict selected-page identity guards, native import evidence 
   } finally { expect((await request.delete('/api/imports/' + imported.import_id, { headers: { Origin: new URL(baseURL).origin } })).status()).toBe(204); }
 });
 
-test('统一线索计量分层 real normal details retain scope nodes and explicit sources', async ({ page, request }) => {
-  await withLongOperationNormal(request, false, async ({ base, rootId, data }) => {
+test('统一线索计量分层 real normal details retain scope nodes and explicit sources', async ({ page, request, readLongOperationNormal }) => {
+  await readLongOperationNormal(request, false, async ({ base, rootId, data }) => {
     for (const width of [1440, 390]) {
       await page.setViewportSize({ width, height: 900 }); await page.goto(base + '/sessions/codex/' + rootId);
       const detail = page.locator('[data-execution-workload-details]'), judgment = page.locator('[data-execution-judgment]');
@@ -1788,7 +1839,7 @@ test('followup collaboration input-only and neutral consumer guard', async ({ pa
 });
 
 for (const family of ['main', 'fanout']) for (const width of [1440, 390]) {
-  test('measurement copy real normal ' + family + ' ' + width, async ({ page, request }) => {
+  test('measurement copy real normal ' + family + ' ' + width, async ({ page, request, readLongOperationNormal }) => {
     const run = async ({ base, rootId, data }) => {
       await page.setViewportSize({ width, height: 900 }); const requests = [], errors = []; page.on('request', r => requests.push(r.url())); page.on('pageerror', e => errors.push(e.message));
       await page.goto(base + '/sessions/codex/' + rootId); const d = page.locator('[data-execution-judgment]'), signal = d.locator('[data-execution-long-operations]'), detail = d.locator('[data-execution-workload-details]'); await expect(signal).toBeVisible();
@@ -1815,13 +1866,13 @@ for (const family of ['main', 'fanout']) for (const width of [1440, 390]) {
       for (const key of ['selected', 'absent', 'unknown']) expect(guards[key]).toEqual({ top: true, bottom: true, disclosure: false }); expect(guards.single).toEqual({ top: false, bottom: true, disclosure: false }); expect(guards.failure.disclosure).toBe(false);
       expect(errors).toEqual([]); expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     };
-    if (family === 'main') await withLowFanoutNormal(request, run); else await withLongOperationNormal(request, false, run);
+    if (family === 'main') await withLowFanoutNormal(request, run); else await readLongOperationNormal(request, false, run);
   });
 }
 
 const hotspotInput = n => ({ cmd: n < 20 ? 'synthetic-alpha' : 'synthetic-beta' });
-for (const width of [1440, 390]) test('same input hotspot real normal child08 ' + width, async ({ page, request }) => {
-  await withLongOperationNormal(request, false, async ({ base, rootId, data, api }) => {
+for (const width of [1440, 390]) test('same input hotspot real normal child08 ' + width, async ({ page, request, readLongOperationNormal }) => {
+  await readLongOperationNormal(request, false, async ({ base, rootId, data, api }) => {
     const candidate = data.diagnostics.workloadSignals.candidates[0];
     expect(candidate.sameInputMaximum).toMatchObject({ measuredWorkNanos: '90000000000', totalTools: 180, measuredTools: 180, unknownTools: 0, otherKindTools: 0, distinctInputs: 2, identifiedInputs: 200, totalInputs: 200, tool: { inputPreview: 'synthetic-beta', subagentId: 'synthetic-long-child-08' } });
     expect(candidate.longest.tool.inputPreview).toBe('synthetic-alpha'); expect(candidate.longest.durationNanos).toBe('500000000');
@@ -1935,12 +1986,13 @@ for (const variant of ['independent-nested', 'secret']) for (const width of [144
   } finally { expect((await request.delete(api, { headers: { Origin: new URL(baseURL).origin } })).status()).toBe(204); }
 });
 
-for (const variant of ['single', 'unique', 'missing', 'same-preview', 'secret']) test('same input hotspot qualified normal input shape ' + variant, async ({ page, request }) => {
+// 全同和全异参数计数归 SessionExecutionInputsTest；浏览器保留缺值和可见安全边界。
+for (const variant of ['missing', 'same-preview', 'secret']) test('same input hotspot qualified normal input shape ' + variant, async ({ page, request }) => {
   let directory;
-  const args = n => variant === 'single' ? { cmd: 'synthetic-one' } : variant === 'unique' ? { cmd: 'synthetic-unique-' + n } : variant === 'missing' ? (n === 199 ? undefined : hotspotInput(n)) : variant === 'same-preview' ? { cmd: 'synthetic-shared-preview', mode: n < 20 ? 'alpha' : 'beta' } : { cmd: 'synthetic-safe', api_key: n < 20 ? 'synthetic-private-one' : 'synthetic-private-two' };
+  const args = n => variant === 'missing' ? (n === 199 ? undefined : hotspotInput(n)) : variant === 'same-preview' ? { cmd: 'synthetic-shared-preview', mode: n < 20 ? 'alpha' : 'beta' } : { cmd: 'synthetic-safe', api_key: n < 20 ? 'synthetic-private-one' : 'synthetic-private-two' };
   await withLongOperationNormal(request, false, async ({ base, rootId, data, directory: runtime }) => {
     directory = runtime; const candidate = data.diagnostics.workloadSignals.candidates.find(x => x.subagentId === 'synthetic-long-child-08'), max = candidate.sameInputMaximum;
-    if (['single', 'unique', 'missing'].includes(variant)) expect(max).toBeNull();
+    if (variant === 'missing') expect(max).toBeNull();
     else if (variant === 'same-preview') expect(max).toMatchObject({ distinctInputs: 2, measuredWorkNanos: '90000000000', tool: { inputPreview: 'synthetic-shared-preview' } });
     else if (variant === 'secret') expect(max).toMatchObject({ distinctInputs: 2, measuredWorkNanos: '90000000000', measuredTools: 180, tool: { inputPreview: 'synthetic-safe' } });
     await page.goto(base + '/sessions/codex/' + rootId); await expect(page.locator('[data-execution-long-operations]')).toBeVisible(); const row = page.locator('[data-execution-long-operation]').filter({ hasText: '已测累计 100s' }); await expect(row.locator('[data-execution-same-input]')).toHaveCount(max ? 1 : 0); await expect(row.getByRole('button', { name: '定位此参数的一次调用', exact: true })).toHaveCount(max ? 1 : 0);
@@ -1951,15 +2003,15 @@ for (const variant of ['single', 'unique', 'missing', 'same-preview', 'secret'])
   const log = require('fs').readFileSync(require('path').join(directory, 'service.log'), 'utf8'); expect(log).not.toContain('synthetic-private-one'); expect(log).not.toContain('synthetic-private-two'); expect(log).not.toContain('fingerprint');
 });
 
-test('same input hotspot real normal partial keeps unknown coverage', async ({ page, request }) => {
-  await withLongOperationNormal(request, true, async ({ base, rootId, data }) => {
+test('same input hotspot real normal partial keeps unknown coverage', async ({ page, request, readLongOperationNormal }) => {
+  await readLongOperationNormal(request, true, async ({ base, rootId, data }) => {
     expect(data.diagnostics.workloadSignals.candidates[0].sameInputMaximum).toMatchObject({ measuredWorkNanos: '89500000000', measuredTools: 179, totalTools: 180, unknownTools: 1, distinctInputs: 2, identifiedInputs: 200, totalInputs: 200 });
     for (const width of [1440, 390]) { await page.setViewportSize({ width, height: 900 }); await page.goto(base + '/sessions/codex/' + rootId); const row = page.locator('[data-execution-long-operation]').filter({ hasText: '已测累计 99.5s' }); await expect(row.locator('[data-execution-same-input]')).toContainText('其中已测 89.5s · 已测 179/180 次 · 缺测 1 次'); await expect(row.locator('.se-representative')).toContainText('synthetic-alpha'); await page.locator('[data-execution-judgment]').screenshot({ path: test.info().outputPath('hotspot-partial-' + width + '.png') }); }
   }, hotspotInput);
 });
 
-for (const width of [1440, 390]) test('same input sample locate real normal across unloaded prefix ' + width, async ({ page, request }) => {
-  await withLongOperationNormal(request, false, async ({ base, rootId, children, raws, api, data }) => {
+for (const width of [1440, 390]) test('same input sample locate real normal across unloaded prefix ' + width, async ({ page, request, readLongOperationNormal }) => {
+  await readLongOperationNormal(request, false, async ({ base, rootId, children, raws, api, data }) => {
     const maximum = data.diagnostics.workloadSignals.candidates[0].sameInputMaximum, target = maximum.tool.toolCallId;
     const raw = raws.find(([id]) => id === maximum.tool.subagentId)[1], declaration = raw.find(r => r.payload?.type === 'function_call' && r.payload.call_id === target), result = raw.find(r => r.payload?.type === 'function_call_output' && r.payload.call_id === target);
     expect(maximum.tool.subagentId).toBe(children[7]); expect(JSON.parse(declaration.payload.arguments)).toEqual({ cmd: 'synthetic-beta' });
@@ -2048,8 +2100,8 @@ for (const partial of [false, true]) for (const width of [1440, 390]) test('hots
   } finally { expect((await request.delete(api, { headers: { Origin: new URL(baseURL).origin } })).status()).toBe(204); }
 });
 
-for (const width of [1440, 390]) test('hotspot context label lifetime pending collaboration append and fallback ' + width, async ({ page, request }) => {
-  await withLongOperationNormal(request, false, async ({ base, rootId, api, data }) => {
+for (const width of [1440, 390]) test('hotspot context label lifetime pending collaboration append and fallback ' + width, async ({ page, request, readLongOperationNormal }) => {
+  await readLongOperationNormal(request, false, async ({ base, rootId, api, data }) => {
     const key = 'subagent:' + data.diagnostics.workloadSignals.candidates[0].subagentId;
     const authority = await (await request.get(api + '/collaboration?view=participants&limit=100')).json(), label = authority.items.find(item => item.key === key).label;
     let release, arrived; const gate = new Promise(resolve => { release = resolve; }), arrival = new Promise(resolve => { arrived = resolve; });
@@ -2165,8 +2217,8 @@ test('hotspot context label lifetime same raw tool IDs remain isolated across re
   } finally { for (const api of imports) expect((await request.delete(api, { headers: { Origin: new URL(baseURL).origin } })).status()).toBe(204); }
 });
 
-test('hotspot context label lifetime accepted partial snapshot retains hints through metrics Retry', async ({ page, request }) => {
-  await withLongOperationNormal(request, false, async ({ base, rootId, children, api, data }) => {
+test('hotspot context label lifetime accepted partial snapshot retains hints through metrics Retry', async ({ page, request, readLongOperationNormal }) => {
+  await readLongOperationNormal(request, false, async ({ base, rootId, children, api, data }) => {
     const key = 'subagent:' + children[7], requests = [];
     const authority = await (await request.get(api + '/collaboration?view=participants&limit=100')).json();
     const label = authority.items.find(item => item.key === key).label;
@@ -2514,8 +2566,8 @@ for (const width of [1440, 390]) test('orphan tool input normal source ' + width
   });
 });
 
-for (const width of [1440, 390]) test('hotspot return native task context at ' + width + 'px', async ({ page, request }) => {
-  await withLongOperationNormal(request, false, async ({ base, rootId, children }) => {
+for (const width of [1440, 390]) test('hotspot return native task context at ' + width + 'px', async ({ page, request, readLongOperationNormal }) => {
+  await readLongOperationNormal(request, false, async ({ base, rootId, children }) => {
     const paths = []; page.on('request', r => { if (r.url().includes('/api/')) paths.push(r.url()); });
     await page.setViewportSize({ width, height: 900 });
     await page.goto(base + '/sessions/codex/' + rootId);
@@ -2548,8 +2600,8 @@ for (const width of [1440, 390]) test('hotspot return native task context at ' +
   });
 });
 
-test('wide collaboration reading keeps independent scopes and command width', async ({ page, request }) => {
-  await withLongOperationNormal(request, false, async ({ base, rootId, children }) => {
+test('wide collaboration reading keeps independent scopes and command width', async ({ page, request, readLongOperationNormal }) => {
+  await readLongOperationNormal(request, false, async ({ base, rootId, children }) => {
     const errors = []; page.on('pageerror', error => errors.push(error.message));
     for (const width of [1920, 1600, 1599, 1440, 390]) {
       await page.setViewportSize({ width, height: 900 });
@@ -2617,8 +2669,8 @@ test('wide collaboration reading leaves unconfirmed associations full width', as
   } finally { const response = await request.delete(api, { headers: { Origin: new URL(baseURL).origin } }); expect(response.status()).toBe(204); }
 });
 
-test('wide collaboration reading retains late fact reading and native disclosures', async ({ page, request }) => {
-  await withLongOperationNormal(request, false, async ({ base, rootId, api }) => {
+test('wide collaboration reading retains late fact reading and native disclosures', async ({ page, request, readLongOperationNormal }) => {
+  await readLongOperationNormal(request, false, async ({ base, rootId, api }) => {
     let release, arrived; const gate = new Promise(resolve => { release = resolve; }), arrival = new Promise(resolve => { arrived = resolve; });
     await page.route(api + '/collaboration?**', async route => { const response = await route.fetch(); arrived(); await gate; await route.fulfill({ response }); });
     try {
@@ -2667,8 +2719,8 @@ test('wide collaboration reading retains a partial tool with no later visible an
   });
 });
 
-for (const boundary of ['metric', 'replacement', 'late', 'retry']) test('hotspot return boundary ' + boundary, async ({ page, request }) => {
-  await withLongOperationNormal(request, false, async ({ base, rootId, children }) => {
+for (const boundary of ['metric', 'replacement', 'late', 'retry']) test('hotspot return boundary ' + boundary, async ({ page, request, readLongOperationNormal }) => {
+  await readLongOperationNormal(request, false, async ({ base, rootId, children }) => {
     await page.goto(base + '/sessions/codex/' + rootId);
     const section = page.locator('[data-execution-long-operations]');
     const entry = section.locator('[data-execution-long-operation]').first().getByRole('button', { name: '查看任务与往来', exact: true });

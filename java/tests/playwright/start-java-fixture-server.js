@@ -225,6 +225,8 @@ function copyDistribution(runtimeDir, source = path.join(ROOT, 'java', 'app-cli'
     recursive: true,
     // Never share mutable build output through symlinks with the running JVM.
     dereference: true,
+    // macOS 的 Node 原生目录复制快路径可能保留符号链接；逐项遍历才遵守 dereference。
+    filter: () => true,
   });
   return path.join(distribution, 'bin', 'app-cli');
 }
@@ -307,6 +309,43 @@ async function validateFixtureIsolation(baseURL) {
         + `distinctProjects=${distinctProjects.size}`,
     );
   }
+}
+
+async function validateImportReadiness(baseURL) {
+  const rows = [
+    { type: 'session_meta', payload: { id: 'synthetic-fixture-preflight', cwd: '/synthetic/preflight' } },
+    { type: 'response_item', payload: { type: 'message', role: 'user',
+      content: [{ type: 'input_text', text: 'Synthetic readiness only' }] } },
+  ];
+  const upload = new FormData();
+  upload.set('source', 'codex');
+  upload.set('file', new Blob([rows.map(row => JSON.stringify(row)).join('\n') + '\n'],
+    { type: 'application/x-ndjson' }), 'synthetic-readiness.jsonl');
+  const headers = { Origin: new URL(baseURL).origin };
+  const response = await fetch(baseURL + '/api/imports',
+    { method: 'POST', body: upload, headers, signal: AbortSignal.timeout(5_000) });
+  if (response.status !== 201) throw new Error(`fixture import readiness: POST returned HTTP ${response.status}`);
+  const { import_id: id } = await response.json();
+  if (!/^[0-9a-f-]{36}$/i.test(id)) throw new Error('fixture import readiness: invalid import ID');
+  const deleted = await fetch(baseURL + '/api/imports/' + id,
+    { method: 'DELETE', headers, signal: AbortSignal.timeout(5_000) });
+  if (deleted.status !== 204) throw new Error(`fixture import readiness: DELETE returned HTTP ${deleted.status}`);
+}
+
+async function checkBrowserRuntime() {
+  const { chromium } = require('playwright');
+  fs.mkdirSync(runTmpRoot, { recursive: true });
+  const probe = fs.mkdtempSync(path.join(runTmpRoot, 'runtime-check-'));
+  try {
+    const volume = fs.statfsSync(probe);
+    const freeMiB = Math.floor(volume.bavail * volume.bsize / 1024 / 1024);
+    // 完整运行的临时产物曾达到 1.4 GiB；保留失败证据所需余量。
+    if (freeMiB < 2048) throw new Error(`fixture temporary space: ${freeMiB} MiB available; need 2048 MiB`);
+  } finally {
+    fs.rmdirSync(probe);
+  }
+  const browser = await chromium.launch({ headless: true, timeout: 10_000 });
+  await browser.close();
 }
 
 async function waitUntilReady(baseURL, server) {
@@ -442,6 +481,7 @@ async function startServer(claimToken) {
       throw new Error(`readiness timeout for synthetic Java server on ${innerURL}`);
     }
     await validateFixtureIsolation(innerURL);
+    await validateImportReadiness(innerURL);
   } catch (error) {
     console.error(`[playwright-fixture] ${error.message}`);
     if (diagnostics.trim()) console.error(diagnostics);
@@ -463,10 +503,15 @@ function argumentValue(name) {
   return index >= 0 ? process.argv[index + 1] : '';
 }
 
-module.exports = { copyDistribution, resolveJavaEnvironment, validateStaticResources, waitUntilReady };
+module.exports = { copyDistribution, resolveJavaEnvironment, validateImportReadiness, validateStaticResources, waitUntilReady };
 
 if (require.main === module) {
-  if (process.argv.includes('--reserve-port')) {
+  if (process.argv.includes('--check-runtime')) {
+    checkBrowserRuntime().catch((error) => {
+      console.error(`[playwright-fixture] runtime preflight: ${error.message}`);
+      process.exitCode = 1;
+    });
+  } else if (process.argv.includes('--reserve-port')) {
     reservePortClaim().then((claim) => console.log(JSON.stringify(claim))).catch((error) => {
       console.error(`[playwright-fixture] port claim failed: ${error.stack || error.message}`);
       process.exit(1);

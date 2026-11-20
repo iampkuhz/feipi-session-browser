@@ -5,7 +5,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from scripts.gates.execution.java_environment import requires_java, resolve_java_environment
+from scripts.gates.execution.java_environment import (
+    requires_java,
+    resolve_java_environment,
+    verify_linkable_jdk,
+)
 from scripts.gates.planning.plan_compiler import CommandInvocation
 from scripts.tests.script_commands.test_java_environment import (
     REPO_ROOT,
@@ -45,6 +49,15 @@ def test_discovery_sanitizes_provider_environment() -> None:
     ):
         resolve_java_environment(REPO_ROOT, {})
     assert 'CODEX_PRIVATE' not in run.call_args.kwargs['env']
+
+
+def test_java_build_rejects_runtime_without_jmods(tmp_path: Path) -> None:
+    environment = {'JAVA_HOME': str(tmp_path)}
+    with pytest.raises(RuntimeError, match=r'JDK 25 lacks jmods/java\.base\.jmod'):
+        verify_linkable_jdk(environment)
+    (tmp_path / 'jmods').mkdir()
+    (tmp_path / 'jmods' / 'java.base.jmod').touch()
+    verify_linkable_jdk(environment)
 
 
 @pytest.mark.parametrize(

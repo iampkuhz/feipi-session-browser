@@ -131,6 +131,45 @@ try {
     )
 
 
+@pytest.mark.parametrize('status', (201, 409))
+def test_import_readiness_reports_capacity_without_retry_and_cleans_success(status: int) -> None:
+    run_node(
+        r"""
+const assert = require('node:assert/strict');
+const http = require('node:http');
+const id = '11111111-1111-4111-8111-111111111111';
+const requests = [];
+const server = http.createServer((request, response) => {
+  requests.push(request.method + ' ' + request.url);
+  assert.equal(request.headers.origin, 'http://' + request.headers.host);
+  if (request.method === 'POST') {
+    request.resume();
+    response.writeHead(STATUS, { 'content-type': 'application/json' });
+    response.end(JSON.stringify({ import_id: id }));
+  } else {
+    response.writeHead(204);
+    response.end();
+  }
+});
+(async () => {
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const ready = fixture.validateImportReadiness('http://127.0.0.1:' + server.address().port);
+    if (STATUS === 201) {
+      await ready;
+      assert.deepEqual(requests, ['POST /api/imports', 'DELETE /api/imports/' + id]);
+    } else {
+      await assert.rejects(ready, /fixture import readiness: POST returned HTTP 409/);
+      assert.deepEqual(requests, ['POST /api/imports']);
+    }
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+  }
+})().catch(error => { console.error(error); process.exitCode = 1; });
+""".replace('STATUS', str(status))
+    )
+
+
 def test_fixture_freezes_shared_jdk_before_home_isolation() -> None:
     run_node(
         r"""
