@@ -1,4 +1,5 @@
 const { test, expect } = require('@playwright/test');
+const { captureDiagnosticScreenshot } = require('./start-java-fixture-server');
 const path = require('path');
 const { runPlaywrightRoot } = require('./runtime-paths');
 
@@ -237,7 +238,7 @@ test('tool-only member uses one timeline operation, paired bodies are lazy and r
   await pair.locator('summary').click();
   await expect(pair.locator('pre').first()).toHaveText(INPUTS['tool-b']);
   await expect(pair.locator('pre').last()).toHaveText('synthetic result for tool-b');
-  await detail.screenshot({ path: path.join(runPlaywrightRoot, 'task56-trace-pair-desktop.png') });
+  await captureDiagnosticScreenshot(detail, { path: path.join(runPlaywrightRoot, 'task56-trace-pair-desktop.png') });
   const boxes = await pair.locator('.sd-tool-payload-grid > section').evaluateAll(nodes => nodes.map(node => {
     const b = node.getBoundingClientRect(); return { top: b.top, left: b.left, right: b.right, bottom: b.bottom };
   }));
@@ -247,7 +248,7 @@ test('tool-only member uses one timeline operation, paired bodies are lazy and r
   const narrow = await pair.locator('.sd-tool-payload-grid > section').evaluateAll(nodes => nodes.map(node => {
     const b = node.getBoundingClientRect(); return { top: b.top, bottom: b.bottom, right: b.right };
   }));
-  await detail.screenshot({ path: path.join(runPlaywrightRoot, 'task56-trace-pair-narrow.png') });
+  await captureDiagnosticScreenshot(detail, { path: path.join(runPlaywrightRoot, 'task56-trace-pair-narrow.png') });
   expect(narrow[0].bottom).toBeLessThan(narrow[1].top);
   expect(narrow[1].right).toBeLessThanOrEqual(390);
   expect(await detail.locator('[data-tool-call-id="tool-b"] .sd-tool-cmd').evaluate(node => node.getBoundingClientRect().height)).toBeLessThanOrEqual(70);
@@ -428,9 +429,9 @@ test('real Codex import keeps R1/R2 summaries, times and same-name tool payloads
         }
       }
     }
-    await page.locator('#round-1-detail').screenshot({ path: path.join(runPlaywrightRoot, 'task56-real-trace-desktop.png') });
+    await captureDiagnosticScreenshot(page.locator('#round-1-detail'), { path: path.join(runPlaywrightRoot, 'task56-real-trace-desktop.png') });
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.locator('#round-2-detail').screenshot({ path: path.join(runPlaywrightRoot, 'task56-real-trace-narrow.png') });
+    await captureDiagnosticScreenshot(page.locator('#round-2-detail'), { path: path.join(runPlaywrightRoot, 'task56-real-trace-narrow.png') });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   } finally {
     expect((await request.delete(api, { headers })).status()).toBe(204);

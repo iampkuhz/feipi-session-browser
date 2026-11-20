@@ -196,21 +196,21 @@ class ManagedContentExportHttpTest {
         });
   }
 
-  @Test
-  void actualFiftyMiBLimitReturns413WithoutTruncatedHtmlForBothRoutes() {
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "/sessions/codex/synthetic-export/export.html",
+        "/export/mhtml?agent=codex&session_id=synthetic-export"
+      })
+  void actualFiftyMiBLimitReturns413WithoutTruncatedHtml(String route) {
     JavalinTest.test(
         app(oversizeContent()),
         (server, client) -> {
-          for (String route :
-              List.of(
-                  "/sessions/codex/synthetic-export/export.html",
-                  "/export/mhtml?agent=codex&session_id=synthetic-export")) {
-            var response = client.get(route);
-            assertThat(response.code()).isEqualTo(413);
-            assertThat(response.body().string())
-                .contains("export_too_large")
-                .doesNotContain("<!DOCTYPE html>", "<details>");
-          }
+          var response = client.get(route);
+          assertThat(response.code()).isEqualTo(413);
+          assertThat(response.body().string())
+              .contains("export_too_large")
+              .doesNotContain("<!DOCTYPE html>", "<details>");
         });
   }
 
@@ -238,7 +238,8 @@ class ManagedContentExportHttpTest {
   }
 
   private static NormalizedSessionContent oversizeContent() {
-    String text = "synthetic-oversize-" + "x".repeat(1024 * 1024);
+    // 60 段经 HTML 转义仍产生超过 50 MiB 的实际输出，避免反复脱敏 1 MiB 原文。
+    String text = "synthetic-oversize-" + "&".repeat(224 * 1024);
     var entry =
         new SourceUnitCatalogEntry(
             "body",

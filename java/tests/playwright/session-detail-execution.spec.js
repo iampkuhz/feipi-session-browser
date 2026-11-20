@@ -1,4 +1,5 @@
 const { test: base, expect } = require('@playwright/test');
+const { captureDiagnosticScreenshot } = require('./start-java-fixture-server');
 
 const { executionSourceRecords } = require('../fixtures/generate-session-fixtures');
 const { createHash } = require('crypto');
@@ -78,7 +79,7 @@ for (const width of [1440, 390]) {
           hints: [...root.querySelectorAll('.se-basis')].filter(n => n.getBoundingClientRect().height > 0).map(box) };
       });
       await test.info().attach(`first-glance-${width}.json`, { body: JSON.stringify(geometry, null, 2), contentType: 'application/json' });
-      await page.screenshot({ path: test.info().outputPath(`first-glance-default-${width}.png`) });
+      await captureDiagnosticScreenshot(page, { path: test.info().outputPath(`first-glance-default-${width}.png`) });
       const first = await (await request.get(importedApi + '/execution')).json();
       const next = await (await request.get(importedApi + '/execution?cursor=' + encodeURIComponent(first.nextCursor))).json();
       await test.info().attach(`first-glance-execution-${width}.json`, { body: JSON.stringify({ first, next }), contentType: 'application/json' });
@@ -98,7 +99,7 @@ for (const width of [1440, 390]) {
       await expect(page.locator('[data-execution-tool]')).toHaveCount(20);
       await expect(page.locator('[data-execution-tool="same-exec-test"]')).toHaveCount(0);
       const details = card.locator('[data-execution-slowest]');
-      await page.screenshot({ path: test.info().outputPath(`same-tool-default-${width}.png`) });
+      await captureDiagnosticScreenshot(page, { path: test.info().outputPath(`same-tool-default-${width}.png`) });
       await expect(details).toHaveCount(1);
       await expect(details).not.toHaveAttribute('open');
       expect(await card.evaluate(n => n.getBoundingClientRect().height)).toBeLessThan(220);
@@ -117,7 +118,7 @@ for (const width of [1440, 390]) {
       expect(paths.filter(u => /\/execution$/.test(u.pathname))).toHaveLength(1);
       expect(paths.some(u => /\/payload\/|\/attribution\//.test(u.pathname))).toBe(false);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-      await card.screenshot({ path: test.info().outputPath(`same-tool-expanded-${width}.png`) });
+      await captureDiagnosticScreenshot(card, { path: test.info().outputPath(`same-tool-expanded-${width}.png`) });
       await slow.getByRole('button', { name: '定位此动作', exact: true }).click();
       const row = page.locator('[data-execution-tool="same-exec-test"]');
       await expect(row).toBeFocused();
@@ -278,8 +279,8 @@ for (const partial of [false, true]) {
         expect(paths.filter(url => /\/execution$/.test(url.pathname))).toHaveLength(1);
         await expect(page.locator('[data-execution-tool]')).toHaveCount(20);
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-        await page.screenshot({ path: test.info().outputPath(`concentration-default-${partial}-${width}.png`) });
-        await judgment.screenshot({ path: test.info().outputPath(`concentration-diagnosis-${partial}-${width}.png`) });
+        await captureDiagnosticScreenshot(page, { path: test.info().outputPath(`concentration-default-${partial}-${width}.png`) });
+        await captureDiagnosticScreenshot(judgment, { path: test.info().outputPath(`concentration-diagnosis-${partial}-${width}.png`) });
         await judgment.getByText('计量说明', { exact: true }).click();
         await expect(judgment.locator('.se-measurement')).toContainText('卡片已测次数仅计本口径，分母为本上下文同名全部调用；代表动作取本类单次最长');
         await judgment.getByText('计量说明', { exact: true }).click();
@@ -365,7 +366,7 @@ for (const typed of [true, false]) {
         await expect(page.locator('.se-tool-evidence[open]')).toHaveCount(0);
         expect(payloadRequests).toHaveLength(0);
         await page.locator('[data-execution-items]').evaluate(n => { n.scrollIntoView({ block: 'start' }); window.scrollBy(0, -64); });
-        await page.screenshot({ path: test.info().outputPath(`raw-waiting-${typed}-${width}.png`) });
+        await captureDiagnosticScreenshot(page, { path: test.info().outputPath(`raw-waiting-${typed}-${width}.png`) });
         await expect(rows.locator('.se-action__main code')).toHaveText(tools.map(tool => tool.preview));
         await expect(rows.locator('.se-kind')).toHaveText(tools.map(tool => tool.name));
         await expect(rows.locator('.se-status')).toHaveText(tools.map(tool => tool.status || '已记录结果 · 退出未知'));
@@ -505,12 +506,14 @@ for (const width of [1440, 1024, 390]) {
     expect(requests.filter(url => /\/round\/|\/payload\//.test(url))).toEqual([]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     const overview = test.info().outputPath(`execution-${width}.png`);
-    await page.screenshot({ path: overview });
-    await test.info().attach(`execution-${width}-synthetic-http`, { path: overview, contentType: 'image/png' });
+    if (await captureDiagnosticScreenshot(page, { path: overview })) {
+      await test.info().attach(`execution-${width}-synthetic-http`, { path: overview, contentType: 'image/png' });
+    }
     await groups.first().evaluate(node => { node.scrollIntoView({ block: 'start' }); window.scrollBy(0, -64); });
     const process = test.info().outputPath(`process-${width}.png`);
-    await page.screenshot({ path: process });
-    await test.info().attach(`process-${width}-synthetic-http`, { path: process, contentType: 'image/png' });
+    if (await captureDiagnosticScreenshot(page, { path: process })) {
+      await test.info().attach(`process-${width}-synthetic-http`, { path: process, contentType: 'image/png' });
+    }
   });
 }
 
@@ -546,8 +549,9 @@ test('global diagnosis locates off-page tools once and exact upstream/output evi
   await expect(source).toContainText('token_usage_record:synthetic-response-25');
   await expect(failed).toContainText('executor_reported');
   const failureShot = test.info().outputPath('execution-failure-evidence-1440.png');
-  await page.screenshot({ path: failureShot });
-  await test.info().attach('failure-evidence-raw-synthetic-http', { path: failureShot, contentType: 'image/png' });
+  if (await captureDiagnosticScreenshot(page, { path: failureShot })) {
+    await test.info().attach('failure-evidence-raw-synthetic-http', { path: failureShot, contentType: 'image/png' });
+  }
   await failed.getByRole('button', { name: '执行结果', exact: true }).click();
   await expect(page.locator('dialog.payload-modal')).toContainText('Synthetic failure: exit 7');
   await page.keyboard.press('Escape');
@@ -819,8 +823,9 @@ for (const width of [1440, 390]) {
     await expect(page.locator('[data-execution-items]')).not.toContainText(/并行|Parallel/);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     const screenshot = test.info().outputPath(`synthetic-wait-child-${width}.png`);
-    await page.locator('[data-trace-panel]').screenshot({ path: screenshot });
-    await test.info().attach(`synthetic-presentation-only-${width}`, { path: screenshot, contentType: 'image/png' });
+    if (await captureDiagnosticScreenshot(page.locator('[data-trace-panel]'), { path: screenshot })) {
+      await test.info().attach(`synthetic-presentation-only-${width}`, { path: screenshot, contentType: 'image/png' });
+    }
     await groups.nth(0).locator('header .se-group-evidence > summary').click();
     await expect(groups.nth(0).locator('.se-group-evidence')).toContainText('主会话');
     await expect(groups.nth(0).locator('.se-group-evidence')).not.toContainText('synthetic-child-');
@@ -980,7 +985,7 @@ for (const width of [1440, 390]) test('无计时指路 mature Qoder real import 
     await expect(judgment.locator(':scope > .se-judgments article h3')).toHaveText('无可用工具时长');
     const measurement = judgment.locator('.se-measurement'); await expect(measurement).not.toHaveAttribute('open', '');
     expect(requests.some(url => url.includes('/payload/'))).toBe(false); expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.screenshot({ path: test.info().outputPath('qoder-default-' + width + '.png'), fullPage: true });
+    await captureDiagnosticScreenshot(page, { path: test.info().outputPath('qoder-default-' + width + '.png'), fullPage: true });
     await measurement.locator('summary').click(); await expect(measurement).toContainText('不是墙钟时间或关键路径'); await expect(measurement).toContainText('工具结果、wait/poll 返回或子任务完成均不证明整个任务完成'); await expect(measurement).toContainText('异步任务状态未知'); await expect(measurement).toContainText('不能据工具或轮询结果判断其仍在运行或已结束');
     const tool = page.locator('[data-execution-tool="synthetic-tool"]'); await tool.locator('.se-tool-evidence > summary').click();
     await tool.getByRole('button', { name: '命令或参数', exact: true }).click(); await expect(page.locator('dialog.payload-modal pre').last()).toContainText('echo synthetic-import-tool-input'); await page.keyboard.press('Escape');
@@ -1058,12 +1063,12 @@ for (const width of [1440, 390]) {
       await group.locator('[data-execution-response-actions]').getByRole('button', { name: '模型输出', exact: true }).click();
       const modal = page.locator('dialog.payload-modal[open]');
       await expect(modal).toContainText('exec_command');
-      await page.screenshot({ path: testInfo.outputPath('model-output.png') });
+      await captureDiagnosticScreenshot(page, { path: testInfo.outputPath('model-output.png') });
       await page.keyboard.press('Escape');
       await tool.locator('summary').click();
       await tool.getByRole('button', { name: '命令或参数', exact: true }).click();
       await expect(modal).toContainText('printf');
-      await page.screenshot({ path: testInfo.outputPath('tool-input.png') });
+      await captureDiagnosticScreenshot(page, { path: testInfo.outputPath('tool-input.png') });
       await page.keyboard.press('Escape');
       await tool.getByRole('button', { name: '执行结果', exact: true }).click();
       await expect(modal).toContainText('SYNTHETIC_RESULT_OCCURRENCE_R1');
@@ -1071,7 +1076,7 @@ for (const width of [1440, 390]) {
       await expect(modal.locator('.sd-payload-meta')).toContainText('按记录原文展示；未拆分 output/result 字段');
       await expect(modal).not.toContainText('内容已截断');
       await expect(modal.locator('[data-local-result]')).toHaveCount(2);
-      await page.screenshot({ path: testInfo.outputPath('tool-result.png') });
+      await captureDiagnosticScreenshot(page, { path: testInfo.outputPath('tool-result.png') });
       await page.keyboard.press('Escape');
       await page.locator('[data-evidence-analysis] > summary').click();
       const round = page.locator('[data-trace-round-row]').first();
@@ -1087,7 +1092,7 @@ for (const width of [1440, 390]) {
           if (n === r + 1) expect(visibleText).toContain('SYNTHETIC_RESULT_OCCURRENCE_R' + r);
           else expect(visibleText).not.toContain('SYNTHETIC_RESULT_OCCURRENCE_R' + r);
         }
-        await page.screenshot({ path: testInfo.outputPath('F' + n + '-request.png') });
+        await captureDiagnosticScreenshot(page, { path: testInfo.outputPath('F' + n + '-request.png') });
         await page.keyboard.press('Escape');
       }
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -1121,7 +1126,7 @@ for (const kind of ['normal', 'import']) for (const width of [1440, 390]) test('
       }
       expect(paths.some(p => /\/payload(?:s|\/)|\/round\//.test(p))).toBe(false); expect(paths.filter(p => /\/execution(?:\?|$)/.test(p))).toHaveLength(1);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true); expect(errors).toEqual([]);
-      await page.locator('[data-execution-items]').screenshot({ path: test.info().outputPath('zero-tool-missing-output-' + kind + '-' + width + '.png') });
+      await captureDiagnosticScreenshot(page.locator('[data-execution-items]'), { path: test.info().outputPath('zero-tool-missing-output-' + kind + '-' + width + '.png') });
       await test.info().attach('zero-tool-missing-output-api.json', { body: JSON.stringify({ kind, width, execution, paths, errors, sourceSha256: createHash('sha256').update(resultOccurrenceRaw).digest('hex') }), contentType: 'application/json' });
     } finally { page.removeListener('request', record); }
   }
@@ -1172,7 +1177,7 @@ for (const kind of ['normal', 'import']) for (const width of [1440, 390]) test('
     const entry = page.locator('[data-main-source-timing-open]'), card = page.locator('[data-session-timing]');
     expect(await entry.count()).toBe(1); await expect(entry).toBeVisible();
     await expect(page.locator('[data-evidence-analysis]')).not.toHaveAttribute('open'); await expect(page.locator('[data-secondary-metrics]')).not.toHaveAttribute('open');
-    await page.screenshot({ path: test.info().outputPath('main-timing-default-' + kind + '-' + width + '.png') });
+    await captureDiagnosticScreenshot(page, { path: test.info().outputPath('main-timing-default-' + kind + '-' + width + '.png') });
     const before = paths.length; await entry.focus(); await page.keyboard.press('Enter');
     await expect(card).toBeVisible(); await expect(card).toBeFocused(); expect(paths.length).toBe(before);
     await expect(card.locator('.sd-kpi__value')).toHaveText('10s');
@@ -1192,9 +1197,9 @@ for (const kind of ['normal', 'import']) for (const width of [1440, 390]) test('
     await expect(note).toContainText('重叠窗口只计一次'); await expect(note).toContainText('不是 LLM 调用延迟');
     await expect(note).toContainText('逐工具执行器观测累计'); await expect(note).toContainText('N/A 表示未知而非 0');
     await expect(note).toContainText('不表示业务成功'); expect(paths.length).toBe(before);
-    await card.screenshot({ path: test.info().outputPath('main-timing-details-' + kind + '-' + width + '.png') });
+    await captureDiagnosticScreenshot(card, { path: test.info().outputPath('main-timing-details-' + kind + '-' + width + '.png') });
     await note.locator('summary').click(); await expect(note).not.toHaveAttribute('open');
-    await card.screenshot({ path: test.info().outputPath('main-timing-card-' + kind + '-' + width + '.png') });
+    await captureDiagnosticScreenshot(card, { path: test.info().outputPath('main-timing-card-' + kind + '-' + width + '.png') });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true); expect(errors).toEqual([]);
     await test.info().attach('main-timing-source-api-network.json', { body: JSON.stringify({ kind, width, metrics, paths, before, after: paths.length, errors }), contentType: 'application/json' });
   }
@@ -1225,7 +1230,7 @@ for (const kind of ['normal', 'import']) for (const width of [1440, 390]) test('
       await expect(note.locator(':scope > p').nth(1)).toContainText('任务汇总方法：按主任务时间窗口计时，重叠窗口只计一次。');
       await expect(note).not.toContainText('任务依据：记录中的主任务时间窗口');
       await expect(note.locator(':scope > p').nth(2)).toContainText('N/A 表示未知而非 0');
-      await card.screenshot({ path: test.info().outputPath('missing-timing-method-' + kind + '-' + width + '.png') });
+      await captureDiagnosticScreenshot(card, { path: test.info().outputPath('missing-timing-method-' + kind + '-' + width + '.png') });
       await summary.click(); await expect(note).not.toHaveAttribute('open'); await summary.focus(); await page.keyboard.press('Space'); await expect(note).toHaveAttribute('open', '');
       expect(paths).toEqual([]); expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       await test.info().attach('missing-timing-method-api.json', { body: JSON.stringify({ kind, width, metrics, execution, paths, sourceSha256: createHash('sha256').update(missingMainSourceTimingRaw).digest('hex') }), contentType: 'application/json' });
@@ -1415,7 +1420,7 @@ for (const mode of ['normal', 'import']) for (const width of [1440, 390]) {
       }
       expect(network.filter(u => /\/payload\//.test(u.pathname))).toHaveLength(1);
       expect(network.find(u => /\/payload\//.test(u.pathname)).searchParams.get('view')).toBe('local_results');
-      await modal.screenshot({ path: testInfo.outputPath('local-result-first-' + mode + '-' + width + '.png') });
+      await captureDiagnosticScreenshot(modal, { path: testInfo.outputPath('local-result-first-' + mode + '-' + width + '.png') });
       for (const n of [1, 2]) {
         const target = results.nth(n - 1).getByRole('button', { name: '查看准确引用', exact: true });
         await target.focus();
@@ -1429,7 +1434,7 @@ for (const mode of ['normal', 'import']) for (const width of [1440, 390]) {
         await attribution.locator('summary').click();
         await expect(attribution).toHaveAttribute('data-attribution-call', 'token_usage_record:synthetic-result-occurrences-F' + (n + 1));
         await expect(attribution).toHaveAttribute('data-attribution-scope', 'main');
-        await modal.screenshot({ path: testInfo.outputPath('local-result-input-' + n + '-' + mode + '-' + width + '.png') });
+        await captureDiagnosticScreenshot(modal, { path: testInfo.outputPath('local-result-input-' + n + '-' + mode + '-' + width + '.png') });
         expect(network.filter(u => u.searchParams.has('target'))).toHaveLength(n);
         expect(network.filter(u => u.searchParams.has('occurrence'))).toHaveLength(0);
         await modal.getByRole('button', { name: '返回结果', exact: true }).focus();
@@ -1740,14 +1745,14 @@ test('local result inclusion tool-level truncation stays explicit without changi
     await page.route('**' + rootPath + '?**', route => route.fulfill({ json: body }));
     await trigger.click(); const modal = page.locator('dialog.payload-modal[open]');
     await expect(modal.getByText('工具级全文已截断；各结果正文状态见下方分项。', { exact: true })).toBeVisible();
-    await modal.screenshot({ path: testInfo.outputPath('local-result-truncated-first-390.png') });
+    await captureDiagnosticScreenshot(modal, { path: testInfo.outputPath('local-result-truncated-first-390.png') });
     await expect(modal.locator('[data-local-result]')).not.toContainText('正文已截断');
     const original = modal.locator('[data-tool-result-original]').first();
     await expect(original.locator('summary').first()).toHaveText('工具级全文、包装说明与原始载荷（已截断）');
     await original.locator('summary').first().click(); await modal.getByRole('button', { name: 'Copy', exact: true }).click();
     expect(await page.evaluate(() => window.syntheticResultCopies)).toEqual(['SYNTHETIC_RECORDED_RAW_PREFIX']);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await modal.screenshot({ path: testInfo.outputPath('local-result-truncated-390.png') });
+    await captureDiagnosticScreenshot(modal, { path: testInfo.outputPath('local-result-truncated-390.png') });
   });
 });
 

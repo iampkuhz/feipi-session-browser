@@ -43,6 +43,8 @@ Gradle settings、根 build、properties 和 wrapper SHALL 位于 `java/`；从�
 - **When** 构建或浏览器检查被选中
 - **Then** 对应的 jmods、锁定 Chromium 和临时空间前置条件 SHALL 在重测试前核查
 - **And** 浏览器 fixture SHALL 在放行 worker 前确认合成索引、静态资源与最小导入释放；相同只读来源可共享当前 worker 的已发布索引，变更来源或代际验证仍独立
+- **And** 托管 macOS CI SHALL 限制浏览器与扫描同时竞争的资源；只在本地保存非断言成功截图，CI 仍保留失败 trace 与截图
+- **And** HTML/MHTML 路由验证 SHALL 保留默认 50 MiB 编码后响应上限、413 与无部分响应断言；允许使用等价转义文本减少测试的原文处理量
 
 ## Record component Javadoc owner
 

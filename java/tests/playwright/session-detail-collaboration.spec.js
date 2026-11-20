@@ -1,4 +1,5 @@
 const { test: baseTest, expect } = require('@playwright/test');
+const { captureDiagnosticScreenshot, waitForPublishedScan } = require('./start-java-fixture-server');
 
 // 只读场景共享本 worker 内已完整发布的合成索引；每个用例仍有独立页面。
 const test = baseTest.extend({
@@ -141,7 +142,7 @@ for (const width of [1440, 390]) {
           await host.locator('[data-content-pagination="collaboration"] button').click();
         }
         await host.evaluate(n => n.scrollIntoView({ block: 'start' }));
-        await page.screenshot({ path: test.info().outputPath(`default-${nested ? 'nested' : 'siblings'}-${width}.png`) });
+        await captureDiagnosticScreenshot(page, { path: test.info().outputPath(`default-${nested ? 'nested' : 'siblings'}-${width}.png`) });
         const relation = host.locator('[data-collaboration-relation]').filter({ hasText: 'Verify synthetic UI' }).last();
         await relation.getByRole('button', { includeHidden: true, name: /查看 .* 的过程与耗时/ }).click();
         await expect(page.locator('[data-execution-agent-context]')).toContainText('所选过程');
@@ -152,7 +153,7 @@ for (const width of [1440, 390]) {
         await expect(page.getByRole('link', { name: '直接查看所选过程' })).toBeInViewport();
         await page.getByRole('link', { name: '直接查看所选过程' }).click();
         await expect(page.locator('[data-execution-agent-context]')).toBeInViewport();
-        await page.screenshot({ path: test.info().outputPath(`selected-agent-${width}.png`) });
+        await captureDiagnosticScreenshot(page, { path: test.info().outputPath(`selected-agent-${width}.png`) });
         await page.getByRole('button', { includeHidden: true, name: '返回协作位置', exact: true }).click();
         await expect(relation.getByRole('button', { includeHidden: true, name: /查看 .* 的过程与耗时/ })).toBeFocused();
         await relation.locator('[data-collaboration-evidence] > summary').focus();
@@ -161,7 +162,7 @@ for (const width of [1440, 390]) {
         await openEvidence(relation.getByRole('button', { includeHidden: true, name: '任务 Input', exact: true }));
         await relation.getByRole('button', { includeHidden: true, name: '任务 Input', exact: true }).click();
         await expect(page.locator('dialog.payload-modal')).toContainText('Verify synthetic UI');
-        await page.screenshot({ path: test.info().outputPath(`task-input-${width}.png`) });
+        await captureDiagnosticScreenshot(page, { path: test.info().outputPath(`task-input-${width}.png`) });
         await page.keyboard.press('Escape');
         await openEvidence(relation.getByRole('button', { includeHidden: true, name: '定位发起工具', exact: true }));
         await relation.getByRole('button', { includeHidden: true, name: '定位发起工具', exact: true }).click();
@@ -173,7 +174,7 @@ for (const width of [1440, 390]) {
         await relation.getByRole('button', { includeHidden: true, name: '查看此 Agent 发起的委派', exact: true }).click();
         await assertSelectedContextIdentity(page, 'subagent:worker-same-prefix-002');
         await expect(host).toContainText('未记录该上下文发起的明确委派');
-        await page.screenshot({ path: test.info().outputPath(`branch-${width}.png`) });
+        await captureDiagnosticScreenshot(page, { path: test.info().outputPath(`branch-${width}.png`) });
       } finally { expect((await request.delete(api)).status()).toBe(204); }
     });
   }
@@ -388,7 +389,7 @@ test('normal raw Codex sources distinguish nested/siblings and locate off-page t
           JSON.stringify({ agent_id: 'worker-same-prefix-001' }));
         await expect(host.locator('[data-collaboration-relation]')).toHaveCount(2);
         await host.evaluate(n => n.scrollIntoView({ block: 'start' }));
-        await page.screenshot({ path: test.info().outputPath(`normal-${nested ? 'nested' : 'siblings'}-${width}.png`) });
+        await captureDiagnosticScreenshot(page, { path: test.info().outputPath(`normal-${nested ? 'nested' : 'siblings'}-${width}.png`) });
         const relation = host.locator('[data-collaboration-relation]').filter({ hasText: 'Verify synthetic UI' });
         const calls = [];
         page.on('request', r => { if (r.url().includes('/execution?')) calls.push(new URL(r.url())); });
@@ -538,7 +539,7 @@ test('explicit third-level branch is reachable without recursively indenting or 
       await expect(host).toContainText('Synthetic deeper review');
       await expect(host.locator('[data-collaboration-relation]')).toHaveCount(1);
       await host.evaluate(n => n.scrollIntoView({ block: 'start' }));
-      await page.screenshot({ path: test.info().outputPath(`deep-branch-${width}.png`) });
+      await captureDiagnosticScreenshot(page, { path: test.info().outputPath(`deep-branch-${width}.png`) });
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       await host.getByRole('button', { includeHidden: true, name: /查看 .* 的过程与耗时/ }).click();
       await expect(page.locator('[data-execution-items]')).toContainText('Synthetic C answer');
@@ -627,8 +628,10 @@ test('协作导航 记录身份 说明层级 联合扫读 normal full-key labels
   const base = await new Promise((resolve, reject) => { child.once('error', reject); child.once('exit', code => reject(new Error('server exit ' + code + logs))); for (const stream of [child.stdout, child.stderr]) stream.on('data', data => { logs += data; const m = logs.match(/serve 已就绪: (http:\/\/127\.0\.0\.1:\d+)/); if (m) resolve(m[1]); }); });
   try {
     const api = base + '/api/sessions/codex/' + ids[0];
-    await expect.poll(async () => (await request.get(api + '/collaboration')).status()).toBe(200);
-    const facts = await (await request.get(api + '/collaboration')).json();
+    await waitForPublishedScan(base);
+    const response = await request.get(api + '/collaboration');
+    expect(response.status()).toBe(200);
+    const facts = await response.json();
     const label = id => facts.items.find(row => row.target === 'subagent:' + id).targetLabel;
     expect(label(ids[2])).not.toBe(label(ids[3]));
     await test.info().attach('labels-source-api.json', { body: JSON.stringify({ facts, directory, ids }), contentType: 'application/json' });
@@ -664,7 +667,7 @@ test('协作导航 记录身份 说明层级 联合扫读 normal full-key labels
       await expect(page.locator('[data-collaboration-response-group]')).toHaveCount(2);
       await expect(page.locator('[data-collaboration-response-group]').first()).toContainText('主 Agent · 发起记录 #2 · 此处显示 2 项委派');
       await expect(page.locator('[data-collaboration-response-group]').last()).toContainText('Agent 1 · 发起记录 #27 · 此处显示 1 项委派');
-      await page.locator('[data-collaboration]').screenshot({ path: test.info().outputPath('grouping-normal-' + width + '.png') });
+      await captureDiagnosticScreenshot(page.locator('[data-collaboration]'), { path: test.info().outputPath('grouping-normal-' + width + '.png') });
       expect(await retainedNode.evaluate(node => node.isConnected)).toBe(true);
       expect(await retainedWork.evaluate(node => node.isConnected)).toBe(true);
       await expect(workload('11.5s').locator('[data-execution-slowest]')).toHaveAttribute('open');
@@ -672,7 +675,7 @@ test('协作导航 记录身份 说明层级 联合扫读 normal full-key labels
       if (width === 1440) await expect(retained).toBeFocused();
       await expect(retained.locator('.se-tool-evidence')).toHaveAttribute('open');
       for (const [id, seconds] of [[ids[1], '11.5s'], [ids[2], '35s'], [ids[3], '3s']]) await expect(workload(seconds).locator('.se-basis').first()).toContainText(label(id) + ' · 独立上下文');
-      await page.locator('[data-execution-judgment]').scrollIntoViewIfNeeded(); await page.screenshot({ path: test.info().outputPath('labels-' + width + '.png') });
+      await page.locator('[data-execution-judgment]').scrollIntoViewIfNeeded(); await captureDiagnosticScreenshot(page, { path: test.info().outputPath('labels-' + width + '.png') });
       const row = page.locator('[data-collaboration-relation]').filter({ hasText: 'Synthetic label task ' + ids[2] });
       const bridge = workload('35s').locator('[data-execution-delegation-sources]');
       await expect(bridge).toContainText('已加载委派来源'); await expect(bridge).toContainText('主 Agent · 发起记录 #2');
@@ -685,7 +688,7 @@ test('协作导航 记录身份 说明层级 联合扫读 normal full-key labels
       await overview.focus(); await page.keyboard.press('Enter');
       await expect(page.locator('[data-collaboration-context]')).toBeFocused();
       page.off('request', observeNavigation); expect(navigationRequests).toEqual([]);
-      await page.locator('[data-execution-judgment]').screenshot({ path: test.info().outputPath('scan-normal-' + width + '.png') });
+      await captureDiagnosticScreenshot(page.locator('[data-execution-judgment]'), { path: test.info().outputPath('scan-normal-' + width + '.png') });
       const commandStyles = await page.locator('[data-execution-workloads] .se-representative > .se-diagnosis-command').evaluateAll(nodes => nodes.map(node => {
         const style = getComputedStyle(node), article = getComputedStyle(node.closest('article'));
         return { text: node.textContent, color: style.color, articleColor: article.color, fontSize: style.fontSize,
@@ -772,7 +775,7 @@ test('协作导航 记录身份 说明层级 联合扫读 normal full-key labels
       await expect(page.getByRole('button', { name: '查看 Agent 协作', exact: true })).toBeVisible();
       await page.locator('[data-collaboration-root]').click();
       await expect(page.getByRole('button', { name: '查看 Agent 协作', exact: true })).toBeVisible();
-      await page.locator('[data-collaboration]').screenshot({ path: test.info().outputPath('navigation-normal-' + width + '.png') });
+      await captureDiagnosticScreenshot(page.locator('[data-collaboration]'), { path: test.info().outputPath('navigation-normal-' + width + '.png') });
       await page.unroute('**/collaboration?*');
       if (width === 390) {
         // 使用真实资源，替换已发布的测试快照stamp；旧200不得把旧scope编号贴回。
@@ -805,7 +808,7 @@ for (const width of [1440, 390]) {
       await expect(host.locator('[data-collaboration-response-group]')).toHaveCount(1);
       await expect(host.locator('[data-collaboration-response-group] > h3')).toContainText('此处显示 5 项委派');
       await expect(host).toContainText('仅当前已载'); await expect(host).toContainText('不表示并行');
-      await host.screenshot({ path: test.info().outputPath('grouping-import-default-' + width + '.png') });
+      await captureDiagnosticScreenshot(host, { path: test.info().outputPath('grouping-import-default-' + width + '.png') });
       const first = host.locator('[data-collaboration-relation]').first(), node = await first.elementHandle();
       await expect(first).toContainText('目标身份未确认'); await expect(first.locator('.sc-origin')).not.toContainText('#');
       await first.locator('[data-collaboration-evidence] > summary').focus(); await page.keyboard.press('Enter');
@@ -817,7 +820,7 @@ for (const width of [1440, 390]) {
       await expect(host.locator('.sc-task')).toHaveText(Array.from({ length: 6 }, (_, i) => '任务：合成分组任务 ' + i));
       await expect(host.locator('[data-collaboration-pagination]')).toContainText('6 / 6');
       expect(paths.filter(p => /\/collaboration\?/.test(p))).toHaveLength(2); // API request above uses request context, not browser.
-      await host.screenshot({ path: test.info().outputPath('grouping-import-' + width + '.png') });
+      await captureDiagnosticScreenshot(host, { path: test.info().outputPath('grouping-import-' + width + '.png') });
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       await host.getByRole('button', { name: '全部协作往来', exact: true }).click(); await expect(host.locator('[data-collaboration-relation]')).toHaveCount(6); await expect(host.locator('[data-collaboration-response-group]')).toHaveCount(0);
       // 明确模拟UI身份保护（不冒充原始parser证据）：同显示#不等于同完整call。
@@ -867,10 +870,10 @@ for (const width of [1440, 390]) {
       await overview.focus(); await page.keyboard.press('Enter');
       await expect(page.locator('[data-collaboration-context]')).toBeFocused();
       page.off('request', observeNavigation); expect(navigationRequests).toEqual([]);
-      await page.locator('[data-collaboration]').screenshot({ path: test.info().outputPath('navigation-import-' + width + '.png') });
+      await captureDiagnosticScreenshot(page.locator('[data-collaboration]'), { path: test.info().outputPath('navigation-import-' + width + '.png') });
       expect(urls.every(u => u.includes(api + '/'))).toBe(true); expect(urls.some(u => u.includes('/payload/'))).toBe(false);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-      await diagnosis.screenshot({ path: test.info().outputPath('scan-import-' + width + '.png') });
+      await captureDiagnosticScreenshot(diagnosis, { path: test.info().outputPath('scan-import-' + width + '.png') });
       await test.info().attach('scan-import-source.json', { body: JSON.stringify({ records, execution: await (await request.get(api + '/execution')).json(), collaboration: await (await request.get(api + '/collaboration')).json() }), contentType: 'application/json' });
     } finally { expect((await request.delete(api)).status()).toBe(204); }
   });
@@ -1036,11 +1039,11 @@ for (const boundary of ['explicit', 'local']) {
         await expect(page.locator('[data-collaboration-response-group] > h3')).toContainText('发起记录 #2');
         if (boundary === 'local') { await expect(groups.last().locator('header > h3')).toHaveText('本地响应记录 #3'); await expect(groups.last()).toContainText('仅确认工具返回了目标ID'); }
         expect(paths.some(url => url.includes('/payload/'))).toBe(false); expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-        await page.locator('[data-execution-items]').screenshot({ path: test.info().outputPath('record-identity-' + boundary + '-' + width + '.png') });
+        await captureDiagnosticScreenshot(page.locator('[data-execution-items]'), { path: test.info().outputPath('record-identity-' + boundary + '-' + width + '.png') });
         await test.info().attach('record-identity-geometry-' + width + '.json', { body: JSON.stringify(await group.boundingBox()), contentType: 'application/json' });
         await group.getByRole('button', { name: '模型输出', exact: true }).click(); const modal = page.locator('dialog.payload-modal');
         await expect(modal).toBeVisible(); await expect(modal).toContainText('合成：准备打印标记。'); await expect(modal).toContainText('SYNTHETIC_SECOND_NOT_EXECUTED'); await expect(modal).not.toContainText('ONLY_TOOL_RESULT_SECOND');
-        if (width === 1440) await modal.screenshot({ path: test.info().outputPath('record-identity-' + boundary + '-model-output.png') });
+        if (width === 1440) await captureDiagnosticScreenshot(modal, { path: test.info().outputPath('record-identity-' + boundary + '-model-output.png') });
         await page.keyboard.press('Escape');
         for (const [toolId, expected] of [['review-cmd', 'SYNTHETIC_REVIEW_NOT_EXECUTED（仅合成载荷，未运行）'], ['review-cmd-2', 'ONLY_TOOL_RESULT_SECOND']]) {
           const tool = group.locator('[data-execution-tool="' + toolId + '"]'); await tool.locator('.se-tool-evidence > summary').click();
@@ -1309,7 +1312,7 @@ for (const width of [1440, 390]) test('证据分层 分层耗时线索 task08/ta
     const requests = []; page.on('request', r => { if (r.url().includes('/api/')) requests.push(r.url()); });
     await page.setViewportSize({ width, height: 1000 }); await page.goto(base + '/sessions/codex/' + rootId);
     const section = page.locator('[data-execution-long-operations]'); await expect(section).toBeVisible();
-      await section.screenshot({ path: test.info().outputPath('signals-default-' + width + '.png') });
+      await captureDiagnosticScreenshot(section, { path: test.info().outputPath('signals-default-' + width + '.png') });
       const taskEntry = section.locator('[data-execution-long-operation]').first().getByRole('button', { name: '查看任务与往来', exact: true });
       expect(await taskEntry.count()).toBe(1); // Missing entry is a fast original red, not a locator timeout.
       await expect(page.locator('[data-collaboration-relation]')).toHaveCount(5);
@@ -1327,7 +1330,7 @@ for (const width of [1440, 390]) test('证据分层 分层耗时线索 task08/ta
       expect(await page.locator('[data-collaboration-relation]').count()).toBe(1); // Real normal original red: two typed facts, one task card.
       await expect(page.locator('[data-collaboration-pagination]')).toContainText('2 / 2 条事实');
       await expect(page.locator('[data-collaboration-pagination]')).toContainText('1 张主卡');
-      await page.locator('[data-collaboration]').screenshot({ path: test.info().outputPath('task08-' + width + '.png') });
+      await captureDiagnosticScreenshot(page.locator('[data-collaboration]'), { path: test.info().outputPath('task08-' + width + '.png') });
       const declaration = page.locator('[data-collaboration-relation]').filter({ hasText: 'Synthetic independent task 08' });
       const evidence = declaration.locator('[data-collaboration-evidence] > summary'); await evidence.click();
       const receiptEvidence = declaration.locator('[data-collaboration-creation-evidence]');
@@ -1351,7 +1354,7 @@ for (const width of [1440, 390]) test('证据分层 分层耗时线索 task08/ta
       await expect(page.locator('[data-collaboration-items]')).toContainText('Synthetic independent task 09');
       await expect(page.locator('[data-collaboration-relation]')).toHaveCount(1);
       await expect(page.locator('[data-collaboration-creation-evidence]')).toHaveCount(1);
-      await page.locator('[data-collaboration]').screenshot({ path: test.info().outputPath('task09-' + width + '.png') });
+      await captureDiagnosticScreenshot(page.locator('[data-collaboration]'), { path: test.info().outputPath('task09-' + width + '.png') });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   });
 });
@@ -1670,7 +1673,7 @@ for (const width of [1440, 390]) {
       await expect(relation.locator('[data-collaboration-evidence]')).toHaveAttribute('open');
       page.off('request', observe); expect(requests).toEqual([]);
       await judgment.scrollIntoViewIfNeeded();
-      await page.screenshot({ path: test.info().outputPath('loaded-exchange-source-' + width + '.png') });
+      await captureDiagnosticScreenshot(page, { path: test.info().outputPath('loaded-exchange-source-' + width + '.png') });
       await collaboration.locator('[data-collaboration-participants]').click();
       await expect(bridge).toContainText('当前视图不提供'); await expect(bridge.locator('button')).toHaveCount(0);
       await collaboration.locator('[data-collaboration-all-exchanges]').click();
@@ -1774,8 +1777,8 @@ async function checkFollowupPage(page, request, url, api, width, included) {
   await page.setViewportSize({ width, height: 900 }); const payloads = []; page.on('request', r => { if (r.url().includes('/payload/')) payloads.push(r.url()); });
   await page.goto(url); const host = page.locator('[data-collaboration]'), all = host.locator('[data-collaboration-all-exchanges]');
   await expect(all).toHaveText('全部协作往来（含追加输入声明3条）'); expect(payloads).toEqual([]);
-  await page.screenshot({ path: test.info().outputPath('followup-default-' + width + '.png'), fullPage: true });
-  await host.screenshot({ path: test.info().outputPath('followup-default-panel-' + width + '.png') });
+  await captureDiagnosticScreenshot(page, { path: test.info().outputPath('followup-default-' + width + '.png'), fullPage: true });
+  await captureDiagnosticScreenshot(host, { path: test.info().outputPath('followup-default-panel-' + width + '.png') });
   await all.click(); await expect(host.locator('[data-collaboration-relation]')).toHaveCount(20);
   await host.locator('[data-collaboration-pagination] button').click();
   const message = host.locator('[data-collaboration-relation]').filter({ hasText: '追加内容：Synthetic followup <b>message</b>' });
@@ -1794,10 +1797,10 @@ async function checkFollowupPage(page, request, url, api, width, included) {
   const locate = message.getByRole('button', { name: '定位发起工具', exact: true }); await locate.focus(); await page.keyboard.press('Enter'); await expect(page.locator('[data-execution-tool]:focus')).toHaveCount(1);
   await expect(page.locator('[data-execution-tool]:focus .se-action__main code')).toHaveText('追加输入：Synthetic followup <b>message</b>');
   await expect(page.locator('[data-execution-tool]:focus .se-action__main b')).toHaveCount(0);
-  await page.locator('[data-execution-tool]:focus').screenshot({ path: test.info().outputPath('followup-focused-operation-' + width + '.png') });
+  await captureDiagnosticScreenshot(page.locator('[data-execution-tool]:focus'), { path: test.info().outputPath('followup-focused-operation-' + width + '.png') });
   const firstReceipt = receipt.first(); await assertRecordedResult(page, request, api, firstReceipt.getByRole('button', { name: '提交回执 Result', exact: true, includeHidden: true }), JSON.stringify({ submission_id: 'synthetic-submission-message' }));
-  await page.screenshot({ path: test.info().outputPath('followup-exchanges-' + width + '.png'), fullPage: true });
-  await message.screenshot({ path: test.info().outputPath('followup-message-' + width + '.png') });
+  await captureDiagnosticScreenshot(page, { path: test.info().outputPath('followup-exchanges-' + width + '.png'), fullPage: true });
+  await captureDiagnosticScreenshot(message, { path: test.info().outputPath('followup-message-' + width + '.png') });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await host.locator('[data-collaboration-participants]').click(); await expect(host.locator('[data-collaboration-all-exchanges]')).toHaveText('全部协作往来（含追加输入声明3条）');
   await host.locator('[data-collaboration-exchanges]').first().click(); await expect(host.locator('[data-collaboration-all-exchanges]')).toHaveText('全部协作往来（含追加输入声明3条）');
@@ -1827,7 +1830,7 @@ test('followup collaboration input-only and neutral consumer guard', async ({ pa
       await expect(host).not.toContainText('明确等待目标');
       await host.locator('[data-collaboration-all-exchanges]').click(); await expect(host.locator('[data-collaboration-relation]')).toHaveCount(6);
       await expect(host.locator('[data-collaboration-agent], [data-collaboration-branch], [data-collaboration-exchanges]')).toHaveCount(0);
-      await page.screenshot({ path: test.info().outputPath('followup-only-' + width + '.png'), fullPage: true });
+      await captureDiagnosticScreenshot(page, { path: test.info().outputPath('followup-only-' + width + '.png'), fullPage: true });
       // UI-only unknown protocol kind guard, not parser evidence.
       const neutral = await page.evaluate(() => { const row = { ...collaborationView.page.items[0], kind: 'future_kind', phase: 'declaration' }; return { declaration: collaborationRelation(row, false), report: collaborationRelation({ ...row, phase: 'result_report' }, false), inputUnknown: collaborationRelation({ ...row, kind: 'input', phase: 'result_report', reportedStatus: '', reason: 'report_status_unknown' }, false) }; });
       expect(neutral.declaration).toContain('协作操作'); expect(neutral.declaration).not.toContain('等待 →');
@@ -1855,7 +1858,7 @@ for (const family of ['main', 'fanout']) for (const width of [1440, 390]) {
         const footer = d.locator(':scope > .se-basis').last(); await expect(footer).toContainText('已测工具 ' + data.diagnostics.measuredTools + ' / ' + data.diagnostics.totalTools); await expect(footer).toContainText('未参与可信累计比较'); await expect(footer).toContainText('模型耗时未测量'); await expect(footer).toContainText('— 未知，不是零'); await expect(footer).toContainText('工具返回不证明整个任务完成'); readings.push({ metric, text, preface: await preface.innerText(), footer: await footer.innerText() });
         await expect(d).toContainText('未观察到工具失败；不证明任务成功或记录完整'); await expect(d.locator('.se-source-note')).toContainText('不代表唯一父级');
         await expect(d.locator('[data-execution-secondary-work]')).toContainText('wait_agent · 已测累计 2s');
-        await d.screenshot({ path: test.info().outputPath('measurement-' + family + '-' + metric + '-' + width + '.png') });
+        await captureDiagnosticScreenshot(d, { path: test.info().outputPath('measurement-' + family + '-' + metric + '-' + width + '.png') });
       }
       await test.info().attach('measurement-copy-readings.json', { body: JSON.stringify(readings), contentType: 'application/json' });
       for (const reading of readings) { expect(reading.text.match(/非完整瓶颈/g) || []).toHaveLength(1); expect(reading.text.match(/慢不等于异常/g) || []).toHaveLength(1); expect(reading.preface).toContain('非完整瓶颈'); if (reading.metric === 'single') expect(reading.preface).toContain('仅已测'); expect(reading.footer).not.toContain('累计非墙钟'); }
@@ -1880,13 +1883,13 @@ for (const width of [1440, 390]) test('same input hotspot real normal child08 ' 
     await page.setViewportSize({ width, height: 900 }); const requests = [], errors = []; page.on('request', r => requests.push(r.url())); page.on('pageerror', e => errors.push(e.message));
     await page.goto(base + '/sessions/codex/' + rootId); const d = page.locator('[data-execution-judgment]'), section = d.locator('[data-execution-long-operations]'), row = section.locator('[data-execution-long-operation]').filter({ hasText: '已测累计 100s' });
     const hotspot = row.locator('[data-execution-same-input]'); await expect(hotspot).toContainText('其中已测 90s'); await expect(hotspot).toContainText('已测 180/180 次'); await expect(hotspot).toContainText('本组 2 种参数记录'); await expect(hotspot).toContainText('synthetic-beta'); await expect(row.locator('.se-representative')).toContainText('synthetic-alpha'); await expect(row.getByRole('button', { name: '定位代表调用', exact: true })).toHaveAttribute('data-execution-locate', 'long-check-08-0');
-    await expect(section).toContainText('单次最大值 35s'); expect(requests.filter(u => u.includes('/payload/'))).toEqual([]); await d.screenshot({ path: test.info().outputPath('hotspot-default-' + width + '.png') });
+    await expect(section).toContainText('单次最大值 35s'); expect(requests.filter(u => u.includes('/payload/'))).toEqual([]); await captureDiagnosticScreenshot(d, { path: test.info().outputPath('hotspot-default-' + width + '.png') });
     const count = requests.length; await section.getByRole('button', { name: '单次耗时', exact: true }).click(); await expect(section.locator('[data-execution-same-input]')).toHaveCount(0); await expect(section).toContainText('单次 35s'); await section.getByRole('button', { name: '已测累计', exact: true }).click(); expect(requests).toHaveLength(count); await expect(hotspot).toBeVisible();
     await row.getByRole('button', { name: '查看任务与往来', exact: true }).click(); const relation = page.locator('[data-collaboration-relation]'); await expect(relation).toHaveCount(1); const tuple = JSON.parse(await relation.getAttribute('data-collaboration-source')); expect(tuple).toEqual(['subagent:synthetic-long-child-08', 'main', 'token_usage_record:long-delegations', 'long-spawn-7']);
     const entry = relation.getByRole('button', { name: /过程与耗时/ }); await entry.click(); await expect(d).toBeFocused(); const selected = d.locator('[data-execution-workload]').filter({ hasText: '已测累计 100s' }); await expect(selected.locator('[data-execution-same-input]')).toContainText('其中已测 90s'); await expect(selected.locator('.se-representative')).toContainText('synthetic-alpha');
     await d.locator('.se-measurement > summary').click(); await expect(d.locator('.se-measurement')).toContainText('输入识别 200/200'); await expect(d.locator('.se-measurement')).toContainText('不证明业务操作或环境相同'); await d.locator('.se-measurement > summary').click();
     const old = await selected.locator('[data-execution-same-input]').elementHandle(); await expect(page.locator('[data-execution-pagination]')).toContainText('1–20 / 200'); await page.locator('[data-execution-pagination] button').click(); await expect(page.locator('[data-execution-pagination]')).toContainText('1–40 / 200'); expect(await old.evaluate(n => n.isConnected)).toBe(true); await expect(selected.locator('[data-execution-same-input]')).toContainText('已测 180/180 次');
-    await d.screenshot({ path: test.info().outputPath('hotspot-selected-' + width + '.png') });
+    await captureDiagnosticScreenshot(d, { path: test.info().outputPath('hotspot-selected-' + width + '.png') });
     const tool = page.locator('[data-execution-tool="long-check-08-0"]'); await assertRecordedResult(page, request, api, tool.getByRole('button', { name: '命令或参数', exact: true, includeHidden: true }), JSON.stringify(hotspotInput(0))); await assertRecordedResult(page, request, api, tool.getByRole('button', { name: '执行结果', exact: true, includeHidden: true }), 'Synthetic complete Result long-check-08-0');
     await page.getByRole('button', { name: '返回协作位置', exact: true }).click(); await expect(entry).toBeFocused(); expect(errors).toEqual([]); expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   }, hotspotInput);
@@ -1909,7 +1912,7 @@ async function assertHotspotResponse(page, request, api, tool, target, preview, 
   await group.locator('[data-execution-response-actions]').getByRole('button', { name: '模型输出', exact: true }).click();
   const modal = page.locator('dialog.payload-modal'); await expect(modal).toBeVisible(); await expect(modal).toContainText(preview); await expect(modal).toContainText(target);
   await expect(modal.locator('.sd-payload-tool-link')).toHaveCount(1); await expect(modal.locator('.sd-payload-tool-link')).toBeVisible(); await expect(modal.locator('.sd-payload-tool-link')).toContainText(preview);
-  await modal.screenshot({ path: test.info().outputPath('hotspot-sample-response-' + width + '.png') });
+  await captureDiagnosticScreenshot(modal, { path: test.info().outputPath('hotspot-sample-response-' + width + '.png') });
   await test.info().attach('sample-response.txt', { body: await modal.innerText(), contentType: 'text/plain' }); await page.keyboard.press('Escape');
 }
 
@@ -1928,7 +1931,7 @@ for (const partial of [false, true]) for (const width of [1440, 390]) test('same
     await page.setViewportSize({ width, height: 900 }); await page.goto(imported.detail_url);
     const group = page.locator('[data-execution-workload]');
     await expect(group).toContainText(partial ? '已测累计 99.5s' : '已测累计 100s'); await expect(group).toContainText('synthetic-alpha');
-    await page.locator('[data-execution-judgment]').screenshot({ path: test.info().outputPath('hotspot-import-before-assert-' + width + '.png') });
+    await captureDiagnosticScreenshot(page.locator('[data-execution-judgment]'), { path: test.info().outputPath('hotspot-import-before-assert-' + width + '.png') });
     expect(max).toMatchObject({ measuredWorkNanos: partial ? '89500000000' : '90000000000', measuredTools: partial ? 179 : 180, totalTools: 180, unknownTools: partial ? 1 : 0, distinctInputs: 2, identifiedInputs: 200, totalInputs: 200, tool: { inputPreview: 'synthetic-beta' } });
     const line = group.locator('[data-execution-same-input]'); await expect(line).toContainText(partial ? '其中已测 89.5s' : '其中已测 90s'); await expect(line).toContainText(partial ? '已测 179/180 次' : '已测 180/180 次'); await expect(line).toContainText('本组 2 种参数记录');
     if (partial) await expect(line).toContainText('缺测 1 次');
@@ -1982,7 +1985,7 @@ for (const variant of ['independent-nested', 'secret']) for (const width of [144
       expect(exposed).not.toContain(process.cwd()); expect(exposed).not.toContain('sameInputFingerprint');
     }
     expect(errors).toEqual([]); expect(consoleErrors).toEqual([]); expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.locator('[data-execution-judgment]').screenshot({ path: test.info().outputPath('hotspot-guard-' + variant + '-' + width + '.png') });
+    await captureDiagnosticScreenshot(page.locator('[data-execution-judgment]'), { path: test.info().outputPath('hotspot-guard-' + variant + '-' + width + '.png') });
   } finally { expect((await request.delete(api, { headers: { Origin: new URL(baseURL).origin } })).status()).toBe(204); }
 });
 
@@ -2006,7 +2009,7 @@ for (const variant of ['missing', 'same-preview', 'secret']) test('same input ho
 test('same input hotspot real normal partial keeps unknown coverage', async ({ page, request, readLongOperationNormal }) => {
   await readLongOperationNormal(request, true, async ({ base, rootId, data }) => {
     expect(data.diagnostics.workloadSignals.candidates[0].sameInputMaximum).toMatchObject({ measuredWorkNanos: '89500000000', measuredTools: 179, totalTools: 180, unknownTools: 1, distinctInputs: 2, identifiedInputs: 200, totalInputs: 200 });
-    for (const width of [1440, 390]) { await page.setViewportSize({ width, height: 900 }); await page.goto(base + '/sessions/codex/' + rootId); const row = page.locator('[data-execution-long-operation]').filter({ hasText: '已测累计 99.5s' }); await expect(row.locator('[data-execution-same-input]')).toContainText('其中已测 89.5s · 已测 179/180 次 · 缺测 1 次'); await expect(row.locator('.se-representative')).toContainText('synthetic-alpha'); await page.locator('[data-execution-judgment]').screenshot({ path: test.info().outputPath('hotspot-partial-' + width + '.png') }); }
+    for (const width of [1440, 390]) { await page.setViewportSize({ width, height: 900 }); await page.goto(base + '/sessions/codex/' + rootId); const row = page.locator('[data-execution-long-operation]').filter({ hasText: '已测累计 99.5s' }); await expect(row.locator('[data-execution-same-input]')).toContainText('其中已测 89.5s · 已测 179/180 次 · 缺测 1 次'); await expect(row.locator('.se-representative')).toContainText('synthetic-alpha'); await captureDiagnosticScreenshot(page.locator('[data-execution-judgment]'), { path: test.info().outputPath('hotspot-partial-' + width + '.png') }); }
   }, hotspotInput);
 });
 
@@ -2023,16 +2026,16 @@ for (const width of [1440, 390]) test('same input sample locate real normal acro
     await expect(row.locator('.se-workload-line').getByRole('button')).toHaveText(['查看上下文过程', '定位代表调用', '查看任务与往来']);
     await expect(row.locator('.se-representative')).toContainText('synthetic-alpha'); await expect(row.getByRole('button', { name: '定位代表调用', exact: true })).toHaveAttribute('data-execution-locate', 'long-check-08-0');
     await expect(page.locator('[data-execution-tool="' + target + '"]')).toHaveCount(0); expect(requests.filter(u => u.includes('/payload/'))).toEqual([]);
-    await d.screenshot({ path: test.info().outputPath('sample-default-' + width + '.png') });
+    await captureDiagnosticScreenshot(d, { path: test.info().outputPath('sample-default-' + width + '.png') });
     const before = requests.length; await section.getByRole('button', { name: '单次耗时', exact: true }).click(); await expect(section.getByRole('button', { name: '定位此参数的一次调用' })).toHaveCount(0); await section.getByRole('button', { name: '已测累计', exact: true }).click(); expect(requests).toHaveLength(before);
     const node = await d.elementHandle(), start = requests.length; await sample.focus(); await page.keyboard.press('Enter'); const tool = page.locator('[data-execution-tool="' + target + '"]'); await expect(tool).toBeFocused(); await expect(tool).toContainText('synthetic-beta');
     const added = requests.slice(start); expect(added).toHaveLength(1); expect(added[0]).toContain('/execution?'); expect(new URL(added[0]).searchParams.get('target')).toBe(target); expect(new URL(added[0]).searchParams.get('agent_context')).toBe(''); expect(added.some(u => u.includes('/payload/'))).toBe(false);
     expect(await node.evaluate(n => n.isConnected)).toBe(true); await expect(section.getByRole('button', { name: '已测累计', exact: true })).toHaveAttribute('aria-pressed', 'true'); await expect(tool.locator('.se-tool-evidence')).not.toHaveAttribute('open', '');
-    await tool.screenshot({ path: test.info().outputPath('sample-tool-' + width + '.png') });
+    await captureDiagnosticScreenshot(tool, { path: test.info().outputPath('sample-tool-' + width + '.png') });
     await assertRecordedResult(page, request, api, tool.getByRole('button', { name: '命令或参数', exact: true, includeHidden: true }), declaration.payload.arguments);
     await assertRecordedResult(page, request, api, tool.getByRole('button', { name: '执行结果', exact: true, includeHidden: true }), result.payload.output);
     await row.getByRole('button', { name: '查看任务与往来', exact: true }).click(); const relation = page.locator('[data-collaboration-relation]'); await expect(relation).toHaveCount(1); expect(JSON.parse(await relation.getAttribute('data-collaboration-source'))).toEqual(['subagent:' + children[7], 'main', 'token_usage_record:long-delegations', 'long-spawn-7']); const entry = relation.getByRole('button', { name: /过程与耗时/ }); await entry.click(); await expect(d).toBeFocused();
-    const selected = d.locator('[data-execution-workload]').filter({ hasText: '已测累计 100s' }), selectedSample = selected.getByRole('button', { name: '定位此参数的一次调用', exact: true }); await expect(selectedSample).toHaveCount(1); await d.screenshot({ path: test.info().outputPath('sample-selected-' + width + '.png') });
+    const selected = d.locator('[data-execution-workload]').filter({ hasText: '已测累计 100s' }), selectedSample = selected.getByRole('button', { name: '定位此参数的一次调用', exact: true }); await expect(selectedSample).toHaveCount(1); await captureDiagnosticScreenshot(d, { path: test.info().outputPath('sample-selected-' + width + '.png') });
     const begin = requests.length; await selectedSample.focus(); await page.keyboard.press('Enter'); await expect(tool).toBeFocused(); const selectedRequests = requests.slice(begin); expect(selectedRequests).toHaveLength(1); expect(new URL(selectedRequests[0]).searchParams.get('agent_context')).toBe('subagent:' + children[7]); expect(new URL(selectedRequests[0]).searchParams.get('target')).toBe(target); await expect(d).toContainText('已测累计 100s');
     await page.getByRole('button', { name: '返回协作位置', exact: true }).click(); await expect(entry).toBeFocused(); expect(errors).toEqual([]); expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   }, hotspotInput);
@@ -2078,7 +2081,7 @@ for (const variant of ['original', 'non-numeric-shuffled']) for (const width of 
     }
     expect(requests).toHaveLength(7); expect(requests.some(url => /view=participants|\/payload\/|cursor=/.test(url))).toBe(false); expect(errors).toEqual([]); expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await test.info().attach('label-default-reading.json', { body: JSON.stringify({ readings, requests, collaboration, errors, directory }), contentType: 'application/json' });
-    await judgment.screenshot({ path: test.info().outputPath('label-default-' + variant + '-' + width + '.png') });
+    await captureDiagnosticScreenshot(judgment, { path: test.info().outputPath('label-default-' + variant + '-' + width + '.png') });
     for (let i = 0; i < keys.length; i++) { const node = contextRows[i].locator('[data-execution-context-key="' + keys[i] + '"]'); await expect.soft(node).toContainText(labels[i].label); }
   }, hotspotInput, identities);
 });
@@ -2096,7 +2099,7 @@ for (const partial of [false, true]) for (const width of [1440, 390]) test('hots
     await test.info().attach('label-import-default-requests.json', { body: JSON.stringify(requests), contentType: 'application/json' });
     await expect(judgment.locator('[data-execution-context-key^="subagent:"]')).toHaveCount(0); expect(requests.some(url => /view=participants|\/payload\/|cursor=/.test(url))).toBe(false); expect(requests).toHaveLength(6); expect(errors).toEqual([]); expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     const isolated = await (await request.get(api + '/execution?agent_context=' + encodeURIComponent('subagent:synthetic-long-child-08'))).json(); expect(isolated.total).toBe(0); expect(isolated.items).toEqual([]);
-    await test.info().attach('label-import-control.json', { body: JSON.stringify({ sourceSha256: sha, execution: data, requests, errors, isolated }), contentType: 'application/json' }); await judgment.screenshot({ path: test.info().outputPath('label-import-' + partial + '-' + width + '.png') });
+    await test.info().attach('label-import-control.json', { body: JSON.stringify({ sourceSha256: sha, execution: data, requests, errors, isolated }), contentType: 'application/json' }); await captureDiagnosticScreenshot(judgment, { path: test.info().outputPath('label-import-' + partial + '-' + width + '.png') });
   } finally { expect((await request.delete(api, { headers: { Origin: new URL(baseURL).origin } })).status()).toBe(204); }
 });
 
@@ -2130,7 +2133,7 @@ for (const width of [1440, 390]) test('hotspot context label lifetime pending co
     }
     await expect(page.locator('[data-collaboration-relation]')).toHaveCount(5); await expect(span).toHaveText(label + ' · 独立上下文'); expect(await rowNode.evaluate(node => node.isConnected)).toBe(true); expect(await spanNode.evaluate(node => node.isConnected)).toBe(true);
     if (width === 1440) await expect(metric).toBeFocused();
-    await page.locator('[data-execution-judgment]').screenshot({ path: test.info().outputPath('hint-lifetime-' + width + '.png') }); await page.unroute('**/collaboration?*');
+    await captureDiagnosticScreenshot(page.locator('[data-execution-judgment]'), { path: test.info().outputPath('hint-lifetime-' + width + '.png') }); await page.unroute('**/collaboration?*');
     await test.info().attach('hint-lifetime.json', { body: JSON.stringify({ key, label, initial, authority }), contentType: 'application/json' });
   }, hotspotInput);
 });
@@ -2198,7 +2201,7 @@ test('hotspot context label lifetime checked generation rejects failed and stale
       phase = 'second'; await page.evaluate(async () => { await labelSnapshot.load(labelJobs); window.dispatchEvent(new Event('index-snapshot-restored')); });
       await expect(context()).toHaveText(batches.second.label + ' · 独立上下文'); await expect(context()).toBeVisible(); expect(await page.locator('body').getAttribute('data-index-generation')).toBe(batches.second.generation);
       expect(await page.evaluate(key => collaborationView.labels.has(key), 'subagent:' + first.children[0])).toBe(false);
-      await page.locator('[data-execution-judgment]').screenshot({ path: test.info().outputPath('hint-real-generation.png') });
+      await captureDiagnosticScreenshot(page.locator('[data-execution-judgment]'), { path: test.info().outputPath('hint-real-generation.png') });
       await test.info().attach('generation-ui-result.json', { body: JSON.stringify({ key, first: batches.first.label, second: batches.second.label, failedAndStalePreservedFirst: true, oldUnreferencedKeyRemoved: true, transportFixtureNotProductScan: true }), contentType: 'application/json' });
     }, hotspotInput, changed);
   }, hotspotInput);
@@ -2323,7 +2326,7 @@ for (const kind of ['exit7', 'cancelled', 'executor-failed', 'result-signal']) f
       await expect(card.getByRole('button', { name: '定位首个失败', exact: true })).toHaveAttribute('data-execution-locate', source.call);
       const explanation = card.locator('p').first(); await expect(explanation).toHaveCount(1); await expect(explanation).toBeVisible(); await expect(explanation).toContainText('不等同整个任务失败');
       expect(network.length).toBe(mode === 'normal' ? 7 : 6); expect(network.some(url => /\/payload|cursor=|view=participants/.test(url))).toBe(false);
-      await card.screenshot({ path: test.info().outputPath('failure-card-' + width + '.png') });
+      await captureDiagnosticScreenshot(card, { path: test.info().outputPath('failure-card-' + width + '.png') });
       await test.info().attach('failure-evidence-positive.json', { body: JSON.stringify({ kind, mode, width, sourceSHA, raw: source.rows, api, data, firstFailureEvidencePresent: Object.hasOwn(diag, 'firstFailureEvidence'), visibleExplanation: await explanation.textContent(), network, target: source.call, commandsExecuted: false }), contentType: 'application/json' });
       const expected = { exit7: '退出码 7', cancelled: '执行器状态 cancelled（取消）', 'executor-failed': '执行器状态 failed（失败）', 'result-signal': '工具结果记录含失败线索' };
       await expect(explanation).toContainText(expected[kind]);
@@ -2430,13 +2433,13 @@ for (const mode of ['normal-child', 'cancelled-import']) for (const width of [14
       for (const boundary of ['模型耗时未测量', '累计非墙钟或关键路径', '— 表示来源未知，不是零', '工具返回不证明整个任务完成', '日志未明确记录时，异步任务状态未知']) await expect(basis).toContainText(boundary);
       const measurement = judgment.locator('details.se-measurement'); await expect(measurement).not.toHaveAttribute('open', '');
       expect(network.length).toBe(normal ? 7 : 6); expect(network.some(url => /\/payload|cursor=|view=participants/.test(url))).toBe(false);
-      await judgment.screenshot({ path: test.info().outputPath('measurement-judgment-' + width + '.png') }); await page.screenshot({ path: test.info().outputPath('measurement-viewport-' + width + '.png'), fullPage: false });
+      await captureDiagnosticScreenshot(judgment, { path: test.info().outputPath('measurement-judgment-' + width + '.png') }); await captureDiagnosticScreenshot(page, { path: test.info().outputPath('measurement-viewport-' + width + '.png'), fullPage: false });
       const beforeDisclosure = network.length;
       await measurement.locator('summary').focus(); await page.keyboard.press(width === 1440 ? 'Enter' : 'Space'); await expect(measurement).toHaveAttribute('open', '');
       const fullMeasurement = measurement.locator(':scope > p').first(); await expect(fullMeasurement).toBeVisible();
       for (const boundary of ['已测工作量之和 500 ms', '全范围可含不同上下文/口径，不据此混榜', '不是墙钟时间或关键路径', '模型耗时未测量', '— 表示来源未知，不是零', '工具结果、wait/poll 返回或子任务完成均不证明整个任务完成', '日志未明确记录时，异步任务状态未知', '不能据工具或轮询结果判断其仍在运行或已结束']) await expect(fullMeasurement).toContainText(boundary);
       expect(network.length).toBe(beforeDisclosure);
-      await measurement.screenshot({ path: test.info().outputPath('measurement-expanded-' + width + '.png') });
+      await captureDiagnosticScreenshot(measurement, { path: test.info().outputPath('measurement-expanded-' + width + '.png') });
       await test.info().attach('failure-measurement-positive.json', { body: JSON.stringify({ mode, width, sourceSHAs, data, facts, owner, target: source.call, basis: await basis.textContent(), fullMeasurement: await fullMeasurement.textContent(), network, commandsExecuted: false }), contentType: 'application/json' });
       await expect(basis).not.toContainText('已测工作量之和');
     };
@@ -2509,19 +2512,19 @@ for (const width of [1440, 390]) test('orphan tool input normal source ' + width
     const judgment = page.locator('[data-execution-judgment]'), card = judgment.locator('.se-judgments article').filter({ has: page.getByRole('heading', { name: '1 个工具有失败信号', exact: true }) });
     await expect(card.locator('.se-basis')).toHaveText('执行归属：' + label + ' · 独立上下文'); await expect(card).toContainText('首个依据：退出码 7；不等同整个任务失败。'); await expect(judgment).toContainText('已测累计 500ms');
     expect(network.length).toBe(7); expect(network.some(u => /\/payload|cursor=|view=participants/.test(u))).toBe(false);
-    await page.screenshot({ path: path.join(out, width + '-viewport.png'), fullPage: false });
+    await captureDiagnosticScreenshot(page, { path: path.join(out, width + '-viewport.png'), fullPage: false });
     await expect(card.locator('code')).toBeVisible();
     await expect.soft(card.locator('code'), 'default visible command from raw').toHaveText('node synthetic-orphan-check.js --case no-owner');
     const located = page.waitForResponse(r => new URL(r.url()).searchParams.get('target') === diag.firstFailure); await card.getByRole('button', { name: '定位首个失败', exact: true }).click(); await located;
     const tool = page.locator('[data-execution-tool="orphan-command-v52"]'); await expect(tool).toBeFocused(); await expect(tool).toContainText('退出码 7'); await expect(tool).toContainText('500ms');
-    const group = tool.locator('xpath=ancestor::*[@data-execution-group][1]'); await expect(group).toContainText('来源未确认'); await expect(group).toContainText('未观察到模型输出'); await group.screenshot({ path: path.join(out, width + '-group.png') }); await judgment.screenshot({ path: path.join(out, width + '-judgment.png') });
+    const group = tool.locator('xpath=ancestor::*[@data-execution-group][1]'); await expect(group).toContainText('来源未确认'); await expect(group).toContainText('未观察到模型输出'); await captureDiagnosticScreenshot(group, { path: path.join(out, width + '-group.png') }); await captureDiagnosticScreenshot(judgment, { path: path.join(out, width + '-judgment.png') });
     await tool.locator('.se-tool-evidence > summary').click();
     const payloads = [];
     for (const name of ['命令或参数', '执行结果']) {
       await tool.getByRole('button', { name, exact: true }).click(); const modal = page.locator('dialog.payload-modal[open]'); await expect(modal).toBeVisible(); await expect(modal).not.toContainText('Loading payload...'); await expect(modal).toContainText('available'); payloads.push({ name, text: await modal.innerText() });
       if (name === '执行结果') await expect(modal).toContainText('Synthetic recorded error, command not executed');
       else await expect.soft(modal, 'raw standalone input must remain readable').toContainText('{"cmd":"node synthetic-orphan-check.js --case no-owner"}');
-      await modal.screenshot({ path: path.join(out, width + '-' + (name === '执行结果' ? 'result' : 'input') + '.png') }); await page.keyboard.press('Escape');
+      await captureDiagnosticScreenshot(modal, { path: path.join(out, width + '-' + (name === '执行结果' ? 'result' : 'input') + '.png') }); await page.keyboard.press('Escape');
     }
     expect(errors).toEqual([]); expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
     fs.writeFileSync(path.join(out, width + '-actual.json'), JSON.stringify({ data, authority, payloads, network, errors, stableTargetFocus: true, commandsExecuted: false }, null, 2));
@@ -2539,25 +2542,25 @@ for (const width of [1440, 390]) test('orphan tool input normal source ' + width
       await entry.click(); const actual = await (await loaded).json(); expect(actual.total).toBe(1); expect(actual.diagnostics.totalTools).toBe(1);
       expect(actual.items.map(x => x.tool.toolCallId)).toEqual(['orphan-command-v52']); expect(actual.items[0].tool.declaredByCallId).toBe('unknown'); expect(actual.items[0].group.response).toBe(false);
       await expect(judgment).toContainText('已测累计 500ms'); await expect(judgment).toContainText('退出码 7'); await expect(judgment.locator('code').first()).toHaveText('node synthetic-orphan-check.js --case no-owner');
-      await judgment.screenshot({ path: path.join(out, width + '-' + origin + '-selected-judgment.png') }); await page.screenshot({ path: path.join(out, width + '-' + origin + '-selected-viewport.png'), fullPage: false });
+      await captureDiagnosticScreenshot(judgment, { path: path.join(out, width + '-' + origin + '-selected-judgment.png') }); await captureDiagnosticScreenshot(page, { path: path.join(out, width + '-' + origin + '-selected-viewport.png'), fullPage: false });
       await judgment.getByText('直接查看所选过程', { exact: true }).click();
       const selectedTool = page.locator('[data-execution-tool="orphan-command-v52"]'); await expect(selectedTool).toBeVisible();
       await judgment.getByRole('button', { name: '定位首个失败', exact: true }).click(); await expect(selectedTool).toBeFocused();
-      await selectedTool.locator('xpath=ancestor::*[@data-execution-group][1]').screenshot({ path: path.join(out, width + '-' + origin + '-selected-group.png') });
+      await captureDiagnosticScreenshot(selectedTool.locator('xpath=ancestor::*[@data-execution-group][1]'), { path: path.join(out, width + '-' + origin + '-selected-group.png') });
       await selectedTool.locator('.se-tool-evidence > summary').click();
       for (const name of ['命令或参数', '执行结果']) {
-        await selectedTool.getByRole('button', { name, exact: true }).click(); const modal = page.locator('dialog.payload-modal[open]'); await expect(modal).toContainText('available'); await expect(modal).toContainText(name === '命令或参数' ? '{"cmd":"node synthetic-orphan-check.js --case no-owner"}' : 'Synthetic recorded error, command not executed'); await modal.screenshot({ path: path.join(out, width + '-' + origin + '-selected-' + (name === '命令或参数' ? 'input' : 'result') + '.png') }); await page.keyboard.press('Escape');
+        await selectedTool.getByRole('button', { name, exact: true }).click(); const modal = page.locator('dialog.payload-modal[open]'); await expect(modal).toContainText('available'); await expect(modal).toContainText(name === '命令或参数' ? '{"cmd":"node synthetic-orphan-check.js --case no-owner"}' : 'Synthetic recorded error, command not executed'); await captureDiagnosticScreenshot(modal, { path: path.join(out, width + '-' + origin + '-selected-' + (name === '命令或参数' ? 'input' : 'result') + '.png') }); await page.keyboard.press('Escape');
       }
-      await page.getByRole('button', { name: '返回协作位置', exact: true }).click(); await expect(entry).toBeFocused(); await page.screenshot({ path: path.join(out, width + '-' + origin + '-returned-viewport.png'), fullPage: false }); navigation.push({ origin, actual, stableFocus: true, inputResult: true, returnFocus: true });
+      await page.getByRole('button', { name: '返回协作位置', exact: true }).click(); await expect(entry).toBeFocused(); await captureDiagnosticScreenshot(page, { path: path.join(out, width + '-' + origin + '-returned-viewport.png'), fullPage: false }); navigation.push({ origin, actual, stableFocus: true, inputResult: true, returnFocus: true });
     };
     await page.goto(url); await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true'); await page.waitForFunction(() => collaborationView.sourceStatus === 'ready');
     const collaboration = page.locator('[data-collaboration]');
-    await collaboration.screenshot({ path: path.join(out, width + '-relations.png') });
+    await captureDiagnosticScreenshot(collaboration, { path: path.join(out, width + '-relations.png') });
     await verifyEntry(collaboration.locator('[data-collaboration-relation] [data-collaboration-agent="' + key + '"]'), 'relation');
     await collaboration.getByRole('button', { name: '参与者与深层入口', exact: true }).click();
     await expect(collaboration).toContainText('参与上下文');
     const participantText = await collaboration.innerText();
-    await collaboration.screenshot({ path: path.join(out, width + '-participants.png') });
+    await captureDiagnosticScreenshot(collaboration, { path: path.join(out, width + '-participants.png') });
     await expect.soft(collaboration, 'participant must not deny an existing tool process').not.toContainText('冻结内容未包含过程');
     await verifyEntry(collaboration.locator('[data-collaboration-agent="' + key + '"]'), 'participant');
     expect(errors).toEqual([]); expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
@@ -2587,13 +2590,13 @@ for (const width of [1440, 390]) test('hotspot return native task context at ' +
       await expect(page.locator('[data-collaboration-items]')).toContainText('Synthetic independent task ' + String(index + 1).padStart(2, '0'));
       const back = page.getByRole('button', { name: '返回耗时位置', exact: true });
       expect(await back.count()).toBe(1);
-      await page.locator('[data-collaboration]').screenshot({ path: test.info().outputPath('hotspot-task-return-' + index + '-' + width + '.png') });
+      await captureDiagnosticScreenshot(page.locator('[data-collaboration]'), { path: test.info().outputPath('hotspot-task-return-' + index + '-' + width + '.png') });
       await back.focus(); await page.keyboard.press('Space');
       await expect(entry).toBeFocused();
       expect(await original.evaluate(n => n === document.activeElement && n.isConnected)).toBe(true);
       expect(paths.slice(before).filter(p => p.includes('/collaboration?'))).toHaveLength(1);
       expect(paths.slice(before)).toHaveLength(1);
-      await page.screenshot({ path: test.info().outputPath('hotspot-return-' + index + '-' + width + '.png') });
+      await captureDiagnosticScreenshot(page, { path: test.info().outputPath('hotspot-return-' + index + '-' + width + '.png') });
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await test.info().attach('hotspot-return-network.json', { body: JSON.stringify(paths), contentType: 'application/json' });
@@ -2640,7 +2643,7 @@ test('wide collaboration reading keeps independent scopes and command width', as
           expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
         }
         await page.setViewportSize({ width, height: 900 });
-        await page.screenshot({ path: test.info().outputPath('wide-selected-' + width + '.png') });
+        await captureDiagnosticScreenshot(page, { path: test.info().outputPath('wide-selected-' + width + '.png') });
         await page.getByRole('button', { name: '返回协作位置', exact: true }).click();
         expect(await original.evaluate(node => node === document.activeElement && node.isConnected)).toBe(true);
       }
@@ -2686,7 +2689,7 @@ test('wide collaboration reading retains late fact reading and native disclosure
       expect(await page.locator('[data-trace-panel]').evaluate(node => getComputedStyle(node).display)).toBe('grid');
       expect(await original.evaluate(node => node === document.activeElement && node.isConnected && node.parentElement.open)).toBe(true);
       expect(Math.abs(await group.evaluate(node => node.getBoundingClientRect().top) - top)).toBeLessThan(4);
-      await page.screenshot({ path: test.info().outputPath('wide-late-reading.png') });
+      await captureDiagnosticScreenshot(page, { path: test.info().outputPath('wide-late-reading.png') });
     } finally { release(); await page.unroute(api + '/collaboration?**'); }
   });
 });
@@ -2714,7 +2717,7 @@ test('wide collaboration reading retains a partial tool with no later visible an
       const after = await target.evaluate(node => node.getBoundingClientRect().top);
       await test.info().attach('partial-row-position.json', { body: JSON.stringify({ before, after, delta: after - before.targetTop }), contentType: 'application/json' });
       expect(Math.abs(after - before.targetTop)).toBeLessThan(4);
-      await page.screenshot({ path: test.info().outputPath('wide-partial-row.png') });
+      await captureDiagnosticScreenshot(page, { path: test.info().outputPath('wide-partial-row.png') });
     } finally { release(); await page.unroute(api + '/collaboration?**'); }
   });
 });
@@ -2759,7 +2762,7 @@ for (const boundary of ['metric', 'replacement', 'late', 'retry']) test('hotspot
         await back.focus(); await page.keyboard.press('Enter');
         expect(await original.evaluate(n => n === document.activeElement)).toBe(true);
       }
-      await page.screenshot({ path: test.info().outputPath('hotspot-return-' + boundary + '.png') });
+      await captureDiagnosticScreenshot(page, { path: test.info().outputPath('hotspot-return-' + boundary + '.png') });
     } finally { release(); await page.unroute(match); }
   });
 });
@@ -2778,7 +2781,7 @@ for (const width of [1440, 390]) for (const mode of ['normal', 'import']) {
       await host.locator('[data-collaboration-branch="' + key + '"]').click();
       const context = host.locator('[data-collaboration-context]');
       await expect(context).toContainText('所选上下文');
-      await context.screenshot({ path: test.info().outputPath('breadcrumb-before-' + mode + '-' + width + '.png') });
+      await captureDiagnosticScreenshot(context, { path: test.info().outputPath('breadcrumb-before-' + mode + '-' + width + '.png') });
       await expect(context.locator('[data-execution-context-short]')).toHaveText(participant.label);
       await expect(context).not.toContainText(key);
       const evidence = host.locator(':scope > details').filter({ has: page.getByText('采集与关联原因', { exact: true }) });
@@ -2803,8 +2806,8 @@ for (const width of [1440, 390]) for (const mode of ['normal', 'import']) {
       expect(stable.unknown).toContain('subagent:synthetic-unknown-full-key-987654321');
       expect(requests.length).toBe(beforeEvidence); expect(errors).toEqual([]);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-      await host.screenshot({ path: test.info().outputPath('selected-context-' + mode + '-' + width + '.png') });
-      await page.screenshot({ path: test.info().outputPath('selected-viewport-' + mode + '-' + width + '.png'), fullPage: false });
+      await captureDiagnosticScreenshot(host, { path: test.info().outputPath('selected-context-' + mode + '-' + width + '.png') });
+      await captureDiagnosticScreenshot(page, { path: test.info().outputPath('selected-viewport-' + mode + '-' + width + '.png'), fullPage: false });
       await test.info().attach('selected-context-guard.json', { body: JSON.stringify({ stable, requests, errors }), contentType: 'application/json' });
     };
     if (mode === 'normal') await withFollowupNormal(async ({ base, fixture }) => read({ base, fixture, url: base + '/sessions/codex/' + fixture.rootId, api: base + '/api/sessions/codex/' + fixture.rootId }));
@@ -2852,8 +2855,8 @@ for (const width of [1440, 390]) for (const mode of ['normal', 'import']) {
       await expect(host.locator('[data-collaboration-context]')).toContainText('该上下文发起的委派');
       await expect(host).toContainText('未记录该上下文发起的明确委派，不代表没有工作。可从全部协作往来核对任务、输入或报告。');
       await expect(host).not.toContainText('已记录的追加输入');
-      await host.screenshot({ path: test.info().outputPath('branch-empty-' + mode + '-' + width + '.png') });
-      await page.screenshot({ path: test.info().outputPath('branch-viewport-' + mode + '-' + width + '.png'), fullPage: false });
+      await captureDiagnosticScreenshot(host, { path: test.info().outputPath('branch-empty-' + mode + '-' + width + '.png') });
+      await captureDiagnosticScreenshot(page, { path: test.info().outputPath('branch-viewport-' + mode + '-' + width + '.png'), fullPage: false });
       await host.locator('[data-collaboration-participants]').click();
       const response = page.waitForResponse(r => r.url().includes('/collaboration?') && new URL(r.url()).searchParams.get('selection') === 'main');
       await host.locator('[data-collaboration-branch="main"]').click(); const outgoing = await (await response).json();
@@ -2867,7 +2870,7 @@ for (const width of [1440, 390]) for (const mode of ['normal', 'import']) {
       expect(tuples).toEqual(main.items); await assertSelectedContextIdentity(page, 'main');
       await expect(host.locator('[data-collaboration-context]')).toContainText('该上下文发起的委派');
       await expect(host.locator('[data-collaboration-relation]')).toHaveCount(11);
-      await host.screenshot({ path: test.info().outputPath('branch-positive-' + mode + '-' + width + '.png') });
+      await captureDiagnosticScreenshot(host, { path: test.info().outputPath('branch-positive-' + mode + '-' + width + '.png') });
       await host.locator('[data-collaboration-root]').click(); await expect(host.locator('[data-collaboration-context]')).toHaveText('全部委派');
       // UI-only selected empty control: global counts cannot assert selected input facts, even without a hint.
       const before = requests.length;
@@ -2900,7 +2903,7 @@ for (const mode of ['normal', 'import']) for (const width of [390, 1440]) {
       expect(traffic.filter(u => u.includes('/collaboration?'))).toHaveLength(1); expect(traffic.filter(u => u.includes('/payload/'))).toEqual([]);
       const metrics = await page.evaluate(() => ({ tools: executionView.page.diagnostics.totalTools, failures: executionView.page.diagnostics.failures, measured: executionView.page.diagnostics.measuredTools }));
       expect(metrics.tools).toBe(14); expect(metrics.failures).toBe(0); expect(metrics.measured).toBe(0);
-      await page.screenshot({ path: test.info().outputPath('attention-default-' + mode + '-' + width + '.png'), fullPage: false });
+      await captureDiagnosticScreenshot(page, { path: test.info().outputPath('attention-default-' + mode + '-' + width + '.png'), fullPage: false });
       const before = traffic.length, response = page.waitForResponse(r => r.url().startsWith(api + '/collaboration?') && new URL(r.url()).searchParams.has('evidence_window'));
       await entry.click(); const result = await (await response).json();
       expect(result.evidenceWindow).toBe('input_submission_error'); expect(result.offset).toBeGreaterThan(20);
@@ -2914,7 +2917,7 @@ for (const mode of ['normal', 'import']) for (const width of [390, 1440]) {
       await expect(page.locator('dialog.payload-modal pre').last()).toContainText('Synthetic rejected input');
       await page.keyboard.press('Escape');
       expect(traffic.filter(u => u.includes('/payload/'))).toHaveLength(1);
-      await page.screenshot({ path: test.info().outputPath('attention-error-' + mode + '-' + width + '.png'), fullPage: false });
+      await captureDiagnosticScreenshot(page, { path: test.info().outputPath('attention-error-' + mode + '-' + width + '.png'), fullPage: false });
       await page.locator('[data-collaboration-attention-return]').click(); await expect(entry).toBeFocused();
       await test.info().attach('attention-chain.json', { body: JSON.stringify({ result, metrics, traffic, errors }), contentType: 'application/json' }); expect(errors).toEqual([]);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -3079,7 +3082,7 @@ test('collaboration attention 1920 late summary preserves half visible tool and 
     const stable = await page.evaluate(() => ({ tool: attentionTool === document.querySelector('[data-execution-tool]'), diagnosis: attentionDiagnosis === document.querySelector('.se-measurement'), focused: document.activeElement === attentionTool, delta: attentionTool.getBoundingClientRect().top - attentionTop }));
     expect(stable).toMatchObject({ tool: true, diagnosis: true, focused: true }); expect(Math.abs(stable.delta)).toBeLessThan(2);
     await page.evaluate(() => window.scrollTo(0, 0)); await expect(page.locator('[data-collaboration-attention-open]')).toBeInViewport();
-    await page.screenshot({ path: test.info().outputPath('attention-default-1920.png'), fullPage: false });
+    await captureDiagnosticScreenshot(page, { path: test.info().outputPath('attention-default-1920.png'), fullPage: false });
     const nodes = await page.evaluate(() => {
       const slot = document.querySelector('[data-collaboration-attention]'), entry = slot.querySelector('button'), pageBefore = executionView.page;
       applyExecutionPage(pageBefore, true);

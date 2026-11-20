@@ -280,6 +280,26 @@ async function fetchFixtureJson(baseURL, pathname) {
   return response.json();
 }
 
+async function waitForPublishedScan(baseURL, timeoutMs = 20_000) {
+  const deadline = performance.now() + timeoutMs;
+  do {
+    const scan = await fetchFixtureJson(baseURL, '/api/scan-status');
+    if (scan.status === 'failure' || scan.errorCount > 0) {
+      throw new Error('fixture scan publication failed');
+    }
+    if (scan.status === 'success' && scan.publishedDataAvailable) return;
+    await new Promise(resolve => setTimeout(resolve, 250));
+  } while (performance.now() < deadline);
+  throw new Error('fixture scan publication did not become ready');
+}
+
+async function captureDiagnosticScreenshot(target, options) {
+  // 这些成功截图供本地阅读，不参与断言。托管 CI 的失败截图和 trace 由 Playwright 配置保留。
+  if (process.env.GITHUB_ACTIONS === 'true') return false;
+  await target.screenshot(options);
+  return true;
+}
+
 async function validateFixtureIsolation(baseURL) {
   const { SPEC } = require('../fixtures/generate-session-fixtures');
   const expectedSessionCount = SPEC.mockCount + 2;
@@ -503,7 +523,7 @@ function argumentValue(name) {
   return index >= 0 ? process.argv[index + 1] : '';
 }
 
-module.exports = { copyDistribution, resolveJavaEnvironment, validateImportReadiness, validateStaticResources, waitUntilReady };
+module.exports = { captureDiagnosticScreenshot, copyDistribution, resolveJavaEnvironment, validateImportReadiness, validateStaticResources, waitForPublishedScan, waitUntilReady };
 
 if (require.main === module) {
   if (process.argv.includes('--check-runtime')) {
