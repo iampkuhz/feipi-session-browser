@@ -256,6 +256,138 @@ public final class PayloadLookup {
   }
 
   /**
+   * 为已物化制品显式创建 typed 读取器；默认查找表不延长未遮盖原文的生命周期。
+   *
+   * @param artifact 当前不可变制品，调用方负责冻结内容；句柄可由相同完整来源身份重建
+   * @return 与流式和导出读取相同合同的访问器
+   * @throws java.io.IOException 读取内容失败
+   */
+  public static SessionContentReader localResultReader(NormalizedSessionArtifact artifact)
+      throws java.io.IOException {
+    return new SessionContentReader(
+        com.feipi.session.browser.domain.normalized.NormalizedSessionContent.fromArtifact(artifact),
+        0);
+  }
+
+  /**
+   * 安全结果正文；缺失与显式空不同，字段遮盖不算截断。
+   *
+   * @param state available 或 missing
+   * @param text 当前可见性策略处理后的正文
+   * @param truncated 是否发生真实正文裁剪
+   */
+  public record ResultContent(String state, String text, boolean truncated) {}
+
+  /**
+   * 独立结果 occurrence；同一冻结内容跨独立读取器可重建句柄。
+   *
+   * @param occurrenceId 不透明来源身份，不包含正文指纹或物理位置
+   * @param toolId 当前已记录的工具标识
+   * @param toolName 安全工具显示名
+   * @param order 当前来源顺序
+   * @param identity confirmed、unconfirmed 或 ambiguous
+   * @param content 当前策略下的安全正文
+   */
+  public record LocalResultOccurrence(
+      String occurrenceId,
+      String toolId,
+      String toolName,
+      long order,
+      String identity,
+      ResultContent content) {}
+
+  /**
+   * 当前输入的一个具体引用位置，真实重复引用不合并。
+   *
+   * @param referenceId 不透明引用句柄
+   * @param occurrenceId 仅身份确认时提供结果句柄，否则为空
+   * @param toolId 安全工具标识
+   * @param toolName 安全工具显示名
+   * @param callId 当前调用标识
+   * @param contextKey 当前执行上下文
+   * @param position 当前输入中的引用位置
+   * @param identity confirmed、unconfirmed 或 ambiguous
+   * @param content 当前策略下的安全正文
+   */
+  public record InputResultReference(
+      String referenceId,
+      String occurrenceId,
+      String toolId,
+      String toolName,
+      String callId,
+      String contextKey,
+      long position,
+      String identity,
+      ResultContent content) {}
+
+  /**
+   * 可准确到达的本地输入位置；不代表模型实际使用或因果消费。
+   *
+   * @param callId 目标调用
+   * @param contextKey 目标执行上下文
+   * @param requestPayloadId 准确请求载荷标识
+   * @param referenceId 目标输入中的准确引用
+   * @param target 可直接取得所在窗口的不透明句柄
+   * @param recordIndex 本地模型记录编号，未知时为空；不是 provider 调用次数
+   * @param scope 目标调用的安全作用域，仅 main 或 subagent，不包含内部执行上下文
+   */
+  public record ResultTarget(
+      String callId,
+      String contextKey,
+      String requestPayloadId,
+      String referenceId,
+      String target,
+      Integer recordIndex,
+      String scope) {}
+
+  /**
+   * 结果的有界准确包含目标。
+   *
+   * @param targets 当前页已确认目标
+   * @param offset 当前页在已确认目标中的起点
+   * @param nextCursor 下一页偏移，不自动翻页
+   * @param coverage complete、partial 或 unknown
+   * @param reason 不完整或未知的原因；空字符串表示完整
+   * @param identity 来源身份资格
+   */
+  public record LocalResultRelations(
+      List<ResultTarget> targets,
+      long offset,
+      Long nextCursor,
+      String coverage,
+      String reason,
+      String identity) {
+    /** 冻结本页目标。 */
+    public LocalResultRelations {
+      targets = List.copyOf(targets);
+    }
+  }
+
+  /**
+   * 显式 opt-in 的结果或请求引用窗口。
+   *
+   * @param occurrences 工具载荷当前页的结果分项
+   * @param references 请求载荷当前页的每个引用
+   * @param offset 本页起点
+   * @param nextCursor 手动下一页偏移
+   * @param coverage 元数据全集的覆盖资格，不表示本页已含全集
+   * @param reason 未完成覆盖的原因
+   */
+  public record LocalResults(
+      List<LocalResultOccurrence> occurrences,
+      List<InputResultReference> references,
+      long offset,
+      Long nextCursor,
+      String coverage,
+      String reason) {
+    /** 冻结本页列表。 */
+    public LocalResults {
+      occurrences = List.copyOf(occurrences);
+      references = List.copyOf(references);
+    }
+  }
+
+  /**
    * 单条 payload 内容条目。
    *
    * @param payloadId 全局唯一的 payload 标识符

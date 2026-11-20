@@ -7,11 +7,17 @@ from __future__ import annotations
 import os
 import re
 import shlex
+import subprocess
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from scripts.gates.execution.java_environment import requires_java, resolve_java_environment
+from scripts.gates.execution.command_adapter import sanitized_environment
+from scripts.gates.execution.java_environment import (
+    requires_java,
+    resolve_java_environment,
+    verify_linkable_jdk,
+)
 from scripts.gates.execution.outcome_classifier import (
     ExecutionStatus,
     GateResult,
@@ -31,6 +37,23 @@ if TYPE_CHECKING:
     from scripts.gates.planning.plan_compiler import CommandInvocation, GatePlan
 
 RESERVED_ENVIRONMENT_KEYS = frozenset({'QUALITY_EXECUTION_MODE', 'QUALITY_CHANGED_FILES'})
+
+
+def _verify_browser_runtime(root: Path, overrides: Mapping[str, str | None]) -> None:
+    try:
+        result = subprocess.run(
+            ['node', 'java/tests/playwright/start-java-fixture-server.js', '--check-runtime'],
+            cwd=root,
+            env=sanitized_environment(overrides),
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=20,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise RuntimeError(f'browserTests runtime preflight: {exc}') from exc
+    if result.returncode:
+        raise RuntimeError(f'browserTests runtime preflight: {result.stderr.strip()[:2000]}')
 
 
 def _emit(
@@ -172,8 +195,16 @@ def orchestrate_gate_run(
             f'cannot override frozen GatePlan environment: {", ".join(sorted(reserved))}'
         )
     root = Path(repo_root).resolve()
-    if requires_java(tuple(gate_plan.command_invocations)):
+    invocations = gate_plan.command_invocations
+    if requires_java(invocations):
         overrides = resolve_java_environment(root, overrides)
+    if any(
+        item.gate_name == 'javaBuildVerification' and item.kind == 'gradle-task'
+        for item in invocations
+    ):
+        verify_linkable_jdk(overrides)
+    if any(item.kind == 'playwright' for item in invocations):
+        _verify_browser_runtime(root, overrides)
     selected_log_dir = (
         Path(log_dir).resolve()
         if log_dir is not None
@@ -184,7 +215,6 @@ def orchestrate_gate_run(
     results: list[GateResult] = []
     interrupted = False
     invocation_index = 1
-    invocations = tuple(gate_plan.command_invocations)
     for gate in gate_plan.gates:
         step_results: list[StepResult] = []
         for step in gate.recipe.steps:

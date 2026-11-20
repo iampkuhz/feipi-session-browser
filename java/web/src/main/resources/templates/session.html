@@ -45,6 +45,7 @@
 <script src="/static/js/session-detail/attribution.js"></script>
 <script src="/static/js/session-detail/events.js"></script>
 <script src="/static/js/session-detail/execution.js"></script>
+<script src="/static/js/session-detail/collaboration.js"></script>
 <script src="/static/js/session-detail/init.js"></script>
 {% endblock %}
 
@@ -129,11 +130,15 @@
 </nav>
 
 <section class="sd-trace-panel" id="sd-tab-panel-trace" data-trace-panel data-tab-panel="trace" role="tabpanel">
-    <section class="se-judgment" data-execution-judgment aria-label="执行判断"><h2>执行判断</h2><p>正在加载同范围的全量工具证据…</p></section>
+    <section class="se-judgment" data-execution-judgment tabindex="-1" aria-label="执行判断"><div data-collaboration-attention hidden></div><h2>执行判断</h2><p>正在加载同范围的全量工具证据…</p></section>
+    <p class="se-basis" data-main-source-timing-entry hidden><button type="button" class="sd-btn sd-btn--secondary sd-btn--md" data-main-source-timing-open>已记录主会话任务／轮次计时 · 查看</button></p>
+    <div class="se-collaboration-rail"><div data-collaboration><p class="se-basis">正在读取有界协作事实…</p></div><p data-collaboration-status role="status" aria-live="polite"></p></div>
     <section class="se-process" aria-label="执行过程">
-        <div class="se-process__head"><div><h2>执行过程</h2><p>分组表示本地来源关系，不表示并行；模型输入仅限本地可见记录。</p></div>
+        <div class="se-process__head"><div><h2>执行过程</h2><p>#编号用于本地记录定位，不等同独立LLM请求次数；分组表示本地来源关系，不表示并行；模型输入/输出仅限本地可见材料。</p></div>
             <div role="group" aria-label="执行筛选"><button type="button" class="sd-btn sd-btn--secondary sd-btn--md" data-execution-filter="all" aria-pressed="true">全部动作</button><button type="button" class="sd-btn sd-btn--secondary sd-btn--md" data-execution-filter="failed" aria-pressed="false">失败信号</button></div>
         </div>
+        <p id="execution-process-context" data-execution-agent-context tabindex="-1">全部上下文；耗时按各自口径分块。</p>
+        <div class="sc-actions"><button type="button" class="sd-btn sd-btn--secondary sd-btn--md" data-execution-agent-reset>返回全部过程</button><button type="button" class="sd-btn sd-btn--secondary sd-btn--md" data-execution-collaboration-return hidden>查看 Agent 协作</button></div>
         <p data-execution-status role="status" aria-live="polite"></p>
         <div data-execution-items>正在加载过程摘要…</div><div data-execution-pagination></div>
     </section>
@@ -184,14 +189,14 @@
                     <span>Attribution Gaps <b>Loading…</b></span>
                 </div>
             </div>
-            <div class="sd-kpi sd-kpi--stack" aria-label="Source Task Active">
+            <div class="sd-kpi sd-kpi--stack" aria-label="主会话任务活动时间" data-session-timing tabindex="-1">
                 <div class="sd-kpi__value">Loading…</div>
-                <div class="sd-kpi__label">Source Task Active</div>
+                <div class="sd-kpi__label">主会话任务活动时间</div>
                 <div class="sd-kpi__subgrid">
-                    <span>Wall Duration <b>Loading…</b></span>
-                    <span>Agent Turn <b>Loading…</b></span>
-                    <span>Model Execution <b>Loading…</b></span>
-                    <span>Tool Execution <b>Loading…</b></span>
+                    <span>来源记录时间跨度 <b>Loading…</b></span>
+                    <span>主会话轮次累计 <b>Loading…</b></span>
+                    <span>来源模型计时 <b>Loading…</b></span>
+                    <span>来源工具计时 <b>Loading…</b></span>
                 </div>
             </div>
                 </div>

@@ -1,4 +1,5 @@
 const { test, expect } = require('@playwright/test');
+const { captureDiagnosticScreenshot } = require('./start-java-fixture-server');
 const path = require('path');
 const { runPlaywrightRoot } = require('./runtime-paths');
 
@@ -16,6 +17,13 @@ const REQUEST = '合成 user 输入\ntool_result previous-tool: synthetic previo
 async function fulfillIndexedJson(route, json) {
   const response = await route.fetch();
   await route.fulfill({ response, status: 200, json });
+}
+
+// Synthetic exact-call payloads follow the explicit typed wrapper; round aggregates stay legacy.
+function typedPayloadFixture(route, payload) {
+  return new URL(route.request().url()).searchParams.get('view') === 'local_results'
+    ? { payload, localResults: { items: [], offset: 0, nextCursor: null, coverage: 'complete', reason: '', targetReferenceId: null }, relations: null }
+    : payload;
 }
 
 async function installTraceFixture(page) {
@@ -42,7 +50,7 @@ async function installTraceFixture(page) {
     } });
   });
   await page.route(`**${API}/payload/*`, (route) => {
-    const id = decodeURIComponent(route.request().url().split('/payload/')[1]);
+    const id = decodeURIComponent(new URL(route.request().url()).pathname.split('/payload/')[1]);
     let kind;
     let content;
     if (id.startsWith('tool:')) {
@@ -51,11 +59,11 @@ async function installTraceFixture(page) {
       content = side === 'input' ? INPUTS[toolId] : `synthetic result for ${toolId}`;
     } else {
       const side = id.split(':')[1];
-      kind = side === 'req' ? 'llm_request' : 'llm_response';
+      kind = side === 'req' ? (id.startsWith('sa:') ? 'subagent_request' : 'llm_request') : 'llm_response';
       content = side === 'req' ? REQUEST : id === 'main:resp:synthetic-call-8' ? '' : RESPONSE;
       if (id === 'main:resp:synthetic-call-8') return fulfillIndexedJson(route, { kind, content, reading: [], status: 'missing' });
     }
-    return fulfillIndexedJson(route, { kind, content: content || '', status: content ? 'available' : 'missing', truncated: false });
+    return fulfillIndexedJson(route, typedPayloadFixture(route, { kind, content: content || '', status: content ? 'available' : 'missing', truncated: false }));
   });
   await page.goto(SESSION);
   await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
@@ -67,8 +75,16 @@ async function openContent(page, button, label, content) {
   await button.click();
   const modal = page.locator('dialog.payload-modal');
   await expect(modal).toBeVisible();
-  await expect(modal.locator('.sd-card-title')).toHaveText(label);
-  await expect(modal.locator('pre')).toHaveText(content);
+  let reading = modal;
+  if (label === 'Result') {
+    const unitemized = modal.locator('[data-unitemized-tool-output]');
+    await expect(unitemized).toBeVisible();
+    await expect(unitemized.locator('pre')).toHaveText(content);
+    reading = modal.locator('[data-tool-result-original]').first();
+    await reading.locator(':scope > summary').click();
+  }
+  await expect(reading.locator('.sd-card-title')).toHaveText(label === 'Request' ? '输入正文' : label);
+  await expect(reading.locator('pre')).toHaveText(content);
   return modal;
 }
 
@@ -88,10 +104,10 @@ for (const scenario of [
   test(`conversation empty guidance guard: ${scenario.name}`, async ({ page }) => {
     const row = await installTraceFixture(page);
     const raw = scenario.raw ? 'Tool result [synthetic-previous]\nSynthetic stored evidence' : '';
-    await page.route(`**${API}/payload/*`, route => fulfillIndexedJson(route, {
+    await page.route(`**${API}/payload/*`, route => fulfillIndexedJson(route, typedPayloadFixture(route, {
       kind: scenario.title === 'Request' ? 'llm_request' : 'llm_response', content: raw,
       reading: scenario.reading || [], unconfirmedContext: !!scenario.unconfirmedContext,
-    }));
+    })));
     await page.route(`**${API}/attribution/1/1/*`, route => {
       const url = new URL(route.request().url());
       return fulfillIndexedJson(route, { kind: 'llm.' + url.pathname.split('/').at(-1) + '_attribution',
@@ -101,9 +117,9 @@ for (const scenario of [
     const modal = page.locator('dialog.payload-modal');
     await expect(modal).toBeVisible();
     await expect(modal).toContainText('仅展示本地可见记录，不代表完整 provider context。');
-    if (scenario.empty) await expect(modal.locator('.sd-payload-empty')).toHaveText(scenario.empty);
+    if (scenario.empty) await expect(modal.locator('.sd-conversation-payload > .sd-payload-empty')).toHaveText(scenario.empty);
     else {
-      await expect(modal.locator('.sd-payload-empty')).toHaveCount(0);
+      await expect(modal.locator('.sd-conversation-payload > .sd-payload-empty')).toHaveCount(0);
       await expect(modal).toContainText('Synthetic request prose');
     }
     const original = modal.locator('[data-payload-raw]');
@@ -222,7 +238,7 @@ test('tool-only member uses one timeline operation, paired bodies are lazy and r
   await pair.locator('summary').click();
   await expect(pair.locator('pre').first()).toHaveText(INPUTS['tool-b']);
   await expect(pair.locator('pre').last()).toHaveText('synthetic result for tool-b');
-  await detail.screenshot({ path: path.join(runPlaywrightRoot, 'task56-trace-pair-desktop.png') });
+  await captureDiagnosticScreenshot(detail, { path: path.join(runPlaywrightRoot, 'task56-trace-pair-desktop.png') });
   const boxes = await pair.locator('.sd-tool-payload-grid > section').evaluateAll(nodes => nodes.map(node => {
     const b = node.getBoundingClientRect(); return { top: b.top, left: b.left, right: b.right, bottom: b.bottom };
   }));
@@ -232,7 +248,7 @@ test('tool-only member uses one timeline operation, paired bodies are lazy and r
   const narrow = await pair.locator('.sd-tool-payload-grid > section').evaluateAll(nodes => nodes.map(node => {
     const b = node.getBoundingClientRect(); return { top: b.top, bottom: b.bottom, right: b.right };
   }));
-  await detail.screenshot({ path: path.join(runPlaywrightRoot, 'task56-trace-pair-narrow.png') });
+  await captureDiagnosticScreenshot(detail, { path: path.join(runPlaywrightRoot, 'task56-trace-pair-narrow.png') });
   expect(narrow[0].bottom).toBeLessThan(narrow[1].top);
   expect(narrow[1].right).toBeLessThanOrEqual(390);
   expect(await detail.locator('[data-tool-call-id="tool-b"] .sd-tool-cmd').evaluate(node => node.getBoundingClientRect().height)).toBeLessThanOrEqual(70);
@@ -413,11 +429,46 @@ test('real Codex import keeps R1/R2 summaries, times and same-name tool payloads
         }
       }
     }
-    await page.locator('#round-1-detail').screenshot({ path: path.join(runPlaywrightRoot, 'task56-real-trace-desktop.png') });
+    await captureDiagnosticScreenshot(page.locator('#round-1-detail'), { path: path.join(runPlaywrightRoot, 'task56-real-trace-desktop.png') });
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.locator('#round-2-detail').screenshot({ path: path.join(runPlaywrightRoot, 'task56-real-trace-narrow.png') });
+    await captureDiagnosticScreenshot(page.locator('#round-2-detail'), { path: path.join(runPlaywrightRoot, 'task56-real-trace-narrow.png') });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   } finally {
     expect((await request.delete(api, { headers })).status()).toBe(204);
   }
+});
+
+
+test('local result inclusion opts in only exact supported identities and keeps round request attribution', async ({ page }) => {
+  const seen = []; page.on('request', request => { if (request.url().includes(API + '/payload/')) seen.push(new URL(request.url())); });
+  await installTraceFixture(page);
+  expect(seen).toHaveLength(0);
+  const cases = [
+    ['main:req:synthetic-call-7', 'llm_request', true],
+    ['sa:req:synthetic-call-7', 'subagent_request', true],
+    ['tool:result:tool-a', 'tool_result', true],
+    ['round:req:1', 'llm_request', false],
+  ];
+  for (const [id, kind, explicit] of cases) {
+    await page.evaluate(({ id, kind }) => {
+      const button = document.createElement('button'); button.textContent = 'Synthetic scope probe';
+      button.id = 'synthetic-scope-probe'; button.setAttribute('data-action', 'open-payload');
+      button.setAttribute('data-payload-id', id); button.setAttribute('data-payload-kind', kind);
+      if (id.startsWith('round:')) button.setAttribute('data-attribution-path', '/attribution/1/1/request?call_id=synthetic-call-7');
+      document.body.append(button);
+    }, { id, kind });
+    await page.locator('#synthetic-scope-probe').click();
+    const modal = page.locator('dialog.payload-modal[open]');
+    await expect(modal.locator('.sd-payload-loading')).toHaveCount(0);
+    expect(seen.at(-1).searchParams.get('view')).toBe(explicit ? 'local_results' : null);
+    expect(decodeURIComponent(seen.at(-1).pathname.split('/payload/')[1])).toBe(id);
+    if (id.startsWith('round:')) {
+      await expect(modal.locator('.sd-content-block .sd-card-title')).toHaveText('Request');
+      await expect(modal.locator('.sd-content-block pre')).toHaveText(REQUEST);
+      await expect(modal.locator('[data-payload-attribution="request"]')).toHaveAttribute('data-attribution-call', 'synthetic-call-7');
+      await expect(modal.locator('.sd-local-results')).toHaveCount(0);
+    } else await expect(modal.locator('.sd-local-results')).toHaveCount(1);
+    await closeContent(modal); await page.locator('#synthetic-scope-probe').evaluate(button => button.remove());
+  }
+  expect(seen).toHaveLength(4);
 });

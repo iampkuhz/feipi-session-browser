@@ -259,8 +259,62 @@ public final class CodexSourceAdapter implements SourceAdapter {
         meta.put("subagentInstanceCount", Long.toString(subagentCount));
       }
     }
+    if (disc.hasFile()) {
+      try {
+        meta.put(
+            "collaborationSourceFingerprint",
+            collaborationFingerprint(disc.rolloutPath(), disc.sessionId()));
+      } catch (IOException e) {
+        throw new java.io.UncheckedIOException(e);
+      }
+    }
     meta.putAll(tokenProvenance(disc));
     return Map.copyOf(meta);
+  }
+
+  /** 有界显式子来源发生变化时正常增量重扫；不建立跨版本状态或遍历其它目录。 */
+  private static String collaborationFingerprint(Path root, String rootId) throws IOException {
+    var context = new ChildCollection("", null, new ArrayList<>(), null);
+    context.index(root);
+    var queue = new java.util.ArrayDeque<Map.Entry<String, Integer>>();
+    queue.add(Map.entry(rootId, 0));
+    Set<Path> visited = new HashSet<>();
+    visited.add(root.toAbsolutePath().normalize());
+    StringBuilder snapshot = new StringBuilder();
+    long bytes = 0;
+    int count = 0;
+    while (!queue.isEmpty()) {
+      var entry = queue.removeFirst();
+      if (entry.getValue() >= 8) continue;
+      for (Path child : context.children(entry.getKey())) {
+        if (!visited.add(child.toAbsolutePath().normalize())) continue;
+        long size = Files.size(child);
+        snapshot
+            .append(child.getFileName())
+            .append(':')
+            .append(size)
+            .append(':')
+            .append(Files.getLastModifiedTime(child))
+            .append(';');
+        if (count < 128 && size <= 128L * 1024 * 1024 - bytes) {
+          bytes += size;
+          count++;
+          snapshot.append(SourcePathOps.computeSha256(child));
+        }
+        // 正文散列预算不能截断元数据链：否则未匹配邻居会遮住实际采集的深层增量变化。
+        String id = readFirstSessionMeta(child).getOrDefault("id", "");
+        if (!id.isBlank()) queue.add(Map.entry(id, entry.getValue() + 1));
+      }
+    }
+    context.diagnostics.forEach(diagnostic -> snapshot.append(diagnostic.code()));
+    try {
+      return java.util.HexFormat.of()
+          .formatHex(
+              java.security.MessageDigest.getInstance("SHA-256")
+                  .digest(snapshot.toString().getBytes(StandardCharsets.UTF_8)));
+    } catch (java.security.NoSuchAlgorithmException e) {
+      throw new IllegalStateException("SHA-256 unavailable", e);
+    }
   }
 
   private static Map<String, String> tokenProvenance(CodexDiscovery.CodexSessionDiscovery disc) {
@@ -282,7 +336,7 @@ public final class CodexSourceAdapter implements SourceAdapter {
               range.events(), children, new ArrayList<>(), disc.rolloutPath().toString());
       for (Path child : children) {
         String id = readFirstSessionMeta(child).getOrDefault("id", "").trim();
-        if (relations.containsKey(id)) {
+        if (relations.containsKey("agent:" + id)) {
           var childResult = CodexMetadataProjection.read(new JsonlReader(), child);
           try {
             appendTokenProvenance(
@@ -613,13 +667,24 @@ public final class CodexSourceAdapter implements SourceAdapter {
     return childRolloutFiles(rolloutPath, parentSessionId).size();
   }
 
+  /** 元数据只读有界首行，避免邻居大正文进入 discovery。 */
+  private static String metadataLine(BufferedReader reader) throws IOException {
+    StringBuilder line = new StringBuilder();
+    for (int i = 0; i < 65536; i++) {
+      int value = reader.read();
+      if (value < 0) return line.isEmpty() ? null : line.toString();
+      if (value == '\n') {
+        if (!line.toString().isBlank()) return line.toString();
+        line.setLength(0);
+      } else line.append((char) value);
+    }
+    return null;
+  }
+
   private static Map<String, String> readFirstSessionMeta(Path candidate) {
     try (BufferedReader reader = Files.newBufferedReader(candidate, StandardCharsets.UTF_8)) {
       String line;
-      while ((line = reader.readLine()) != null) {
-        if (line.isBlank()) {
-          continue;
-        }
+      if ((line = metadataLine(reader)) != null) {
         JsonNode event = MAPPER.readTree(line);
         if (event != null
             && event.isObject()
@@ -748,11 +813,10 @@ public final class CodexSourceAdapter implements SourceAdapter {
         var range = CodexActivityRange.create(batch.events(), result.diagnostics());
         List<JsonNode> events = range.events();
         Map<String, String> parentMeta = readFirstSessionMeta(filePath);
+        var context = new ChildCollection(initialModel, cancellation, diagnostics, owner.spool);
+        context.index(filePath);
         List<Path> childRollouts =
-            CodexDiscovery.isSubagentMetaEvent(parentMeta)
-                ? List.of()
-                : childRolloutFiles(
-                    filePath, parentThreadIdForParent(parentMeta, candidate.sessionKey()));
+            context.children(parentThreadIdForParent(parentMeta, candidate.sessionKey()));
         Map<String, SourceRecordRelation> spawnRelations =
             spawnRelations(events, childRollouts, diagnostics, locator);
 
@@ -760,64 +824,21 @@ public final class CodexSourceAdapter implements SourceAdapter {
             appendParsedEvents(
                 range,
                 new CodexParseState(locator, range.initialModel(initialModel), cancellation),
-                SourceRecordRelation.empty(),
+                CodexDiscovery.isSubagentMetaEvent(parentMeta)
+                    ? new SourceRecordRelation(
+                        optionalText(parentMeta.getOrDefault("id", "")),
+                        optionalText(parentThreadId(parentMeta)),
+                        Optional.empty(),
+                        Optional.empty(),
+                        Optional.empty())
+                    : SourceRecordRelation.empty(),
                 spawnRelations,
                 diagnostics,
                 owner.spool);
         // 每个事件写入批次 spool 前已投影；正文和身份逐条重放，非文本原文按 locator 读取。
 
-        if (!childRollouts.isEmpty()) {
-          for (Path childRollout : childRollouts) {
-            Map<String, String> childMeta = readFirstSessionMeta(childRollout);
-            String childId = childMeta.getOrDefault("id", "").trim();
-            SourceRecordRelation parentRelation = spawnRelations.get(childId);
-            if (parentRelation == null) {
-              diagnostics.add(
-                  codexInfoDiagnostic(
-                      "Subagent rollout has parent metadata but no unambiguous spawn_agent output: "
-                          + childId,
-                      "SUBAGENT_SPAWN_UNMATCHED",
-                      childRollout.toString()));
-              continue;
-            }
-            try (var childBatch = CodexEventBatch.read(jsonlReader, childRollout)) {
-              JsonlReaderResult childResult = childBatch.result();
-              diagnostics.addAll(childResult.diagnostics());
-              var childRange =
-                  CodexActivityRange.create(childBatch.events(), childResult.diagnostics());
-              candidateCount +=
-                  appendParsedEvents(
-                      childRange,
-                      new CodexParseState(
-                          childRollout.toAbsolutePath().toString(),
-                          childRange.initialModel(initialModel),
-                          cancellation),
-                      parentRelation,
-                      spawnRelations(
-                          childRange.events(), List.of(), diagnostics, childRollout.toString()),
-                      diagnostics,
-                      owner.spool);
-            } catch (CodexActivityRange.InvalidHistoryException e) {
-              if (!CodexActivityRange.PARENT_CONFLICT.equals(e.code())) throw e;
-              diagnostics.add(
-                  new SourceDiagnostic(
-                      ParseSeverity.WARNING,
-                      ParseIssueType.NON_OBJECT_SKIPPED,
-                      "Conflicting Codex child rollout omitted: " + e.getMessage(),
-                      1,
-                      Optional.empty(),
-                      e.code(),
-                      childRollout.toString(),
-                      OptionalInt.empty(),
-                      OptionalInt.empty(),
-                      OptionalInt.empty()));
-              LOG.log(
-                  Level.WARNING,
-                  "Codex 子会话已跳过，父会话继续扫描。source=codex phase=PARSE code={0}",
-                  e.getMessage());
-            }
-          }
-        }
+        context.visited.add(filePath.toAbsolutePath().normalize());
+        candidateCount += appendChildren(filePath, childRollouts, spawnRelations, context, 1);
       }
       return owner.finish(boundedDiagnostics(diagnostics), candidateCount, candidate);
     } catch (CancelledMapping e) {
@@ -828,6 +849,151 @@ public final class CodexSourceAdapter implements SourceAdapter {
       return SourceResult.Fatal.ioFailure("SOURCE_TEMP_IO_FAILED", e);
     } catch (IOException e) {
       return SourceResult.Fatal.ioFailure("SOURCE_IO_FAILED", e);
+    }
+  }
+
+  /** 只沿明确且唯一的父工具链采集；深度、数量及输入字节共同限制资源。 */
+  private int appendChildren(
+      Path parent,
+      List<Path> children,
+      Map<String, SourceRecordRelation> relations,
+      ChildCollection context,
+      int depth)
+      throws IOException {
+    int count = 0;
+    for (Path child : children) {
+      if (context.cancellation != null && context.cancellation.isCancelled())
+        throw new CancelledMapping();
+      String id = readFirstSessionMeta(child).getOrDefault("id", "").trim();
+      var relation = relations.get("agent:" + id);
+      if (relation == null) {
+        context.diagnostics.add(
+            codexInfoDiagnostic(
+                "No unique parent spawn for child", "SUBAGENT_SPAWN_UNMATCHED", child.toString()));
+        continue;
+      }
+      Path key = child.toAbsolutePath().normalize();
+      String issue =
+          context.visited.contains(key)
+              ? "SUBAGENT_CYCLE"
+              : depth > 8
+                      || context.budget[0] >= 128
+                      || Files.size(child) > 128L * 1024 * 1024 - context.budget[1]
+                  ? "SUBAGENT_COLLECTION_TRUNCATED"
+                  : "";
+      if (!issue.isEmpty()) {
+        context.diagnostics.add(
+            codexInfoDiagnostic(
+                "Explicit child collection boundary reached", issue, parent.toString()));
+        continue;
+      }
+      context.visited.add(key);
+      context.budget[0]++;
+      context.budget[1] += Files.size(child);
+      try (var batch = CodexEventBatch.read(jsonlReader, child)) {
+        context.diagnostics.addAll(batch.result().diagnostics());
+        var range = CodexActivityRange.create(batch.events(), batch.result().diagnostics());
+        var descendants = context.children(id);
+        var childRelations =
+            spawnRelations(range.events(), descendants, context.diagnostics, child.toString());
+        count +=
+            appendParsedEvents(
+                range,
+                new CodexParseState(
+                    child.toAbsolutePath().toString(),
+                    range.initialModel(context.model),
+                    context.cancellation),
+                relation,
+                childRelations,
+                context.diagnostics,
+                context.spool);
+        count += appendChildren(child, descendants, childRelations, context, depth + 1);
+      } catch (CodexActivityRange.InvalidHistoryException e) {
+        if (!CodexActivityRange.PARENT_CONFLICT.equals(e.code())) throw e;
+        context.diagnostics.add(
+            new SourceDiagnostic(
+                ParseSeverity.WARNING,
+                ParseIssueType.NON_OBJECT_SKIPPED,
+                "Conflicting Codex child rollout omitted: " + e.getMessage(),
+                1,
+                Optional.empty(),
+                e.code(),
+                child.toString(),
+                OptionalInt.empty(),
+                OptionalInt.empty(),
+                OptionalInt.empty()));
+      }
+    }
+    return count;
+  }
+
+  /** 一次解析共享有界采集状态，不持有任何子正文。 */
+  private static final class ChildCollection {
+    final String model;
+    final CancellationSignal cancellation;
+    final List<SourceDiagnostic> diagnostics;
+    final CodexRecordSpool spool;
+    final Set<Path> visited = new HashSet<>();
+    final long[] budget = {0, 0};
+    final Map<String, List<Path>> childIndex = new java.util.HashMap<>();
+
+    void index(Path root) throws IOException {
+      if (root.getParent() == null) return;
+      List<Path> candidates;
+      try (var stream = Files.list(root.getParent())) {
+        candidates =
+            stream
+                .filter(path -> Files.isRegularFile(path, java.nio.file.LinkOption.NOFOLLOW_LINKS))
+                .filter(path -> path.getFileName().toString().startsWith("rollout-"))
+                .filter(path -> path.getFileName().toString().endsWith(".jsonl"))
+                .limit(4097)
+                .toList();
+      }
+      if (candidates.size() > 4096) {
+        diagnostics.add(
+            codexInfoDiagnostic(
+                "Child metadata candidate limit reached",
+                "SUBAGENT_DISCOVERY_TRUNCATED",
+                root.toString()));
+        // 候选集合被截断时不任取目录枚举顺序中的子集作为唯一身份依据。
+        return;
+      }
+      var ids = new java.util.HashMap<String, List<Path>>();
+      var parents = new java.util.HashMap<Path, String>();
+      for (var path : candidates) {
+        var meta = readFirstSessionMeta(path);
+        String id = meta.getOrDefault("id", "");
+        if (!id.isBlank()) ids.computeIfAbsent(id, ignored -> new ArrayList<>()).add(path);
+        parents.put(path, parentThreadId(meta));
+      }
+      for (var group : ids.values()) {
+        if (group.size() != 1) {
+          diagnostics.add(
+              codexInfoDiagnostic(
+                  "Multiple files declare the same child identity",
+                  "SUBAGENT_IDENTITY_CONFLICT",
+                  root.toString()));
+          continue;
+        }
+        Path path = group.getFirst();
+        childIndex.computeIfAbsent(parents.get(path), ignored -> new ArrayList<>()).add(path);
+      }
+      childIndex.values().forEach(paths -> paths.sort(java.util.Comparator.naturalOrder()));
+    }
+
+    List<Path> children(String id) {
+      return childIndex.getOrDefault(id, List.of());
+    }
+
+    ChildCollection(
+        String model,
+        CancellationSignal cancellation,
+        List<SourceDiagnostic> diagnostics,
+        CodexRecordSpool spool) {
+      this.model = model;
+      this.cancellation = cancellation;
+      this.diagnostics = diagnostics;
+      this.spool = spool;
     }
   }
 
@@ -908,6 +1074,7 @@ public final class CodexSourceAdapter implements SourceAdapter {
       List<SourceDiagnostic> diagnostics,
       CodexRecordSpool records)
       throws IOException {
+    var collaboration = new CodexCollaborationFacts(range.events(), toolRelations);
     try (var rawRecords = new CodexRecordSpool()) {
       List<JsonNode> events = range.events();
       String locator = state.locator;
@@ -974,7 +1141,8 @@ public final class CodexSourceAdapter implements SourceAdapter {
         }
         previousTotals = mapped.previousTotals();
         rawRecords.add(
-            withRelation(mapped.record(), relationForEvent(event, defaultRelation, toolRelations)));
+            withRelation(mapped.record(), relationForEvent(event, defaultRelation, toolRelations))
+                .withCollaboration(collaboration.forEvent(event, mapped.record())));
         // 工具正文/输入已由 SourceRecord 持有；后备与 usage 分段不再读取这些中间树。
         // 就地释放也覆盖 result.events() 的别名，不改变物理顺序、身份或原始来源。
         if (event.path("payload")
@@ -1182,7 +1350,8 @@ public final class CodexSourceAdapter implements SourceAdapter {
         record.timing(),
         record.metaContext(),
         record.messageRole(),
-        record.toolObservation());
+        record.toolObservation(),
+        record.collaboration());
   }
 
   /** 仅把连续完整、且源身份精确相同的问答表示视为镜像。 */
@@ -1456,16 +1625,18 @@ public final class CodexSourceAdapter implements SourceAdapter {
         record.timing(),
         record.metaContext(),
         record.messageRole(),
-        record.toolObservation());
+        record.toolObservation(),
+        record.collaboration());
   }
 
   private static SourceRecordRelation relationForEvent(
       JsonNode event,
       SourceRecordRelation defaultRelation,
       Map<String, SourceRecordRelation> toolRelations) {
+    if (defaultRelation != null && defaultRelation.subagentId().isPresent()) return defaultRelation;
     String callId = responseItemCallId(event);
     if (!callId.isBlank()) {
-      SourceRecordRelation relation = toolRelations.get(callId);
+      SourceRecordRelation relation = toolRelations.get("tool:" + callId);
       if (relation != null) {
         return relation;
       }
@@ -1479,6 +1650,7 @@ public final class CodexSourceAdapter implements SourceAdapter {
       List<SourceDiagnostic> diagnostics,
       String locator) {
     Map<String, String> spawnCalls = new LinkedHashMap<>();
+    Set<String> conflictingCalls = new HashSet<>();
     for (JsonNode event : events) {
       JsonNode payload = event.path("payload");
       String payloadType = text(payload, "type");
@@ -1486,7 +1658,7 @@ public final class CodexSourceAdapter implements SourceAdapter {
           && "spawn_agent".equals(text(payload, "name"))) {
         String callId = text(payload, "call_id");
         if (!callId.isBlank()) {
-          spawnCalls.put(callId, "spawn_agent");
+          if (spawnCalls.putIfAbsent(callId, "spawn_agent") != null) conflictingCalls.add(callId);
         }
       }
     }
@@ -1504,7 +1676,11 @@ public final class CodexSourceAdapter implements SourceAdapter {
         continue;
       }
       parseSpawnAgentResult(payload.get("output"))
-          .ifPresent(result -> spawnResults.put(callId, result));
+          .ifPresent(
+              result -> {
+                var previous = spawnResults.putIfAbsent(callId, result);
+                if (previous != null && !previous.equals(result)) conflictingCalls.add(callId);
+              });
     }
 
     List<Map<String, String>> children =
@@ -1513,6 +1689,11 @@ public final class CodexSourceAdapter implements SourceAdapter {
     for (Map.Entry<String, SpawnAgentResult> entry : spawnResults.entrySet()) {
       String callId = entry.getKey();
       SpawnAgentResult result = entry.getValue();
+      if (conflictingCalls.contains(callId)) {
+        diagnostics.add(
+            codexInfoDiagnostic("Conflicting spawn identity", "SUBAGENT_SPAWN_AMBIGUOUS", locator));
+        continue;
+      }
       List<Map<String, String>> matches =
           children.stream()
               .filter(
@@ -1522,6 +1703,16 @@ public final class CodexSourceAdapter implements SourceAdapter {
                           : result.agentId().equals(meta.get("id")))
               .toList();
       String agentId = result.agentId();
+      if (!agentId.isEmpty()
+          && (matches.size() > 1
+              || spawnResults.values().stream()
+                      .filter(other -> result.agentId().equals(other.agentId()))
+                      .count()
+                  > 1)) {
+        diagnostics.add(
+            codexInfoDiagnostic("Conflicting child identity", "SUBAGENT_SPAWN_AMBIGUOUS", locator));
+        continue;
+      }
       if (agentId.isEmpty()) {
         long matchingSpawns =
             spawnResults.values().stream()
@@ -1552,8 +1743,8 @@ public final class CodexSourceAdapter implements SourceAdapter {
               Optional.of(callId),
               Optional.empty(),
               Optional.of("spawn_agent"));
-      relations.put(callId, relation);
-      relations.put(agentId, relation);
+      relations.put("tool:" + callId, relation);
+      relations.put("agent:" + agentId, relation);
     }
     return Map.copyOf(relations);
   }
@@ -1576,13 +1767,14 @@ public final class CodexSourceAdapter implements SourceAdapter {
     }
     JsonNode resultNode = output;
     if (output.isTextual()) {
+      if (output.textValue().length() > 1024 * 1024) return Optional.empty();
       try {
         resultNode = MAPPER.readTree(output.asText());
       } catch (IOException e) {
         return Optional.empty();
       }
     }
-    if (!resultNode.isObject()) {
+    if (resultNode == null || !resultNode.isObject()) {
       return Optional.empty();
     }
     String agentId = text(resultNode, "agent_id").trim();
@@ -1605,7 +1797,7 @@ public final class CodexSourceAdapter implements SourceAdapter {
     try (var stream = Files.list(dir)) {
       for (Path candidate :
           stream
-              .filter(Files::isRegularFile)
+              .filter(path -> Files.isRegularFile(path, java.nio.file.LinkOption.NOFOLLOW_LINKS))
               .filter(path -> path.getFileName().toString().startsWith("rollout-"))
               .filter(path -> path.getFileName().toString().endsWith(".jsonl"))
               .sorted()
@@ -1904,7 +2096,7 @@ public final class CodexSourceAdapter implements SourceAdapter {
           Optional.empty(),
           extractCodexToolError(payload),
           SourceRecordRelation.empty(),
-          responseText(payload.get("output")));
+          toolResultText(payload.get("output")));
     }
     if ("message".equals(payloadType)) {
       String role = text(payload, "role");
@@ -1970,6 +2162,27 @@ public final class CodexSourceAdapter implements SourceAdapter {
       return "";
     }
     return input.isTextual() ? input.asText() : input.toString();
+  }
+
+  /** 工具结果保留完整结构值；文本原文不再编码，缺失与 null 不生成正文。 */
+  private static String toolResultText(JsonNode output) {
+    if (output == null || output.isNull()) return "";
+    if (output.isTextual()) return output.asText();
+    if (output.isArray() && !output.isEmpty()) {
+      boolean textBlocks = true;
+      for (JsonNode part : output) {
+        String type = text(part, "type");
+        if (!part.isObject()
+            || part.size() != 2
+            || !part.path("text").isTextual()
+            || !("text".equals(type) || "input_text".equals(type) || "output_text".equals(type))) {
+          textBlocks = false;
+          break;
+        }
+      }
+      if (textBlocks) return responseText(output);
+    }
+    return output.toString();
   }
 
   /** 提取文本块，保持源顺序和空白，不将非文本结构序列化为响应内容。 */

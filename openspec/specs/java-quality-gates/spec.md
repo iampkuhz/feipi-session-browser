@@ -32,6 +32,20 @@ Gradle settings、根 build、properties 和 wrapper SHALL 位于 `java/`；从�
 - **Then** SHALL 保留真实 launcher、隔离自动扫描、实例及内容验证和全部相关产品断言
 - **And** fixture 代理 SHALL 独立管理下游连接，不把上游连接声明透传；不得以重试或跳过掩盖失败
 
+#### Scenario: Web 资源与 Java 根检查合并
+
+- **When** Web 资源专项与 Java 根 check 同时触发
+- **Then** 根 check SHALL 在本轮承接原 Web 模块测试；不得为同一套 Java 用例再起一次测试任务
+- **And** 未触发根 check 时 SHALL 执行专用资源契约，模板变更保留详情 SSR；浏览器触发与发现不变
+
+#### Scenario: 准备真实浏览器运行
+
+- **When** 构建或浏览器检查被选中
+- **Then** 对应的 jmods、锁定 Chromium 和临时空间前置条件 SHALL 在重测试前核查
+- **And** 浏览器 fixture SHALL 在放行 worker 前确认合成索引、静态资源与最小导入释放；相同只读来源可共享当前 worker 的已发布索引，变更来源或代际验证仍独立
+- **And** 托管 macOS CI SHALL 限制浏览器与扫描同时竞争的资源；只在本地保存非断言成功截图，CI 仍保留失败 trace 与截图
+- **And** HTML/MHTML 路由验证 SHALL 保留默认 50 MiB 编码后响应上限、413 与无部分响应断言；允许使用等价转义文本减少测试的原文处理量
+
 ## Record component Javadoc owner
 
 Java gate id：

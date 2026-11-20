@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
+import sys
 from typing import TYPE_CHECKING
 
 import pytest
@@ -14,6 +15,12 @@ from scripts.gates.planning.plan_compiler import CommandInvocation
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+
+@pytest.fixture(autouse=True)
+def _use_project_python(monkeypatch) -> None:
+    # 临时 Git 仓库没有自己的 venv，命令适配仍使用运行本套测试的解释器。
+    monkeypatch.setenv('SESSION_BROWSER_PYTHON', sys.executable)
 
 
 def _init_repo(root: Path) -> None:

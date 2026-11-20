@@ -19,6 +19,10 @@ final class ToolResultContents {
     return "tool_result".equals(record.eventType()) && record.toolUseId().isPresent();
   }
 
+  static String sourceUnitKey(SourceRecord record, long ordinal) {
+    return "tool-result:" + ordinal + ":" + record.locator();
+  }
+
   static SourceUnitCatalogEntry entry(SourceRecord record, long ordinal) {
     String locator = record.locator();
     int suffix = locator.lastIndexOf("#event[");
@@ -27,7 +31,7 @@ final class ToolResultContents {
     int partIndex = block.find() ? Integer.parseInt(block.group(1)) : 0;
     String id = record.toolUseId().orElseThrow();
     return new SourceUnitCatalogEntry(
-        "tool-result:" + ordinal + ":" + locator,
+        sourceUnitKey(record, ordinal),
         path,
         locator,
         "tool_result",

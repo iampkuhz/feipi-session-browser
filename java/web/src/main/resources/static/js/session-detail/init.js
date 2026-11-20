@@ -23,6 +23,7 @@
         return document.body.getAttribute('data-session-api-' + name + '-state') === 'true';
       });
       document.body.setAttribute('data-session-api-hydrated', String(complete));
+      syncMainSourceTimingEntry();
     }
     var snapshot = window.IndexSnapshot.create();
     var pendingDeepLink = null;
@@ -40,7 +41,57 @@
         smooth: false
       });
     }
-    window.addEventListener('index-snapshot-restored', applyPublishedDeepLink);
+    var collaborationGeneration = null;
+    // Only the coordinator's accepted execution callback may stage the current batch's hints.
+    var pendingExecutionLabels = null;
+    function refreshCollaborationSnapshot() {
+      // Called after IndexSnapshot publishes an accepted batch, not from individual resource rendering.
+      sessionDetailState.mainTiming = document.body.getAttribute('data-session-api-hydrated') === 'true'
+        && document.body.hasAttribute('data-index-generation') && !document.querySelector('[data-snapshot-batch-error]')
+        ? { metrics: sessionDetailState.metrics, generation: document.body.getAttribute('data-index-generation') } : null;
+      syncMainSourceTimingEntry();
+      if (document.querySelector('[data-snapshot-batch-error]')) pendingExecutionLabels = null;
+      if (document.body.getAttribute('data-index-generation') !== collaborationGeneration) {
+        collaborationView.epoch++;
+        invalidateCollaborationAttention();
+        collaborationView.returnFocus = null;
+        collaborationView.page = null;
+        document.querySelector('[data-execution-collaboration-return]').hidden = true;
+        collaborationView.sourceStatus = 'loading';
+        syncExecutionDelegationSources();
+      }
+      if (typeof loadCollaborationPage !== 'function'
+          || document.body.getAttribute('data-session-api-hydrated') !== 'true'
+          || !document.body.hasAttribute('data-index-generation')
+          || document.querySelector('[data-snapshot-batch-error]')) return;
+      var generation = document.body.getAttribute('data-index-generation');
+      if (generation !== collaborationGeneration) collaborationView.labels.clear();
+      if (pendingExecutionLabels) {
+        seedExecutionContextLabels(pendingExecutionLabels);
+        pendingExecutionLabels = null;
+      }
+      syncExecutionContextLabels();
+      if (generation === collaborationGeneration) return;
+      if (collaborationGeneration !== null) invalidatePayloadNavigation();
+      collaborationGeneration = generation;
+      collaborationView.selection = '';
+      collaborationView.view = 'delegations';
+      document.querySelector('[data-execution-collaboration-return]').hidden = true;
+      document.querySelector('[data-collaboration]').textContent = '正在读取当前快照的协作事实…';
+      document.querySelector('[data-collaboration-status]').textContent = '';
+      var retryCollaboration = function () {
+        var pending = loadCollaborationPage();
+        var epoch = collaborationView.epoch;
+        return pending.then(function () {
+          if (epoch === collaborationView.epoch) document.querySelector('[data-collaboration-status]').textContent = '';
+        }).catch(function (error) { if (epoch === collaborationView.epoch) showCollaborationError(error, retryCollaboration); });
+      };
+      retryCollaboration();
+    }
+    window.addEventListener('index-snapshot-restored', function () {
+      applyPublishedDeepLink();
+      refreshCollaborationSnapshot();
+    });
     snapshot.load(Object.keys(resources).map(function (name) {
       return {
         key: name,
@@ -48,7 +99,20 @@
         apply: function (part) {
           var error = document.querySelector('[data-resource-error="' + name + '"]');
           if (error) error.remove();
-          resources[name](part);
+          if (name === 'execution') {
+            executionView.epoch++;
+            executionView.agent = '';
+            executionView.status = 'all';
+            document.querySelector('[data-execution-agent-context]').textContent = '全部上下文；耗时按各自口径分块。';
+            document.querySelectorAll('[data-execution-filter]').forEach(function (button) {
+              button.setAttribute('aria-pressed', String(button.dataset.executionFilter === 'all'));
+            });
+          }
+          if (name === 'execution') {
+            // The generation stamp is published only after this accepted batch finishes applying.
+            applyExecutionPage(part, undefined, true);
+            pendingExecutionLabels = part.contextLabels || {};
+          } else resources[name](part);
           if (name === 'rounds') {
             document.body.setAttribute('data-session-round-count', String(part.roundCount || 0));
             var params = new URLSearchParams(window.location.search || '');
@@ -67,12 +131,16 @@
           document.body.setAttribute('data-session-api-' + name + '-state', 'false');
           updateHydrated();
           showSessionResourceError(name, err, function () {
-            return Promise.resolve(retry()).then(applyPublishedDeepLink);
+            return Promise.resolve(retry()).then(function () {
+              applyPublishedDeepLink();
+              refreshCollaborationSnapshot();
+            });
           });
         }
       };
     })).then(function () {
       applyPublishedDeepLink();
+      refreshCollaborationSnapshot();
       var target = new URLSearchParams(location.search).get('execution');
       if (target) loadExecutionPage({ target: target }, false).catch(function (err) {
         showSessionResourceError('execution', err, function () { return loadExecutionPage({ target: target }, false); });
@@ -90,12 +158,16 @@
       var current = document.body.getAttribute('data-index-generation') || '';
       var actual = response.headers.get('X-Session-Index-Generation') || '';
       if (current !== expected || response.status === 409 || (actual && expected && expected !== 'legacy' && actual !== expected)) {
-        throw new Error('Index changed; refresh the page before continuing');
+        var changed = new Error('Index changed; refresh the page before continuing');
+        changed.httpStatus = 409;
+        throw changed;
       }
       // An error handler may omit snapshot headers. A server failure is not evidence of a new index.
       if (!response.ok) {
         return response.json().catch(function () { return {}; }).then(function (data) {
-          throw new Error('HTTP ' + response.status + (data.message ? ': ' + data.message : ''));
+          var error = new Error('HTTP ' + response.status + (data.message ? ': ' + data.message : ''));
+          error.httpStatus = response.status;
+          throw error;
         });
       }
       if (expected && expected !== 'legacy' && !actual) throw new Error('索引校验信息缺失，请重试；持续失败时刷新页面');
@@ -198,7 +270,7 @@
 
   function showSessionResourceError(name, err, retry) {
     if (name === 'execution') {
-      setText('[data-execution-judgment]', '执行摘要加载失败，尚不能判断；请重试。');
+      setExecutionDiagnosis('执行摘要加载失败，尚不能判断；请重试。', true);
     }
     if (name === 'meta') {
       setText('[data-session-file-text]', '会话文件信息加载失败；请重试');
@@ -294,7 +366,12 @@
   }
 
   function applySessionMetrics(metrics) {
-    if (!metrics || !metrics.tokens) return;
+    if (!metrics || !metrics.tokens) {
+      sessionDetailState.metrics = null;
+      sessionDetailState.mainTiming = null;
+      syncMainSourceTimingEntry();
+      return;
+    }
     sessionDetailState.metrics = metrics;
     var parity = metrics.parity || {};
     var hasContent = hasSessionContent();
@@ -320,12 +397,12 @@
       subline('Tool Calls', observed(parity.toolCalls ?? metrics.toolCalls)),
       subline('Subagent Runs', observed(parity.subagentRuns ?? metrics.subagents))
     ]);
-    var timingCard = qs(document, '[data-session-timing], .sd-kpi[aria-label="Source Task Active"], .sd-kpi[aria-label="Active Time"]');
+    var timingCard = qs(document, '[data-session-timing]');
     setKpi(timingCard ? timingCard.getAttribute('aria-label') : 'Active Time', SessionTiming.value(metrics.timing, 'activeTaskSeconds'), [
-      subline('Wall Duration', SessionTiming.value(metrics.timing, 'wallSeconds')),
-      subline('Agent Turn', SessionTiming.value(metrics.timing, 'agentTurnSeconds')),
-      subline('Model Execution', SessionTiming.value(metrics.timing, 'modelExecutionSeconds')),
-      subline('Tool Execution', SessionTiming.value(metrics.timing, 'toolExecutionSeconds'))
+      subline('来源记录时间跨度', SessionTiming.value(metrics.timing, 'wallSeconds')),
+      subline('主会话轮次累计', SessionTiming.value(metrics.timing, 'agentTurnSeconds')),
+      subline('来源模型计时', SessionTiming.value(metrics.timing, 'modelExecutionSeconds')),
+      subline('来源工具计时', SessionTiming.value(metrics.timing, 'toolExecutionSeconds'))
     ]);
     SessionTiming.applyDetail(timingCard, metrics.timing);
     document.body.setAttribute('data-session-api-total-tokens', String(metrics.tokens.total || 0));

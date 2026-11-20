@@ -26,6 +26,15 @@ test.describe('unbound legacy generation consistency regressions', () => {
       return route.fulfill({ response, body });
     });
   });
+  // 新协作是主批次成功后绑定同代次的独立资源；旧五资源断言保持原范围。
+  async function collaborationSnapshot(route, generation, observed) {
+    observed.push(route.request().headers()['x-session-index-generation']);
+    const headers = { ...route.request().headers() };
+    delete headers['x-session-index-generation'];
+    const response = await route.fetch({ headers });
+    return route.fulfill({ response, headers: { ...response.headers(), 'x-session-index-generation': generation } });
+  }
+
   async function openSnapshotProbe(page) {
     await page.goto(SESSION_PATH);
     await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
@@ -116,6 +125,7 @@ test.describe('unbound legacy generation consistency regressions', () => {
   for (const item of cases) {
     test(`stages and retries a mixed generation batch on ${item.path}`, async ({ page }) => {
       const calls = new Map();
+      const collaboration = [];
       let release;
       let primaryReady;
       const barrier = new Promise((resolve) => { release = resolve; });
@@ -123,6 +133,7 @@ test.describe('unbound legacy generation consistency regressions', () => {
       await page.route('**/api/**', async (route) => {
         const pathname = new URL(route.request().url()).pathname;
         if (!pathname.startsWith(item.prefix)) return route.continue();
+        if (pathname.endsWith('/collaboration')) return collaborationSnapshot(route, 'G2', collaboration);
         const count = (calls.get(pathname) || 0) + 1;
         calls.set(pathname, count);
         const response = await route.fetch();
@@ -137,17 +148,25 @@ test.describe('unbound legacy generation consistency regressions', () => {
       await page.goto(item.path, { waitUntil: 'domcontentloaded' });
       await primary;
       await expect(page.locator('body')).not.toContainText(item.field === 'title' ? 'generation-marker-1' : /987,?654/);
+      if (item.path === SESSION_PATH) expect(collaboration).toEqual([]);
       release();
       await expect(page.locator('body')).toHaveAttribute('data-index-generation', 'G2');
       await expect(page.locator('body')).toContainText(item.field === 'title' ? 'generation-marker-2' : /987,?655/);
       expect([...calls.values()].every((count) => count === 2)).toBe(true);
+      if (item.path === SESSION_PATH) {
+        await expect.poll(() => collaboration).toEqual(['G2']);
+        await expect(page.locator('[data-collaboration]')).toContainText('Agent 协作');
+        await expect(page.locator('[data-collaboration-relation]')).toHaveCount(1);
+      }
     });
   }
 
   test('bounds automatic retries and exposes a manual full-batch retry', async ({ page }) => {
     let calls = 0;
     let stable = false;
+    const collaboration = [];
     await page.route('**/api/sessions/claude_code/hifi-viz-session-001/*', async (route) => {
+      if (new URL(route.request().url()).pathname.endsWith('/collaboration')) return collaborationSnapshot(route, 'stable', collaboration);
       calls += 1;
       const stamp = stable ? 'stable' : `G${calls}`;
       const response = await route.fetch();
@@ -156,12 +175,14 @@ test.describe('unbound legacy generation consistency regressions', () => {
     await page.goto(SESSION_PATH);
     await expect(page.locator('[data-resource-error]').first()).toBeVisible();
     expect(calls).toBe(15);
+    expect(collaboration).toEqual([]);
     await expect(page.locator('body')).not.toHaveAttribute('data-session-api-hydrated', 'true');
     stable = true;
     await page.locator('[data-resource-error] button').first().click();
     await expect(page.locator('body')).toHaveAttribute('data-index-generation', 'stable');
     await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
     expect(calls).toBe(20);
+    await expect.poll(() => collaboration).toEqual(['stable']);
   });
 
   test('project pagination refreshes all six resources when the index changes', async ({ page }) => {
@@ -185,8 +206,10 @@ test.describe('unbound legacy generation consistency regressions', () => {
     const calls = new Map();
     let changed = false;
     let expectedHeader = '';
+    const collaboration = [];
     await page.route('**/api/sessions/claude_code/hifi-viz-session-001/*', async (route) => {
       const pathname = new URL(route.request().url()).pathname;
+      if (pathname.endsWith('/collaboration')) return collaborationSnapshot(route, changed ? 'G2' : 'G1', collaboration);
       const count = (calls.get(pathname) || 0) + 1;
       calls.set(pathname, count);
       if (pathname.endsWith('/metrics') && count === 1) return route.fulfill({ status: 500, headers: { 'x-session-index-generation': 'G1' }, json: { error: 'fixture failure' } });
@@ -202,9 +225,11 @@ test.describe('unbound legacy generation consistency regressions', () => {
     await expect(page.locator('[data-resource-error="metrics"]')).toContainText('HTTP 500');
     await page.locator('[data-evidence-analysis] > summary').click();
     await expect(page.locator('[data-trace-round-row]').first()).toBeVisible();
+    expect(collaboration).toEqual([]);
     await page.locator('[data-resource-error="metrics"] button').click();
     await expect(page.locator('body')).toHaveAttribute('data-index-generation', 'G2');
     await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+    await expect.poll(() => collaboration).toEqual(['G2']);
     expect(expectedHeader).toBe('G1');
     expect([...calls.entries()].filter(([path]) => !path.endsWith('/metrics')).every(([, count]) => count === 2)).toBe(true);
   });

@@ -12,6 +12,37 @@ class NormalizedContentReaderTest {
   @TempDir Path directory;
 
   @Test
+  void missingOwnerMarkerCanReloadButRealDanglingOwnersAndConsumersCannot() throws Exception {
+    Path data = directory.resolve("content.json");
+    String source =
+        "{\"storageFormat\":\"session-content.units.v1\",\"header\":{"
+            + "\"schemaVersion\":\"session-detail.normalized.v3\",\"agent\":\"codex\","
+            + "\"session\":{\"session_key\":\"synthetic-orphan\"},\"totals\":{\"calls\":0,"
+            + "\"toolExecutions\":1,\"diagnostics\":0,\"sourceFiles\":0,\"sourceUnitCatalog\":0,"
+            + "\"sourceUnitSequenceEntries\":0}},\"units\":[{\"unitIndex\":0,\"toolExecutions\":[{"
+            + "\"tool_call_id\":\"synthetic-tool\",\"name\":\"exec_command\",\"scope\":\"main\","
+            + "\"declared_by_call_id\":\"unknown\"}]}]}";
+    Files.writeString(data, source);
+    commitMetadata(data);
+    assertThat(NormalizedArtifactLoader.open(data).toArtifact().toolExecutions())
+        .singleElement()
+        .satisfies(tool -> assertThat(tool.declaredByCallId()).isEqualTo("unknown"));
+    for (String invalid :
+        java.util.List.of(
+            source.replace(
+                "\"declared_by_call_id\":\"unknown\"", "\"declared_by_call_id\":\"missing\""),
+            source.replace(
+                "\"declared_by_call_id\":\"unknown\"",
+                "\"declared_by_call_id\":\"unknown\",\"result_consumed_by_call_id\":\"unknown\""))) {
+      Files.writeString(data, invalid);
+      commitMetadata(data);
+      assertThatThrownBy(() -> NormalizedArtifactLoader.open(data))
+          .isInstanceOf(java.io.IOException.class)
+          .hasMessageContaining("unresolved strong call reference");
+    }
+  }
+
+  @Test
   void rejectsUnknownStorageFormat() throws Exception {
     Path data = directory.resolve("content.json");
     Files.writeString(data, "{\"storageFormat\":\"future\"}");

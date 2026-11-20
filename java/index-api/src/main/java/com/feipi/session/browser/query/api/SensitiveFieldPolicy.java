@@ -16,6 +16,7 @@ public final class SensitiveFieldPolicy {
   private static final Set<String> DEFAULT_SENSITIVE_FIELDS =
       Set.of(
           "api_key",
+          "api-key",
           "apiKey",
           "token",
           "access_token",

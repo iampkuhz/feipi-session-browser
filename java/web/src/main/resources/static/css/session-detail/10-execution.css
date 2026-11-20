@@ -11,12 +11,12 @@
 .se-judgments h3 { margin: 0; font-size: 15px; }
 .se-diagnosis-command { display: block; font-size: 14px; line-height: 1.5; margin-block: 8px; overflow-wrap: anywhere; }
 .se-measurement { font-size: 12px; line-height: 1.6; color: var(--sd-muted); }
-.se-measurement > summary { cursor: pointer; color: var(--sd-brand); }
+.se-measurement > summary, .se-workload-details > summary { cursor: pointer; color: var(--sd-brand); }
 .se-judgments p, .se-basis, .se-process__head p { font-size: 12px; line-height: 1.7; color: var(--sd-muted); }
 .se-process__head { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
 .se-process__head [role="group"] { display: flex; align-items: center; gap: 8px; }
 .se-process .sd-btn[aria-pressed="true"] { border-color: var(--sd-brand); }
-.se-group { margin-block: 14px; border: 1px solid var(--sd-line); border-radius: 12px; }
+.se-group { margin-block: 8px; border: 1px solid var(--sd-line); border-radius: 8px; }
 .se-group > header { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; padding: 10px 14px; border-radius: 12px 12px 0 0; background: var(--sd-panel); }
 .se-group h3 { margin: 0; font-size: 14px; }
 .se-group > header span { font-size: 12px; color: var(--sd-muted); }
@@ -28,7 +28,7 @@
 .se-action--failed { border-left-color: var(--sd-err); }
 .se-action__main code { display: block; font-size: 14px; font-weight: 500; line-height: 1.5; overflow-wrap: anywhere; white-space: normal; }
 .se-context { display: flex; flex-wrap: wrap; gap: 2px 8px; font-size: 12px; color: var(--sd-muted); overflow-wrap: anywhere; }
-.se-context > span { flex-basis: 100%; }
+.se-context > span { flex-basis: auto; }
 .se-status { font-size: 12px; overflow-wrap: anywhere; }
 .se-duration { font-size: 14px; text-align: right; font-variant-numeric: tabular-nums; }
 .se-evidence { font-size: 12px; }
@@ -41,6 +41,16 @@
 .se-analysis > .sd-kpis { margin-block: 16px; }
 [data-execution-pagination] { font-size: 12px; margin-block: 16px; }
 [data-payload-index] { overflow-wrap: anywhere; }
+/* 单动作响应把编号、命令、状态、耗时与入口并排；多动作仍有明确组头。 */
+.se-group--single > header { gap: 6px 10px; padding: 8px 10px; }
+.se-group--single .se-group-context--main { display: none; }
+.se-group--single .se-action { flex: 1; min-width: 240px; border: 0; margin: 0; padding: 0; grid-template-columns: minmax(0, 1fr) auto 52px auto; gap: 8px; }
+.se-group--single .se-action__main code { font-size: 13px; }
+.se-group--single .se-context { max-width: 160px; }
+.se-group--single .se-group__actions { margin-left: 0; }
+.se-group--single .se-group-evidence[open] { flex-basis: 100%; }
+.se-group--single:has(.se-tool-evidence[open]) .se-action { flex-basis: 100%; }
+.se-group--single .se-kind { font-size: 11px; }
 @media (max-width: 600px) {
   .se-action { grid-template-columns: minmax(0, 1fr) 56px auto; margin-left: 8px; padding: 8px 10px; }
   .se-action__main { grid-column: 1 / -1; }
@@ -50,4 +60,67 @@
   .se-duration { grid-column: 2; grid-row: 2; }
   .se-tool-evidence { grid-column: 3; grid-row: 2; }
   .se-tool-evidence[open] { grid-row: auto; }
+  .se-group--single h3 { align-self: flex-start; padding-top: 2px; }
+  .se-group--single .se-action { flex-basis: calc(100% - 42px); min-width: 0; grid-template-columns: minmax(0, 1fr) 56px auto; }
+  .se-group--single .se-context { max-width: none; }
 }
+/* 协作关系以文字方向和独立支路呈现，窄屏不递归缩进。 */
+.sc-panel { margin-block: 20px; padding-block: 12px; border-block: 1px solid var(--sd-line); }
+.sc-panel h2 { margin: 0 0 8px; font-size: 18px; }
+.sc-panel h3 { margin: 0; font-size: 14px; }
+.sc-panel p { margin-block: 6px; font-size: 12px; line-height: 1.7; }
+.sc-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.sc-relation { margin-block: 8px; padding: 12px; border: 1px solid var(--sd-line); border-radius: 8px; overflow-wrap: anywhere; }
+.sc-task { color: var(--sd-text); }
+.sc-origin .sd-btn, .sc-report .sd-btn { margin: 3px; }
+.sc-report { display: block; font-size: 12px; }
+.sc-breadcrumb, .sc-participant { overflow-wrap: anywhere; }
+.sc-relation:focus, [data-execution-agent-context]:focus, .sc-breadcrumb:focus { outline: 2px solid var(--sd-brand); outline-offset: 2px; }
+
+.se-process [data-execution-collaboration-return][hidden] { display: none; }
+
+/* 响应只提供共享标题和分界；成员仍独立、同列，不增树形缩进。 */
+.sc-response-group { margin-block: 16px; border-block-start: 1px solid var(--sd-line); overflow-wrap: anywhere; }
+.sc-response-group > h3 { margin-block: 8px; }
+.sc-response-group > .sc-relation { margin-block: 0; padding: 10px 0; border: 0; border-block-end: 1px solid var(--sd-line); border-radius: 0; }
+.sc-response-group > .sc-relation > h4 { margin: 0; font-size: 14px; font-weight: 600; }
+/* 操作扫描行只改变布局；命令、覆盖和计量依据仍默认完整可读。 */
+[data-execution-workloads] > .se-judgments { display: block; }
+.se-judgments [data-execution-workload] { padding: 8px 0; border: 0; border-block-end: 1px solid var(--sd-line); border-radius: 0; background: transparent; }
+.se-workload-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; }
+.se-workload-line > p { margin: 0; }
+.se-workload-line > .sd-btn { margin: 0; }
+.se-representative { margin: 4px 0; }
+.se-representative > .se-diagnosis-command, [data-execution-same-input] > .se-diagnosis-command { display: inline; margin: 0; color: var(--text); }
+[data-execution-same-input] > strong { color: var(--text); }
+.se-sources { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; overflow-wrap: anywhere; }
+.se-source-note, .se-sources > p { margin: 4px 0; font-size: 12px; line-height: 1.7; color: var(--sd-muted); }
+.se-sources > .sd-btn { margin: 0; }
+
+/* 截断概览的有界单次线索：平铺紧凑行，不复制累计卡或添加排名。 */
+.se-long-operations > h3 { margin-block: 12px 4px; }
+.se-long-operation { padding-block: 8px; border-block-end: 1px solid var(--sd-line); }
+.se-long-operation > p { margin-block: 4px; }
+
+/* 两条独立阅读流，不按工具行对齐协作；未知关联仍保持原单列。 */
+.se-collaboration-layout-note { display: none; }
+@media (min-width: 1600px) {
+  .sd-trace-panel:has([data-collaboration].sc-panel):not([hidden]) {
+    display: grid;
+    grid-template-columns: minmax(0, 1.65fr) minmax(360px, 1fr);
+    grid-template-rows: max-content max-content minmax(0, 1fr) max-content;
+    column-gap: 24px;
+    align-items: start;
+  }
+  .sd-trace-panel > .se-judgment { grid-column: 1; grid-row: 1; min-width: 0; }
+  .sd-trace-panel > [data-main-source-timing-entry] { grid-column: 1; grid-row: 2; }
+  .sd-trace-panel > .se-process { grid-column: 1; grid-row: 3; min-width: 0; }
+  .sd-trace-panel > .se-collaboration-rail { grid-column: 2; grid-row: 1 / 4; min-width: 0; }
+  .sd-trace-panel > .se-analysis { grid-column: 1 / -1; grid-row: 4; min-width: 0; }
+  .sd-trace-panel:has([data-collaboration].sc-panel) .se-collaboration-layout-note { display: block; color: var(--sd-muted); }
+  .sd-trace-panel:has([data-collaboration].sc-panel) .se-group--single .se-action { min-width: min(100%, 520px); }
+}
+
+/* 全冻结协作事实独立于执行诊断重绘；不成为额外状态卡。 */
+.sc-attention { margin-block-end: 12px; padding-block-end: 12px; border-block-end: 1px solid var(--sd-line); overflow-wrap: anywhere; }
+.sc-attention p { margin: 0 0 6px; font-size: 12px; line-height: 1.7; }

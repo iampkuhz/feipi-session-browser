@@ -23,6 +23,9 @@ module.exports = defineConfig({
   testDir: '.',
   testMatch: ['**/*.spec.{js,ts}'],
   fullyParallel: true,
+  // 托管 runner 同时还运行 Web JVM/扫描 JVM；避免浏览器和冷扫描抢同一组核心。
+  // 本机共享导入不超过 8 份；每个 worker 的典型用例可能同时保留 2 份。
+  workers: process.env.GITHUB_ACTIONS === 'true' ? 2 : 4,
   forbidOnly: true,
   retries: 0,
   timeout: 30_000,

@@ -30,3 +30,20 @@ tasks.withType<Test>().configureEach {
         exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
     }
 }
+
+// 资源反馈不启动整个 Web HTTP/导出测试模块；根 check 仍运行原 test。
+tasks.register<Test>("webResourceContractTest") {
+    description = "运行模板和静态资源的专用契约测试"
+    group = "verification"
+    val source = sourceSets["test"]
+    testClassesDirs = source.output.classesDirs
+    classpath = source.runtimeClasspath
+    filter {
+        includeTestsMatching("*DashboardTemplateContractTest")
+        includeTestsMatching("*ListShellTemplateContractTest")
+        includeTestsMatching("*WebStaticResourceContractTest")
+        if (!providers.gradleProperty("feipiWebStaticOnly").isPresent) {
+            includeTestsMatching("*SessionDetailPageTest")
+        }
+    }
+}

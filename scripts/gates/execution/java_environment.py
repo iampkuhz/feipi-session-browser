@@ -48,3 +48,13 @@ def requires_java(invocations: tuple[CommandInvocation, ...]) -> bool:
         )
         for item in invocations
     )
+
+
+def verify_linkable_jdk(environment: Mapping[str, str | None]) -> None:
+    """根 check 会通过 jlink 构造运行时；先发现不含模块的 JDK。"""
+    home = environment.get('JAVA_HOME')
+    if not home or not (Path(home) / 'jmods' / 'java.base.jmod').is_file():
+        raise RuntimeError(
+            'javaBuildVerification preflight: JDK 25 lacks jmods/java.base.jmod; '
+            'select an arm64 JDK with jmods (e.g. SDKMAN Zulu 25)'
+        )

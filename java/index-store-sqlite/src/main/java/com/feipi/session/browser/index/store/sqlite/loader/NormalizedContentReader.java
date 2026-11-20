@@ -141,7 +141,7 @@ final class NormalizedContentReader implements NormalizedSessionContent {
         }
         for (NormalizedToolExecution tool : unit.toolExecutions()) {
           require(toolIds.add(tool.toolCallId()), "duplicate tool identity");
-          required.add(tool.declaredByCallId());
+          if (!"unknown".equals(tool.declaredByCallId())) required.add(tool.declaredByCallId());
           tool.resultConsumedByCallId().ifPresent(required::add);
         }
         for (var entry : unit.sourceUnitCatalog().entrySet()) {

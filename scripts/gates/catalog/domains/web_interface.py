@@ -54,7 +54,7 @@ GATES = (
             180,
             gradle_task(
                 'webResourceContracts',
-                ':java:web:test',
+                ':java:web:webResourceContractTest',
             ),
         ),
     ),

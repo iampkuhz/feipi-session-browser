@@ -9,6 +9,7 @@ import com.feipi.session.browser.application.sessiondetail.SessionDetail;
 import com.feipi.session.browser.application.sessiondetail.SessionDetailAssembler;
 import com.feipi.session.browser.contracttest.support.ContractTestComposition;
 import com.feipi.session.browser.domain.normalized.NormalizedAgent;
+import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
 import com.feipi.session.browser.domain.source.SourceRecord;
 import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
 import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
@@ -136,10 +137,7 @@ class CodexToolObservationContractTest {
       assertThat(managed.toArtifact()).isEqualTo(ordinary);
       assertThat(ordinary.toolExecutions()).hasSize(5);
       assertThat(ordinary.calls()).hasSize(1);
-      assertThat(ordinary.calls().getFirst().request().toolResultIds())
-          .containsExactly("tool-b", "tool-a");
-      assertThat(ordinary.toolExecutions().subList(2, 5))
-          .allSatisfy(tool -> assertThat(tool.resultConsumedByCallId()).isEmpty());
+      assertNoOwnResultConsumption(ordinary);
       assertThat(ordinary.sourceUnitCatalog()).hasSize(5);
       assertThat(ordinary.calls().stream().mapToLong(call -> call.usage().total()).sum())
           .isEqualTo(15);
@@ -271,10 +269,7 @@ class CodexToolObservationContractTest {
       var artifact = context.content().toArtifact();
       assertThat(artifact.calls()).hasSize(1);
       assertThat(artifact.toolExecutions()).hasSize(5);
-      assertThat(artifact.calls().getFirst().request().toolResultIds())
-          .containsExactly("tool-b", "tool-a");
-      assertThat(artifact.toolExecutions().subList(2, 5))
-          .allSatisfy(tool -> assertThat(tool.resultConsumedByCallId()).isEmpty());
+      assertNoOwnResultConsumption(artifact);
       assertThat(
               artifact.sourceUnitCatalog().values().stream()
                   .filter(entry -> entry.unitType().equals("tool_result")))
@@ -340,6 +335,20 @@ class CodexToolObservationContractTest {
     assertThat(tool.at("/observation/status").asText()).isEqualTo(status);
     assertThat(tool.at("/observation/source").asText()).startsWith("codex:exec_command_end#event[");
     assertThat(tool.path("status").asText()).isEmpty();
+  }
+
+  private static void assertNoOwnResultConsumption(NormalizedSessionArtifact artifact) {
+    assertThat(artifact.calls().getFirst().request().toolResultIds()).isEmpty();
+    assertThat(artifact.calls().getFirst().sourceUnits())
+        .noneMatch(unit -> "tool_result".equals(unit.get("type")));
+    assertThat(artifact.toolExecutions())
+        .allSatisfy(tool -> assertThat(tool.resultConsumedByCallId()).isEmpty());
+    assertThat(
+            artifact.sourceUnitCatalog().values().stream()
+                .filter(entry -> "tool_result".equals(entry.unitType()))
+                .flatMap(entry -> entry.text().stream())
+                .toList())
+        .contains("synthetic alpha result", "synthetic beta result");
   }
 
   private static JsonNode find(JsonNode tools, String id) {

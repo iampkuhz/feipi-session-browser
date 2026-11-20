@@ -133,11 +133,20 @@ endlegend
 
 ### Gate 怎么被选中
 
-1. `full` 且没有 selector：选择全部 Gate。
+1. `full` 且没有 selector：选择全部验证能力；根 `check` 已承接的 Web Java 测试不另起进程。
 2. 指定 `--gate`：只选择该 Gate；指定 `--target`：按规则目录展开该人工分组。
 3. 普通 `incremental`：根据 changed file 与 Trigger pattern 匹配 Gate。
 4. 每条命中保存为 `file → pattern → Gate`；未选中的 Gate 记录具体原因，例如
    `no-trigger-pattern-matched` 或 `excluded-by-selector`。
+
+同一计划同时选中 `webResourceContracts` 和 `javaBuildVerification` 时，前者记为
+`covered-by-javaBuildVerification`，不是一个独立的 PASS；结果取决于本轮根 `check`。
+没有根 `check` 时，Web 资源契约执行 `:java:web:webResourceContractTest`；
+静态资源不启动详情页 SSR 测试，模板或未限定范围的专项仍运行它。浏览器触发规则不变。
+
+启动重步骤前，所选 Java 构建校验 JDK 25 的 `jmods/java.base.jmod`；
+所选浏览器验证锁定的 headless Chromium 能启动，且临时目录可写并有至少 2 GiB 可用。
+前置失败不代表任何已选测试通过，不自动重跑断言或清理既有产物。
 5. `incremental` selector 需要非空输入；没有变更但需要人工执行时使用 `full --gate/--target`。
 
 ## 状态、进度与证据

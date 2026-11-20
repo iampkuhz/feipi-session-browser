@@ -19,6 +19,52 @@ class NormalizedContentWriterTest {
   @TempDir Path directory;
 
   @Test
+  void missingOwnerMarkerIsNotAStrongCallReferenceButOtherDanglingCallsRemainRejected()
+      throws Exception {
+    var writer = new NormalizedArtifactWriter();
+    var unknown = ownerContent("unknown", java.util.Optional.empty());
+    var written = writer.writeContent(directory, unknown, Map.of());
+    assertThat(writer.validate(written.dataPath(), written.metaPath())).isTrue();
+    for (var content :
+        List.of(
+            ownerContent("missing-call", java.util.Optional.empty()),
+            ownerContent("unknown", java.util.Optional.of("unknown")),
+            ownerContent("unknown", java.util.Optional.of("missing-consumer")))) {
+      assertThatThrownBy(() -> writer.writeContent(directory, content, Map.of()))
+          .isInstanceOf(IOException.class)
+          .hasMessageContaining("unresolved strong content reference");
+    }
+  }
+
+  private static NormalizedSessionContent ownerContent(
+      String owner, java.util.Optional<String> consumer) {
+    var tool =
+        new com.feipi.session.browser.domain.normalized.NormalizedToolExecution(
+            "synthetic-orphan",
+            "exec_command",
+            com.feipi.session.browser.domain.enums.CallScope.MAIN,
+            owner,
+            consumer,
+            java.util.Optional.empty(),
+            java.util.Optional.empty(),
+            null,
+            List.of(),
+            java.util.Optional.empty(),
+            java.util.Optional.empty());
+    return NormalizedSessionContent.fromArtifact(
+        new NormalizedSessionArtifact(
+            NormalizedConstants.SCHEMA_VERSION,
+            NormalizedAgent.CODEX,
+            List.of(),
+            Map.of("session_key", "synthetic-owner-marker"),
+            List.of(),
+            List.of(tool),
+            List.of(),
+            Map.of(),
+            Map.of()));
+  }
+
+  @Test
   void writesDeterministicTaggedContentWithExactHashAndSize() throws Exception {
     var content = minimal();
     var writer = new NormalizedArtifactWriter();

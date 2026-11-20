@@ -404,7 +404,10 @@ public final class SessionDetailApiHandler {
     String filter = Optional.ofNullable(ctx.queryParam("status")).orElse("all");
     if (!List.of("all", "failed").contains(filter))
       throw new BadRequestResponse("invalid execution status");
-    String scope = cursorScope(ctx, loaded, "execution", filter + ":" + limit);
+    String agent = Optional.ofNullable(ctx.queryParam("agent_context")).orElse("");
+    String scope =
+        cursorScope(
+            ctx, loaded, "execution", List.of(filter, String.valueOf(limit), agent).toString());
     var content = loaded.annotated().content();
     if (content == null && loaded.annotated().artifact() != null) {
       content =
@@ -425,11 +428,16 @@ public final class SessionDetailApiHandler {
                 new SessionExecutionProjection.Diagnostics(0, 0, 0, 0, "", List.of(), 0, null)));
         return;
       }
+      var labels = new SessionContextLabels();
       var page =
           SessionExecutionProjection.read(
-              content, scope, ctx.queryParam("cursor"), limit, ctx.queryParam("target"), filter);
+              content,
+              new SessionExecutionProjection.ReadRequest(
+                  scope, ctx.queryParam("cursor"), limit, ctx.queryParam("target"), filter, agent),
+              labels);
       if (page.total() == 0
           && "all".equals(filter)
+          && agent.isEmpty()
           && loaded.annotated().detail().sessionRow().userMessageCount() > 0) {
         var reader =
             new com.feipi.session.browser.application.sessiondetail.SessionContentReader(
@@ -442,6 +450,7 @@ public final class SessionDetailApiHandler {
                   1,
                   "用户输入记录",
                   "main",
+                  "",
                   "",
                   "",
                   reader.observedInputPreview(),
@@ -461,16 +470,99 @@ public final class SessionDetailApiHandler {
         }
       }
       ctx.json(
-          new SessionExecutionProjection.Page(
-              page.schemaVersion(),
-              page.items(),
-              page.total(),
-              page.offset(),
-              page.nextCursor(),
-              SessionExecutionProjection.diagnostics(content)));
+          page.withDiagnostics(
+              SessionExecutionProjection.diagnostics(content, agent, labels), labels));
     } catch (IllegalArgumentException exception) {
       throw (BadRequestResponse)
           new BadRequestResponse("invalid execution cursor").initCause(exception);
+    } catch (IOException exception) {
+      throw (io.javalin.http.InternalServerErrorResponse)
+          new io.javalin.http.InternalServerErrorResponse("normalized content read failed")
+              .initCause(exception);
+    }
+  }
+
+  /** 返回当前冻结范围内有界的委派、往来或参与者，不访问来源邻居。 */
+  public void handleCollaboration(Context ctx) {
+    LoadedDetail loaded = load(ctx);
+    if (loaded == null) return;
+    String view = Optional.ofNullable(ctx.queryParam("view")).orElse("delegations");
+    if (!List.of("delegations", "exchanges", "participants").contains(view))
+      throw new BadRequestResponse("invalid collaboration view");
+    int limit;
+    try {
+      limit =
+          Integer.parseInt(
+              Optional.ofNullable(ctx.queryParam("limit"))
+                  .orElse("exchanges".equals(view) ? "20" : "5"));
+      if (limit < 1 || limit > 100) throw new NumberFormatException();
+    } catch (NumberFormatException exception) {
+      throw (BadRequestResponse)
+          new BadRequestResponse("limit must be between 1 and 100").initCause(exception);
+    }
+    String selection = Optional.ofNullable(ctx.queryParam("selection")).orElse("");
+    String evidenceWindow = Optional.ofNullable(ctx.queryParam("evidence_window")).orElse("");
+    if (!evidenceWindow.isEmpty()
+        && (!"input_submission_error".equals(evidenceWindow)
+            || !"exchanges".equals(view)
+            || !selection.isEmpty()
+            || limit != 20
+            || ctx.queryParam("cursor") == null))
+      throw new BadRequestResponse("invalid collaboration evidence window");
+    String evidenceScope =
+        cursorScope(
+            ctx,
+            loaded,
+            "collaboration",
+            List.of("exchanges", "", "20", "input_submission_error").toString());
+    String scope =
+        cursorScope(
+            ctx,
+            loaded,
+            "collaboration",
+            evidenceWindow.isEmpty()
+                ? List.of(view, selection, String.valueOf(limit)).toString()
+                : List.of(view, selection, String.valueOf(limit), evidenceWindow).toString());
+    var content = loaded.annotated().content();
+    if (content == null && loaded.annotated().artifact() != null)
+      content =
+          com.feipi.session.browser.domain.normalized.NormalizedSessionContent.fromArtifact(
+              loaded.annotated().artifact());
+    try {
+      if (content == null) {
+        if (ctx.queryParam("cursor") != null)
+          throw new BadRequestResponse("no collaboration content");
+        ctx.json(
+            new SessionCollaborationProjection.Page(
+                ApiResponses.SCHEMA_VERSION,
+                List.of(),
+                0,
+                0,
+                null,
+                List.of(),
+                0,
+                0,
+                0,
+                0,
+                0,
+                null,
+                "",
+                Map.of(),
+                selection,
+                view));
+      } else
+        ctx.json(
+            SessionCollaborationProjection.read(
+                content,
+                scope,
+                ctx.queryParam("cursor"),
+                limit,
+                selection,
+                view,
+                new SessionCollaborationProjection.EvidenceWindow(evidenceScope, evidenceWindow)));
+    } catch (IllegalArgumentException exception) {
+      throw (BadRequestResponse)
+          new BadRequestResponse("invalid collaboration cursor").initCause(exception);
     } catch (IOException exception) {
       throw (io.javalin.http.InternalServerErrorResponse)
           new io.javalin.http.InternalServerErrorResponse("normalized content read failed")

@@ -31,16 +31,21 @@
     timing = timing || {};
     var counts = ['completedTaskCount', 'incompleteTaskCount', 'abortedTaskCount'].map(function (key, index) {
       var count = timing[key];
-      return ['Completed', 'Incomplete', 'Aborted'][index] + ': '
-        + (typeof count === 'number' && count >= 0 ? count : 'Not reported');
+      return ['已结束', '未闭合', '中止'][index] + '：'
+        + (typeof count === 'number' && count >= 0 ? count : '未报告');
     }).join(' · ');
-    var taskBasis = timing.activeTaskBasis === 'main_task_windows' ? 'Task basis: recorded main-task windows, with overlaps counted once. ' : '';
-    var turnBasis = timing.agentTurnBasis === 'main_agent_turn_duration' ? 'Agent-turn basis: recorded main-agent turn durations. '
-      : timing.agentTurnBasis === 'main_task_duration_sum' ? 'Agent-turn basis: summed main-task durations without usable time windows. ' : '';
-    return 'Main task time includes tools and waits during a task; not model inference. '
-      + 'Agent Turn is cumulative MAIN-agent workload, not Task Active. '
-      + taskBasis + turnBasis
-      + 'Non-task Wall Time: ' + nonTaskWall(timing) + ' (not user waiting). ' + counts;
+    var taskBasis = timing.activeTaskBasis === 'main_task_windows' ? '任务汇总方法：按主任务时间窗口计时，重叠窗口只计一次。' : '';
+    var turnBasis = timing.agentTurnBasis === 'main_agent_turn_duration' ? '轮次依据：记录中的主会话轮次时长累计。'
+      : timing.agentTurnBasis === 'main_task_duration_sum' ? '轮次栏依据：无可用时间窗口时的主任务时长累计，不冒称实测轮次。' : '';
+    return [
+      '计时口径：主会话任务活动时间包含任务期间的工具和等待，不是模型推理耗时。'
+        + '主会话轮次累计与任务活动时间口径不同，不是 LLM 调用延迟或模型推理耗时。'
+        + '来源记录时间跨度不代表持续执行。'
+        + '来源模型计时、来源工具计时仅使用明确记录，与逐工具执行器观测累计分开；不得相减推算模型耗时或混口径相加。',
+      '来源依据：' + taskBasis + turnBasis
+        + '任务外记录跨度：' + nonTaskWall(timing) + '（不等于用户等待）。',
+      '缺测与记录：N/A 表示未知而非 0；Partial 表示部分测量。任务计时记录：' + counts + '；仅说明计时记录状态，不表示业务成功。'
+    ].join('\n\n');
   }
   function prepareTable(table) {
     if (!table) return;
@@ -63,9 +68,9 @@
   function applyDetail(card, timing) {
     if (!card) return;
     card.setAttribute('data-session-timing', '');
-    card.setAttribute('aria-label', 'Source Task Active');
+    card.setAttribute('aria-label', '主会话任务活动时间');
     var label = card.querySelector('.sd-kpi__label');
-    if (label) label.textContent = 'Source Task Active';
+    if (label) label.textContent = '主会话任务活动时间';
     var primary = card.querySelector('.sd-kpi__value');
     if (primary) {
       primary.classList.add('session-timing-value');
@@ -77,11 +82,16 @@
       note.setAttribute('data-session-timing-note', '');
       note.className = 'session-timing-note';
       var summary = document.createElement('summary');
-      summary.textContent = 'Timing details';
+      summary.textContent = '计时口径与来源';
       note.append(summary, document.createElement('p'));
       card.appendChild(note);
     }
-    note.lastElementChild.textContent = description(timing);
+    var paragraphs = note.querySelectorAll(':scope > p');
+    description(timing).split('\n\n').forEach(function (text, index) {
+      var paragraph = paragraphs[index];
+      if (!paragraph) { paragraph = document.createElement('p'); note.appendChild(paragraph); }
+      paragraph.textContent = text;
+    });
   }
   window.SessionTiming = { seconds: seconds, value: value, nonTaskWall: nonTaskWall,
     description: description, prepareTable: prepareTable, applyDetail: applyDetail };

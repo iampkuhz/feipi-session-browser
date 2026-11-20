@@ -3,7 +3,6 @@ package com.feipi.session.browser.application.sessiondetail;
 import com.feipi.session.browser.domain.normalized.NormalizedAgent;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
-import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
 import com.feipi.session.browser.domain.normalized.SourceUnitCatalogEntry;
 import com.feipi.session.browser.domain.normalized.SourceUnitRefRange;
 import com.feipi.session.browser.query.api.SensitiveFieldPolicy;
@@ -371,31 +370,18 @@ public final class PayloadCallContentExtractor {
   /** 从制品中提取工具结果文本，按 toolCallId 映射。 */
   public static Map<String, String> extractToolResultContents(NormalizedSessionArtifact artifact) {
     Objects.requireNonNull(artifact, "artifact 不得为 null");
-    Map<String, String> result = new LinkedHashMap<>();
-    for (NormalizedCall call : artifact.calls()) {
-      for (Map<String, Object> unit : call.sourceUnits()) {
-        String type = stringField(unit, FIELD_TYPE);
-        if (!isToolResult(type)) {
-          continue;
-        }
-        String toolCallId = toolResultId(unit);
-        if (toolCallId.isEmpty() || result.containsKey(toolCallId)) {
-          continue;
-        }
-        String text = extractTextValue(unit);
-        if (!text.isEmpty()) {
-          result.put(toolCallId, text);
-        }
+    var contents = new ToolResultContents<String>(text -> text);
+    try {
+      for (var call : artifact.calls()) {
+        for (var source : call.sourceUnits()) contents.inline(source);
       }
+      for (var entry : artifact.sourceUnitCatalog().values()) contents.catalog(entry);
+    } catch (java.io.IOException exception) {
+      throw new IllegalStateException("无法读取工具结果", exception);
     }
-    for (NormalizedToolExecution exec : artifact.toolExecutions()) {
-      if (result.containsKey(exec.toolCallId())) {
-        continue;
-      }
-      String fromCatalog = resolveToolResultFromCatalog(exec.toolCallId(), artifact);
-      if (!fromCatalog.isEmpty()) {
-        result.put(exec.toolCallId(), fromCatalog);
-      }
+    Map<String, String> result = new LinkedHashMap<>();
+    for (String id : contents.ids()) {
+      ToolResultContents.join(contents.occurrences(id)).ifPresent(text -> result.put(id, text));
     }
     return result;
   }
@@ -530,35 +516,6 @@ public final class PayloadCallContentExtractor {
       }
     }
     return sb.toString();
-  }
-
-  /** 从 catalog 中查找指定 toolCallId 的结果内容。 */
-  private static String resolveToolResultFromCatalog(
-      String toolCallId, NormalizedSessionArtifact artifact) {
-    for (SourceUnitCatalogEntry entry : artifact.sourceUnitCatalog().values()) {
-      boolean resultUnit =
-          isToolResult(entry.unitType())
-              || (entry.payload() instanceof Map<?, ?> value
-                  && isToolResult(value.get(FIELD_TYPE)));
-      if (!resultUnit) {
-        continue;
-      }
-      Optional<String> label = entry.label();
-      if (label.isPresent() && toolCallId.equals(label.get())) {
-        String text = catalogEntryText(entry);
-        if (!text.isEmpty()) {
-          return text;
-        }
-      }
-      Object payload = entry.payload();
-      if (payload instanceof Map<?, ?> map) {
-        Object id = toolResultId(map);
-        if (toolCallId.equals(String.valueOf(id))) {
-          return catalogEntryText(entry);
-        }
-      }
-    }
-    return "";
   }
 
   /** 从 catalog 条目中提取文本。 */

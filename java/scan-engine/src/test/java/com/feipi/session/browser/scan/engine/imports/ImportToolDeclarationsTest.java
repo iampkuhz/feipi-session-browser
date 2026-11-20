@@ -69,6 +69,102 @@ class ImportToolDeclarationsTest {
     }
   }
 
+  @Test
+  void occurrenceBindingRejectsConflictingOwnersSlotsAndFixedPositionMismatches() throws Exception {
+    String path = "imports/synthetic/upload.jsonl";
+    var unit =
+        Map.<String, Object>of(
+            "type",
+            "tool_use",
+            "role",
+            "assistant",
+            "text",
+            "",
+            "id",
+            "normalized",
+            "name",
+            "Bash",
+            "input",
+            "{\"command\":\"one\"}");
+    var owner = call("first", 1, List.of("normalized"), List.of(unit));
+    Path file = directory.resolve("top-level.jsonl");
+    Files.writeString(
+        file,
+        "{\"type\":\"response_item\",\"payload\":{\"type\":\"function_call\",\"call_id\":\"raw\",\"name\":\"Bash\",\"arguments\":{\"command\":\"one\"}}}\n");
+    var original = ImportPayloadCatalog.read(file, path);
+    var binding =
+        new com.feipi.session.browser.normalization.NormalizationEngine.ToolBinding(
+            7,
+            path + "#event[0]",
+            0,
+            0,
+            "raw",
+            "Bash",
+            "{\"command\":\"one\"}",
+            "first",
+            CallScope.MAIN,
+            Optional.empty(),
+            owner.sourceUnits().getFirst());
+    var catalog = new java.util.LinkedHashMap<>(original);
+    var restored =
+        ImportToolDeclarations.bind(
+            List.of(owner), List.of(tool("normalized", "first")), catalog, List.of(binding), path);
+    assertThat(restored.getFirst().sourceUnitRefRanges().getFirst().refs())
+        .containsExactly(path + "#raw[0]/tool");
+    assertThat(catalog.get(path + "#raw[0]/tool").payload()).isSameAs(binding.unit());
+    assertThat(catalog.get(path + "#raw[0]/tool").label()).contains("normalized");
+    assertThat(original.get(path + "#raw[0]/tool").label()).contains("raw");
+    assertThat(catalog.get(path + "#raw[0]")).isEqualTo(original.get(path + "#raw[0]"));
+    assertThat((String) catalog.get(path + "#raw[0]").payload()).contains("\"call_id\":\"raw\"");
+    for (var bindings :
+        List.of(
+            List.of(binding, binding),
+            List.of(
+                new com.feipi.session.browser.normalization.NormalizationEngine.ToolBinding(
+                    7,
+                    path + "#event[1]",
+                    1,
+                    0,
+                    "raw",
+                    "Bash",
+                    binding.rawInput(),
+                    "first",
+                    CallScope.MAIN,
+                    Optional.empty(),
+                    binding.unit())),
+            List.of(
+                new com.feipi.session.browser.normalization.NormalizationEngine.ToolBinding(
+                    7,
+                    binding.locator(),
+                    0,
+                    1,
+                    "raw",
+                    "Bash",
+                    binding.rawInput(),
+                    "first",
+                    CallScope.MAIN,
+                    Optional.empty(),
+                    binding.unit())))) {
+      catalog = new java.util.LinkedHashMap<>(original);
+      var rejected =
+          ImportToolDeclarations.bind(
+              List.of(owner), List.of(tool("normalized", "first")), catalog, bindings, path);
+      assertThat(rejected.getFirst()).isSameAs(owner);
+      assertThat(catalog).isEqualTo(original);
+    }
+    for (var tools :
+        List.of(
+            List.of(tool("normalized", "wrong-owner")),
+            List.of(tool("normalized", "first"), tool("normalized", "first")))) {
+      catalog = new java.util.LinkedHashMap<>(original);
+      assertThat(
+              ImportToolDeclarations.bind(List.of(owner), tools, catalog, List.of(binding), path)
+                  .getFirst())
+          .isSameAs(owner);
+      assertThat(catalog).isEqualTo(original);
+    }
+  }
+
   private Map<String, SourceUnitCatalogEntry> catalog() throws Exception {
     Path file = directory.resolve("synthetic.jsonl");
     Files.writeString(

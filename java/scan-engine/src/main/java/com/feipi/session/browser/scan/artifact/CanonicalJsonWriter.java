@@ -325,6 +325,7 @@ public final class CanonicalJsonWriter {
       map.put("files_touched", tool.filesTouched());
     }
     putOptional(map, "subagent_id", tool.subagentId());
+    map.put("collaboration", tool.collaboration());
     tool.observation().ifPresent(value -> map.put("observation", value));
     return map;
   }
