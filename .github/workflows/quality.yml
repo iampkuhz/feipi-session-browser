@@ -6,6 +6,11 @@ on:
   pull_request:
   workflow_dispatch:
   workflow_call:
+    inputs:
+      release-mode:
+        description: "'publish' for a protected release, 'candidate' for a dry run, empty for standalone Quality"
+        type: string
+        default: ''
     outputs:
       candidate-id:
         value: ${{ jobs.quality.outputs.candidate-id }}
@@ -21,13 +26,14 @@ concurrency:
 
 jobs:
   quality:
+    name: ${{ inputs.release-mode && 'Gate and verified package' || 'quality' }}
     runs-on: macos-15
     env:
       BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
       PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.local/playwright-browsers
     outputs:
       candidate-id: ${{ steps.seal.outputs.artifact-id }}
-      candidate-key: ${{ steps.seal.outputs.artifact-id && format('{0}:{1}:{2}', github.sha, github.run_id, github.run_attempt) }}
+      candidate-key: ${{ steps.review.outputs.candidate-key }}
 
     steps:
       - name: Checkout
@@ -58,7 +64,7 @@ jobs:
           sysctl hw.logicalcpu hw.memsize
 
       - name: Validate Gradle Wrapper
-        uses: gradle/actions/wrapper-validation@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
+        uses: gradle/actions/wrapper-validation@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
 
       - name: Install uv
         uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
@@ -76,16 +82,24 @@ jobs:
           architecture: arm64
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
+        uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
         with:
           cache-read-only: ${{ github.event_name != 'push' || github.ref != 'refs/heads/main' }}
           build-scan-publish: false
+          add-job-summary: ${{ inputs.release-mode && 'never' || 'always' }}
 
       - name: Verify dependency lock
         run: uv lock --project scripts --check
 
       - name: Install dependencies
         run: UV_PROJECT_ENVIRONMENT="$GITHUB_WORKSPACE/.local/python/venv" uv sync --project scripts --frozen --extra dev
+
+      - name: Set up Node.js 24 for Playwright
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          architecture: arm64
+          package-manager-cache: false
 
       - name: Install Playwright dependencies
         run: npm ci --prefix java/tests/playwright
@@ -107,6 +121,7 @@ jobs:
           fi
 
       - name: Require a complete successful receipt from this checkout
+        id: receipt
         shell: bash
         run: |
           python3 - <<'PYTHON_CODE'
@@ -144,21 +159,15 @@ jobs:
                       for invocation in step['invocationResults']:
                           assert invocation['status'] == 'PASS' and invocation['returnCode'] == 0
                           assert not invocation['taskFailureReasons']
-          print('Verified actual Gate receipt:', summary['runId'])
+          run_id = summary['runId']
+          print('Verified actual Gate receipt:', run_id)
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              print(f'gate-run-id={run_id}', file=output)
           PYTHON_CODE
-
-      - name: Upload immutable Gate receipt
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: gate-run-${{ github.run_id }}-${{ github.run_attempt }}
-          path: tmp/quality/runs/
-          retention-days: 14
-          if-no-files-found: error
 
       - name: Retain failed synthetic browser traces
         if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: browser-failures-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
@@ -180,10 +189,54 @@ jobs:
       - name: Upload the sole verified candidate
         id: seal
         if: steps.scope.outputs.mode == 'full'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: verified-candidate-${{ github.run_id }}-${{ github.run_attempt }}
           path: verified-candidate/
           compression-level: 0
           if-no-files-found: error
           retention-days: 14
+
+      - name: Register the sealed candidate and summarize the review
+        id: review
+        if: steps.scope.outputs.mode == 'full' && inputs.release-mode != ''
+        shell: bash
+        env:
+          RELEASE_MODE: ${{ inputs.release-mode }}
+          CANDIDATE_ID: ${{ steps.seal.outputs.artifact-id }}
+          GATE_RECEIPT: ${{ steps.receipt.outputs.gate-run-id }}
+        run: |
+          set -euo pipefail
+          case "$RELEASE_MODE" in
+            publish) next='Approve the protected github-release deployment to publish.' ;;
+            candidate) next='Candidate verification only. This run will not publish.' ;;
+            *) echo 'Invalid release mode.' >&2; exit 1 ;;
+          esac
+          version="$(cat java/gradle/VERSION)"
+          read -r digest size archive < verified-candidate/MANIFEST.SHA256
+          if [[ ! "$CANDIDATE_ID" =~ ^[1-9][0-9]*$ || -z "$GATE_RECEIPT" ||
+                ! "$digest" =~ ^[0-9a-f]{64}$ || ! "$size" =~ ^[1-9][0-9]*$ ||
+                "$archive" != "app-cli-$version-runtime-macos-arm64.tar.gz" ]]; then
+            echo 'Missing or invalid candidate review evidence.' >&2
+            exit 1
+          fi
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          ### v$version · macOS arm64
+
+          - Commit: \`$GITHUB_SHA\`
+          - Full Gate: passed (receipt \`$GATE_RECEIPT\`)
+          - Package: \`$archive\` — unpacked and launched with bundled Java
+          - Package SHA-256: \`$digest\` (candidate artifact $CANDIDATE_ID)
+
+          $next
+          EOF
+          printf 'candidate-key=%s:%s:%s\n' "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
+
+      - name: Retain the Gate receipt for standalone Quality or release failure
+        if: ${{ !cancelled() && (failure() || inputs.release-mode == '') }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: gate-run-${{ github.run_id }}-${{ github.run_attempt }}
+          path: tmp/quality/runs/
+          retention-days: 14
+          if-no-files-found: warn
