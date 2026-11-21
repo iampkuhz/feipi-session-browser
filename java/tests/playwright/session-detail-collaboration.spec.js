@@ -305,7 +305,10 @@ test('collaboration selection ignores obsolete 200/409/500 and current failures 
   } finally { expect((await request.delete(api)).status()).toBe(204); }
 });
 
-test('normal raw Codex sources distinguish nested/siblings and locate off-page tools without prefix fetches', async ({ page, request }) => {
+// Run each real-scan topology independently; both retain their browser and single-file import assertions.
+for (const topology of ['siblings', 'nested']) test(`normal raw Codex ${topology} locates off-page tools without prefix fetches`, async ({ page, request }) => {
+  const nested = topology === 'nested';
+  const rootId = 'normal-' + topology;
   const fs = require('fs');
   const path = require('path');
   const { spawn } = require('child_process');
@@ -324,30 +327,27 @@ test('normal raw Codex sources distinguish nested/siblings and locate off-page t
     { type: 'response_item', payload: { type: 'function_call', call_id: id, name: 'spawn_agent', arguments: JSON.stringify({ message: task }) } },
     { type: 'response_item', payload: { type: 'function_call_output', call_id: id, output: { agent_id: target } } },
   ];
-  for (const nested of [false, true]) {
-    const rootId = 'normal-' + (nested ? 'nested' : 'siblings');
-    const sourceRoot = path.join(home, '.codex', 'sessions', rootId);
-    fs.mkdirSync(sourceRoot, { recursive: true });
-    const root = [meta(rootId)];
-    for (let i = 0; i < 24; i++) root.push(
-      { type: 'response_item', payload: { type: 'function_call', call_id: 'earlier-' + i, name: 'exec_command', arguments: JSON.stringify({ cmd: 'printf synthetic-' + i }) } }, usage('earlier-response-' + i));
-    root.push(...spawnRecords('shared-tool', 'worker-same-prefix-001', 'Review synthetic parser'));
-    if (!nested) root.push(...spawnRecords('second-spawn', 'worker-same-prefix-002', 'Verify synthetic UI'));
-    root.push(usage('root-response'));
-    root.push({ type: 'response_item', payload: { type: 'function_call', call_id: 'root-wait', name: 'wait_agent', arguments: { targets: ['worker-same-prefix-001'] } } },
-      usage('wait-response'), { type: 'response_item', payload: { type: 'function_call_output', call_id: 'root-wait', output: { status: { 'worker-same-prefix-001': { completed: 'Synthetic tail report' } } } } });
-    const a = [meta('worker-same-prefix-001', rootId)];
-    if (nested) a.push(...spawnRecords('shared-tool', 'worker-same-prefix-002', 'Verify synthetic UI'));
-    a.push(usage('a-response'));
-    const b = [meta('worker-same-prefix-002', nested ? 'worker-same-prefix-001' : rootId),
-      { type: 'response_item', payload: { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'Synthetic B final answer' }] } }, usage('b-response')];
-    for (const [name, records] of [['root', root], ['a', a], ['b', b]]) {
-      const file = path.join(sourceRoot, `rollout-${name === 'root' ? rootId : name}.jsonl`);
-      fs.writeFileSync(file, records.map(JSON.stringify).join('\n') + '\n');
-      files.push(file);
-    }
+  const sourceRoot = path.join(home, '.codex', 'sessions', rootId);
+  fs.mkdirSync(sourceRoot, { recursive: true });
+  const root = [meta(rootId)];
+  for (let i = 0; i < 24; i++) root.push(
+    { type: 'response_item', payload: { type: 'function_call', call_id: 'earlier-' + i, name: 'exec_command', arguments: JSON.stringify({ cmd: 'printf synthetic-' + i }) } }, usage('earlier-response-' + i));
+  root.push(...spawnRecords('shared-tool', 'worker-same-prefix-001', 'Review synthetic parser'));
+  if (!nested) root.push(...spawnRecords('second-spawn', 'worker-same-prefix-002', 'Verify synthetic UI'));
+  root.push(usage('root-response'));
+  root.push({ type: 'response_item', payload: { type: 'function_call', call_id: 'root-wait', name: 'wait_agent', arguments: { targets: ['worker-same-prefix-001'] } } },
+    usage('wait-response'), { type: 'response_item', payload: { type: 'function_call_output', call_id: 'root-wait', output: { status: { 'worker-same-prefix-001': { completed: 'Synthetic tail report' } } } } });
+  const a = [meta('worker-same-prefix-001', rootId)];
+  if (nested) a.push(...spawnRecords('shared-tool', 'worker-same-prefix-002', 'Verify synthetic UI'));
+  a.push(usage('a-response'));
+  const b = [meta('worker-same-prefix-002', nested ? 'worker-same-prefix-001' : rootId),
+    { type: 'response_item', payload: { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'Synthetic B final answer' }] } }, usage('b-response')];
+  for (const [name, records] of [['root', root], ['a', a], ['b', b]]) {
+    const file = path.join(sourceRoot, `rollout-${name === 'root' ? rootId : name}.jsonl`);
+    fs.writeFileSync(file, records.map(JSON.stringify).join('\n') + '\n');
+    files.push(file);
   }
-  fs.writeFileSync(path.join(home, '.codex', 'session_index.jsonl'), ['normal-nested', 'normal-siblings'].map(id => JSON.stringify({ id, thread_name: id, updated_at: '2026-11-13T10:00:01Z' })).join('\n') + '\n');
+  fs.writeFileSync(path.join(home, '.codex', 'session_index.jsonl'), JSON.stringify({ id: rootId, thread_name: rootId, updated_at: '2026-11-13T10:00:01Z' }) + '\n');
   fs.mkdirSync(path.join(directory, 'index'), { recursive: true });
   const launcher = copyDistribution(directory);
   const child = spawn(launcher, ['serve', '--host', '127.0.0.1', '--port', '0'], { cwd: repoRoot,
@@ -355,7 +355,8 @@ test('normal raw Codex sources distinguish nested/siblings and locate off-page t
       JAVA_OPTS: `"-Duser.home=${home}"`, APP_CLI_OPTS: '', JAVA_TOOL_OPTIONS: '', JDK_JAVA_OPTIONS: '', _JAVA_OPTIONS: '', SESSION_BROWSER_LOG_LEVEL: 'WARN' },
     stdio: ['ignore', 'pipe', 'pipe'] });
   let logs = '';
-  const base = await new Promise((resolve, reject) => {
+  const closed = new Promise(resolve => child.once('close', resolve));
+  const ready = new Promise((resolve, reject) => {
     child.once('error', reject);
     child.once('exit', code => reject(new Error('Synthetic server exited ' + code + ': ' + logs)));
     for (const stream of [child.stdout, child.stderr]) stream.on('data', data => {
@@ -365,70 +366,69 @@ test('normal raw Codex sources distinguish nested/siblings and locate off-page t
     });
   });
   try {
-    await expect.poll(async () => (await request.get(base + '/api/sessions/codex/normal-nested/execution')).status()).toBe(200);
-    for (const nested of [false, true]) {
-      const api = base + '/api/sessions/codex/normal-' + (nested ? 'nested' : 'siblings');
-      const facts = await (await request.get(api + '/collaboration')).json();
-      expect(facts.items).toHaveLength(2);
-      const b = facts.items.find(row => row.target === 'subagent:worker-same-prefix-002');
-      expect(b.actor).toBe(nested ? 'subagent:worker-same-prefix-001' : 'main');
-      expect(b.childIncluded).toBe(true);
-      const a = facts.items.find(row => row.target === 'subagent:worker-same-prefix-001');
-      if (nested) expect(a.toolId).not.toBe(b.toolId); // 同一裸 shared-tool 在不同 scope 保持 occurrence。
-      const first = await (await request.get(api + '/execution')).json();
-      expect(first.items.some(item => item.tool?.toolCallId === b.toolId)).toBe(false);
-      const selected = await (await request.get(api + '/execution?agent_context=subagent%3Aworker-same-prefix-002')).json();
-      expect(selected.items.every(item => item.group.subagentId === 'worker-same-prefix-002')).toBe(true);
-      expect(selected.diagnostics.totalTools).toBe(0);
-      for (const width of [1440, 390]) {
-        await page.setViewportSize({ width, height: 1100 });
-        await page.goto(base + '/sessions/codex/normal-' + (nested ? 'nested' : 'siblings'));
-        const host = page.locator('[data-collaboration]');
-        await assertRecordedResult(page, request, api,
-          host.getByRole('button', { includeHidden: true, name: '委派返回 Result', exact: true }).first(),
-          JSON.stringify({ agent_id: 'worker-same-prefix-001' }));
-        await expect(host.locator('[data-collaboration-relation]')).toHaveCount(2);
-        await host.evaluate(n => n.scrollIntoView({ block: 'start' }));
-        await captureDiagnosticScreenshot(page, { path: test.info().outputPath(`normal-${nested ? 'nested' : 'siblings'}-${width}.png`) });
-        const relation = host.locator('[data-collaboration-relation]').filter({ hasText: 'Verify synthetic UI' });
-        const calls = [];
-        page.on('request', r => { if (r.url().includes('/execution?')) calls.push(new URL(r.url())); });
-        await openEvidence(relation.getByRole('button', { includeHidden: true, name: '定位发起工具', exact: true }));
-        await relation.getByRole('button', { includeHidden: true, name: '定位发起工具', exact: true }).click();
-        await expect(page.locator('[data-execution-tool]:focus')).toHaveAttribute('data-execution-tool', b.toolId);
-        expect(calls.at(-1).searchParams.get('target')).toBe(b.toolId);
-        await relation.getByRole('button', { includeHidden: true, name: /查看 .* 的过程与耗时/ }).click();
-        await expect(page.locator('[data-execution-items]')).toContainText('Synthetic B final answer');
-        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-      }
-      // 同一原文件的 object 与 JSON string output，normal/import 对照均完整。
-      const raw = fs.readFileSync(files.find(file => file.endsWith('rollout-normal-' + (nested ? 'nested' : 'siblings') + '.jsonl')), 'utf8').trim().split('\n').map(JSON.parse);
-      for (const asString of [false, true]) {
-        const records = structuredClone(raw);
-        if (asString) for (const event of records) if (event.payload?.type === 'function_call_output') event.payload.output = JSON.stringify(event.payload.output);
-        const importedResponse = await request.post(base + '/api/imports', { headers: { Origin: base }, multipart: { source: 'codex', file: {
-          name: 'same-source.jsonl', mimeType: 'application/x-ndjson', buffer: Buffer.from(records.map(JSON.stringify).join('\n') + '\n') } } });
-        expect(importedResponse.status()).toBe(201);
-        const imported = await importedResponse.json();
-        const importApi = base + '/api/imports/' + imported.import_id;
-        try {
-          await page.goto(base + imported.detail_url);
-          await assertRecordedResult(page, request, importApi, page.locator('[data-collaboration]').getByRole('button', { includeHidden: true, name: '委派返回 Result', exact: true }).first(), JSON.stringify({ agent_id: 'worker-same-prefix-001' }));
-          await openRelatedExchanges(page.locator('[data-collaboration]'));
-          await assertRecordedResult(page, request, importApi, page.locator('[data-collaboration]').getByRole('button', { includeHidden: true, name: '报告 Result', exact: true }).last(),
-            JSON.stringify({ status: { 'worker-same-prefix-001': { completed: 'Synthetic tail report' } } }));
-        } finally { expect((await request.delete(importApi)).status()).toBe(204); }
-      }
-      await page.goto(base + '/sessions/codex/normal-' + (nested ? 'nested' : 'siblings'));
-      await openRelatedExchanges(page.locator('[data-collaboration]'));
-      await assertRecordedResult(page, request, api, page.locator('[data-collaboration]').getByRole('button', { includeHidden: true, name: '报告 Result', exact: true }).last(),
-        JSON.stringify({ status: { 'worker-same-prefix-001': { completed: 'Synthetic tail report' } } }));
-      await test.info().attach(`normal-${nested ? 'nested' : 'siblings'}-facts.json`, { body: JSON.stringify(facts, null, 2), contentType: 'application/json' });
+    const base = await ready;
+    await waitForPublishedScan(base);
+    const api = base + '/api/sessions/codex/' + rootId;
+    const facts = await (await request.get(api + '/collaboration')).json();
+    expect(facts.items).toHaveLength(2);
+    const b = facts.items.find(row => row.target === 'subagent:worker-same-prefix-002');
+    expect(b.actor).toBe(nested ? 'subagent:worker-same-prefix-001' : 'main');
+    expect(b.childIncluded).toBe(true);
+    const a = facts.items.find(row => row.target === 'subagent:worker-same-prefix-001');
+    if (nested) expect(a.toolId).not.toBe(b.toolId); // 同一裸 shared-tool 在不同 scope 保持 occurrence。
+    const first = await (await request.get(api + '/execution')).json();
+    expect(first.items.some(item => item.tool?.toolCallId === b.toolId)).toBe(false);
+    const selected = await (await request.get(api + '/execution?agent_context=subagent%3Aworker-same-prefix-002')).json();
+    expect(selected.items.every(item => item.group.subagentId === 'worker-same-prefix-002')).toBe(true);
+    expect(selected.diagnostics.totalTools).toBe(0);
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 1100 });
+      await page.goto(base + '/sessions/codex/' + rootId);
+      const host = page.locator('[data-collaboration]');
+      await assertRecordedResult(page, request, api,
+        host.getByRole('button', { includeHidden: true, name: '委派返回 Result', exact: true }).first(),
+        JSON.stringify({ agent_id: 'worker-same-prefix-001' }));
+      await expect(host.locator('[data-collaboration-relation]')).toHaveCount(2);
+      await host.evaluate(n => n.scrollIntoView({ block: 'start' }));
+      await captureDiagnosticScreenshot(page, { path: test.info().outputPath(`normal-${topology}-${width}.png`) });
+      const relation = host.locator('[data-collaboration-relation]').filter({ hasText: 'Verify synthetic UI' });
+      const calls = [];
+      page.on('request', r => { if (r.url().includes('/execution?')) calls.push(new URL(r.url())); });
+      await openEvidence(relation.getByRole('button', { includeHidden: true, name: '定位发起工具', exact: true }));
+      await relation.getByRole('button', { includeHidden: true, name: '定位发起工具', exact: true }).click();
+      await expect(page.locator('[data-execution-tool]:focus')).toHaveAttribute('data-execution-tool', b.toolId);
+      expect(calls.at(-1).searchParams.get('target')).toBe(b.toolId);
+      await relation.getByRole('button', { includeHidden: true, name: /查看 .* 的过程与耗时/ }).click();
+      await expect(page.locator('[data-execution-items]')).toContainText('Synthetic B final answer');
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     }
+    // 同一原文件的 object 与 JSON string output，normal/import 对照均完整。
+    const raw = fs.readFileSync(path.join(sourceRoot, 'rollout-' + rootId + '.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+    for (const asString of [false, true]) {
+      const records = structuredClone(raw);
+      if (asString) for (const event of records) if (event.payload?.type === 'function_call_output') event.payload.output = JSON.stringify(event.payload.output);
+      const importedResponse = await request.post(base + '/api/imports', { headers: { Origin: base }, multipart: { source: 'codex', file: {
+        name: 'same-source.jsonl', mimeType: 'application/x-ndjson', buffer: Buffer.from(records.map(JSON.stringify).join('\n') + '\n') } } });
+      expect(importedResponse.status()).toBe(201);
+      const imported = await importedResponse.json();
+      const importApi = base + '/api/imports/' + imported.import_id;
+      try {
+        await page.goto(base + imported.detail_url);
+        await assertRecordedResult(page, request, importApi, page.locator('[data-collaboration]').getByRole('button', { includeHidden: true, name: '委派返回 Result', exact: true }).first(), JSON.stringify({ agent_id: 'worker-same-prefix-001' }));
+        await openRelatedExchanges(page.locator('[data-collaboration]'));
+        await assertRecordedResult(page, request, importApi, page.locator('[data-collaboration]').getByRole('button', { includeHidden: true, name: '报告 Result', exact: true }).last(),
+          JSON.stringify({ status: { 'worker-same-prefix-001': { completed: 'Synthetic tail report' } } }));
+      } finally { expect((await request.delete(importApi)).status()).toBe(204); }
+    }
+    await page.goto(base + '/sessions/codex/' + rootId);
+    await openRelatedExchanges(page.locator('[data-collaboration]'));
+    await assertRecordedResult(page, request, api, page.locator('[data-collaboration]').getByRole('button', { includeHidden: true, name: '报告 Result', exact: true }).last(),
+      JSON.stringify({ status: { 'worker-same-prefix-001': { completed: 'Synthetic tail report' } } }));
+    await test.info().attach(`normal-${topology}-facts.json`, { body: JSON.stringify(facts, null, 2), contentType: 'application/json' });
     await test.info().attach('normal-service-identity.json', { body: JSON.stringify({ pid: child.pid, base, home, files, index: path.join(directory, 'index') }), contentType: 'application/json' });
   } finally {
-    child.kill('SIGTERM');
-    await new Promise(resolve => child.once('exit', resolve));
+    if (child.exitCode === null && child.signalCode === null) child.kill('SIGTERM');
+    await closed;
     fs.writeFileSync(path.join(directory, 'service.log'), logs);
     // 身份/合成源保留为交付证据；服务已按本次 child handle 精确停止。
   }
