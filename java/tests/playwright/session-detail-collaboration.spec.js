@@ -2138,17 +2138,17 @@ for (const width of [1440, 390]) test('hotspot context label lifetime pending co
   }, hotspotInput);
 });
 
-test('hotspot context label lifetime checked generation rejects failed and stale batches', async ({ page, request }) => {
-  await withLongOperationNormal(request, false, async first => {
+test('hotspot context label lifetime checked generation rejects failed and stale batches', async ({ page, request, readLongOperationNormal }) => {
+  // The first index is read-only here; only the changed generation needs a new server.
+  await readLongOperationNormal(request, false, async first => {
     const changed = ['changed-zulu', 'changed-copper', 'changed-mint', 'changed-amber', 'changed-willow', 'changed-indigo', 'changed-slate', first.children[7], 'changed-violet', 'changed-maple'];
     await withLongOperationNormal(request, false, async second => {
       const key = 'subagent:' + first.children[7], batches = {};
       for (const [name, fixture] of [['first', first], ['second', second]]) {
-        const resources = {};
-        for (const resource of ['meta', 'metrics', 'diagnostics', 'rounds', 'execution']) {
+        const resources = Object.fromEntries(await Promise.all(['meta', 'metrics', 'diagnostics', 'rounds', 'execution'].map(async resource => {
           const response = await request.get(fixture.api + '/' + resource); expect(response.status()).toBe(200);
-          resources[resource] = { body: await response.body(), headers: response.headers() };
-        }
+          return [resource, { body: await response.body(), headers: response.headers() }];
+        })));
         const authority = await (await request.get(fixture.api + '/collaboration?view=participants&limit=100')).json();
         const label = authority.items.find(item => item.key === key).label, generation = resources.execution.headers['x-session-index-generation'];
         expect(generation).toBeTruthy(); for (const resource of Object.values(resources)) expect(resource.headers['x-session-index-generation']).toBe(generation);
