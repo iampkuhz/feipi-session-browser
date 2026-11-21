@@ -22,7 +22,9 @@
 
 正式发布先把包含 `VERSION` 的发行提交合入远端 `main`，再从该提交推送 `v<VERSION>` tag。Release 在构建前和人工审批后各从远端读取 `main`，确认 tag 的精确提交仍在 `main` 历史中。独立分支仍可手动运行 `publish=false` 验证候选，不创建 tag、draft 或 public Release。
 
-`release-candidate` 只登记同 SHA/run/attempt 的 artifact ID。受保护的 `github-release` 环境批准后，发布 job 按**唯一 ID**下载并重新验证候选及远端 tag，再创建 draft、上传并回读全部资产核对名称、大小和 SHA-256，最后公开。不复用旧尝试、不重新构建，不覆盖同名 draft/Release，也不删除或移动 tag。已有不完整 draft 必须由有权限的维护者明确处置。
+Quality 在封存候选的同一个 job 登记 artifact ID 与 SHA/run/attempt，不另排候选登记 runner。Release 审批页只显示版本、提交、Full Gate 回执 ID、原生启动验收、归档 SHA-256 和审批状态，不展示 Gradle 调用表。发布构建成功时只上传候选；失败时保留已有 Gate 回执及可用的合成浏览器诊断。独立 Quality 仍保留 Gradle 摘要和 Gate 回执。三个工作流的 JavaScript Actions 统一使用声明 Node.js 24 的固定提交；Playwright 也显式使用 arm64 Node.js 24，不依赖 runner 默认版本。
+
+受保护的 `github-release` 环境批准后，发布 job 按**唯一 ID**下载并重新验证候选及远端 tag，再创建 draft、上传并回读全部资产核对名称、大小和 SHA-256，最后公开。不复用旧尝试、不重新构建，不覆盖同名 draft/Release，也不删除或移动 tag。已有不完整 draft 必须由有权限的维护者明确处置。已有 tag 和历史运行仍使用其原始工作流；要检查新流程，先在新提交上运行 `publish=false`。
 
 候选与公开资产都是四个文件：
 

@@ -18,7 +18,7 @@
 
 ### Requirement: 保护正式发布
 
-`publish=false` SHALL 不产生 tag、draft 或 public Release，允许独立分支验证。RC SHALL 只登记本次封存的候选身份。正式发布 SHALL 仅从匹配 VERSION 的现有 `v*` tag 进入，由禁止管理员绕过的 `github-release` 环境人工审批。构建前及审批后 SHALL 分别从远端读取 `main`，验证 tag 指向的精确提交是 `main` 的当前提交或其祖先；无法验证 SHALL 阻断发布。审批后 SHALL 仅按已登记 artifact ID 直接解包到验证目录，并重新验证同 SHA/run/attempt 候选及远端 tag。
+`publish=false` SHALL 不产生 tag、draft 或 public Release，允许独立分支验证。Release SHALL 在构建和封存候选的同一 job 登记本次 artifact ID 和 SHA/run/attempt，不单列候选登记 job 或环境。正式发布 SHALL 仅从匹配 VERSION 的现有 `v*` tag 进入，由禁止管理员绕过的 `github-release` 环境人工审批。构建前及审批后 SHALL 分别从远端读取 `main`，验证 tag 指向的精确提交是 `main` 的当前提交或其祖先；无法验证 SHALL 阻断发布。审批后 SHALL 仅按已登记 artifact ID 直接解包到验证目录，并重新验证同 SHA/run/attempt 候选及远端 tag。
 
 #### Scenario: 发行提交不在远端 main
 
@@ -30,6 +30,16 @@
 - **When** 未获人工审批、存在同名 Release，或 draft 资产验证失败
 - **Then** SHALL 不创建或覆盖公开 Release，也不移动或删除已有 tag
 - **And** 仅在完整下载回读 draft 资产并逐项核对名称、大小和摘要后 SHALL 公开
+
+### Requirement: 精简发布审阅与统一 CI 运行时
+
+三个工作流的 JavaScript Actions SHALL 固定到声明 Node.js 24 的提交，共用 Action 使用同一提交，不依赖强制切换或已弃用运行时。Quality 的 Playwright SHALL 显式使用 arm64 Node.js 24。
+
+#### Scenario: 发布候选成功封存
+
+- **When** Release 的 Full Gate 回执校验、真实启动验收和候选上传均通过
+- **Then** 审阅摘要 SHALL 只呈现版本、提交、Gate 结果与回执 ID、实际启动验收、安装归档 SHA-256、候选 ID 和是否待发布审批，不展示 Gradle 调用表
+- **And** 成功的 Release 构建 SHALL 只上传已封存的候选 artifact；失败时保留已有 Gate 回执和可用的合成浏览器诊断，独立 Quality 不受发布摘要和成功上传限制
 
 ### Requirement: 实际运行与索引重建
 

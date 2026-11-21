@@ -195,10 +195,31 @@ test.describe('会话列表页', () => {
     await expect(panel.locator('[data-token-part]')).toHaveCount(5);
     await page.keyboard.press('Escape');
     await expect(panel).toBeHidden();
+    await page.locator('#session-search').focus();
+    // Hold the focus callback until after Escape, as can happen on a busy frame.
+    await trigger.evaluate(node => {
+      const raf = window.requestAnimationFrame;
+      let pending;
+      document.addEventListener('focus', event => {
+        if (event.target !== node) return;
+        window.requestAnimationFrame = callback => {
+          window.requestAnimationFrame = raf;
+          pending = callback;
+          return 0;
+        };
+      }, { capture: true, once: true });
+      window.flushTokenFocusFrame = () => {
+        window.requestAnimationFrame = raf;
+        if (!pending) return false;
+        pending(performance.now());
+        return true;
+      };
+    });
     await trigger.press('Enter');
     await expect(trigger).toHaveAttribute('aria-expanded', 'true');
     await expect(panel.locator('.token-composition')).toContainText('占比以当前总量为分母');
     await page.keyboard.press('Escape');
+    expect(await page.evaluate(() => window.flushTokenFocusFrame())).toBe(true);
     await expect(trigger).toHaveAttribute('aria-expanded', 'false');
     await page.locator('#session-search').focus();
     await trigger.focus();
