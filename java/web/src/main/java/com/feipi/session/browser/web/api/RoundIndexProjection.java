@@ -32,11 +32,13 @@ final class RoundIndexProjection {
       SessionDetail detail,
       NormalizedSessionArtifact artifact,
       SessionDetailParityAnalyzer.Result parity) {
+    var previews = artifact == null ? null : SessionContentPreviews.readArtifact(artifact);
     return dtos(
         detail,
         artifact,
         (round, sessionTokens, loadedArtifact) ->
-            toPageDto(round, sessionTokens, loadedArtifact, parity.round(round.roundIndex())));
+            toPageDto(
+                round, sessionTokens, loadedArtifact, parity.round(round.roundIndex()), previews));
   }
 
   static List<RoundIndexDto> exportDtos(SessionDetail detail) {
@@ -74,7 +76,8 @@ final class RoundIndexProjection {
       CallRound round,
       long sessionTokens,
       NormalizedSessionArtifact artifact,
-      SessionDetailParityAnalyzer.RoundParity parity) {
+      SessionDetailParityAnalyzer.RoundParity parity,
+      SessionContentPreviews previews) {
     var parityMap = new LinkedHashMap<>(parity.toMap());
     if (artifact != null && artifact.calls().isEmpty()) {
       try {
@@ -102,6 +105,29 @@ final class RoundIndexProjection {
             round,
             artifact,
             parity.failedToolIds.isEmpty() ? round.failedToolCallIds() : parity.failedToolIds);
+    if (artifact != null) {
+      var usage = new RoundAgentUsage();
+      var calls = callsForRound(round, artifact);
+      var visible = displayCalls(calls);
+      var task =
+          visible.stream()
+              .flatMap(call -> ContentRoundIndex.sideTask(call).stream())
+              .findFirst()
+              .orElse(null);
+      parityMap.putAll(RoundContentProjection.withTask(Map.of(), task));
+      parityMap.put(
+          "requestAvailable", visible.stream().anyMatch(call -> previews.hasPayload(call, true)));
+      parityMap.put(
+          "responseAvailable", visible.stream().anyMatch(call -> previews.hasPayload(call, false)));
+      calls.forEach(usage::add);
+      Set<String> callIds = new LinkedHashSet<>();
+      calls.forEach(call -> callIds.add(call.callId()));
+      artifact.toolExecutions().stream()
+          .filter(tool -> callIds.contains(tool.declaredByCallId()))
+          .filter(SessionDetailParityAnalyzer::hasFailedStatus)
+          .forEach(usage::markFailure);
+      parityMap.put("agentUsage", usage.snapshot());
+    }
     List<String> signals =
         parity.signals.isEmpty()
             ? failedSignals(failedToolIds.size())
@@ -233,18 +259,25 @@ final class RoundIndexProjection {
 
   /** 汇总与详情共用工具 ID 集合；参数只在工具明细展示。 */
   static String toolCountSummary(List<String> toolIds, NormalizedSessionArtifact artifact) {
-    if (artifact == null || toolIds.isEmpty()) {
-      return "";
-    }
+    return toolCountSummary(toolIds, artifact, Map.of());
+  }
+
+  static String toolCountSummary(
+      List<String> toolIds,
+      NormalizedSessionArtifact artifact,
+      Map<String, ToolInputPreview.Summary> previews) {
+    if (artifact == null || toolIds.isEmpty()) return "";
     Set<String> remaining = new LinkedHashSet<>(toolIds);
     Map<String, Integer> counts = new LinkedHashMap<>();
     for (NormalizedToolExecution tool : artifact.toolExecutions()) {
       if (remaining.remove(tool.toolCallId())) {
-        counts.merge(tool.name(), 1, Integer::sum);
+        counts.merge(
+            ToolInputPreview.category(tool.name(), previews.get(tool.toolCallId())),
+            1,
+            Integer::sum);
       }
     }
-    return String.join(
-        " · ", counts.entrySet().stream().map(e -> e.getKey() + " × " + e.getValue()).toList());
+    return ToolActionCategory.summary(counts);
   }
 
   private static List<String> safeList(List<String> values) {

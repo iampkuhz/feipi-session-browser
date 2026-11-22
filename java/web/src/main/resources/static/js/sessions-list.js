@@ -27,14 +27,6 @@
     return null;
   }
 
-  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`* * Extract sort direction from href ?dir= param.` */
-  function getSortDir(el) {
-    var href = el.getAttribute('href') || '';
-    var m = href.match(/[?&]dir=([^&]+)/);
-    if (m) return decodeURIComponent(m[1]);
-    return null;
-  }
-
   /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`* * Build URLSearchParams from current filter form.` */
   function getFilterParams() {
     var form = document.getElementById('session-filter-form');
@@ -87,13 +79,6 @@
     if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
     if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
     return formatNumber(n);
-  }
-
-  function formatDuration(seconds) {
-    var n = Math.max(0, Math.round(Number(seconds || 0)));
-    if (n >= 3600) return Math.floor(n / 3600) + 'h ' + Math.floor((n % 3600) / 60) + 'min';
-    if (n >= 60) return Math.floor(n / 60) + 'min ' + (n % 60) + 's';
-    return n + 's';
   }
 
   function pad2(value) {
@@ -318,20 +303,6 @@
     }
   }
 
-  /**
-   * Sync hidden page_size input with visible select value.
-   * Ensures FormData(form) always includes the current page_size.
-   */
-  function syncPageSizeHidden() {
-    var sel = document.querySelector('[data-action="page-size"]');
-    var form = document.getElementById('session-filter-form');
-    if (!sel || !form) return;
-    var hidden = form.querySelector('input[name="page_size"]');
-    if (hidden) {
-      hidden.value = sel.value;
-    }
-  }
-
   // ── Event bindings ──────────────────────────────────────────────────────
 
   function bindSortAndPaginationClicks() {
@@ -415,79 +386,6 @@
   }
 
   // ── Pagination ──────────────────────────────────────────────────────────
-
-  /**
-   * Apply an AJAX HTML response to the table: replace tbody + pagination.
-   * Shared by fetchPage (pagination) and debouncedServerSearch (search).
-   * Re-augments sortable headers, syncs page size, and re-binds tooltips.
-   */
-  function applyAjaxTableResponse(html, url) {
-    var tbody = document.querySelector('.table-card .data-table tbody');
-    if (!tbody) return;
-
-    var parser = new DOMParser();
-    var doc = parser.parseFromString(html, 'text/html');
-    var ajaxResponse = doc.getElementById('sessions-ajax-response');
-    if (!ajaxResponse) {
-      throw new Error('Missing #sessions-ajax-response in AJAX response');
-    }
-
-    var newTbody = ajaxResponse.querySelector('tbody');
-    if (!newTbody) {
-      throw new Error('Missing tbody in AJAX response');
-    }
-
-    // Rows may be empty when filter matches nothing (empty-state row).
-    // Only fall back to full navigation if the tbody element itself is missing.
-    replaceChildrenFrom(tbody, newTbody);
-
-    // Replace pagination — page input value comes from server response
-    var newPagination = ajaxResponse.querySelector('#ajax-pagination');
-    if (newPagination) {
-      var oldPagination = document.getElementById('ajax-pagination');
-      if (oldPagination) {
-        replaceChildrenFrom(oldPagination, newPagination);
-      } else {
-        var tableCard = tbody.closest('.table-card') || tbody.closest('.card');
-        if (tableCard) {
-          var paginationDiv = document.createElement('div');
-          paginationDiv.id = 'ajax-pagination';
-          replaceChildrenFrom(paginationDiv, newPagination);
-          tableCard.appendChild(paginationDiv);
-        }
-      }
-    }
-
-    // Update matching count in filter footer
-    var countEl = document.querySelector('.active-filters__count');
-    if (countEl) {
-      var serverCountEl = ajaxResponse.querySelector('.active-filters__count');
-      if (serverCountEl) {
-        countEl.textContent = serverCountEl.textContent;
-      }
-    }
-
-    // pushState ONLY after successful response and DOM update
-    if (url) {
-      window.history.pushState({ ajax: true }, '', url);
-    }
-
-    // Re-augment sortable headers on new DOM so data-action is present
-    augmentSortableHeaders();
-
-    // Sync hidden page_size with the new select from AJAX response
-    syncPageSizeHidden();
-
-    // Re-bind token tooltip positioning for new rows
-    SessionTiming.prepareTable(tbody.closest('table'));
-  }
-
-  function replaceChildrenFrom(target, source) {
-    var imported = Array.prototype.map.call(source.childNodes, function (node) {
-      return document.importNode(node, true);
-    });
-    target.replaceChildren.apply(target, imported);
-  }
 
   function showLoadingRow(tbody) {
     var row = document.createElement('tr');

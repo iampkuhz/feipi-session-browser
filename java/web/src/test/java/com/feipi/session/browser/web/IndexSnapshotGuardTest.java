@@ -80,6 +80,8 @@ class IndexSnapshotGuardTest {
                 .contains("index_generation_changed")
                 .doesNotContain("totalSessions");
             assertThat(response.headers().get("Cache-Control")).containsExactly("no-store");
+            assertThat(response.headers().get(IndexSnapshotGuard.HEADER))
+                .containsExactly(root.publishedGeneration());
           });
       publication.get(10, TimeUnit.SECONDS);
     }
@@ -115,6 +117,8 @@ class IndexSnapshotGuardTest {
                     request -> request.header(IndexSnapshotGuard.HEADER, previous));
             assertThat(stale.code()).isEqualTo(409);
             assertThat(stale.body().string()).contains("index_generation_changed");
+            assertThat(stale.headers().get(IndexSnapshotGuard.HEADER))
+                .containsExactly(root.publishedGeneration());
           });
       String published = root.publishedGeneration();
       var writer = new SqliteIndexWriter(publisher);

@@ -2,21 +2,22 @@
 
 ## Requirements
 
-### Requirement: 单页 trace-first 调试体验
+### Requirement: 单页会话工作区
 
-Session Detail 由本地服务提供在线运行分析；下载的 HTML/MHTML 是另行打开的静态离线档案。默认顺序为执行判断、可扫读的响应分组动作、按需 Token 分析与完整记录证据。Trace 与 Payload 保留为两个主入口。
+Session Detail 由本地服务提供在线运行分析；下载的 HTML/MHTML 是另行打开的静态离线档案。在线页面自上而下为会话身份与指标、Token 分析、执行过程三段。指标与分析直接显示；唯一执行过程以轮次为行，展开动作、失败和原文。不提供并列的轮次、Token 或原文标签页。
+
+在线界面与离线档案只维护桌面布局，浏览器验收覆盖 1024 CSS px 及以上的桌面窗口，不设小设备专用布局。
 
 #### Scenario: 会话摘要展示
 
 页面必须展示：
 - Session 标题。
-- 默认保留 Agent 与标题；model、project、created/updated 时间、session id 与源文件路径放入可键盘展开的会话信息，保留复制入口。
-- Total Tokens、Cache Health、Workload 与全部诊断卡片保留在执行过程之后的按需证据区域。Run Health 与 typed Source Task Active 保留原二级入口和测量边界。
-- Run Health 二级指标：Issue Rounds、Failed Tools、Payload Gaps、Attribution Gaps。
+- 默认保留 Agent、标题、有来源的会话开始时刻，以及有内容时的首问入口；模型标签、project、其他会话时间、session id 与源文件路径放入可键盘展开的会话信息。模型名须在容器内完整换行，保留源文件路径复制入口。
+- 页头常显四张原生指标卡，分别呈现 Token 总量、输入端缓存命中率、本地记录工作量和耗时。主值及多个相关子值直接可读。
 - Total Tokens 二级指标：Fresh、Cache Read、Cache Write、Output。
 - Cache Health 二级指标：Input-side Tokens、Low-cache Rounds、Fresh Spike Rounds。
 - Workload 二级指标：Main records、Subagent records、Tool Calls、Subagent Runs；记录数不是可证明的模型调用数。
-- Source Task Active 只使用来源任务窗口；Model Execution 和 Tool Execution 缺测不从差值推算。
+- 耗时卡以源任务活动为主值，使用明确的任务窗口；墙钟时长、Agent Turn 累计工作量、模型和工具执行是分别有来源的子值，缺测不从差值推算。实测零和未知必须区分。会话开始时刻与耗时卡分开；只在来源明确记录启动时称为启动时间，时刻与时长不得混为一个值。
 
 每个主 KPI 卡最多渲染 4 个二级指标。Hero 区在索引或 parser 已解析 JSONL 源路径时，必须以 `Session file` 行展示本地路径，并提供 `data-action="copy"` 与 `data-copy-text` 复制按钮；没有路径时省略该行。
 
@@ -33,25 +34,21 @@ Token 指标必须只使用 5 个当前组件字段：
 
 #### Scenario: Analysis cards 展示
 
-页面必须展示 Agents Breakdown、Context Budget、Tool Impact、Issues & Repro Seeds。Agents Breakdown 在桌面端必须横跨完整分析网格宽度，并将 `main agent` 作为第一个可选项，后面列出 subagent runs。切换候选项时，同一卡片内的 token/cache timeline 必须同步切换。Context Budget 在桌面端必须横跨完整分析网格宽度并独占一行，Tool Impact 与 Issues & Repro Seeds 在下一行提供可键盘展开的入口（工具默认收起，问题有线索时展开）；窄屏使用单列布局并保持相同语义顺序。
+Token 分析直接展示 Agents Breakdown 和 Context Budget。桌面布局左为 Agent 候选表、右为关联图表；构成图例简短，顺序及色标与图一致。`main agent` 是首个候选，后面列出 subagent runs。切换候选项时，关联 Token 信息必须同步切换。没有该 Agent 的轮次样点时仍展示可归属的会话总量，不伪造走势。Agent 明细主列仅展示证据确认的模型调用数；没有证据时明示未确认，本地归一化记录独立于模型调用。
 
 #### Scenario: Removed token-driver cards are absent
 
-页面不得把 `Top Token Drivers` 或 `Call Token Footprint Distribution` 渲染为独立诊断卡。Token-driver 明细只能出现在 `Agents Breakdown` 的 tooltip/候选行 metadata，或出现在 `Tool Impact` 指定的工具结果 token pressure 位置。相关 tooltip 不得展示旧标签 `Call Tokens`、`Call Token Footprint`、`Top Call`、`Top Lane` 或原始 main/subagent split 文案。
-
-#### Scenario: Issue 摘要展示
-
-页面必须展示 failed rounds（含聚合 failed tool call 数）和 highest token round 的 issue cards。Issue card 必须是可点击按钮，并跳转展开对应 round。没有问题时展示 `No actionable issues detected.`；只要存在 tool failure、LLM error、payload gap 或 attribution error，Hero issue strip 不得展示 `No issues found`。
+页面不得把 `Top Token Drivers` 或 `Call Token Footprint Distribution` 渲染为独立诊断卡。Token-driver 明细只能出现在 `Agents Breakdown` 的 tooltip 或候选行 metadata。相关 tooltip 不得展示旧标签 `Call Tokens`、`Call Token Footprint`、`Top Call`、`Top Lane` 或原始 main/subagent split 文案。
 
 #### Scenario: Trace 列表
 
-页面必须展示所有 rounds 的纵向列表。每个 round 必须展示 round number、status、摘要/title、tool count、failure count、token count、time，以及 Failed、Subagent、Payload Gap、Attribution Gap 信号。Round Metrics 不展示 LLM call count。Round token bars 必须使用全宽灰色 track，并按当前 session 中最大 round token total 缩放彩色 token mix。
+页面必须展示轮次的纵向列表，五列为轮次标识、摘要、本行 Token、原文入口和时间／耗时。独立展示来源时间点与已观测的对应耗时；缺测明确标记，不以相邻记录时间差或父任务时长代替。异常状态与缺失证据随摘要显示，不设独立信号列或空占位；没有观察到失败不等于会话成功。本地归一化记录数不代表已验证模型调用数。Round token bars 必须使用全宽灰色 track，并按当前 session 中最大 round token total 缩放彩色 token mix。
 
-Round Signals 只渲染真实存在的 signal badge；没有 Failed、Subagent、Payload Gap、Attribution Gap 的 round 不渲染占位 badge。第一个失败 round 默认展开；没有失败时默认展开 R1。
+明确的 round 深链必须定位并展开目标；首次进入执行过程不预取各轮工具原文。
 
 #### Scenario: Trace 控制
 
-页面必须提供 All / Failed 状态过滤，以及 Expand All / Collapse All 按钮。Failed 过滤必须展示 failed rounds 和包含任意 failure signal 的 rounds。过滤状态必须反映到 `trace_status` URL 参数；选中 round 和 tab 必须反映到 `round` 与 `tab` URL 参数。
+页面必须提供 All / Failed 状态过滤，以及 Expand All / Collapse All 按钮。Failed 过滤必须展示 failed rounds 和包含任意 failure signal 的 rounds。过滤状态必须反映到 `trace_status` URL 参数；选中轮次时使用 `round` 定位；不再写入视图切换参数。
 
 #### Scenario: 行内 round detail
 
@@ -59,7 +56,7 @@ round 展开后必须展示：
 - User prompt 摘要。
 - Assistant response 摘要。
 - 源 block 存在时展示 Assistant Thinking 与 Assistant Text 事件行。
-- Tool call 行，包含 status、duration、command preview、result preview、result token estimate 和 result payload action。duration 只使用来源观测；未知不补零，显式零不回退到时间戳差值；毫秒摘要为零而纳秒正值时显示小于 1ms。
+- Tool call 行，将动作类别与 status、duration 并列。具体命令、完整参数与结果进入按需证据，不在 Summary 中展开 JS 包装代码。duration 只使用来源观测，使用秒或分秒表达；未知不补零，显式零不回退到时间戳差值；毫秒摘要为零而纳秒正值时仍区分于零和未知。
 - 多工具声明只表示同一来源组，不凭同一 block 或相邻 timestamp 宣称 Parallel Tool Group。只有可靠起止区间才可讨论实际重叠。
 - Subagent run 行，带局部 expand/collapse-all 控制和每个 subround 的展开/折叠开关。
 - Failed tool error 摘要。
@@ -75,13 +72,13 @@ Codex rollouts 中，父线程通过 `spawn_agent` tool 创建子线程且 child
 
 单调用的 round row 与 subagent call row 分别提供 `Request` 和 `Response`，在同一正文弹框内按需展开对应的输入或输出归因。多记录分组须展开后按调用查看，不把某个成员的归因当作整组归因。每个 subagent round summary row 必须可独立点击并支持键盘展开/折叠。
 
-Trace 按会话内分页顺序标记 R/G 行；该行号不是全局调用序号。正文和归因须使用当前行及稳定调用身份定位；兼容接口保留 round-local 索引，不将其显示为全局调用编号。
+Trace 按会话内分页顺序统一显示 R 行；该行号不是全局调用序号，模型响应是否有证据另行标明。正文和归因须使用当前行及稳定调用身份定位；兼容接口保留 round-local 索引，不将其显示为全局调用编号。
 
 Expanded round row 状态线必须绘制在该 row 边界内，不得覆盖相邻 row 边框。
 
-#### Scenario: Payload tab 与 modal
+#### Scenario: 轮次内的原文与弹框
 
-页面必须提供常驻 Payload tab：左侧 call selector，支持 All / Failed / Missing / Error 过滤；右侧展示选中 call 详情。详情分区顺序固定为 Overview、Request Attribution、Response Attribution、Raw Request、Raw Response、Related Results。Selector 在桌面和窄屏都必须保留内部滚动区域。点击 coverage matrix cell 必须切换到 Payload tab，应用对应 selector filter，并选中第一条匹配的 failed/missing/error call。
+执行过程以轮次和工具为原文入口；附属折叠索引按 Agent 和本地响应记录提供输入与输出，按需翻页。正文与归因复用同一弹框；不得为了绘制索引预载每条原文。
 
 Request attribution bucket details 必须展示可解释、可检查的重建 request sources。Claude Code 的 `API messages 数组` bucket 必须按当前 LLM call 边界重建：当前 call 之前的 assistant `request_full`、assistant text/tool_use，以及当前 call 的 `request_full`，并在当前 assistant response 前停止，排除未来 rounds。聚合 token 必须汇总每条 item 的完整 `content_token_estimate`，不得用截断 preview 重新估算。bucket 必须说明它代表 Anthropic API `messages` request 字段，并列出 role、content type、可选 tool name、token estimate 和 content preview。本地日志或重建上下文中有原文时，detail item 必须支持二级展开查看完整内容。
 
@@ -146,16 +143,11 @@ Session Detail 页面每个可见 `<button>` 都必须使用以下受支持的 `
 - `toggle-all`
 - `toggle-round`
 - `open-payload`
-- `open-payload-tab`
 - `open-trace-step`
-- `select-payload-call`
-- `payload-filter`
-- `payload-mode`
 - `close-modal`
 - `close-payload`
 - `copy`
 - `jump-round`
-- `jump-anomaly`
 - `retry-attribution`
 - `retry-round`
 - `toggle-sub-round`
@@ -165,7 +157,7 @@ Session Detail 页面每个可见 `<button>` 都必须使用以下受支持的 `
 ### Requirement: No removed entries
 
 Session Detail 页面不得渲染：
-- Calls tab、Hotspots tab 或 workbench view switching。
+- 单独的 Calls 或 Hotspots 工作区。
 - 默认 Session Detail 入口中的常驻 Inspector panel。
 - Round Map。
 - Map / Inspector / Focus layout mode buttons。
@@ -208,11 +200,7 @@ Session Detail SHALL 从当前轮所引用的 inline/catalog/sequence 可见文�
 
 工具短摘要 SHALL 对契约明确且参数有效的等待读取操作说明动作含义：精确 `write_stdin` 的有效 session ID 与明确空 `chars`、精确 `wait` 的有效 cell ID 且未请求终止。非空输入、终止请求、未知工具或无效参数 SHALL 保留原摘要兜底。原工具名和完整 Input/Result SHALL 可达；摘要转换仍应用原脱敏和长度上限，不合并调用、不推断进程关系、任务完成或耗时。
 
-默认耗时诊断 SHALL 在确定执行上下文与可验证测量口径内，按原工具名展示已测累计工作量、单次最长、调用/测量覆盖及稳定代表动作入口。多次短调用的累计不得被单次最长替代；未知耗时不补零，合法零计入已测，部分覆盖和其他口径需就近说明。聚合取冻结全范围，不取当前分页或截断/脱敏preview；逐事件来源定位符不等于测量事件族。父子上下文、未知身份或不同口径不得混为全局排名；有界展示需披露截断，不给墙钟占比、模型耗时或完整瓶颈结论。
-
-同类有多个已测调用时，紧凑诊断卡 SHALL 提供默认收起的耗时明细，从同一冻结上下文/口径最多取单次耗时前3个独立调用，保留安全命令摘要、观测时长和稳定ID定位。当前摘要页之外的候选 SHALL 无需下载全部前缀即可发现并定位；不因同名/同preview合并调用，不预取全文、不重排执行时间线，明确有界候选并非全部慢项或根因。
-
-存在可信耗时卡且未观察工具失败时，零失败 SHALL 使用紧凑状态说明并保留不证明任务成功或记录完整的边界；通用完整计量和异步解释可复用既有计量说明。模型未测、累计非墙钟/关键路径、未知非零与覆盖 SHALL 默认近邻可见，非零未比较/缺测/其他口径及组截断不得隐藏。真实失败整卡、命令和首失败定位，以及无工具/无可信计量指导不得降级。
+有可信耗时时，执行过程 SHALL 提供默认收起的「工具耗时证据」：分上下文与计时口径展示工具名、已测累计工作量、覆盖次数及最多三个单次耗时最长的动作；点击可按稳定 ID 定位到轮次，即使动作在首屏之外。计量取同一索引全范围，不随轮次筛选或分页改变，不合并父子工作量；显式零保留，未知不补零。截断说明及累计并非会话墙钟用时的说明放在展开内容内。没有可信计时或失败信号时不显示空诊断卡、零失败结论或通用免责声明；有失败时提供首个失败的定位与已记录的结果。
 
 本地流式内容与独立导入的已物化制品 SHALL 使用相同预览规则，优先本轮可见用户输入，其次工具计数及短操作，最后助手文本。历史用户引用 SHALL 只归属首次出现的轮次；完整 Request 仍可保留历史上下文。
 
@@ -225,7 +213,7 @@ Session Detail SHALL 从当前轮所引用的 inline/catalog/sequence 可见文�
 
 #### Scenario: 按需展开与布局
 - **WHEN** 用户展开 Round 的工具正文
-- **THEN** Tool Input 和 Tool Result SHALL 独立按需加载并在桌面双栏、窄屏单栏展示；单页全量成员 SHALL 不显示调试式分页文案。
+- **THEN** Tool Input 和 Tool Result SHALL 独立按需加载并在桌面双栏展示；单页全量成员 SHALL 不显示调试式分页文案。
 
 ### Requirement: 缺失诊断和索引错误保持真实含义
 诊断未提供、未加载、加载失败及测量为空 SHALL 可区分。工具计数 SHALL 解释本地归一化口径。非成功响应缺少 generation header SHALL NOT 单独被判定为换代；成功续页仍 SHALL 验证 generation，真实换代 SHALL 阻断内容合并并给出刷新路径。
@@ -237,14 +225,53 @@ Session Detail SHALL 从当前轮所引用的 inline/catalog/sequence 可见文�
 
 ### Requirement: Token 展示层级与共享分列
 
-Context Budget SHALL 使用内容驱动的紧凑网格，保留分类标签、数值、占比、来源邻近。只有明确纳入且有可用 share 的分类参与构成；Partial SHALL 明确为近似非服务商精确统计，未知/未上报 SHALL 不补零。Tool Results SHALL 明确为构成之外的本地估算。缓存比率 SHALL 只用完整的服务商上报输入。
+Context Budget SHALL 使用简短图例，保留分类标签、数值、占比、来源邻近。只有明确纳入且有可用 share 的分类参与构成；Partial SHALL 明确为近似非服务商精确统计，未知/未上报 SHALL 不补零。Tool Results SHALL 明确为构成之外的本地估算。缓存比率 SHALL 只用完整的服务商上报输入。
 
-#### Scenario: 共享入口与窄屏
+#### Scenario: 桌面共享入口
 
-- **WHEN** 在桌面或 390px 视口查看列表、项目 Token Cell、Dashboard Token 趋势、详情 Agent/Round/Trace/call
+- **WHEN** 在桌面查看列表、项目 Token Cell、Dashboard Token 趋势、详情 Agent/Round/Trace/call
 - **THEN** Token 构成弹框使用共享色标/类型、数量/来源、占比列及 viewport popover，支持 hover/focus/Escape，长标签不截断；每个入口保留自己正确的分母与估算/未知/实测零状态。
 
-#### Scenario: 按需诊断不删除能力
+### Requirement: 按调用证据展示输入与占比
+Request / Response SHALL 绑定所选调用。用户原话与客户端包装、镜像、工具返回分别归属；禁止用轮次中的首条问题回填任意调用。Token 占比 MUST 标明分母与计量来源，无法取得或估算时不补造。
+#### Scenario: 同一用户轮在准备调用后才产生用户消息
+- **WHEN** 本地记录的第一条调用边界已出现，此后才出现属于该轮的用户原话、第二条响应与边界
+- **THEN** 第一条 Request 不显示未来的用户原话；第二条 Request 显示对应文本，响应和结果链接保持正确。
+#### Scenario: 显示内容占比
+- **WHEN** 读取一条有可分项内容或有可靠当次计量的调用
+- **THEN** 展示分项、数量、百分比和分母；不把缓存或推理子项与总计相加，不把估算描述成 API 实测。
 
-- **WHEN** 打开“运行诊断与耗时”、Tool Impact 或 Issues & Repro Seeds
-- **THEN** 原有 typed timing、问题覆盖状态、工具明细、Round 跳转与定位串仍可达；没有分析不冒充零问题。
+#### Scenario: 全宽阅读与可追溯的工具动作
+
+- **WHEN** 阅读当次 Request 或含多个工具项的 Response
+- **THEN** 正文逐项全宽，长文可在正文框内直接滚动，不另设展开或收起按钮；块标题右侧区分完整可见字符数与本地估算 Token；客户端与供应商仅在有记录时分开显示。每个工具的名称与参数同项展示，返回值按调用身份关联。单条 JSONL 原始对象不冒充整次响应。
+- **AND** 历史技能目录、已载入正文及工具定义与当前安装的参考资料分开；当前文件不参加历史 Token 归因。占比注明分母；只有可对照时才估算未归因部分。
+
+#### Scenario: 在完整详情页比较同次调用的输入和输出
+
+- **WHEN** 从执行过程打开有当次用量的 Request 或 Response
+- **THEN** 使用当前方向的上报 Token 总数作为一条构成条的分母；可比时展示可见分类与估算差额，不把缓存或推理重复相加。Tools、Skills 仅纳入可追溯到该次调用的内容，本机定义入口放在历史目录旁。
+- **AND** 后续 Request 区分本次新增与同一上下文内可重建的早先输入、工具调用和返回；跨边界的内容不推作已发送。返回链接与本地原始记录入口视觉可区分。
+
+#### Scenario: Side Chat 启动、压缩与首次用户消息分开阅读
+
+- **WHEN** 读取 Side Chat 启动调用及压缩后调用
+- **THEN** 只展示已识别的基础指令、启动上下文和真实用户消息；不得把启动标记当用户原话，也不得从压缩后快照倒推压缩前请求或把快照字段的存在计入 Token。
+
+#### Scenario: 执行过程是原始记录的唯一在线索引
+
+- **WHEN** 查看模型调用或展开 Run 内工具动作
+- **THEN** 请求、回应、命令和结果从所属的轮次、调用或工具行读取，按稳定身份关联；不重复渲染平行的原文表。展开的工具原文与所属命令在同一组。
+
+
+#### Scenario: Side Chat 逐响应与任务累计区分
+
+- **WHEN** 侧聊在首条用户消息之前有逐响应计量，且压缩事件和后续助手正文分别出现
+- **THEN** 从前一调用的 Response 查看观察到的计量与相邻压缩事实，不以压缩内容或后一调用的助手正文补写当前输出；当次输入、输出、合计和实报累计分别展示，累计不进入按方向的构成条。
+- **AND** 只有来源的输入总量和缓存读取均可核对时，来源明细显示一条命中／未命中比例；已录得的独立 Skill 正文与历史 Skills 目录分别展示，本机文件不计量。
+
+#### Scenario: 侧聊任务是轮次，逐响应才是模型调用
+
+- **WHEN** 一个 Side Chat 的显式任务包含压缩响应和助手答复
+- **THEN** 归入同一用户轮次但保留各自稳定调用 ID。压缩响应只按确证身份标注，不能充当助手答复；父轮的任务时间／耗时、累计用量不重复填到子调用。单调用轮展开只显示新增证据。
+- **AND** 继承历史须以父 ID、原始字节偏移及事件截止序号为界重放，可读文本估算按类型列出，不把密文或未来历史计入。

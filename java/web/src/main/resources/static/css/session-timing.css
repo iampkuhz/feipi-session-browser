@@ -1,22 +1,9 @@
-/* Source timing disclosure owns session-timing* classes. */
+/* Timing explanation displayed next to session lists. */
 .session-timing-note {
   margin: 6px 0 0;
   font-size: 11px;
   font-weight: 400;
   line-height: 1.4;
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-.session-timing-note > summary {
-  width: fit-content;
-  max-width: 100%;
-  cursor: pointer;
-  font-weight: 600;
-}
-.session-timing-note > p {
-  margin: 4px 0 0;
-}
-.session-timing-value[data-session-timing-value] {
   white-space: normal;
   overflow-wrap: anywhere;
 }

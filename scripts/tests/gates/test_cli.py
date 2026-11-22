@@ -5,10 +5,12 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
+import sys
 from typing import TYPE_CHECKING
 
 import pytest
 from scripts.gates import cli
+from scripts.gates.execution import command_adapter
 from scripts.gates.execution.process_supervisor import ProcessObservation
 from scripts.gates.planning.plan_compiler import CommandInvocation
 
@@ -25,6 +27,12 @@ def _init_repo(root: Path) -> None:
     subprocess.run(['git', 'commit', '-qm', 'fixture'], cwd=root, check=True)
 
 
+@pytest.fixture
+def synthetic_project_python(monkeypatch) -> None:
+    # 合成仓库只编译计划或模拟执行，不安装项目虚拟环境。
+    monkeypatch.setattr(command_adapter, '_project_python', lambda _root: sys.executable)
+
+
 def test_list_json_exposes_catalog_names(capsys) -> None:
     assert cli.main(['list', '--format', 'json']) == 0
     payload = json.loads(capsys.readouterr().out)
@@ -38,6 +46,7 @@ def test_explain_requires_one_subject(capsys) -> None:
     assert 'requires exactly one' in capsys.readouterr().err
 
 
+@pytest.mark.usefixtures('synthetic_project_python')
 def test_plan_reports_match_and_process_count(tmp_path: Path, monkeypatch, capsys) -> None:
     _init_repo(tmp_path)
     monkeypatch.chdir(tmp_path)
@@ -165,6 +174,7 @@ def test_parser_exposes_exact_current_command_surface() -> None:
     assert health_options == {'-h', '--help', '--format'}
 
 
+@pytest.mark.usefixtures('synthetic_project_python')
 def test_edit_during_run_does_not_publish_a_pass_receipt(tmp_path, monkeypatch, capsys) -> None:
     _init_repo(tmp_path)
     monkeypatch.chdir(tmp_path)
@@ -216,6 +226,7 @@ def test_input_recapture_failure_still_saves_a_fail_receipt(tmp_path, monkeypatc
     assert payload['inputValidation']['unavailablePaths'] == []
 
 
+@pytest.mark.usefixtures('synthetic_project_python')
 def test_unavailable_input_points_to_path_without_leaking_private_error(
     tmp_path, monkeypatch, capsys
 ):

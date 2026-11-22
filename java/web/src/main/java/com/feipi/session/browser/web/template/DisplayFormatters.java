@@ -651,29 +651,6 @@ public final class DisplayFormatters {
   }
 
   /**
-   * 对 Map 序列中指定属性求和。
-   *
-   * @param items Map 列表
-   * @param attr 求和的属性键
-   * @return 属性值总和
-   */
-  public static long sumAttribute(List<?> items, String attr) {
-    if (items == null || items.isEmpty()) {
-      return 0;
-    }
-    long total = 0;
-    for (Object item : items) {
-      if (item instanceof Map<?, ?> map) {
-        Object val = map.get(attr);
-        if (val instanceof Number num) {
-          total += num.longValue();
-        }
-      }
-    }
-    return total;
-  }
-
-  /**
    * 将任意对象序列化为 JSON 字符串。
    *
    * <p>轻量级实现，支持 Map、List、String、Number、Boolean、null。 不依赖 Jackson，避免模板基础设施引入重量级序列化库。

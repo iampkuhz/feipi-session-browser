@@ -270,7 +270,6 @@ body.focus .inspector                  {
   color: var(--brand);
 }
 
-
 /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Desktop: >=1400px ───────────────────────────────────────────` */
 @media (min-width: 1400px) {
   .main {
@@ -278,54 +277,6 @@ body.focus .inspector                  {
   }
   .hero-main {
     padding: var(--space-lg) var(--space-xl);
-  }
-}
-
-/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Narrow fallback: <1024px ───────────────────────────────────── * Keep the same navigation targets, but stack shell regions so the * main content is not squeezed by fixed sidebar/inspector columns.` */
-@media (max-width: 1023px) {
-  .shell,
-  .shell.no-inspector,
-  body.hide-left .shell,
-  body.hide-right .shell,
-  body.hide-left .shell.no-inspector,
-  body.hide-right .shell.no-inspector {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .sidebar {
-    border-right: none;
-    border-bottom: 1px solid var(--line);
-  }
-
-  .brand-card {
-    margin: var(--space-sm) var(--space-sm) 0;
-  }
-
-  .nav-list {
-    flex-direction: row;
-    gap: var(--space-xs);
-    overflow-x: auto;
-    padding-bottom: var(--space-sm);
-  }
-
-  .nav-item {
-    flex: 0 0 auto;
-  }
-
-  .round-map {
-    display: none;
-  }
-
-  .topbar {
-    padding-inline: var(--space-md);
-  }
-
-  .content {
-    padding: var(--space-md);
-  }
-
-  .footer {
-    padding-inline: var(--space-md);
   }
 }
 

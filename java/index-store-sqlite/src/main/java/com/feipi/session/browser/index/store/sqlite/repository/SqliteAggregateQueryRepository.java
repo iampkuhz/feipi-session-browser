@@ -18,14 +18,12 @@ import com.feipi.session.browser.index.store.sqlite.row.ActivityTrendRow;
 import com.feipi.session.browser.index.store.sqlite.row.AgentBreakdownRow;
 import com.feipi.session.browser.index.store.sqlite.row.AgentEfficiencyRow;
 import com.feipi.session.browser.index.store.sqlite.row.AggregateMetricsRow;
-import com.feipi.session.browser.index.store.sqlite.row.CacheHitSessionRow;
 import com.feipi.session.browser.index.store.sqlite.row.DashboardRow;
 import com.feipi.session.browser.index.store.sqlite.row.KpiSupplementRow;
 import com.feipi.session.browser.index.store.sqlite.row.ProjectListSummaryRow;
 import com.feipi.session.browser.index.store.sqlite.row.ProjectStatsRow;
 import com.feipi.session.browser.index.store.sqlite.row.TokenBreakdownRow;
 import com.feipi.session.browser.index.store.sqlite.row.TopProjectRow;
-import com.feipi.session.browser.index.store.sqlite.row.TopSessionRow;
 import com.feipi.session.browser.index.store.sqlite.row.TrendDayRow;
 import com.feipi.session.browser.index.store.sqlite.tx.ReadTransaction;
 import com.feipi.session.browser.index.store.sqlite.util.SqliteSqlUtils;
@@ -168,18 +166,6 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
   private static PageResult<ProjectStats> projectPage(PageResult<ProjectStatsRow> page) {
     return new PageResult<>(
         new ArrayList<ProjectStats>(page.items()), page.totalCount(), page.nextCursor());
-  }
-
-  /** 返回源事件 UTC 日观察子集，不读取制品或补造缺失日期。 */
-  @Override
-  public com.feipi.session.browser.index.api.query.EventActivity eventActivity(TrendFilter filter) {
-    return execute(
-        "eventActivity",
-        () -> {
-          try (ReadTransaction transaction = indexConnection.readTransaction()) {
-            return EventActivityQuery.read(transaction.connection(), filter);
-          }
-        });
   }
 
   // ── 项目查询 ──
@@ -702,37 +688,6 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
   // ── Top-N 查询 ──
 
   /**
-   * 工具分布：工具调用数最高的会话。
-   *
-   * <p>对应 Python {@code get_tool_distribution}。返回 per-session 工具总数。
-   *
-   * @param limit 最大返回行数
-   * @return 会话键到工具分布条目的有序映射
-   */
-  public Map<String, ToolDistributionEntry> toolDistribution(int limit) throws SQLException {
-    validateLimit(limit);
-    String sql =
-        """
-        SELECT session_key, title, tool_call_count
-        FROM sessions WHERE tool_call_count > 0
-        ORDER BY tool_call_count DESC LIMIT ?\
-        """;
-    try (ReadTransaction rt = indexConnection.readTransaction();
-        PreparedStatement ps = rt.connection().prepareStatement(sql)) {
-      ps.setInt(1, limit);
-      try (ResultSet rs = ps.executeQuery()) {
-        Map<String, ToolDistributionEntry> result = new LinkedHashMap<>();
-        while (rs.next()) {
-          result.put(
-              rs.getString("session_key"),
-              new ToolDistributionEntry(rs.getString("title"), rs.getLong("tool_call_count")));
-        }
-        return result;
-      }
-    }
-  }
-
-  /**
    * 按 token 总量排行的项目。
    *
    * <p>对应 Python {@code get_top_projects_by_tokens}。
@@ -765,101 +720,6 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
         PreparedStatement ps = rt.connection().prepareStatement(sql)) {
       ps.setInt(1, limit);
       return readTopProjectRows(ps);
-    }
-  }
-
-  /**
-   * 时长最长的会话。
-   *
-   * <p>对应 Python {@code get_slowest_sessions}。只包含正时长会话。
-   *
-   * @param limit 最大返回行数
-   * @return 按时长降序排列的会话行列表
-   */
-  public List<TopSessionRow> topSlowestSessions(int limit) throws SQLException {
-    validateLimit(limit);
-    String sql =
-        """
-        SELECT session_key, title, agent, model, duration_seconds,
-               failed_tool_count, tool_call_count, project_name
-        FROM sessions WHERE duration_seconds > 0
-        ORDER BY duration_seconds DESC LIMIT ?\
-        """;
-    try (ReadTransaction rt = indexConnection.readTransaction();
-        PreparedStatement ps = rt.connection().prepareStatement(sql)) {
-      ps.setInt(1, limit);
-      return readTopSessionRows(ps);
-    }
-  }
-
-  /**
-   * 有失败工具调用的会话。
-   *
-   * <p>对应 Python {@code get_failed_tool_sessions}。只包含正失败计数会话。
-   *
-   * @param limit 最大返回行数
-   * @return 按失败工具数降序排列的会话行列表
-   */
-  public List<TopSessionRow> topFailedToolSessions(int limit) throws SQLException {
-    validateLimit(limit);
-    String sql =
-        """
-        SELECT session_key, title, agent, model, failed_tool_count,
-               duration_seconds, tool_call_count, project_name
-        FROM sessions WHERE failed_tool_count > 0
-        ORDER BY failed_tool_count DESC LIMIT ?\
-        """;
-    try (ReadTransaction rt = indexConnection.readTransaction();
-        PreparedStatement ps = rt.connection().prepareStatement(sql)) {
-      ps.setInt(1, limit);
-      return readTopSessionRows(ps);
-    }
-  }
-
-  /**
-   * 缓存命中率最高的会话。
-   *
-   * <p>对应 Python {@code get_high_cache_read_sessions}。只包含有缓存读取的会话。 缓存命中率由 SQL 计算：{@code 100 *
-   * cache_read / (fresh_input + cache_read)}。
-   *
-   * @param limit 最大返回行数
-   * @return 按缓存命中率降序排列的会话行列表
-   */
-  public List<CacheHitSessionRow> topHighCacheReadSessions(int limit) throws SQLException {
-    validateLimit(limit);
-    String sql =
-        """
-        SELECT
-            session_key, title, agent, model,
-            cache_read_tokens, fresh_input_tokens, project_name,
-            CASE
-                WHEN fresh_input_tokens + cache_read_tokens > 0
-                THEN ROUND(100.0 * cache_read_tokens
-                    / (fresh_input_tokens + cache_read_tokens), 1)
-                ELSE 0
-            END as cache_hit_pct
-        FROM sessions WHERE cache_read_tokens > 0
-        ORDER BY cache_hit_pct DESC LIMIT ?\
-        """;
-    try (ReadTransaction rt = indexConnection.readTransaction();
-        PreparedStatement ps = rt.connection().prepareStatement(sql)) {
-      ps.setInt(1, limit);
-      List<CacheHitSessionRow> rows = new ArrayList<>();
-      try (ResultSet rs = ps.executeQuery()) {
-        while (rs.next()) {
-          rows.add(
-              new CacheHitSessionRow(
-                  rs.getString("session_key"),
-                  rs.getString("title"),
-                  rs.getString("agent"),
-                  rs.getString("model"),
-                  rs.getLong("cache_read_tokens"),
-                  rs.getLong("fresh_input_tokens"),
-                  rs.getString("project_name"),
-                  rs.getDouble("cache_hit_pct")));
-        }
-      }
-      return rows;
     }
   }
 
@@ -1522,26 +1382,6 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
     return rows;
   }
 
-  /** 读取 Top-N 会话行。 */
-  private static List<TopSessionRow> readTopSessionRows(PreparedStatement ps) throws SQLException {
-    List<TopSessionRow> rows = new ArrayList<>();
-    try (ResultSet rs = ps.executeQuery()) {
-      while (rs.next()) {
-        rows.add(
-            new TopSessionRow(
-                rs.getString("session_key"),
-                rs.getString("title"),
-                rs.getString("agent"),
-                rs.getString("model"),
-                rs.getString("project_name"),
-                rs.getDouble("duration_seconds"),
-                rs.getLong("failed_tool_count"),
-                rs.getLong("tool_call_count")));
-      }
-    }
-    return rows;
-  }
-
   /** Nearest-rank P95：取升序第 ceil(0.95 * n) 个观测值；空集合保留返回 0。 */
   private static double nearestRankP95(List<Double> values) {
     if (values.isEmpty()) {
@@ -1559,12 +1399,4 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
       throw new IllegalArgumentException("limit 必须为正; got " + limit);
     }
   }
-
-  /**
-   * 工具分布条目。
-   *
-   * @param title 会话标题
-   * @param toolCallCount 工具调用数
-   */
-  public record ToolDistributionEntry(String title, long toolCallCount) {}
 }

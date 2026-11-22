@@ -235,7 +235,6 @@ public final class SessionDetailPage {
     context.put("active_page", "imports");
     context.put("api_base", "/api/imports/" + urlEncode(importId));
     context.put("session_url", "/imports/" + urlEncode(importId));
-    context.put("context_scope", "仅本文件分析");
     ctx.html(templates.render("session.html", context));
   }
 
@@ -286,7 +285,6 @@ public final class SessionDetailPage {
     // Session 指标（供 hero 区域使用）
     context.put("session_metrics", buildSessionMetrics(row, rounds, anomalies));
     context.put("context_segments", buildContextSegments(row));
-    context.put("context_scope", "Session-level");
 
     // API base URL（供 JS lazy-load 使用）
     context.put("api_base", "/api/sessions/" + urlEncode(agent) + "/" + urlEncode(sessionId));

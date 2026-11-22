@@ -2,9 +2,11 @@ package com.feipi.session.browser.source.codex;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.feipi.session.browser.domain.source.SourceReadingEvidence;
 import com.feipi.session.browser.domain.source.SourceRecord;
 import com.feipi.session.browser.domain.source.SourceRecordRelation;
 import com.feipi.session.browser.domain.source.SourceRecordUsage;
+import com.feipi.session.browser.domain.source.SourceTiming;
 import com.feipi.session.browser.domain.source.SourceToolCall;
 import com.feipi.session.browser.domain.source.SourceToolObservation;
 import com.feipi.session.browser.source.common.JsonlReader;
@@ -756,6 +758,11 @@ public final class CodexSourceAdapter implements SourceAdapter {
         Map<String, SourceRecordRelation> spawnRelations =
             spawnRelations(events, childRollouts, diagnostics, locator);
 
+        var inheritedReading =
+            candidate.sessionKey().startsWith("codex:")
+                    && !CodexDiscovery.isSubagentMetaEvent(parentMeta)
+                ? CodexForkReadingEvidence.read(filePath, range.ownSessionMeta(), cancellation)
+                : List.<SourceReadingEvidence>of();
         candidateCount =
             appendParsedEvents(
                 range,
@@ -763,7 +770,8 @@ public final class CodexSourceAdapter implements SourceAdapter {
                 SourceRecordRelation.empty(),
                 spawnRelations,
                 diagnostics,
-                owner.spool);
+                owner.spool,
+                inheritedReading);
         // 每个事件写入批次 spool 前已投影；正文和身份逐条重放，非文本原文按 locator 读取。
 
         if (!childRollouts.isEmpty()) {
@@ -796,7 +804,8 @@ public final class CodexSourceAdapter implements SourceAdapter {
                       spawnRelations(
                           childRange.events(), List.of(), diagnostics, childRollout.toString()),
                       diagnostics,
-                      owner.spool);
+                      owner.spool,
+                      List.of());
             } catch (CodexActivityRange.InvalidHistoryException e) {
               if (!CodexActivityRange.PARENT_CONFLICT.equals(e.code())) throw e;
               diagnostics.add(
@@ -906,10 +915,12 @@ public final class CodexSourceAdapter implements SourceAdapter {
       SourceRecordRelation defaultRelation,
       Map<String, SourceRecordRelation> toolRelations,
       List<SourceDiagnostic> diagnostics,
-      CodexRecordSpool records)
+      CodexRecordSpool records,
+      List<SourceReadingEvidence> inheritedReading)
       throws IOException {
     try (var rawRecords = new CodexRecordSpool()) {
       List<JsonNode> events = range.events();
+      var sideTasks = new CodexSideTaskEvidence(range.verifiedSideChat());
       String locator = state.locator;
       CancellationSignal cancellation = state.cancellation;
       CodexUsageSelection selection = new CodexUsageSelection(range);
@@ -973,8 +984,29 @@ public final class CodexSourceAdapter implements SourceAdapter {
                   ts);
         }
         previousTotals = mapped.previousTotals();
-        rawRecords.add(
-            withRelation(mapped.record(), relationForEvent(event, defaultRelation, toolRelations)));
+        SourceRecord record =
+            withRelation(mapped.record(), relationForEvent(event, defaultRelation, toolRelations));
+        int sidePrefix =
+            CodexSideContext.prefixLength(
+                event,
+                eventIndex > range.start() ? events.get(eventIndex - 1) : event,
+                range.sideFork());
+        if (sidePrefix >= 0 && "user".equals(record.eventType())) {
+          String content = record.content();
+          if (sidePrefix <= content.length()) {
+            var startup = sideContextRecord(record, content.substring(0, sidePrefix));
+            if (!startup.readingEvidence().isEmpty()) sideTasks.recognizeSide();
+            rawRecords.add(startup);
+            if (!content.substring(sidePrefix).isBlank()) {
+              rawRecords.add(record.withContent(content.substring(sidePrefix)));
+            }
+          } else {
+            rawRecords.add(record);
+          }
+        } else {
+          rawRecords.add(record);
+        }
+        sideTasks.accept(record);
         // 工具正文/输入已由 SourceRecord 持有；后备与 usage 分段不再读取这些中间树。
         // 就地释放也覆盖 result.events() 的别名，不改变物理顺序、身份或原始来源。
         if (event.path("payload")
@@ -1008,7 +1040,8 @@ public final class CodexSourceAdapter implements SourceAdapter {
                       "TOKEN_COUNTER_RESET",
                       locator)));
       rawRecords.seal();
-      appendEventMessageFallbacks(events, rawRecords, records, cancellation, selection);
+      appendEventMessageFallbacks(
+          range, rawRecords, records, cancellation, selection, sideTasks, inheritedReading);
       collectCompletionDiagnostics(state, diagnostics);
       return events.size();
     }
@@ -1022,12 +1055,15 @@ public final class CodexSourceAdapter implements SourceAdapter {
    * 表示，不从别的轮次借用 usage 或伪造 turnId。
    */
   private static void appendEventMessageFallbacks(
-      List<JsonNode> events,
+      CodexActivityRange range,
       CodexRecordSpool rawRecords,
       CodexRecordSpool records,
       CancellationSignal cancellation,
-      CodexUsageSelection selection)
+      CodexUsageSelection selection,
+      CodexSideTaskEvidence sideTasks,
+      List<SourceReadingEvidence> inheritedReading)
       throws IOException {
+    List<JsonNode> events = range.events();
     Set<Integer> mirroredEvents = completeMessageMirrors(events);
     List<SourceRecord> fileRecords =
         new java.util.AbstractList<>() {
@@ -1068,7 +1104,20 @@ public final class CodexSourceAdapter implements SourceAdapter {
       if (zeroFrames.containsKey(index)) {
         record = responseFrame(record, zeroFrames.get(index));
       }
-      records.add(record);
+      var evidence = new ArrayList<>(record.readingEvidence());
+      if (index == 0) evidence.addAll(inheritedReading);
+      if (index == 0 && range.start() > 0) {
+        CodexReadingEvidence.collect(range.ownSessionMeta(), record, evidence);
+      }
+      int sourceIndex = record.eventIndex();
+      JsonNode event = events.get(sourceIndex);
+      CodexReadingEvidence.collect(event, record, evidence);
+      if ("token_usage_record".equals(extractEventType(event)) && sourceIndex + 1 < events.size()) {
+        CodexReadingEvidence.followingCompaction(
+            event, events.get(sourceIndex + 1), record, evidence);
+      }
+      sideTasks.append(record, evidence);
+      records.add(record.withReadingEvidence(evidence));
       if (!"event_msg".equals(record.eventType())) {
         continue;
       }
@@ -1182,7 +1231,8 @@ public final class CodexSourceAdapter implements SourceAdapter {
         record.timing(),
         record.metaContext(),
         record.messageRole(),
-        record.toolObservation());
+        record.toolObservation(),
+        record.readingEvidence());
   }
 
   /** 仅把连续完整、且源身份精确相同的问答表示视为镜像。 */
@@ -1456,7 +1506,8 @@ public final class CodexSourceAdapter implements SourceAdapter {
         record.timing(),
         record.metaContext(),
         record.messageRole(),
-        record.toolObservation());
+        record.toolObservation(),
+        record.readingEvidence());
   }
 
   private static SourceRecordRelation relationForEvent(
@@ -1964,6 +2015,36 @@ public final class CodexSourceAdapter implements SourceAdapter {
         recordLocator, eventIndex, CodexConstants.EVENT_TYPE_RESPONSE_ITEM, timestamp);
   }
 
+  private static SourceRecord sideContextRecord(SourceRecord record, String content) {
+    int length = CodexSideContext.readingPrefixLength(content);
+    var evidence =
+        length > 0
+            ? List.of(new SourceReadingEvidence("side_context_chars", Integer.toString(length)))
+            : List.<SourceReadingEvidence>of();
+    return new SourceRecord(
+        record.locator(),
+        record.eventIndex(),
+        record.eventType(),
+        record.callId(),
+        record.model(),
+        record.timestamp(),
+        record.turnId(),
+        record.usage(),
+        record.toolCalls(),
+        record.toolUseId(),
+        record.toolName(),
+        record.toolError(),
+        record.relation(),
+        content,
+        Optional.empty(),
+        Optional.empty(),
+        SourceTiming.empty(),
+        true,
+        Optional.of("user"),
+        Optional.empty(),
+        evidence);
+  }
+
   private static String toolInput(JsonNode payload, String payloadType) {
     JsonNode input = payload.get("function_call".equals(payloadType) ? "arguments" : "input");
     if (input == null || input.isNull()) {
@@ -1973,7 +2054,7 @@ public final class CodexSourceAdapter implements SourceAdapter {
   }
 
   /** 提取文本块，保持源顺序和空白，不将非文本结构序列化为响应内容。 */
-  private static String responseText(JsonNode node) {
+  static String responseText(JsonNode node) {
     if (node == null) {
       return "";
     }

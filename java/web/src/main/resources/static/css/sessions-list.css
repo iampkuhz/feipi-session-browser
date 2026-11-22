@@ -1007,21 +1007,6 @@
 
 /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Token tooltip dynamic flip (T085) ── Base positioning comes from ui-primitives.css (.token-tooltip). This adds the flip class so tooltip appears above the bar when viewport space below is limited (e.g. bottom rows in table).` */
 
-@media (max-width: 899px) {
-  .sessions-page .card.filter-card .filter-row {
-    flex-wrap: wrap;
-  }
-
-  .sessions-page .card.filter-card .input.search {
-    flex-basis: 100%;
-    max-width: none;
-  }
-
-  .sessions-page .card.filter-card .filter-row__push {
-    display: none;
-  }
-}
-
 .sessions-page .data-table .token-tooltip.token-tooltip--flip {
   top: auto;
   bottom: calc(100% + 8px);

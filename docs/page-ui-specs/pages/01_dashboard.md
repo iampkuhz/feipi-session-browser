@@ -100,7 +100,7 @@ Dashboard 不再跳转到独立 Agent Detail 页面。所有 agent 汇总和单 
 - 每张 chart card 的图表宽度占卡片内容宽度 100%；图表绘图区高度固定为 240px 到 280px。
 - 每张 chart card 的 y 轴只显示刻度值；不得显示可见的 `Y-axis: <metric name> (<unit>)` 纵向标题文字。
 - 每张 chart card 的所有 range point 细节都通过 `common.md` 的 `Chart Tooltip` 展示，不把每个 range point 的数值同时铺成表格。
-- 宽屏 `>=1440px` 时 chart card 固定为 2 列 2 行；标准桌面和窄宽兜底优先每行 2 张，空间不足时再降为单列，任何断点下文字不得溢出或重叠。
+- 宽屏 `>=1440px` 时 chart card 固定为 2 列 2 行；标准桌面保留并列，文字不得溢出或重叠。
 - 时间粒度控制固定影响三张 trend card、Cache Health 区和 all agents 占比柱状图。
 - 时间粒度的数据窗口固定如下：
   - `Day`：最近 30 个 UTC 自然日，x 轴标签格式 `MM-DD`。
@@ -408,6 +408,9 @@ Cache Health 固定作为 Trend 总览区第二行右侧 chart card；`Token Tre
 - 图表无数据时显示卡片内空态，不渲染空坐标轴。
 
 ## 状态
+
+- 扫描状态与数据查询分开读取。读取失败说明是 HTTP 状态、连接失败还是无效响应；“刷新状态”只重读该状态，不重载页面、不运行扫描。
+- 首页趋势按 UTC 会话开始日分组，不另展示事件日期活动表。
 
 - 无 session 数据：KPI 显示 0，Trend 总览区、Cache Health 区和 Scope 分支区显示统一空态。
 - 当前 scope 无数据：保留 scope selector，页面标题下显示当前 scope 无数据，所有图表卡显示空态。

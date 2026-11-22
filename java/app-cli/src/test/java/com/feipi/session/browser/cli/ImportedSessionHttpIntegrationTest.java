@@ -115,6 +115,12 @@ class ImportedSessionHttpIntegrationTest {
                 assertThat(metrics.path("roundCount").asInt()).isPositive();
                 assertThat(metrics.path("toolCalls").asInt()).isEqualTo(1);
                 api.json(base + "/diagnostics");
+                var targeted = api.json(base + "/execution?target=tool-1&limit=1");
+                int ownerRound = targeted.at("/items/0/group/round").asInt();
+                var step = api.json(base + "/round/" + ownerRound + "?target=tool-1&limit=1");
+                assertThat(step.at("/round/tools/0/toolCallId").asText()).isEqualTo("tool-1");
+                assertThat(step.at("/round/calls/0/callId").asText())
+                    .isEqualTo(targeted.at("/items/0/group/id").asText());
                 api.json(base + "/rounds");
                 api.json(base + "/round/1");
                 api.json(base + "/attribution/1/1/request");
@@ -137,7 +143,7 @@ class ImportedSessionHttpIntegrationTest {
                 }
                 var page = api.get("/imports/" + id);
                 assertThat(page.statusCode()).isEqualTo(200);
-                assertThat(page.body()).contains("不计入个人统计", "仅本文件分析", base);
+                assertThat(page.body()).contains("仅分析此文件，不计入个人统计", base);
                 assertThat(page.body()).doesNotContain(SYNTHETIC_SECRET);
                 assertThat(snapshot(api, queryRoot)).isEqualTo(before);
                 assertPersonalBaseline(connection);

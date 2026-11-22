@@ -4,7 +4,7 @@
  * 验证会话详情页面不会受到 body.hide-left / body.focus / body.hide-right
  * 级联冲突的影响，导致 .main 被挤入 0px 宽的网格列。
  *
- * 需要服务运行在 BASE_URL（默认 http://127.0.0.1:18999）。
+ * 使用 Playwright 管理的合成会话服务。
  */
 const { test, expect } = require('@playwright/test');
 const fs = require('fs');
@@ -16,43 +16,31 @@ test.describe('会话详情 Phase 1 外壳布局', () => {
     // 使用质量门禁指定的 1440x1100 视口
     await page.setViewportSize({ width: 1440, height: 1100 });
 
-    // 先尝试已知会话 URL，回退到会话列表
-    const knownUrl = '/sessions/claude_code/hifi-viz-session-001';
-    const sessionsListUrl = '/sessions';
-
-    let detailUrl = null;
-
-    // 尝试已知会话
-    const resp = await page.goto(knownUrl, { waitUntil: 'domcontentloaded', timeout: 10000 }).catch(() => null);
-    if (resp && resp.ok()) {
-      // 检查是否拿到真实会话页面（非 404 重定向）
-      const hero = await page.locator('.sd-hero').first().isVisible({ timeout: 5000 }).catch(() => false);
-      if (hero) {
-        detailUrl = knownUrl;
+    await page.goto('/sessions/claude_code/hifi-viz-session-001');
+    await expect(page.locator('.session-detail-page')).toBeVisible();
+    await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+    await expect(page.getByRole('tablist')).toHaveCount(0);
+    const trace = page.locator('section[data-trace-panel]');
+    await expect(trace.getByRole('heading', { name: '执行过程', exact: true })).toBeVisible();
+    await expect(trace.locator('[data-trace-list]')).toBeVisible();
+    await expect(trace.locator('[data-round-sources], [data-payload-index]')).toHaveCount(0);
+    const analysis = page.locator('#session-analysis');
+    await expect(analysis.locator('[data-token-composition]')).toBeVisible();
+    await expect(analysis.locator('[data-session-diagnostics]')).toBeVisible();
+    const metrics = page.locator('[data-session-metrics-shell]');
+    const cards = metrics.locator(':scope > .sd-kpi');
+    await expect(cards.locator('.sd-kpi__label')).toHaveText(['Token 总量', '输入缓存命中率', '本地归一化记录', '任务活动时长']);
+    for (const card of await cards.all()) {
+      await expect(card.locator('.sd-kpi__value')).toBeVisible();
+      await expect(card.locator('.sd-kpi__value')).not.toHaveText('Loading…');
+      const values = card.locator('.sd-kpi__subgrid b');
+      expect(await values.count()).toBeGreaterThanOrEqual(2);
+      for (const value of await values.all()) {
+        await expect(value).toBeVisible();
+        await expect(value).not.toHaveText(/Loading|^$/);
       }
     }
-
-    // 回退：从 /sessions 列表提取第一个会话链接
-    if (!detailUrl) {
-      await page.goto(sessionsListUrl, { waitUntil: 'domcontentloaded', timeout: 10000 });
-      await expect(page.locator('.page-head').first()).toBeVisible({ timeout: 10000 });
-
-      // 找到第一个会话详情链接
-      const firstLink = await page.locator('a[href*="/sessions/"]').first();
-      const href = await firstLink.getAttribute('href');
-      if (!href) {
-        throw new Error('在 /sessions 页面上未找到会话链接');
-      }
-      detailUrl = href;
-    }
-
-    // 导航到会话详情
-    await page.goto(detailUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
-    await expect(page.locator('.session-detail-page').first()).toBeVisible({ timeout: 10000 });
-
-    await expect(page.locator('[data-execution-judgment]')).toBeVisible();
-    await expect(page.locator('[data-evidence-analysis]')).not.toHaveAttribute('open');
-    await page.locator('[data-evidence-analysis] > summary').click();
+    await expect(metrics.locator('details, summary, button, [role="button"]')).toHaveCount(0);
 
     // 评估布局指标
     const result = await page.evaluate(() => {
@@ -147,7 +135,6 @@ test.describe('正文弹框内的归因布局', () => {
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/sessions/claude_code/hifi-viz-session-001');
     await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
-    await page.locator('[data-evidence-analysis] > summary').click();
     await page.locator('[data-attribution-path*="/response"]:visible').first().click();
     const modal = page.locator('dialog.payload-modal');
     const disclosure = modal.locator('[data-payload-attribution="response"]');
@@ -158,32 +145,38 @@ test.describe('正文弹框内的归因布局', () => {
     return { modal, disclosure };
   }
 
-  for (const [id, width, columns] of [
-    ['UI-SD-LAYOUT-001', 1440, 2], ['UI-SD-LAYOUT-002', 390, 1],
-  ]) {
-    test(`[${id}] 输出归因按屏宽排列为 ${columns} 列，原文仍在同一弹框`, async ({ page }) => {
-      const { modal, disclosure } = await openAttribution(page, width);
-      const grid = disclosure.locator('.sd-attribution-summary-grid');
-      const layout = await grid.locator('.sd-kv').evaluateAll(rows => rows.map(row => {
-        const { x, y, width } = row.getBoundingClientRect();
-        return { x, y, width };
-      }));
-      expect(layout.length).toBeGreaterThanOrEqual(3);
-      expect(new Set(layout.map(row => row.x)).size).toBe(columns);
-      if (columns === 2) {
-        expect(layout[0].y).toBeCloseTo(layout[1].y, 0);
-        expect(layout[0].x + layout[0].width).toBeLessThanOrEqual(layout[1].x + 1);
-      } else {
-        expect(layout[1].y).toBeGreaterThan(layout[0].y);
-      }
-      await expect(modal.locator('.sd-content-block').first()).toBeVisible();
-      await disclosure.locator('summary').press('Space');
-      await expect(grid).toBeHidden();
-      await expect(modal.locator('.sd-content-block').first()).toBeVisible();
-    });
-  }
+  test('[UI-SD-LAYOUT-001] 输出用量紧凑排列，正文占满同一弹框', async ({ page }) => {
+    const { modal, disclosure } = await openAttribution(page, 1440);
+    const summary = disclosure.locator(':scope > summary');
+    const grid = disclosure.locator('.sd-attribution-summary-grid');
+    await expect(summary).toHaveText(/^输出用量明细 · 来源报告 [\d,]+ tokens · 推理等非正文用量未单列$/);
+    await expect(grid.locator('.sd-kv > span:first-child')).toHaveText(['调用', '已记录工具指令']);
+    await expect(grid.locator('.sd-reading-usage-part > span:first-child')).toHaveText('输出');
+    await expect(grid.locator('.sd-reading-usage-band')).toHaveCount(0);
+    const reading = modal.locator('.sd-content-block').first();
+    await expect(reading).toBeVisible();
+    const readingBox = await reading.boundingBox();
+    const meterBox = await disclosure.boundingBox();
+    const summaryBox = await summary.boundingBox();
+    const composition = modal.locator('.sd-reading-composition');
+    const visibleNoteBox = await composition.boundingBox();
+    const panelBox = await modal.locator('.sd-modal-panel').boundingBox();
+    expect(visibleNoteBox.y + visibleNoteBox.height).toBeLessThanOrEqual(summaryBox.y);
+    const usageGroupBox = await modal.locator('.sd-reading-panel').boundingBox();
+    expect(usageGroupBox.x).toBeCloseTo(readingBox.x, 0);
+    expect(usageGroupBox.width).toBeCloseTo(readingBox.width, 0);
+    expect(visibleNoteBox.x).toBeCloseTo(meterBox.x, 0);
+    expect(visibleNoteBox.width).toBeCloseTo(meterBox.width, 0);
+    expect(meterBox.y + meterBox.height).toBeLessThanOrEqual(readingBox.y);
+    expect(summaryBox.height).toBeLessThanOrEqual(32);
+    expect(usageGroupBox.y + usageGroupBox.height).toBeLessThanOrEqual(readingBox.y);
+    expect(panelBox.width - readingBox.width).toBeLessThanOrEqual(44);
+    await summary.press('Space');
+    await expect(grid).toBeHidden();
+    await expect(reading).toBeVisible();
+  });
 
-  for (const width of [1440, 390]) {
+  for (const width of [1440, 1024]) {
     test(`[UI-SD-LAYOUT-003] 已记录工具指令的标签和值不重叠 (${width}px)`, async ({ page }) => {
       const { modal, disclosure } = await openAttribution(page, width);
       const toolCount = disclosure.locator('.sd-kv').filter({ has: page.getByText('已记录工具指令', { exact: true }) });
@@ -199,3 +192,164 @@ test.describe('正文弹框内的归因布局', () => {
     });
   }
 });
+
+test('常驻摘要和首问在 1024px 可用，详细分析不吸顶', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1024, height: 740 });
+  const model = 'synthetic-model-' + 'verylongidentifier'.repeat(16);
+  await page.route('**/api/sessions/claude_code/hifi-viz-session-001/meta', async route => {
+    const response = await route.fetch();
+    await route.fulfill({ response, json: { ...await response.json(), model } });
+  });
+  await page.goto('/sessions/claude_code/hifi-viz-session-001');
+  await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+  await page.locator('[data-session-info] > summary').click();
+  await expect(page.locator('[data-session-model-brief]')).toHaveText(model);
+  await expect(page.locator('[data-session-info]').getByText(model, { exact: true })).toHaveCount(1);
+  const modelFits = await page.locator('[data-session-model-brief]').evaluate(el => {
+    const text = document.createRange();
+    text.selectNodeContents(el);
+    return text.getBoundingClientRect().right <= el.getBoundingClientRect().right;
+  });
+  expect(modelFits).toBe(true);
+  await page.locator('[data-session-info] > summary').click();
+
+  const head = page.locator('.sd-workspace-head');
+  await expect(head.locator('.sd-kpi')).toHaveCount(4);
+  await expect(head.locator('.sd-kpi__value').first()).not.toHaveText('Loading…');
+  const stickyHeight = await head.evaluate(el => el.getBoundingClientRect().height);
+  expect(stickyHeight).toBeLessThan(185);
+  const kpiBounds = await head.locator('.sd-kpi').evaluateAll(cards => cards.map(card => {
+    const { x, y, width } = card.getBoundingClientRect();
+    return { x, y, width };
+  }));
+  expect(new Set(kpiBounds.map(card => card.y)).size).toBe(1);
+  expect(kpiBounds[3].x + kpiBounds[3].width).toBeLessThanOrEqual(1024);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(1026);
+  const screenshot = testInfo.outputPath('session-detail-layout-1024.png');
+  await page.screenshot({ path: screenshot });
+  await testInfo.attach('1024px 默认布局', { path: screenshot, contentType: 'image/png' });
+
+  const analysis = page.locator('#session-analysis');
+  await expect(analysis.locator('[data-session-diagnostics]')).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, 300));
+  await expect.poll(() => head.evaluate(el => Math.round(el.getBoundingClientRect().top))).toBe(0);
+  expect(await analysis.evaluate(el => el.getBoundingClientRect().top)).toBeLessThan(0);
+  expect(await head.evaluate(el => el.getBoundingClientRect().height)).toBe(stickyHeight);
+  const firstQuestion = head.getByRole('button', { name: '查看首问' });
+  await firstQuestion.click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText('create the implementation plan.');
+  const [panel, close] = await Promise.all([
+    dialog.locator('.payload-modal__panel').boundingBox(),
+    dialog.locator('.sd-modal-close').boundingBox(),
+  ]);
+  expect(panel.x).toBeGreaterThan(0);
+  expect(panel.x + panel.width).toBeLessThan(1024);
+  expect(close.x + close.width).toBeLessThan(1024);
+  await page.keyboard.press('Escape');
+  await expect(firstQuestion).toBeFocused();
+});
+
+for (const width of [1024, 1440]) {
+  test(`轮次摘要等高且卡片间隙不露白 @ ${width}`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.route('**/rounds', async route => {
+      const response = await route.fetch();
+      const data = await response.json();
+      Object.assign(data.rounds[0], { callCount: 1234, toolCallCount: 3456, failedToolCount: 9,
+        signals: ['Failed', 'Subagent', 'Payload Gap'], parity: { ...data.rounds[0].parity, summary: '很长的轮次摘要'.repeat(80) } });
+      await route.fulfill({ response, json: data });
+    });
+    await page.goto('/sessions/claude_code/hifi-viz-session-001');
+    await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+    const row = page.locator('.round-row').first();
+    await expect(row.locator('.metric-calls-tools')).toHaveAttribute('title', /记录.*工具/);
+    const table = page.locator('[data-trace-list]');
+    await expect(table.getByRole('columnheader')).toHaveText(['轮次', '摘要', '本行 Token', '原文入口', '时间', '耗时']);
+    await expect(row.getByRole('cell')).toHaveCount(6);
+    const summary = row.locator('.summary-col');
+    await expect(summary).toContainText('9 次工具失败');
+    await summary.getByRole('button', { name: '查看全部信号' }).click();
+    await expect(summary.locator('[popover]')).toBeVisible();
+    await expect(summary.locator('[popover]')).toContainText('Payload Gap');
+    await expect(row.locator('[data-action="toggle-round"]')).toHaveAttribute('aria-expanded','false');
+    await page.keyboard.press('Escape');
+    await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+    const geometry = await page.evaluate(() => {
+      const rect = s => document.querySelector(s).getBoundingClientRect();
+      const center = s => rect(s).top + rect(s).height / 2;
+      const roundHeight = [...document.querySelectorAll('.round-row')].map(el => el.getBoundingClientRect().height);
+      const gap = rect('.sd-kpis').top - rect('.sd-hero').bottom;
+      return { roundHeight, header: rect('.trace-table th').height, gap,
+        nextGap: rect('.se-analysis').top - rect('.sd-kpis').bottom,
+        canvas: getComputedStyle(document.body).backgroundColor,
+        backing: getComputedStyle(document.querySelector('.sd-workspace-head')).backgroundColor,
+        bars: [...document.querySelectorAll('.tokenbar-wrap')].map(el => el.getBoundingClientRect().left),
+        delta: Math.abs(center('.metric-token') - center('.tokenbar-wrap')),
+        x: [rect('.sd-hero').left, rect('.sd-kpis').left, rect('.se-analysis').left, rect('.sd-record-card').left],
+        summaryWidth: rect('.summary-col').width,
+        tableWidth: rect('.trace-table').width,
+        clipped: document.querySelector('.summary-title').scrollWidth > rect('.summary-title').width,
+        overflow: document.documentElement.scrollWidth - innerWidth };
+    });
+    expect(new Set(geometry.roundHeight).size).toBe(1);
+    expect(geometry.roundHeight[0]).toBeCloseTo(36, 0);
+    expect(geometry.header).toBeCloseTo(36, 0);
+    expect(new Set(geometry.bars).size).toBe(1);
+    expect(geometry.delta).toBeLessThan(1);
+    expect(geometry.x.every(x => x === geometry.x[0])).toBe(true);
+    expect(geometry.gap).toBe(8);
+    expect(geometry.nextGap).toBe(8);
+    expect(geometry.backing).toBe(geometry.canvas);
+    expect(geometry.summaryWidth).toBeGreaterThan(geometry.tableWidth / 2);
+    expect(geometry.clipped).toBe(true);
+    expect(geometry.overflow).toBeLessThanOrEqual(1);
+  });
+}
+
+test('窄窗口内可以滚动到执行表右侧并点击 Request', async ({ page }) => {
+  await page.setViewportSize({ width: 430, height: 960 });
+  await page.goto('/sessions/claude_code/hifi-viz-session-001');
+  const action = page.locator('[data-trace-round-row] [data-attribution-path*="/request"]').first();
+  await action.click();
+  await expect(page.locator('dialog.payload-modal[open] .sd-payload-metadata')).toBeVisible();
+});
+for (const width of [1024, 1440]) {
+  test(`执行表原文按钮可独立操作且不侵占摘要 @ ${width}`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto('/sessions/claude_code/hifi-viz-session-001');
+    await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+    const row = page.locator('[data-trace-round-row]').filter({
+      has: page.getByRole('button', { name: 'Response', exact: true }),
+    }).first();
+    const cell = row.locator('.attribution-col');
+    const request = cell.getByRole('button', { name: 'Request', exact: true });
+    const response = cell.getByRole('button', { name: 'Response', exact: true });
+    await expect(request).toHaveCount(1);
+    await expect(response).toHaveCount(1);
+    const [input, output, area, summary] = await Promise.all(
+      [request, response, cell, row.locator('.summary-col')].map(locator => locator.boundingBox()),
+    );
+    expect(input.x + input.width).toBeLessThanOrEqual(output.x);
+    expect(input.x).toBeGreaterThanOrEqual(area.x);
+    expect(output.x + output.width).toBeLessThanOrEqual(area.x + area.width);
+    expect(summary.width).toBeGreaterThan(area.width * 2);
+    for (const control of [request, response]) {
+      const textBox = await control.evaluate(button => {
+        const range = document.createRange();
+        range.selectNodeContents(button);
+        const text = range.getBoundingClientRect();
+        const edge = button.getBoundingClientRect();
+        return { left: text.left - edge.left, right: edge.right - text.right, label: button.textContent };
+      });
+      expect(textBox.left, textBox.label).toBeGreaterThanOrEqual(0);
+      expect(textBox.right, textBox.label).toBeGreaterThanOrEqual(0);
+    }
+    await request.press('Enter');
+    const modal = page.locator('dialog.payload-modal');
+    await expect(modal.locator('[data-payload-attribution="request"]')).toHaveAttribute('data-attribution-call', /.+/);
+    await page.keyboard.press('Escape');
+    await response.press('Space');
+    await expect(modal.locator('[data-payload-attribution="response"]')).toHaveAttribute('data-attribution-call', /.+/);
+  });
+}

@@ -106,7 +106,7 @@ public final class SessionApiRouter {
 
     try {
       switch (resource) {
-        case "payload" -> routePayload(ctx, parts, agent, sessionId);
+        case "payload", "content" -> routePayload(ctx, parts, agent, sessionId);
         case "round" -> routeRound(ctx, parts, agent, sessionId);
         case "attribution" -> routeAttribution(ctx, parts, agent, sessionId);
         case "bucket-detail" -> routeBucketDetail(ctx, parts, agent, sessionId);

@@ -295,23 +295,6 @@
     return raw.toLowerCase();
   }
 
-  function _getPageRange(current, total) {
-    if (total <= 7) {
-      var all = [];
-      for (var i = 1; i <= total; i++) all.push(i);
-      return all;
-    }
-    var pages = [];
-    var start = Math.max(2, current - 1);
-    var end = Math.min(total - 1, current + 1);
-    pages.push(1);
-    if (start > 2) pages.push('...');
-    for (var i = start; i <= end; i++) pages.push(i);
-    if (end < total - 1) pages.push('...');
-    pages.push(total);
-    return pages;
-  }
-
   // 暴露全局
   window.DataTable = DataTable;
 })();

@@ -227,7 +227,8 @@ public final class IsolatedSessionImportService implements SessionImportPort {
         record.timing(),
         record.metaContext(),
         record.messageRole(),
-        record.toolObservation());
+        record.toolObservation(),
+        record.readingEvidence());
   }
 
   /** 来源精度独立于数值；只覆盖显式估算段，正式 usage 保持解析器原值。 */

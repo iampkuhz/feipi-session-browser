@@ -416,7 +416,7 @@ class WebRouteContractTest {
             assertThat(body).contains("sd-hero");
             assertThat(body).contains("aria-label=\"Session metrics\"");
             assertThat(body).contains("sd-kpi");
-            assertThat(body).contains("Run Health");
+            assertThat(body).contains("data-session-timing-value");
           });
     }
   }

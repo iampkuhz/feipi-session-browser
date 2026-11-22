@@ -45,16 +45,15 @@ public final class StaticResourceContractRule implements QualityRule {
   private static final Pattern PARENTHESIZED = Pattern.compile("\\([^)]*\\)");
   private static final Pattern JS_LINE_COMMENT = Pattern.compile("//.*?$", Pattern.MULTILINE);
   private static final Pattern JS_BLOCK_COMMENT = Pattern.compile("/\\*.*?\\*/", Pattern.DOTALL);
-  private static final List<Pattern> NON_DESKTOP_VIEWPORT_PATTERNS =
-      List.of(
-          Pattern.compile("max-width\\s*:\\s*767px", Pattern.CASE_INSENSITIVE),
-          Pattern.compile("max-width\\s*:\\s*768px", Pattern.CASE_INSENSITIVE),
-          Pattern.compile("max-width\\s*:\\s*820px", Pattern.CASE_INSENSITIVE),
-          Pattern.compile(
-              "min-width\\s*:\\s*768px.*max-width\\s*:\\s*1024px", Pattern.CASE_INSENSITIVE),
-          Pattern.compile("@media[^{]*(?:mobile|tablet|ipad)", Pattern.CASE_INSENSITIVE));
-  private static final List<String> ALLOWED_DESKTOP_VIEWPORTS =
-      List.of("1400px", "1440px", "1512px", "1920px", "2560px");
+  private static final int MIN_DESKTOP_VIEWPORT_PX = 1024;
+  private static final Pattern MEDIA_QUERY =
+      Pattern.compile("(?i)@media\\b([^{}]+)\\{|\\bmatchMedia\\s*\\(\\s*['\"`]([^'\"`]*)['\"`]");
+  private static final Pattern VIEWPORT_WIDTH_PX =
+      Pattern.compile(
+          "(?i)\\b(?:min-|max-)?width\\s*[:<=>]+\\s*(\\d+(?:\\.\\d+)?)px\\b"
+              + "|\\b(\\d+(?:\\.\\d+)?)px\\s*[<=>]+\\s*width\\b");
+  private static final Pattern NON_DESKTOP_MEDIA =
+      Pattern.compile("(?i)\\b(?:mobile|tablet|ipad|device-width)\\b|\\bpointer\\s*:\\s*coarse\\b");
 
   private static final Set<String> BASE_CSS_NAMES =
       Set.of("tokens.css", "base.css", "shell.css", "ui-primitives.css");
@@ -281,35 +280,41 @@ public final class StaticResourceContractRule implements QualityRule {
 
   private static void checkSupportedViewports(
       List<SourceText> cssSources, List<SourceText> jsSources, List<QualityViolation> violations) {
-    var webSources = new ArrayList<SourceText>(cssSources);
-    webSources.addAll(jsSources);
-    for (var source : webSources) {
-      var lines = source.text().split("\\R", -1);
-      for (int index = 0; index < lines.length; index++) {
-        var line = lines[index];
-        var stripped = line.strip();
-        if (stripped.startsWith("/*") || stripped.startsWith("*") || stripped.startsWith("//")) {
-          continue;
-        }
-        for (var pattern : NON_DESKTOP_VIEWPORT_PATTERNS) {
-          var matcher = pattern.matcher(line);
-          if (matcher.find() && !containsAllowedDesktopViewport(line)) {
-            violations.add(
-                violation(
-                    source.relativePath(),
-                    index + 1,
-                    "VIEWPORT_OUTSIDE_DESKTOP_CONTRACT",
-                    "desktop-viewports-only：静态资源仅允许桌面端视口。",
-                    Map.of("match", matcher.group())));
-            break;
-          }
-        }
+    var sources = new ArrayList<>(cssSources);
+    sources.addAll(jsSources);
+    for (var source : sources) {
+      // 用等长空白替换注释，避免误报并保留原文件行号。
+      var css =
+          CSS_COMMENT
+              .matcher(source.text())
+              .replaceAll(m -> m.group().replaceAll("[^\\r\\n]", " "));
+      var text =
+          source.relativePath().endsWith(".js") ? JS_LINE_COMMENT.matcher(css).replaceAll("") : css;
+      var queries = MEDIA_QUERY.matcher(text);
+      while (queries.find()) {
+        String condition = (queries.group(1) == null ? queries.group(2) : queries.group(1)).strip();
+        if (!outsideDesktop(condition)) continue;
+        int line =
+            1 + (int) text.substring(0, queries.start()).chars().filter(ch -> ch == '\n').count();
+        violations.add(
+            violation(
+                source.relativePath(),
+                line,
+                "VIEWPORT_OUTSIDE_DESKTOP_CONTRACT",
+                "desktop-viewports-only：静态资源仅维护 1024 CSS px 及以上的桌面布局。",
+                Map.of("match", condition)));
       }
     }
   }
 
-  private static boolean containsAllowedDesktopViewport(String line) {
-    return ALLOWED_DESKTOP_VIEWPORTS.stream().anyMatch(line::contains);
+  private static boolean outsideDesktop(String condition) {
+    if (NON_DESKTOP_MEDIA.matcher(condition).find()) return true;
+    var width = VIEWPORT_WIDTH_PX.matcher(condition);
+    while (width.find()) {
+      String pixels = width.group(1) == null ? width.group(2) : width.group(1);
+      if (Double.parseDouble(pixels) < MIN_DESKTOP_VIEWPORT_PX) return true;
+    }
+    return false;
   }
 
   private static void checkNoDeadJavaScript(

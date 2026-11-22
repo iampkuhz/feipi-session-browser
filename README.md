@@ -2,6 +2,8 @@
 
 在本机浏览 **Claude Code、Codex 和 Qoder** 的历史会话，按项目查找对话、回看工具调用、查看 Token 用量。
 
+界面只面向桌面浏览器（视口宽度至少 1024 CSS px），不维护手机和平板布局。
+
 ## 预览
 
 > 截图待补 · [如何提供截图](docs/images/screenshots/README.md)

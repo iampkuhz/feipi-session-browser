@@ -35,7 +35,6 @@ test('a round without local calls does not offer dead payload or attribution act
     await route.fulfill({ response, json: body });
   });
   await page.goto(sessionUrl);
-  await page.locator('[data-evidence-analysis] > summary').click();
   const first = page.locator('[data-trace-round-row]').first();
   await expect(first.locator('.attribution-col')).toHaveText('未记录调用', { timeout: 2500 });
   await expect(first.locator('.attribution-col button')).toHaveCount(0);
@@ -43,8 +42,19 @@ test('a round without local calls does not offer dead payload or attribution act
 
 test('long token provenance does not overlap the neighboring trace columns', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 960 });
+  await page.route('**/api/sessions/*/*/rounds', async route => {
+    const response = await route.fetch();
+    const json = await response.json();
+    json.rounds[0].callCount = 2;
+    await route.fulfill({ response, json });
+  });
+  await page.route('**/api/sessions/*/*/round/1', async route => {
+    const response = await route.fetch();
+    const json = await response.json();
+    json.round.calls.push({ callId: 'synthetic-follow-up', callKey: 'C2', scope: 'main', usage: {} });
+    await route.fulfill({ response, json: { ...json, total: 2 } });
+  });
   await page.goto(sessionUrl);
-  await page.locator('[data-evidence-analysis] > summary').click();
   const row = page.locator('[data-trace-round-row]').first();
   const toggle = row.locator('[data-action="toggle-round"]');
   await expect(toggle).toBeVisible();
@@ -63,8 +73,7 @@ test('long token provenance does not overlap the neighboring trace columns', asy
   expect(fits).toBe(true);
 });
 
-test('request attribution fits narrow screens without borrowing response tokens', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
+test('request attribution preserves request-side counters without borrowing response tokens', async ({ page }) => {
   await page.route('**/api/sessions/*/*/attribution/*/*/request*', async (route) => {
     const response = await route.fetch();
     const body = await response.json();
@@ -75,7 +84,6 @@ test('request attribution fits narrow screens without borrowing response tokens'
     await route.fulfill({ response, json: body });
   });
   await page.goto(sessionUrl);
-  await page.locator('[data-evidence-analysis] > summary').click();
   const action = page.locator('[data-attribution-path*="/request"]:visible').first();
   await action.click();
   const card = page.locator('[data-payload-attribution="request"]');
@@ -115,7 +123,6 @@ function cssAttrValue(value) {
 
 async function gotoSessionDetail(page, url) {
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-  if (!/[?&](?:tab=payload|round=)/.test(url)) await page.locator('[data-evidence-analysis] > summary').click();
 }
 
 // ── 会话详情 Phase 1 测试 ─────────────────────────────────────────
@@ -133,11 +140,15 @@ test.describe('会话详情 — Phase 1', () => {
     });
 
     await gotoSessionDetail(page, sessionUrl);
+    const retiredScripts = ['trace-interactions', 'session_detail_timeline', 'timeline', 'payload_viewer'];
+    await expect(page.locator(retiredScripts.map(name => `script[src$="/${name}.js"]`).join(', ')))
+      .toHaveCount(0);
 
-    // Trace 是 Phase 1 的默认（也是唯一）视图 — 验证核心区域
+    // 执行过程与会话身份、操作同时可用。
     await expect(page.locator('.sd-hero').first()).toBeVisible({ timeout: 10000 });
+    await waitForSessionApiHydrated(page);
     await page.locator('[data-session-info] > summary').click();
-    await expect(page.locator('[data-issue-strip]')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('[data-session-meta-chips]')).toBeVisible();
     await expect(page.locator('[data-trace-panel]')).toBeVisible({ timeout: 10000 });
 
     // 断言无控制台错误
@@ -175,7 +186,6 @@ test.describe('会话详情 — Phase 1', () => {
       'payload-mode',
       'select-subagent',
       'close-modal',
-      'jump-anomaly',
       'nav-dashboard',
       'nav-sessions',
       'nav-projects',
@@ -185,7 +195,6 @@ test.describe('会话详情 — Phase 1', () => {
       'status-all',
       'status-failed',
       'status-low-cache',
-      'tab-trace',
       'toggle-all',
       'toggle-round',
     ]);
@@ -600,48 +609,32 @@ test.describe('会话详情 — Phase 1', () => {
     expect(failedToolTone.isRed, `failed tool row must be red-tinted, got ${failedToolTone.color}`).toBe(true);
   });
 
-  test('[UI-SD-036] KPI 和 Tool Impact 指标保留颜色 tone', async ({ page }) => {
+  test('[UI-SD-036] Total Tokens 保留分类占比颜色', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
-    await gotoSessionDetail(page, sessionUrl);
-    await waitForSessionApiHydrated(page);
+    await page.goto(sessionUrl);
+    await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
 
-    const toneState = await page.evaluate(() => {
-      const tokenKpi = document.querySelector('.sd-kpi[aria-label="Total Tokens"]');
-      const tokenStates = Array.from(tokenKpi ? tokenKpi.querySelectorAll('.sd-kpi-token-share') : [])
-        .map((node) => ({ className: node.className, color: window.getComputedStyle(node).color }));
-      const toolImpact = Array.from(document.querySelectorAll('.sd-diagnostic-card'))
-        .find((card) => (card.querySelector('h2')?.textContent || '').trim() === 'Tool Impact');
-      const toolRateStates = Array.from(toolImpact ? toolImpact.querySelectorAll('.sd-rate') : [])
-        .map((node) => ({ className: node.className, color: window.getComputedStyle(node).color }));
-      return { tokenStates, toolRateStates };
-    });
-
+    const tokenStates = await page.locator('.sd-kpi[aria-label="Total Tokens"] .sd-kpi-token-share')
+      .evaluateAll(nodes => nodes.map(node => ({ className: node.className, color: getComputedStyle(node).color })));
     const toneColor = /^rgb\((21, 128, 61|180, 83, 9|220, 38, 38)\)$/;
-    expect(toneState.tokenStates, 'Total Tokens must render four colored component shares').toHaveLength(4);
-    expect(toneState.tokenStates.every((state) => /sd-kpi-token-share--(minor|mid|major)/.test(state.className))).toBe(true);
-    expect(toneState.tokenStates.some((state) => /sd-kpi-token-share--(mid|major)/.test(state.className))).toBe(true);
-    expect(toneState.tokenStates.every((state) => toneColor.test(state.color))).toBe(true);
-    expect(toneState.toolRateStates.length, 'Tool Impact must render colored failure rates').toBeGreaterThan(0);
-    expect(toneState.toolRateStates.every((state) => /sd-rate--(ok|warn|bad)/.test(state.className))).toBe(true);
-    expect(toneState.toolRateStates.every((state) => toneColor.test(state.color))).toBe(true);
+    expect(tokenStates, 'Total Tokens must render four colored component shares').toHaveLength(4);
+    expect(tokenStates.every(state => /sd-kpi-token-share--(minor|mid|major)/.test(state.className))).toBe(true);
+    expect(tokenStates.some(state => /sd-kpi-token-share--(mid|major)/.test(state.className))).toBe(true);
+    expect(tokenStates.every(state => toneColor.test(state.color))).toBe(true);
   });
 
   test('[UI-SD-032] diagnostics 区渲染 API-first parity 卡片', async ({ page }) => {
     await page.setViewportSize({ width: 2048, height: 768 });
-    await gotoSessionDetail(page, sessionUrl);
+    await page.goto(sessionUrl);
     await expect(page.locator('[data-session-diagnostics]')).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('[data-session-anomalies]')).toHaveCount(0);
     await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true', { timeout: 10000 });
     await expect(page.locator('.sd-call-distribution')).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Call Token Footprint Distribution' })).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Top Token Drivers' })).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Session API State' })).toHaveCount(0);
-    await expect(page.getByRole('heading', { name: 'Agents Breakdown' })).toBeVisible({ timeout: 10000 });
-    await expect(page.getByRole('heading', { name: 'Context Budget' })).toBeVisible({ timeout: 10000 });
-    await expect(page.getByRole('heading', { name: 'Tool Impact' })).toBeVisible({ timeout: 10000 });
-    await expect(page.getByRole('heading', { name: 'Issues & Repro Seeds' })).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('.sd-anomalies__count')).toHaveCount(0);
-    await expect(page.locator('[data-summary-strip]')).not.toContainText(/branch/i);
+    await expect(page.getByRole('heading', { name: 'Agent 用量明细' })).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.sd-token-composition').getByRole('heading', { name: 'Token 构成' })).toBeVisible();
+    await expect(page.locator('[data-session-meta-chips]')).not.toContainText(/branch/i);
     await expect(page.locator('[data-session-payload-policy]')).toHaveCount(0);
     await expect(page.locator('[data-trace-panel]')).not.toContainText('/api/sessions/{agent}/{sessionId}/rounds');
     await expect(page.locator('[data-trace-panel]')).not.toContainText('/round/{roundIndex}');
@@ -649,7 +642,9 @@ test.describe('会话详情 — Phase 1', () => {
       const subagentRow = page.locator('[data-subagent-row]').filter({
         has: page.locator('[data-agent-scope="subagent"]'),
       });
-      await expect(subagentRow).toContainText('No failure signals · 0 failed');
+      const failures = subagentRow.locator('td:last-child b');
+      await expect(failures).toHaveText('失败 0 次');
+      await expect(failures).toHaveAttribute('title', '未观察到工具失败');
       await expect(subagentRow).not.toContainText('Success');
     }
   });
@@ -659,7 +654,7 @@ test.describe('会话详情 — Phase 1', () => {
     await waitForSessionApiHydrated(page);
     const modal = page.locator('dialog.payload-modal');
     for (const kind of ['request', 'response']) {
-      const button = page.locator(`[data-evidence-analysis] [data-attribution-path*="/${kind}"]:visible`).first();
+      const button = page.locator(`[data-trace-panel] [data-attribution-path*="/${kind}"]:visible`).first();
       await expect(button).toHaveText(kind === 'request' ? 'Request' : 'Response');
       const path = await button.getAttribute('data-attribution-path');
       const response = page.waitForResponse(r => r.url().endsWith(path));
@@ -674,24 +669,27 @@ test.describe('会话详情 — Phase 1', () => {
   });
 
   test('[UI-SD-032][UI-INTERACTION-005] agent select 和 copy 交互在 diagnostics 内可用', async ({ page }) => {
-    await gotoSessionDetail(page, sessionUrl);
-    await waitForSessionApiHydrated(page);
-    await expect(page.getByRole('heading', { name: 'Agents Breakdown' })).toBeVisible({ timeout: 10000 });
+    await page.goto(sessionUrl);
+    await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+    await expect(page.getByRole('heading', { name: 'Agent 用量明细' })).toBeVisible({ timeout: 10000 });
 
     const workbench = page.locator('[data-subagent-workbench]').first();
-    await expect(workbench, 'Agents Breakdown must expose an agent workbench').toBeVisible({ timeout: 10000 });
+    await expect(workbench, 'Agent 用量明细 must expose an agent workbench').toBeVisible({ timeout: 10000 });
 
     const agentButtons = workbench.locator('[data-action="select-subagent"]');
     const agentCount = await agentButtons.count();
-    expect(agentCount, 'agent workbench must render at least one selectable candidate').toBeGreaterThan(0);
-    await expect(workbench.locator('[data-subagent-timeline-panel].is-active:not([hidden])')).toHaveCount(1);
+    expect(agentCount).toBe(2);
+    const selected = workbench.locator('[data-subagent-timeline-panel].is-active:not([hidden])');
+    await expect(selected.locator('.sd-token-round')).toHaveCount(8);
+    await expect(selected.locator('.sd-token-round[data-round="9"]')).toHaveCount(0);
+    await expect(workbench.locator('thead th')).toHaveText(['Agent', '模型调用', 'Token', '工具调用']);
+    await expect(workbench.locator('tbody tr td:nth-child(2)')).toHaveText(['未确认', '未确认']);
 
-    if (agentCount > 1) {
-      await agentButtons.nth(1).click();
-      await expect(agentButtons.nth(1)).toHaveClass(/is-active/);
-      await expect(agentButtons.nth(1)).toHaveAttribute('aria-pressed', 'true');
-      await expect(workbench.locator('[data-subagent-timeline-panel].is-active:not([hidden])')).toHaveCount(1);
-    }
+    await agentButtons.nth(1).click();
+    await expect(agentButtons.nth(1)).toHaveClass(/is-active/);
+    await expect(agentButtons.nth(1)).toHaveAttribute('aria-pressed', 'true');
+    await expect(selected.locator('.sd-token-round')).toHaveCount(3);
+    await expect(selected.locator('.sd-token-round').first()).toHaveAttribute('data-round', '9');
 
     await page.evaluate(() => {
       window.__sessionDetailCopied = [];
@@ -701,7 +699,8 @@ test.describe('会话详情 — Phase 1', () => {
       };
     });
 
-    const copyButton = page.locator('button[data-action="copy"][data-copy-text]:visible').first();
+    await workbench.locator('[data-subagent-timeline-panel]:visible .sd-agent-source > summary').click();
+    const copyButton = workbench.locator('[data-subagent-timeline-panel]:visible button[data-action="copy"]').first();
     await expect(copyButton, 'diagnostics should expose copy actions').toBeVisible({ timeout: 10000 });
     const copyText = await copyButton.getAttribute('data-copy-text');
     await copyButton.click();
@@ -722,7 +721,7 @@ test.describe('会话详情 — Phase 1', () => {
     const roundId = await rows.nth(Math.min(2, rowCount - 1)).getAttribute('data-round');
     expect(roundId, 'target row must expose data-round').toBeTruthy();
 
-    const roundQuery = new URLSearchParams({ tab: 'trace', round: roundId });
+    const roundQuery = new URLSearchParams({ round: roundId });
     await gotoSessionDetail(page, `${sessionUrl}?${roundQuery}`);
     const deepLinkedRow = page.locator(`[data-trace-round-row][data-round="${roundId}"]`);
     await expect(deepLinkedRow).toHaveClass(/is-open/, { timeout: 10000 });
@@ -730,32 +729,50 @@ test.describe('会话详情 — Phase 1', () => {
     await expect(page.locator(`#round-${roundId}-detail`)).toBeVisible({ timeout: 10000 });
 
     const currentUrl = new URL(page.url());
-    expect(currentUrl.searchParams.get('tab')).toBe('trace');
+    expect(currentUrl.searchParams.has('tab')).toBe(false);
     expect(currentUrl.searchParams.get('round')).toBe(roundId);
   });
 
-  // ── Tab 切换测试（SD-19） ─────────────────────────────────────────
-
-  test('[UI-SD-010][UI-SD-023] 默认 Trace 与按需 Payload 双入口', async ({ page }) => {
-    await gotoSessionDetail(page, sessionUrl);
-    await expect(page.locator('.sd-hero').first()).toBeVisible({ timeout: 10000 });
-
-    const tracePanel = page.locator('[data-tab-panel="trace"]');
-    await expect(tracePanel).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('[data-tab="trace"]')).toHaveClass(/is-active/);
-    await expect(page.locator('[data-tab="payload"]')).toBeVisible();
-    await expect(page.locator('[data-tab-panel="payload"]')).toBeHidden();
-    await expect(page.locator('[data-payload-tab-panel]')).toHaveCount(0);
+  test('[UI-SD-010][UI-SD-023] 固定 Token 概览与唯一执行过程始终同页可见', async ({ page }) => {
+    await page.goto(sessionUrl);
+    const head = page.locator('.sd-workspace-head');
+    await expect(head.locator('.sd-kpi__label')).toHaveText(['Token 总量', '输入缓存命中率', '本地归一化记录', '任务活动时长']);
+    await expect(page.getByRole('tab')).toHaveCount(0);
+    await expect(page.locator('[data-tab-panel]')).toHaveCount(0);
+    const execution = page.getByRole('region', { name: '执行过程', exact: true });
+    await expect(execution.locator('[data-trace-round-row]').first()).toBeVisible();
+    const analysis = page.locator('#session-analysis');
+    await expect(analysis.locator('[data-session-diagnostics]')).toBeVisible();
+    await expect(analysis.getByRole('heading', { name: 'Agent 用量明细' })).toBeVisible();
+    await expect(execution.locator('[data-trace-round-row]').first()).toBeVisible();
+    await execution.locator('[data-trace-round-row]').last().scrollIntoViewIfNeeded();
+    await expect(head.locator('[aria-label="Total Tokens"]')).toBeInViewport();
   });
 
-  test('[UI-SD-012] payload 深链恢复原文索引视图', async ({ page }) => {
-    await gotoSessionDetail(page, `${sessionUrl}?tab=payload`);
-    await expect(page.locator('.sd-hero').first()).toBeVisible({ timeout: 10000 });
-
-    await expect(page.locator('[data-tab="payload"]')).toHaveClass(/is-active/);
-    await expect(page.locator('[data-tab-panel="trace"]')).toBeHidden();
-    await expect(page.locator('[data-tab-panel="payload"]')).toBeVisible();
-    await expect(page.locator('[data-payload-index] [data-payload-id]').first()).toBeVisible();
+  test('[UI-SD-012] 执行过程按调用加载原文，不预取或使用旧索引', async ({ page }) => {
+    const payloadRequests = [];
+    page.on('request', request => {
+      const path = new URL(request.url()).pathname;
+      if (/^\/api\/sessions\/[^/]+\/[^/]+\/payload(?:s|\/)/.test(path)) payloadRequests.push(path);
+    });
+    await gotoSessionDetail(page, sessionUrl);
+    await waitForSessionApiHydrated(page);
+    const trace = page.locator('[data-trace-panel]');
+    await expect(trace.locator('[data-round-sources], [data-payload-index]')).toHaveCount(0);
+    const round = trace.locator('[data-trace-round-row]').first();
+    await round.locator('[data-action="toggle-round"]').click();
+    await expect(trace.locator('#round-1-detail [data-payload-kind="llm_request"]')).toHaveCount(0);
+    const original = round.getByRole('button', { name: 'Request', exact: true });
+    await expect(original).toBeVisible();
+    expect(payloadRequests).toEqual([]);
+    const payload = page.waitForResponse(response => /\/payload\//.test(new URL(response.url()).pathname));
+    await original.click();
+    expect((await payload).ok()).toBe(true);
+    expect(payloadRequests.map(decodeURIComponent)).toEqual([expect.stringMatching(/\/payload\/(?:main:req:C1|round:req:1)$/)]);
+    await expect(page.locator('dialog.payload-modal')).toBeVisible();
+    await expect(page.locator('[data-payload-attribution="request"]')).toHaveAttribute('data-attribution-call', 'C1');
+    await page.keyboard.press('Escape');
+    await expect(trace.locator('[data-trace-round-row]').first()).toBeVisible();
   });
 });
 

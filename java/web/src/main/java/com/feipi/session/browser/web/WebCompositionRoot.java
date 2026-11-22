@@ -263,10 +263,9 @@ public final class WebCompositionRoot {
     javalinConfig.routes.get(
         "/api/scan-status",
         new com.feipi.session.browser.web.api.ScanStatusApiHandler(queryRoot)::handle);
+    javalinConfig.routes.post("/api/local/skill-reference", SessionSkillReference::reveal);
     IndexSnapshotGuard snapshot = new IndexSnapshotGuard(queryRoot::publishedGeneration);
     DashboardApiHandler dashboardApiHandler = new DashboardApiHandler(queryRoot);
-    javalinConfig.routes.get(
-        "/api/dashboard/event-activity", snapshot.wrap(dashboardApiHandler::handleEventActivity));
     javalinConfig.routes.get(
         "/api/dashboard/summary", snapshot.wrap(dashboardApiHandler::handleSummary));
     javalinConfig.routes.get(

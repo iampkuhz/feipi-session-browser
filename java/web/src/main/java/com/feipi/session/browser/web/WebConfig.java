@@ -45,14 +45,4 @@ public record WebConfig(String host, int port, String staticPath, String appVers
   public static WebConfig defaults() {
     return new WebConfig(DEFAULT_HOST, DEFAULT_PORT, null);
   }
-
-  /**
-   * 创建指定端口的配置。
-   *
-   * @param port 监听端口
-   * @return 指定端口的配置实例
-   */
-  public static WebConfig withPort(int port) {
-    return new WebConfig(DEFAULT_HOST, port, null);
-  }
 }

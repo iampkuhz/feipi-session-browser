@@ -5,12 +5,16 @@
     return meta ? meta.getAttribute('content') : '';
   }
 
-  function lazyLoadRoundDetail(row) {
+  function lazyLoadRoundDetail(row, options, previousDetail) {
+    if (row.pendingRoundDetail) return row.pendingRoundDetail;
     var roundId = row.getAttribute('data-round');
     if (!roundId) return null;
     var apiBase = getApiBase();
     if (!apiBase) return null;
     var url = apiBase.replace(/\/$/, '') + '/round/' + encodeURIComponent(roundId);
+    var targeted = Boolean(options?.target);
+    if (targeted) url += '?' + new URLSearchParams({ target: options.target, target_kind: options.targetKind });
+    qsa(row.parentNode, '[data-loading-for="' + cssEscape(roundId) + '"]').forEach(function (stale) { stale.remove(); });
 
     // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Insert loading indicator using DOM APIs`
     var loadingRow = document.createElement('tr');
@@ -20,27 +24,31 @@
     tdLoading.setAttribute('colspan', '6');
     var divLoading = document.createElement('div');
     divLoading.className = 'sd-loading-indicator';
-    divLoading.textContent = 'Loading round R' + roundId + '...';
+    divLoading.textContent = 'Loading ' + roundDisplayLabel(roundId, row) + '...';
     tdLoading.appendChild(divLoading);
     loadingRow.appendChild(tdLoading);
     row.parentNode.insertBefore(loadingRow, row.nextSibling);
 
     setRoundOpen(row, true);
 
-    return readSessionContentPage(url)
+    row.pendingRoundDetail = readSessionContentPage(url)
       .then(function (data) {
         // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Remove loading row`
         if (loadingRow && loadingRow.parentNode) loadingRow.parentNode.removeChild(loadingRow);
 
+        if (!row.isConnected || (options?.current && !options.current())) return;
+        if (previousDetail) previousDetail.remove();
+
         // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Inject the expanded row HTML after the summary row`
         var detailRow = document.createElement('tr');
         detailRow.className = 'expanded-row';
+        detailRow.hidden = !row.classList.contains('is-open') || !isRoundVisible(row);
         detailRow.id = 'round-' + roundId + '-detail';
         detailRow.setAttribute('data-trace-detail', '');
         var tdDetail = document.createElement('td');
         tdDetail.setAttribute('colspan', '6');
         detailRow.appendChild(tdDetail);
-        setHtml(tdDetail, data.html || renderRoundDetailFromJson(data.round, roundId, row, data));
+        setHtml(tdDetail, data.html || renderRoundDetailFromJson(data.round, roundId, row, data, true));
         row.parentNode.insertBefore(detailRow, row.nextSibling);
         tdDetail.addEventListener('change', function (event) {
           if (event.target.matches('[data-tool-kind-filter]')) applyToolKindFilter(tdDetail);
@@ -58,6 +66,20 @@
         // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Mark as loaded`
         row.setAttribute('data-detail-loaded', 'true');
         setupRoundContentPages(tdDetail, data, roundId, row);
+        if (targeted && (data.offset || data.toolOffset)) {
+          var note = document.createElement('p');
+          note.textContent = '定位片段 · 从'
+            + (data.offset ? '调用记录 ' + (data.offset + 1) : '工具 ' + (data.toolOffset + 1)) + ' 开始 ';
+          var first = document.createElement('button');
+          first.type = 'button';
+          first.className = 'sd-btn sd-btn--secondary sd-btn--sm';
+          first.textContent = '查看此轮开头';
+          first.onclick = function () {
+            runReadingNavigation(function () { return lazyLoadRoundDetail(row, null, detailRow); });
+          };
+          note.append(first);
+          tdDetail.prepend(note);
+        }
         TokenProvenance.bindTooltips(tdDetail);
 
         // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Inject payload sources as <template> elements if present`
@@ -66,6 +88,11 @@
         }
       })
       .catch(function (err) {
+        if (targeted) {
+          loadingRow.remove();
+          if (!previousDetail && row.isConnected) setRoundOpen(row, false);
+          throw err;
+        }
         if (loadingRow && loadingRow.parentNode) {
           var msg;
           if (err.data && err.data.error) {
@@ -82,7 +109,7 @@
           var divError = document.createElement('div');
           divError.className = 'sd-round-detail-error';
           var spanError = document.createElement('span');
-          spanError.textContent = 'Round R' + roundId + ' load failed: ' + msg;
+          spanError.textContent = roundDisplayLabel(roundId, row) + ' load failed: ' + msg;
           divError.appendChild(spanError);
           var btnRetry = document.createElement('button');
           btnRetry.type = 'button';
@@ -98,13 +125,14 @@
           tdError.appendChild(divError);
           loadingRow.appendChild(tdError);
         }
-        setRoundOpen(row, false);
+        if (row.isConnected && !previousDetail) setRoundOpen(row, false);
         throw err;
-      });
+      }).finally(function () { row.pendingRoundDetail = null; });
+    return row.pendingRoundDetail;
   }
 
   function setupRoundContentPages(target, first, roundId, row) {
-    var loaded = (first.round && first.round.calls || []).length;
+    var loaded = Number(first.offset || 0) + (first.round && first.round.calls || []).length;
     var memberPager = null;
     var base = getApiBase().replace(/\/$/, '') + '/round/' + encodeURIComponent(roundId);
     function pageUrl(memberCursor, toolCursor) {
@@ -114,20 +142,33 @@
       return base + (params.toString() ? '?' + params.toString() : '');
     }
     function toolsPager(data, memberCursor, pageTarget) {
-      var toolCount = (data.round && data.round.tools || []).length;
+      var toolCount = Number(data.toolOffset || 0) + (data.round && data.round.tools || []).length;
       var pager = null;
       function update(part) {
         pager = contentPager(pageTarget, 'round-tools', toolCount, part.toolTotal ?? toolCount, part.nextToolCursor, function (cursor) {
           return readSessionContentPage(pageUrl(memberCursor, cursor)).then(function (next) {
             if (!pageTarget.isConnected) return;
             var tools = next.round && next.round.tools || [];
-            var block = document.createElement('div');
-            var calls = data.round && data.round.calls || [];
-            setMarkup(block, tools.map(function (tool) {
-              var owner = calls.find(function (call) { return toolBelongsToCall(tool, call); });
-              return renderToolTimelineItems([tool], roundId, Boolean(owner && owner.scope === 'subagent'));
-            }).join(''));
-            pageTarget.insertBefore(block, pager);
+            tools.forEach(function (tool) {
+              var owner = tool.declaredByCallId || '';
+              var actions = qs(pageTarget, '[data-call-actions="' + cssEscape(owner) + '"]');
+              var block = document.createElement('div');
+              setMarkup(block, renderToolTimelineItems([tool], roundId, tool.scope === 'subagent'));
+              if (actions) {
+                actions.append(...block.children);
+                var call = qs(pageTarget, '[data-execution-call="' + cssEscape(owner) + '"]');
+                var preview = call && qs(call, '[data-action-summary]');
+                if (preview) {
+                  var summary = toolResponsePreview(qsa(actions, '[data-tool-execution-kind]').map(function (item) {
+                    return { executionKind: item.dataset.toolExecutionKind };
+                  }));
+                  preview.textContent = summary;
+                  preview.title = summary;
+                  var kind = qs(call, '.sd-tool-kind');
+                  if (kind && call.matches('[data-timeline-item="assistant_text"]')) kind.textContent = 'TOOLS';
+                }
+              } else pageTarget.insertBefore(block, pager);
+            });
             applyToolKindFilter(target);
             toolCount += tools.length;
             update(next);
@@ -151,7 +192,7 @@
         });
       }, memberPager);
     }
-    toolsPager(first, '', target);
+    toolsPager(first, first.memberCursor || '', target);
     if (first.nextCursor) membersPager(first);
   }
 
@@ -190,7 +231,7 @@
     }
   }
 
-  function renderRoundDetailFromJson(round, roundId, row, page) {
+  function renderRoundDetailFromJson(round, roundId, row, page, fresh) {
     round = round || {};
     var calls = Array.isArray(round.calls) ? round.calls : [];
     var toolCallIds = Array.isArray(round.toolCallIds) ? round.toolCallIds : [];
@@ -198,36 +239,52 @@
     var assistantTexts = round.callAssistantTexts || {};
     var mainCalls = calls.filter(function (call) { return !call || call.scope !== 'subagent'; });
     var subagentCalls = calls.filter(function (call) { return call && call.scope === 'subagent'; });
-    var callCount = Number(rowText(row, '.metric-calls-tools > span').replace(/[^0-9]/g, ''));
-    var showMemberButtons = (page && page.total || callCount || calls.length) > 1;
+    var callCount = Math.max(Number(row.dataset.roundCallCount || 0), page?.total ?? calls.length);
+    var single = callCount === 1;
+    var parentSummary = row.querySelector('.summary-title')?.textContent.trim();
     var html = '<div class="sd-round-detail">';
-    if (tools.length && !row.nextElementSibling?.querySelector('[data-tool-kind-filter]')) {
+    if (tools.length && (fresh || !row.nextElementSibling?.querySelector('[data-tool-kind-filter]'))) {
       html += '<label class="ui-select sd-tool-filter"><span class="ui-select__label">工具类别</span><select class="ui-select__control" data-tool-kind-filter>'
-        + '<option value="">全部</option><option value="shell">Shell</option><option value="python">Python</option>'
-        + '<option value="javascript">JavaScript</option><option value="tool">其他工具</option></select></label>';
+        + '<option value="">全部</option>' + Array.from(new Set(tools.map(toolCategory)))
+          .map(function (kind) { return '<option value="' + kind + '">' + toolCategoryLabel(kind) + '</option>'; }).join('')
+        + '</select></label>';
     }
     html += '<div class="sd-timeline">';
     if (!calls.length) {
       var inputOnly = callCount === 0 && row.getAttribute('data-is-user-input') === 'true';
       var inputAvailable = inputOnly && row.getAttribute('data-observed-input-available') === 'true';
       html += '<div class="sd-card-empty">' + (inputAvailable
-        ? contentPayloadButton('round:req:' + roundId, 'llm_request', '用户输入', 'Input', '')
+        ? '输入原文见本轮入口。'
         : inputOnly ? '此轮没有可展示的输入正文或模型调用记录。'
         : 'No normalized calls returned by the round API.') + '</div>';
     } else {
+      var hasChildContent = subagentCalls.length > 0;
       mainCalls.forEach(function (call, idx) {
         var callText = assistantTexts[call.callId] || '';
+        if (single && callText.trim() === parentSummary) callText = '';
         var declared = toolsForCall(call, tools);
-        if (callText || !declared.length) html += renderAssistantTimelineItem(roundId, call, idx + 1, callText, declared, showMemberButtons);
-        html += renderToolTimelineItems(declared, roundId, false, call, showMemberButtons && !callText);
+        var phase = callPhaseLabel(call);
+        var showCallRow = Boolean(callText || phase || (!single && !declared.length));
+        if (showCallRow) html += renderAssistantTimelineItem(roundId, call, idx + 1, callText, declared, single, phase);
+        hasChildContent ||= showCallRow || declared.length > 0;
+        var toolRows = renderToolTimelineItems(declared, roundId, false, call);
+        html += '<div class="sd-call-tools" data-call-tools="' + escapeRoundHtml(call.callId)
+          + '" data-call-actions="' + escapeRoundHtml(call.callId) + '"'
+          + (declared.length && !showCallRow ? ' data-execution-call="' + escapeRoundHtml(call.callId) + '"' : '') + '>'
+          + (declared.length > 1 ? '<div class="sd-call-tools__label">同一调用</div>' : '')
+          + (declared.length && !showCallRow && !single ? toolOnlyCallAccess(call, roundId) : '')
+          + toolRows + '</div>';
       });
       if (!mainCalls.length && toolCallIds.length) {
         var unownedTools = tools.filter(function (tool) {
           return !calls.some(function (call) { return toolBelongsToCall(tool, call); });
         });
         html += renderToolTimelineItems(unownedTools, roundId, false);
+        hasChildContent ||= unownedTools.length > 0;
       }
-      html += renderSubagentTimeline(subagentCalls, tools, roundId, assistantTexts, showMemberButtons);
+      html += renderSubagentTimeline(subagentCalls, tools, roundId, assistantTexts, single);
+      if (!hasChildContent) html += '<div class="sd-card-empty" data-execution-call="'
+        + escapeRoundHtml(calls[0].callId || '') + '">没有额外事件；调用原文见本轮入口。</div>';
     }
     html += '</div></div>';
     return html;
@@ -242,83 +299,145 @@
       + '>' + escapeRoundHtml(label) + '</button>';
   }
 
+  function memberAttributionPath(roundId, callId, kind) {
+    return '/attribution/' + encodeURIComponent(roundId) + '/1/' + kind + '?call_id=' + encodeURIComponent(callId);
+  }
+
   function memberPayloadButtons(call, roundId, payloadTitle) {
+    if (!call.callId) return '';
     return ['req', 'resp'].map(function (side) {
       var kind = side === 'req' ? 'request' : 'response';
       var label = side === 'req' ? 'Request' : 'Response';
-      var path = '/attribution/' + encodeURIComponent(roundId) + '/1/' + kind + '?call_id=' + encodeURIComponent(call.callId);
+      var path = memberAttributionPath(roundId, call.callId, kind);
       return contentPayloadButton(payloadIdFor(call, side), payloadKindFor(call, side), payloadTitle + ' · ' + label, label, path);
     }).join('');
   }
 
-  function toolResponsePreview(tools) {
-    return tools.map(function (tool) { return tool.name || '工具'; }).join('、');
+  var toolCategoryLabels = new Map(Object.entries({
+    read: '读取', search: '搜索', write: '写入', edit: '编辑', shell: 'Shell', python: 'Python',
+    javascript: 'JavaScript', wait: '等待', stop: '终止', 'process-input': '进程输入',
+    agent: 'Agent 调度', web: '网页', tool: '其他工具'
+  }));
+
+  function toolCategory(tool) {
+    return toolCategoryLabels.has(tool.executionKind) ? tool.executionKind : 'tool';
   }
 
-  function renderAssistantTimelineItem(roundId, call, callIndex, callText, tools, showButtons) {
+  function toolCategoryLabel(kind) {
+    return toolCategoryLabels.get(kind);
+  }
+
+  function toolResponsePreview(tools) {
+    var counts = new Map();
+    tools.forEach(function (tool) {
+      var kind = toolCategory(tool);
+      counts.set(kind, (counts.get(kind) || 0) + 1);
+    });
+    return Array.from(counts, function (entry) {
+      return toolCategoryLabel(entry[0]) + (entry[1] > 1 ? ' × ' + entry[1] : '');
+    }).join(' · ');
+  }
+
+  function callPhaseLabel(call) {
+    return call.phaseLabel || '';
+  }
+
+  function callTimes(call) {
+    return timeEvidence(localTime(call.timestamp), '时间', 'sd-time-point')
+      + timeEvidence(durationFromMillis(call.durationMs), '耗时', 'sd-time-duration');
+  }
+
+  function toolOnlyCallAccess(call, roundId) {
+    var label = call.callKey || call.callId;
+    return '<div class="sd-call-sources"><b>' + escapeRoundHtml(label) + '</b>'
+      + callTimes(call)
+      + '<span title="本次调用 Token">' + escapeRoundHtml(TokenProvenance.amount(call.usage || {}, 'total', compactTokens)) + '</span>'
+      + memberPayloadButtons(call, roundId, roundDisplayLabel(roundId) + ' · ' + label) + '</div>';
+  }
+
+  function renderAssistantTimelineItem(roundId, call, callIndex, callText, tools, single, phase) {
     call = call || {};
     var usage = call.usage || {};
     var callLabel = call.callKey || ('C' + callIndex);
-    var displayText = callText || toolResponsePreview(tools) || '响应正文未记录';
-    var timeDisplay = localTime(call.timestamp) || '未记录';
+    var displayText = [phase, callText || (!phase ? toolResponsePreview(tools) : '')].filter(Boolean).join(' · ')
+      || '模型调用原文见本行入口';
     var tokenDisplay = escapeRoundHtml(TokenProvenance.amount(usage, 'total', compactTokens));
     var scopeDisplay = call.scope === 'subagent' ? '子 agent' : '主会话';
     var callTitle = '本地响应记录 ' + callLabel + ' · ' + scopeDisplay + ' · callId: ' + (call.callId || '未记录') + '；不代表独立 provider 请求';
-    var payloadTitle = 'R' + roundId + ' · ' + callLabel;
-    return '<div class="sd-timeline-item" data-timeline-item="assistant_text">'
+    var payloadTitle = roundDisplayLabel(roundId) + ' · ' + callLabel;
+    return '<div class="sd-timeline-item" data-timeline-item="assistant_text" data-execution-call="' + escapeRoundHtml(call.callId || '') + '">'
       + '<span class="sd-timeline-dot sd-timeline-dot--text"></span>'
       + '<section class="sd-tool-group sd-tool-group--flat">'
       + '<div class="sd-tool-row sd-tool-row--quiet sd-event-row sd-event-row--compact sd-event-row--assistant_text">'
       + '<span class="sd-tool-kind">' + (callText ? 'TEXT' : tools.length ? 'TOOLS' : 'RESPONSE') + '</span>'
-      + '<span class="sd-tool-cmd sd-event-row__text" title="' + escapeRoundHtml(displayText) + '">' + escapeRoundHtml(displayText) + '</span>'
+      + '<span class="sd-tool-cmd sd-event-row__text"' + (callText || phase ? '' : ' data-action-summary') + ' title="' + escapeRoundHtml(displayText) + '">'
+      + (!single && call.callKey ? '<b class="sd-call-identity">' + escapeRoundHtml(call.callKey) + '</b> · ' : '')
+      + escapeRoundHtml(displayText) + '</span>'
       + '<span class="sd-tool-result"></span>'
-      + '<span class="sd-tool-time" data-meta-label="时间">' + escapeRoundHtml(timeDisplay) + '</span>'
-      + '<span class="sd-exit sd-exit--muted" title="' + escapeRoundHtml(callTitle) + '">记录 ' + escapeRoundHtml(callLabel) + '</span>'
-      + '<span class="sd-tool-tokens" tabindex="0" data-token-breakdown="' + escapeRoundHtml(JSON.stringify({ tokens: usage, providerOnly: true })) + '" title="' + escapeRoundHtml(TokenProvenance.note(usage) || '调用 Token') + '">' + tokenDisplay + '</span>'
+      + (single ? '<span></span><span></span>' : callTimes(call))
+      + '<span class="sd-exit sd-exit--muted" title="' + escapeRoundHtml(callTitle) + '">' + scopeDisplay + '</span>'
+      + (single ? '<span></span>' : '<span class="sd-tool-tokens" tabindex="0" data-token-breakdown="' + escapeRoundHtml(JSON.stringify({ tokens: usage, providerOnly: true })) + '" title="' + escapeRoundHtml(TokenProvenance.note(usage) || '调用 Token') + '">' + tokenDisplay + '</span>')
       + '<span class="sd-tool-actions">'
-      + (showButtons ? memberPayloadButtons(call, roundId, payloadTitle) : '')
+      + (single ? '' : memberPayloadButtons(call, roundId, payloadTitle))
       + '</span></div></section></div>';
   }
 
   function applyToolKindFilter(container) {
     var filter = qs(container, '[data-tool-kind-filter]');
     if (!filter) return;
+    var available = new Set(Array.from(filter.options, function (option) { return option.value; }));
     qsa(container, '[data-tool-execution-kind]').forEach(function (item) {
-      item.hidden = Boolean(filter.value) && filter.value !== item.getAttribute('data-tool-execution-kind');
+      var kind = item.getAttribute('data-tool-execution-kind');
+      if (!available.has(kind) && toolCategoryLabels.has(kind)) {
+        filter.add(new Option(toolCategoryLabel(kind), kind));
+        available.add(kind);
+      }
+      item.hidden = Boolean(filter.value) && filter.value !== kind;
+    });
+    qsa(container, '[data-call-tools]').forEach(function (group) {
+      group.hidden = !group.querySelector('[data-tool-execution-kind]:not([hidden])');
     });
   }
 
-  function renderToolTimelineItems(tools, roundId, isSubagent, call, showButtons) {
+  function observedToolTime(tool) {
+    var nanos = tool.observation?.durationNanos;
+    if (Number.isFinite(nanos) && nanos >= 0) return durationLabel(nanos / 1e9);
+    return durationLabel(Number.isFinite(tool.durationMs) ? tool.durationMs / 1000 : null);
+  }
+
+  function renderToolTimelineItems(tools, roundId, isSubagent, call) {
     if (!tools || !tools.length) return '';
     return tools.map(function (tool, index) {
       var status = toolStatusLabel(tool);
       var failed = isFailedTool(tool);
-      var preview = tool.inputPreview || '';
-      var cmdText = preview || tool.name || '输入未记录';
-      var cmdTitle = (preview ? tool.name + ': ' : '') + cmdText;
-      var timeText = tool.durationMs != null ? durationLabel(tool.durationMs) : '未记录';
-      var scopeText = isSubagent ? '子 agent' : '主会话';
-      var executionKind = tool.executionKind || 'tool';
-      var kindLabel = {shell: 'Shell', python: 'Python', javascript: 'JS'}[executionKind] || toolKind(tool.name);
+      var timeText = observedToolTime(tool);
+      var toolTimestamp = localTime(tool.timestamp);
+      var scopeText = isSubagent ? '子 Agent' : '';
+      var executionKind = toolCategory(tool);
+      var kindLabel = toolCategoryLabel(executionKind);
+      var action = [tool.name !== kindLabel ? tool.name : '', tool.inputPreview].filter(Boolean).join(' · ');
       return '<div class="sd-timeline-item" data-timeline-item="tool-call" data-tool-execution-kind="' + escapeRoundHtml(executionKind) + '">'
         + '<span class="sd-timeline-dot sd-timeline-dot--tool"></span>'
         + '<section class="sd-tool-group sd-tool-group--flat">'
         + '<div class="sd-tool-row' + (failed ? ' sd-tool-row--failed sd-tool-row--fail' : '')
-        + (status ? '' : ' sd-tool-row--quiet') + '" data-status="' + (failed ? 'failed' : 'ok') + '" data-tool-call-id="' + escapeRoundHtml(tool.toolCallId || '') + '">'
-        + '<span class="sd-tool-kind" title="' + escapeRoundHtml(tool.name || 'Tool') + '">' + escapeRoundHtml(kindLabel) + '</span>'
-        + '<span class="sd-tool-cmd" title="' + escapeRoundHtml(cmdTitle) + '">' + escapeRoundHtml(cmdText) + '</span>'
+        + (status ? '' : ' sd-tool-row--quiet') + '" data-status="' + (failed ? 'failed' : (status ? 'observed' : 'unknown')) + '" data-tool-call-id="' + escapeRoundHtml(tool.toolCallId || '') + '" data-declaring-call-id="' + escapeRoundHtml(tool.declaredByCallId || '') + '" data-declaring-call-scope="' + (isSubagent || tool.scope === 'subagent' ? 'subagent' : 'main') + '"'
+        + (call?.callKey ? ' data-declaring-call-key="' + escapeRoundHtml(call.callKey) + '"' : '')
+        + (toolTimestamp ? ' data-tool-observed-timestamp="' + escapeRoundHtml(toolTimestamp) + '"' : '')
+        + (tool.name ? ' data-tool-visible-name="' + escapeRoundHtml(tool.name) + '"' : '')
+        + (timeText !== '未记录' ? ' data-tool-observed-time="' + escapeRoundHtml(timeText) + '"' : '')
+        + ' title="声明调用: ' + escapeRoundHtml(tool.declaredByCallId || '未记录') + '">'
+        + '<span class="sd-tool-kind">' + (tools.length > 1 ? String(index + 1) : '') + '</span>'
+        + '<span class="sd-tool-cmd" title="' + escapeRoundHtml(action || kindLabel) + '"><strong class="sd-action-category">'
+        + escapeRoundHtml(kindLabel) + '</strong>' + (action ? ' · ' + escapeRoundHtml(action) : '') + '</span>'
         + '<span class="sd-tool-result' + (failed ? ' sd-tool-result--failed sd-tool-result--fail' : '') + '" title="状态：' + escapeRoundHtml(status) + '">' + escapeRoundHtml(status) + '</span>'
-        + '<span class="sd-tool-time" data-meta-label="耗时">' + escapeRoundHtml(timeText) + '</span>'
-        + '<span class="sd-exit' + (failed ? ' sd-exit--err' : '') + '" title="声明调用: ' + escapeRoundHtml(tool.declaredByCallId || '未记录') + '">' + escapeRoundHtml(scopeText + (call && call.callKey ? ' · ' + call.callKey : '')) + '</span>'
-        + '<span class="sd-tool-tokens" aria-label="无独立 token 计量" title="无独立 token 计量；查看模型调用归因">—</span>'
-        + '<span class="sd-tool-actions">'
-        + (showButtons && index === 0 ? memberPayloadButtons(call, roundId, 'R' + roundId + ' · ' + (call.callKey || call.callId)) : '')
-        + contentPayloadButton('tool:input:' + (tool.toolCallId || ''), 'tool_input', (tool.name || 'Tool') + ' · Input', 'Input')
-        + (tool.resultObserved === false ? '<span class="muted">未记录结果</span>'
-          : contentPayloadButton('tool:result:' + (tool.toolCallId || ''), 'tool_result', (tool.name || 'Tool') + ' · Result', 'Result'))
-        + '</span>'
-        + '</div><details class="sd-tool-payload-pair" data-tool-payload-pair data-tool-id="' + escapeRoundHtml(tool.toolCallId || '') + '" data-result-observed="' + (tool.resultObserved !== false) + '">'
-        + '<summary>Input / Result</summary><div class="sd-tool-payload-grid"></div></details></section></div>';
+        + timeEvidence(toolTimestamp, '发起时间', 'sd-time-point', '来源记录的工具声明时间，非执行器启动时间')
+        + timeEvidence(timeText, '耗时', 'sd-time-duration')
+        + '<span' + (scopeText ? ' class="sd-exit' + (failed ? ' sd-exit--err' : '') + '"' : '') + '>' + escapeRoundHtml(scopeText) + '</span>'
+        + '<span class="sd-tool-tokens"></span><span class="sd-tool-actions">'
+        + (tool.resultObserved === true && tool.toolCallId
+          ? contentPayloadButton('tool:result:' + tool.toolCallId, 'tool_result', (tool.name || 'Tool') + ' · Result', 'Result', '') : '')
+        + '</span></div><details class="sd-tool-payload-pair" data-tool-payload-pair data-tool-id="' + escapeRoundHtml(tool.toolCallId || '') + '" data-result-observed="' + (tool.resultObserved === true) + '">'
+        + '<summary>工具原文' + (tool.resultObserved !== true ? ' · 无结果' : '') + '</summary>' + toolObservationHtml(tool) + '<div class="sd-tool-payload-grid"></div></details></section></div>';
     }).join('');
   }
 
@@ -339,8 +458,26 @@
         return;
       }
       function load() {
-        return readSessionContentPage(getApiBase().replace(/\/$/, '') + '/payload/' + encodeURIComponent('tool:' + side + ':' + details.getAttribute('data-tool-id')))
-          .then(function (data) { body.textContent = data.content || data.text || '内容未记录'; })
+        var tool = details.getAttribute('data-tool-id');
+        var id = 'tool:' + side + ':' + tool;
+        var detailRow = details.closest('[data-trace-detail]');
+        var round = detailRow && (detailRow.id.match(/^round-(\d+)-detail$/) || [])[1];
+        return readSessionContentPage(getApiBase().replace(/\/$/, '') + '/payload/' + encodeURIComponent(id), {
+          kind: 'tool-result', tool: tool, round: round,
+          valid: function () {
+            return round && tool && details.getAttribute('data-result-observed') === 'true'
+              && details.open && details.contains(document.activeElement) && !details.closest('[hidden]');
+          }
+        })
+          .then(function (data) {
+            body.textContent = data.content || data.text || '内容未记录';
+            if (side === 'input' && (data.content || data.text)) {
+              var action = document.createElement('div');
+              var label = side === 'input' ? 'Input' : 'Result';
+              setMarkup(action, contentPayloadButton(id, 'tool_' + side, title.textContent, label, ''));
+              title.after(action);
+            }
+          })
           .catch(function (error) {
             body.textContent = error.message;
             var retry = document.createElement('button');
@@ -358,7 +495,7 @@
     });
   }
 
-  function renderSubagentTimeline(subagentCalls, tools, roundId, assistantTexts, stableIdentity) {
+  function renderSubagentTimeline(subagentCalls, tools, roundId, assistantTexts, single) {
     if (!subagentCalls.length) return '';
     var groups = groupSubagentCalls(subagentCalls);
     var html = '';
@@ -377,39 +514,42 @@
         + '<span class="sd-subagent__title">Subagent</span>'
         + '<span class="sd-pill sd-pill--model sd-pill--sm">独立上下文</span>'
         + '<span class="sd-pill sd-pill--sm" data-subagent-state="unknown">状态未记录</span>'
-        + '<span class="sd-subagent__meta">' + escapeRoundHtml(String(groupTools.length)) + ' tools, ' + escapeRoundHtml(TokenProvenance.total({ total: totalTokens }, compactTokens)) + ' tokens</span>'
+        + '<span class="sd-subagent__meta">' + escapeRoundHtml(String(groupTools.length)) + ' tools'
+        + (single ? '' : ', ' + escapeRoundHtml(TokenProvenance.total({ total: totalTokens }, compactTokens)) + ' tokens') + '</span>'
         + '<button type="button" class="sd-btn sd-btn--secondary sd-btn--sm sd-subagent__toggle" data-action="toggle-subagent-rounds" aria-expanded="false">Expand all</button>'
         + '</div><div class="sd-sub-rounds">';
       groupCalls.forEach(function (call, idx) {
-        html += renderSubRound(call, toolsForCall(call, tools), idx + 1, assistantTexts || {}, roundId, stableIdentity);
+        html += renderSubRound(call, toolsForCall(call, tools), idx + 1, assistantTexts || {}, roundId, single);
       });
       html += '</div></section></div></div>';
     });
     return html;
   }
 
-  function renderSubRound(call, tools, indexInSubagent, assistantTexts, roundId, showButtons) {
+  function renderSubRound(call, tools, indexInSubagent, assistantTexts, roundId, single) {
     var usage = call.usage || {};
     var sr = subRoundLabel(call, indexInSubagent);
-    var callText = assistantTexts[call.callId] || toolResponsePreview(tools) || '响应正文未记录';
-    return '<div class="sd-sub-round" data-sub-round-id="' + escapeRoundHtml(String(indexInSubagent)) + '" data-sub-round-open="false">'
+    var callText = [callPhaseLabel(call), assistantTexts[call.callId] || toolResponsePreview(tools)].filter(Boolean).join(' · ')
+      || (single ? '子 Agent' : '模型调用原文见本行入口');
+    return '<div class="sd-sub-round" data-sub-round-id="' + escapeRoundHtml(String(indexInSubagent)) + '" data-execution-call="' + escapeRoundHtml(call.callId || '') + '" data-sub-round-open="false">'
       + '<div class="sd-sub-round__summary" data-sub-round-toggle>'
       + '<button type="button" class="sd-sub-round__toggle" data-action="toggle-sub-round" aria-expanded="false" aria-label="Toggle subround ' + escapeRoundHtml(sr) + '"><span aria-hidden="true">›</span></button>'
       + '<span class="sd-sub-id">' + escapeRoundHtml(sr) + '</span>'
-      + '<span class="sd-sub-title" title="' + escapeRoundHtml(callText) + '">' + escapeRoundHtml(callText) + '</span>'
+      + '<span class="sd-sub-title"' + (assistantTexts[call.callId] ? '' : ' data-action-summary') + ' title="' + escapeRoundHtml(callText) + '">' + escapeRoundHtml(callText) + '</span>'
       + '<span class="sd-attribution-actions sd-attribution-actions--subround" aria-label="内容与 Token 归因">'
-      + (showButtons ? memberPayloadButtons(call, roundId, 'Subagent · ' + sr) : '')
+      + (single ? '' : memberPayloadButtons(call, roundId, 'Subagent · ' + sr))
       + '</span>'
-      + '<span class="sd-sub-time">' + escapeRoundHtml(localTime(call.timestamp) || '未记录') + '</span>'
-      + tokenbarSub(usage)
-      + '</div><div class="sd-sub-steps" data-sub-round-steps hidden>'
-      + renderToolTimelineItems(tools, '', true)
+      + (single ? '<span></span><span></span><span></span>' : callTimes(call) + tokenbarSub(usage))
+      + '</div><div class="sd-sub-steps" data-sub-round-steps data-call-actions="' + escapeRoundHtml(call.callId || '') + '" hidden>'
+      + renderToolTimelineItems(tools, roundId, true, call)
       + '</div></div>';
   }
 
-  function rowText(row, selector) {
-    var el = row && row.querySelector ? row.querySelector(selector) : null;
-    return el ? el.textContent.trim() : '';
+  function roundDisplayLabel(roundId, row) {
+    if (!row) row = Array.from(document.querySelectorAll('.round-row[data-round]')).find(function (candidate) {
+      return candidate.getAttribute('data-round') === String(roundId);
+    });
+    return row && row.getAttribute('data-round-label') || '记录 ' + roundId;
   }
 
   function groupSubagentCalls(calls) {
@@ -450,28 +590,52 @@
 
   function isFailedTool(tool) {
     if (!tool) return false;
-    if (tool.exitCode != null && Number(tool.exitCode) !== 0) return true;
+    var exit = tool.observation?.exitCode ?? tool.exitCode;
     var status = String(tool.status || '').trim().toLowerCase();
-    return Boolean(status) && !['ok', 'success', 'completed', 'running', 'pending', 'queued'].includes(status);
-  }
-
-  function toolKind(name) {
-    var value = String(name || 'tool').replace(/[^A-Za-z]/g, '').toUpperCase();
-    return (value || 'TOOL').slice(0, 4);
+    var explicit = String(tool.observation?.status || '').toLowerCase();
+    return (exit != null && Number(exit) !== 0) || ['failed', 'error', 'cancelled'].includes(explicit)
+      || (Boolean(status) && !['ok', 'success', 'completed', 'running', 'pending', 'queued'].includes(status));
   }
 
   function toolStatusLabel(tool) {
-    if (!tool) return '状态未记录';
-    if (tool.exitCode != null && Number(tool.exitCode) !== 0) return 'exit ' + tool.exitCode;
-    if (tool.status && !/^(?:ok|success|completed)$/i.test(tool.status)) return tool.status;
-    return tool.status || (tool.exitCode === 0 ? '成功' : '状态未记录');
+    if (!tool) return '';
+    var exit = tool.observation?.exitCode ?? tool.exitCode;
+    if (exit != null && Number(exit) !== 0) return '退出码 ' + exit;
+    if (isFailedTool(tool)) return ({
+      failed: '失败', error: '失败', cancelled: '已取消',
+      text_heuristic_failure: '文本提示失败', tool_error: '工具报错'
+    })[tool.status] || ({
+      failed: '失败', error: '失败', cancelled: '已取消'
+    })[tool.observation?.status] || '失败信号';
+    return '';
   }
 
-  function durationLabel(ms) {
-    var value = Number(ms || 0);
-    if (!Number.isFinite(value) || value < 0) return '未记录';
-    if (value < 1000) return value + ' ms';
-    return (value / 1000).toFixed(value < 10000 ? 1 : 0) + 's';
+  function toolObservationHtml(tool) {
+    var observed = tool.observation;
+    if (!observed) return '';
+    var facts = [observed.source, observed.kind, observed.status, observed.issue].filter(Boolean);
+    if (observed.exitCode != null) facts.push('退出码 ' + observed.exitCode);
+    return facts.length ? '<p class="sd-chart-note">' + escapeRoundHtml(facts.join(' · ')) + '</p>' : '';
+  }
+
+  function timeEvidence(value, label, className, note) {
+    var display = value && value !== '未记录' ? value : '—';
+    return '<span class="' + className + '" data-clock-label="' + label + '" title="' + label + '：'
+      + escapeRoundHtml(display) + (note ? '（' + note + '）' : '') + '">'
+      + escapeRoundHtml(display) + '</span>';
+  }
+
+  function durationFromMillis(value) {
+    return durationLabel(Number.isFinite(value) ? value / 1000 : null);
+  }
+
+  function durationLabel(seconds) {
+    if (!Number.isFinite(seconds) || seconds < 0) return '未记录';
+    var tenths = Math.round(seconds * 10);
+    if (seconds > 0 && tenths === 0) return '<0.1 秒';
+    var minutes = Math.floor(tenths / 600);
+    var secondsLabel = (tenths % 600) / 10 + ' 秒';
+    return minutes > 0 ? minutes + ' 分 ' + secondsLabel : secondsLabel;
   }
 
   function localTime(value) {
@@ -484,8 +648,8 @@
   function compactTokens(value) {
     var n = Number(value || 0);
     if (typeof formatCompactToken === 'function') return formatCompactToken(n);
-    if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
-    if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+    if (n >= 1000000) return Number((n / 1000000).toFixed(1)) + 'M';
+    if (n >= 1000) return Number((n / 1000).toFixed(1)) + 'K';
     return String(Math.round(n));
   }
 
@@ -518,11 +682,6 @@
     var subagent = call && call.scope === 'subagent';
     if (side === 'req') return subagent ? 'subagent_request' : 'llm_request';
     return subagent ? 'subagent_response' : 'llm_response';
-  }
-
-  function attributionUrl(roundId, callIndex, kind) {
-    var apiBase = getApiBase().replace(/\/$/, '');
-    return apiBase + '/attribution/' + encodeURIComponent(roundId) + '/' + encodeURIComponent(callIndex) + '/' + kind;
   }
 
   function escapeRoundHtml(value) {

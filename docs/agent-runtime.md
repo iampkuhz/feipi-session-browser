@@ -26,7 +26,7 @@ Session 状态，也不要求平台事件先完成初始化。机器契约见
 
 ## 原生 subagent 委派
 
-普通小改由主线程处理；需要委派时使用当前 Agent 的原生 subagents。共享真源是
+单一局部小改由主线程处理。复杂任务或一条指令含多项工作时，主线程主动按责任边界分给不同的原生 subagent；独立部分并行，存在依赖则顺序交接。要求先看方案的部分只派设计，不把确认其他事项当作实现授权。共享真源是
 `harness/agent-policy.manifest.yaml` 的 `native_delegation` 与 `subagent_instance_protocol`。
 不新增 CLI、调度器、队列、receipt、callback、watchdog、ack 或仓库任务状态机。
 
@@ -47,6 +47,8 @@ Qoder 工程派发已退役：旧 Qoder PASS 不能充当原生验收证据；�
 Run completed 不是 Issue 验收通过；平台 max_attempts 不限制内部代码修复轮次。顺序启动也不是依赖验收，默认不绕过未验收的前置任务；用户明确授权前一 Run 终态后继续时可按该有界范围推进，但保留前项未解决责任，不宣称验收通过或取得目录锁。仓库约定不等于平台提供硬依赖锁。
 
 ## Multica 临时规则
+
+版本分支、任务卡和评论派发见 [Multica 版本协作](development/multica.md)。
 
 仓库维护的 `AGENTS.md` 仍受 policy 的 2800-byte 限制。仅完整 Multica 任务环境、合法 UUID 身份及原生标记包裹的单个尾块，才按 `multica_runtime_bytes` 单独计费；HEAD/index 中不得存在该块，未知、损坏或持久化的标记均拒绝。
 这只是临时格式和任务环境的一致性校验，不是对环境变量的密码学认证，也不能把产品缺陷归为平台重试。

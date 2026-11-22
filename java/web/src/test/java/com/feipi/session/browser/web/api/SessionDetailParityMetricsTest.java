@@ -16,6 +16,7 @@ import com.feipi.session.browser.domain.normalized.NormalizedCallResponse;
 import com.feipi.session.browser.domain.normalized.NormalizedCallUsage;
 import com.feipi.session.browser.domain.normalized.NormalizedConstants;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
+import com.feipi.session.browser.domain.normalized.NormalizedSessionContent;
 import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
 import com.feipi.session.browser.domain.normalized.SourceUnitCatalogEntry;
 import com.feipi.session.browser.domain.normalized.SourceUnitDirection;
@@ -100,9 +101,10 @@ class SessionDetailParityMetricsTest {
       var agents = (List<?>) result.diagnostics.get("agents");
       assertThat(((Map<?, ?>) agents.get(0)).get("failures")).isEqualTo(1L);
       assertThat(((Map<?, ?>) agents.get(1)).get("failures")).isEqualTo(1L);
-      var impact = (Map<?, ?>) result.diagnostics.get("toolImpact");
-      assertThat(impact.get("failedTools")).isEqualTo(2L);
-      assertThat(impact.get("distinctTools")).isEqualTo(1);
+      assertThat(result.diagnostics)
+          .containsEntry("toolCalls", 3L)
+          .containsEntry("failedTools", 2L)
+          .containsEntry("failedToolsRate", "66.7%");
     }
   }
 
@@ -180,7 +182,6 @@ class SessionDetailParityMetricsTest {
         .containsEntry("issueRounds", 1);
     assertThat(result.round(1).signals).containsExactly("Payload Gap");
     assertThat(result.round(1).payloadGap).isTrue();
-    assertThat(result.diagnostics.get("issueCount")).isEqualTo(2);
   }
 
   @Test
@@ -251,10 +252,6 @@ class SessionDetailParityMetricsTest {
     var result = SessionDetailParityAnalyzer.analyze(detail, artifact, false);
     assertThat(result.metrics).containsEntry("failedTools", 0L).containsEntry("payloadGaps", 1L);
     assertThat(result.round(1).signals).containsExactly("Payload Gap");
-    var issues = (List<?>) result.diagnostics.get("issues");
-    assertThat(issues).hasSize(1);
-    assertThat(((Map<?, ?>) issues.get(0)).get("seed"))
-        .isEqualTo("referenced-result + consumer + tool-result:missing");
   }
 
   @Test
@@ -288,7 +285,6 @@ class SessionDetailParityMetricsTest {
           .containsEntry("failedTools", 48L)
           .containsEntry("payloadGaps", 0L)
           .containsEntry("issueRounds", 0);
-      assertThat(result.diagnostics.get("issueCount")).isEqualTo(0);
     }
   }
 
@@ -336,6 +332,66 @@ class SessionDetailParityMetricsTest {
       }
     }
     assertThat(composition).isEqualTo(30);
+  }
+
+  @Test
+  void anonymousChildUsageAndFailureShareOneUnidentifiedScopeWithoutInventingIdentity()
+      throws Exception {
+    var artifact =
+        artifact(
+            NormalizedAgent.CODEX,
+            List.of(
+                usageCall("main", 1, "", 4, 0, 0, 0, reported().toMetadata(), ""),
+                usageCall(
+                    "child", 2, CallScope.SUBAGENT, "", 8, 0, 0, 0, reported().toMetadata(), ""),
+                usageCall("named-child", 3, "unknown", 2, 0, 0, 0, reported().toMetadata(), "")),
+            List.of(
+                tool("main-ok", "main", CallScope.MAIN, Optional.empty(), Optional.empty()),
+                new NormalizedToolExecution(
+                    "child-failed",
+                    "Read",
+                    CallScope.SUBAGENT,
+                    "child",
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.of(7),
+                    0,
+                    List.of(),
+                    Optional.empty())));
+    var detail =
+        detail(
+            NormalizedAgent.CODEX, "synthetic", directory.resolve("unavailable"), artifact, 2, 1);
+    var content = NormalizedSessionContent.fromArtifact(artifact);
+    for (var result :
+        List.of(
+            SessionDetailParityAnalyzer.analyze(detail, artifact, false),
+            SessionDetailParityAnalyzer.analyze(detail, null, content, false))) {
+      var agents = new ObjectMapper().valueToTree(result.diagnostics.get("agents"));
+      assertThat(agents).hasSize(3);
+      var main = agents.path(0);
+      assertThat(main.path("tools").asLong()).isEqualTo(1);
+      assertThat(main.path("failures").asLong()).isZero();
+      var unidentified = agents.path(1);
+      assertThat(unidentified.path("scope").asText()).isEqualTo("subagent_unknown");
+      assertThat(unidentified.path("agent").asText()).contains("汇总");
+      assertThat(unidentified.path("subagentId").asText()).isEmpty();
+      assertThat(unidentified.path("sessionId").asText()).isEmpty();
+      assertThat(unidentified.path("localRecords").asLong()).isEqualTo(1);
+      assertThat(unidentified.at("/tokenSegments/total").asLong()).isEqualTo(8);
+      assertThat(unidentified.path("tools").asLong()).isEqualTo(1);
+      assertThat(unidentified.path("failures").asLong()).isEqualTo(1);
+      assertThat(agents.path(2).path("subagentId").asText()).isEqualTo("unknown");
+      assertThat(result.metrics.get("subagentRuns")).isEqualTo(1L);
+    }
+    var rounds = new ObjectMapper().valueToTree(SessionContentProjection.rounds(detail, content));
+    var owners = rounds.path(0).path("parity").path("agentUsage");
+    assertThat(owners).hasSize(3);
+    assertThat(owners.path(0).path("failed").asBoolean()).isFalse();
+    assertThat(owners.path(1).path("owner").asText()).isEqualTo("subagent_unknown");
+    assertThat(owners.path(1).at("/tokens/total").asLong()).isEqualTo(8);
+    assertThat(owners.path(1).path("failed").asBoolean()).isTrue();
+    assertThat(owners.path(2).path("owner").asText()).isEqualTo("subagent:unknown");
+    assertThat(owners.path(2).path("failed").asBoolean()).isFalse();
   }
 
   @Test
@@ -497,6 +553,20 @@ class SessionDetailParityMetricsTest {
       Map<String, Object> source,
       String toolOutput) {
     var scope = childId.isBlank() ? CallScope.MAIN : CallScope.SUBAGENT;
+    return usageCall(id, index, scope, childId, fresh, read, write, output, source, toolOutput);
+  }
+
+  private static NormalizedCall usageCall(
+      String id,
+      int index,
+      CallScope scope,
+      String childId,
+      long fresh,
+      long read,
+      long write,
+      long output,
+      Map<String, Object> source,
+      String toolOutput) {
     var base = call(id, index, scope, List.of());
     return new NormalizedCall(
         base.callId(),

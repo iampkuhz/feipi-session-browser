@@ -118,8 +118,6 @@ public final class NormalizationEngine {
 
     records = List.copyOf(records);
     List<SourceRecord> originalRecords = records;
-    var eventActivity = new EventActivityAccumulator(agent);
-    originalRecords.forEach(eventActivity::accept);
 
     // 0. Qoder 专用预处理：合并同 turnId 的 assistant 分片
     if (agent == NormalizedAgent.QODER) {
@@ -183,9 +181,6 @@ public final class NormalizationEngine {
               "positionUnit",
               "sourceEventIndex"));
     }
-
-    session = new LinkedHashMap<>(session);
-    session.put("eventActivity", eventActivity.snapshot());
 
     // 6. 构建源单元目录
     Map<String, SourceUnitCatalogEntry> sourceUnitCatalog =

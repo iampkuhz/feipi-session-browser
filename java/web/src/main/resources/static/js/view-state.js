@@ -4,7 +4,6 @@
 
     var STORAGE_PREFIX = 'arp_';
     var DENSITY_KEY = STORAGE_PREFIX + 'density';
-    var VIEWS_KEY_PREFIX = STORAGE_PREFIX + 'view_';
     var VIEWS_LIST_KEY = STORAGE_PREFIX + 'views_list';
 
     var DEFAULT_DENSITY = 'compact';

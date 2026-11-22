@@ -1,6 +1,7 @@
 package com.feipi.session.browser.web;
 
 import com.feipi.session.browser.web.api.ApiResponses.ApiErrorResponse;
+import io.javalin.http.Context;
 import io.javalin.http.Handler;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -36,20 +37,24 @@ public final class IndexSnapshotGuard {
       String expected = context.header(HEADER);
       context.header("Cache-Control", "no-store");
       if (expected != null && !expected.equals(before)) {
-        context
-            .status(409)
-            .json(new ApiErrorResponse("index_generation_changed", "索引已更新，请重试整个查询批次"));
+        changed(context, before);
         return;
       }
       handler.handle(context);
-      if (!before.equals(generation.get())) {
-        context
-            .status(409)
-            .json(new ApiErrorResponse("index_generation_changed", "索引已更新，请重试整个查询批次"));
+      String after = generation.get();
+      if (!before.equals(after)) {
+        changed(context, after);
         return;
       }
       context.header(HEADER, before);
     };
+  }
+
+  private static void changed(Context context, String published) {
+    context
+        .header(HEADER, published)
+        .status(409)
+        .json(new ApiErrorResponse("index_generation_changed", "索引已更新，请重试整个查询批次"));
   }
 
   /**

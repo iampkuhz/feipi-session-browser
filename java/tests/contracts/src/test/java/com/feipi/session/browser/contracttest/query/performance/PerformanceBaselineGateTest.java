@@ -472,9 +472,6 @@ class PerformanceBaselineGateTest {
 
       var top = repo.topProjectsByTokens(3);
       assertThat(top).hasSizeLessThanOrEqualTo(3);
-
-      var sessions = repo.topSlowestSessions(5);
-      assertThat(sessions).hasSizeLessThanOrEqualTo(5);
     }
   }
 }

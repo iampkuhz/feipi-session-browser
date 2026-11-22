@@ -1,6 +1,7 @@
 package com.feipi.session.browser.web.api;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.feipi.session.browser.application.sessiondetail.ToolInputContents;
@@ -8,18 +9,40 @@ import com.feipi.session.browser.query.api.SensitiveFieldPolicy;
 
 /** 命令摘要与完整输入共用一个内容来源；摘要不修改原文。 */
 final class ToolInputPreview {
-  private static final ObjectMapper MAPPER = new ObjectMapper();
+  private static final ObjectMapper MAPPER =
+      new ObjectMapper().enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
 
   private ToolInputPreview() {}
 
+  /**
+   * 仅携带显示和分类所需的有界信息，不保存完整输入。
+   *
+   * @param preview 已脱敏、限长的显示文本
+   * @param category 依据工具名与结构化输入识别的动作类别
+   */
+  record Summary(String preview, String category) {}
+
   static String from(ToolInputContents.Input input) {
-    if (input == null || input.input().isEmpty()) return "";
+    return input == null ? "" : summarize(input).preview();
+  }
+
+  static String category(String name, Summary input) {
+    return input == null || input.category().isEmpty()
+        ? ToolActionCategory.kind(name, null, "")
+        : input.category();
+  }
+
+  static Summary summarize(ToolInputContents.Input input) {
     String preview = input.input();
+    JsonNode node = null;
+    String command = "";
+    if (preview.length() > 64 * 1024)
+      return new Summary("长参数 · 打开 Input 查看完整内容", category(input.name(), null));
+
     try {
-      if (preview.length() > 64 * 1024) return "长参数 · 打开 Input 查看完整内容";
-      JsonNode node = MAPPER.readTree(preview);
+      if (!preview.isEmpty()) node = MAPPER.readTree(preview);
       if (node != null && node.isObject()) {
-        String command = first(node, "command", "cmd");
+        command = first(node, "command", "cmd");
         String path = first(node, "file_path", "path", "filename");
         String query = first(node, "pattern", "query", "regex");
         String waiting = waitingPreview(input.name(), node);
@@ -31,20 +54,17 @@ final class ToolInputPreview {
     } catch (JsonProcessingException ignored) {
       // Freeform 工具参数不是 JSON，直接保留安全纯文本预览。
     }
+    String actionInput = command.isEmpty() ? input.input().stripLeading() : command.stripLeading();
+    String category =
+        input.name().isBlank() ? "" : ToolActionCategory.kind(input.name(), node, actionInput);
     preview = SensitiveFieldPolicy.DEFAULT.applyMasking(preview).replaceAll("\\s+", " ").trim();
-    return preview.length() <= 180 ? preview : preview.substring(0, 179) + "…";
+    return new Summary(
+        preview.length() <= 180 ? preview : preview.substring(0, 179) + "…", category);
   }
 
   private static String waitingPreview(String name, JsonNode node) {
-    JsonNode session = node.path("session_id");
-    JsonNode chars = node.path("chars");
-    if ("write_stdin".equals(name)
-        && session.isIntegralNumber()
-        && session.canConvertToLong()
-        && session.longValue() > 0
-        && chars.isTextual()
-        && chars.textValue().isEmpty()) {
-      return "等待读取输出 · session " + session.asText();
+    if ("write_stdin".equals(name) && polls(node)) {
+      return "等待读取输出 · session " + node.path("session_id").asText();
     }
     JsonNode cell = node.path("cell_id");
     JsonNode terminate = node.path("terminate");
@@ -57,18 +77,15 @@ final class ToolInputPreview {
     return "";
   }
 
-  static String executionKind(String name, String preview) {
-    String tool = name.toLowerCase(java.util.Locale.ROOT);
-    if (tool.matches("(?:.*__)?(?:python|python3)")) return "python";
-    if (tool.matches("(?:.*__)?(?:exec|js|javascript|node_repl)") && !preview.isEmpty()) {
-      return "javascript";
-    }
-    if (tool.matches("(?:.*__)?(?:exec_command|shell|bash|terminal|local_shell)")) {
-      if (preview.matches("(?:[^ ]*/)?python(?:[23](?:\\.\\d+)?)?(?:\\s.*)?")) return "python";
-      if (preview.matches("(?:[^ ]*/)?(?:node|deno)(?:\\s.*)?")) return "javascript";
-      return "shell";
-    }
-    return "tool";
+  static boolean polls(JsonNode node) {
+    if (node == null) return false;
+    JsonNode session = node.path("session_id");
+    JsonNode chars = node.path("chars");
+    return session.isIntegralNumber()
+        && session.canConvertToLong()
+        && session.longValue() > 0
+        && chars.isTextual()
+        && chars.textValue().isEmpty();
   }
 
   private static String first(JsonNode node, String... names) {

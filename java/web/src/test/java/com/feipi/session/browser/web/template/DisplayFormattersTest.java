@@ -3,8 +3,6 @@ package com.feipi.session.browser.web.template;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.nio.file.Path;
-import java.util.List;
-import java.util.Map;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -403,31 +401,6 @@ class DisplayFormattersTest {
     @DisplayName("未知值返回 info")
     void unknownReturnsInfo() {
       assertThat(DisplayFormatters.severityVariant("low")).isEqualTo("info");
-    }
-  }
-
-  @Nested
-  @DisplayName("sumAttribute Map 属性求和")
-  class SumAttribute {
-
-    @Test
-    @DisplayName("null 列表返回 0")
-    void nullListReturnsZero() {
-      assertThat(DisplayFormatters.sumAttribute(null, "count")).isEqualTo(0);
-    }
-
-    @Test
-    @DisplayName("空列表返回 0")
-    void emptyListReturnsZero() {
-      assertThat(DisplayFormatters.sumAttribute(List.of(), "count")).isEqualTo(0);
-    }
-
-    @Test
-    @DisplayName("对 Map 列表中的属性求和")
-    void sumsMapAttributes() {
-      List<Map<String, Object>> items =
-          List.of(Map.of("count", 10), Map.of("count", 20), Map.of("count", 30));
-      assertThat(DisplayFormatters.sumAttribute(items, "count")).isEqualTo(60);
     }
   }
 }

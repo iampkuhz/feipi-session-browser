@@ -15,7 +15,6 @@
   function filterGlossary(query) {
     var q = (query || '').trim().toLowerCase();
     var totalVisible = 0;
-    var sectionsWithRows = 0;
 
     sections.forEach(function (section) {
       var tables = section.querySelectorAll('table[data-table-enhanced]');
@@ -50,7 +49,6 @@
         section.classList.add('is-hidden');
       } else {
         section.classList.remove('is-hidden');
-        if (sectionVisible > 0) sectionsWithRows++;
       }
     });
 

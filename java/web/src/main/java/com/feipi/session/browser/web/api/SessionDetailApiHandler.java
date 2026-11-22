@@ -2,7 +2,12 @@ package com.feipi.session.browser.web.api;
 
 import com.feipi.session.browser.application.QueryCompositionRoot;
 import com.feipi.session.browser.application.SessionDetailUseCase;
+import com.feipi.session.browser.application.sessiondetail.SessionContentReader;
 import com.feipi.session.browser.application.sessiondetail.SessionDetail;
+import com.feipi.session.browser.domain.enums.CallScope;
+import com.feipi.session.browser.domain.normalized.NormalizedCall;
+import com.feipi.session.browser.domain.normalized.NormalizedSessionContent;
+import com.feipi.session.browser.index.api.query.ContentRoundIndex;
 import com.feipi.session.browser.index.api.query.SessionRecord;
 import com.feipi.session.browser.query.api.DetectedAnomaly;
 import com.feipi.session.browser.query.api.SessionAnomalySummary;
@@ -21,8 +26,10 @@ import io.javalin.http.BadRequestResponse;
 import io.javalin.http.Context;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -79,8 +86,51 @@ public final class SessionDetailApiHandler {
             detail.hasArtifact(),
             detail.artifactSchemaVersion(),
             detail.cacheKey(),
-            parity.meta,
+            readingMeta(loaded, parity.meta),
             PageStateDto.ready()));
+  }
+
+  private static Map<String, Object> readingMeta(LoadedDetail loaded, Map<String, Object> base) {
+    var meta = new LinkedHashMap<>(base);
+    try {
+      var content = readingContent(loaded);
+      if (content == null) return meta;
+      if (content.header().totals().getOrDefault("calls", 0L) == 0) {
+        var reader =
+            new SessionContentReader(
+                content, loaded.annotated().detail().sessionRow().userMessageCount());
+        String observed = reader.observedInputPreview();
+        if (!observed.isBlank()) addFirstUserPrompt(meta, observed, "round:req:1");
+        return meta;
+      }
+      var previews = SessionContentPreviews.read(content);
+      try (var cursor = content.openCursor()) {
+        while (cursor.hasNext()) {
+          for (var call : cursor.next().calls()) {
+            if (call.scope() != CallScope.MAIN) continue;
+            String text = previews.userText(call, 1);
+            if (text.isBlank()) continue;
+            addFirstUserPrompt(meta, text, "main:req:" + call.callId());
+            return meta;
+          }
+        }
+      }
+      return meta;
+    } catch (IOException exception) {
+      throw new IllegalStateException("无法读取已验证的首问预览", exception);
+    }
+  }
+
+  private static void addFirstUserPrompt(Map<String, Object> meta, String text, String payloadId) {
+    meta.put("firstUserPrompt", text);
+    meta.put("firstUserPromptPayloadId", payloadId);
+  }
+
+  private static NormalizedSessionContent readingContent(LoadedDetail loaded) throws IOException {
+    var content = loaded.annotated().content();
+    return content != null || loaded.annotated().artifact() == null
+        ? content
+        : NormalizedSessionContent.fromArtifact(loaded.annotated().artifact());
   }
 
   /** 处理 /api/sessions/{agent}/{sessionId}/metrics 的 GET 请求。 */
@@ -187,8 +237,18 @@ public final class SessionDetailApiHandler {
                     round.parity().get("modelCallEvidence") instanceof String evidence
                         && !evidence.isEmpty())
             .count();
-    if (paged(ctx, loaded)) {
-      sendWindow(ctx, loaded, rows, "rounds", traceStatus, modelCalls);
+    String target = ctx.queryParam("target");
+    if (paged(ctx, loaded) || target != null) {
+      if (target != null && ctx.queryParam("cursor") != null)
+        throw new BadRequestResponse("choose target or cursor");
+      sendWindow(
+          ctx,
+          loaded,
+          rows,
+          "rounds",
+          traceStatus,
+          modelCalls,
+          target == null ? -1 : RoundTarget.rowOffset(rows, target));
       return;
     }
     ctx.json(
@@ -216,10 +276,13 @@ public final class SessionDetailApiHandler {
     List<PayloadIndexDto> rows =
         loaded.annotated().detail().payloadSources().stream()
             .map(source -> SessionDetailApiResponses.payloadIndexDto(source, loaded.apiBase()))
+            .toList();
+    rows =
+        payloadMetadata(loaded, rows).stream()
             .filter(payload -> payloadStatusMatches(payloadStatus, payload.status()))
             .toList();
     if (paged(ctx, loaded)) {
-      sendWindow(ctx, loaded, rows, "payloads", payloadStatus, null);
+      sendWindow(ctx, loaded, rows, "payloads", payloadStatus, null, -1);
       return;
     }
     ctx.json(
@@ -296,10 +359,11 @@ public final class SessionDetailApiHandler {
       List<T> rows,
       String section,
       String filter,
-      Long modelCalls) {
+      Long modelCalls,
+      long targetOffset) {
     int limit = windowLimit(ctx);
     String scope = cursorScope(ctx, loaded, section, filter);
-    long offset = windowOffset(ctx, scope);
+    long offset = targetOffset < 0 ? windowOffset(ctx, scope) : targetOffset;
     if (offset > rows.size()) throw new BadRequestResponse("cursor exceeds section total");
     int end = (int) Math.min(rows.size(), offset + limit);
     sendPage(
@@ -310,6 +374,7 @@ public final class SessionDetailApiHandler {
         new PageWindow(
             rows.subList((int) offset, end),
             rows.size(),
+            offset,
             end < rows.size() ? SessionContentCursor.encode(scope, end) : null,
             modelCalls));
   }
@@ -326,6 +391,7 @@ public final class SessionDetailApiHandler {
     boolean rounds = "rounds".equals(section);
     response.put(rounds ? "roundCount" : "payloadCount", window.total());
     response.put("total", window.total());
+    response.put("offset", window.offset());
     if (window.modelCalls() != null) {
       response.put("modelCallCount", window.modelCalls());
       response.put("recordGroupCount", window.total() - window.modelCalls());
@@ -338,34 +404,96 @@ public final class SessionDetailApiHandler {
     ctx.json(response);
   }
 
+  private static List<PayloadIndexDto> payloadMetadata(
+      LoadedDetail loaded, List<PayloadIndexDto> rows) {
+    try {
+      var content = readingContent(loaded);
+      if (content == null) return rows;
+      var index = ContentRoundIndex.build(content, 0);
+      var previews = SessionContentPreviews.read(content);
+      var labels = SessionContentPreviews.roundLabels(content, index);
+      var calls = new HashMap<String, NormalizedCall>();
+      for (var call : loaded.annotated().artifact().calls()) calls.put(call.callId(), call);
+      return rows.stream()
+          .map(
+              row -> {
+                var call = calls.get(row.callId());
+                if (call == null) return row;
+                int round = index.roundIndexForCall(call.callId()).orElse(0);
+                String label = labels.getOrDefault(round, "");
+                return new PayloadIndexDto(
+                    row.payloadId(),
+                    row.kind(),
+                    row.callId(),
+                    row.title(),
+                    row.truncated(),
+                    payloadReadingStatus(row, previews, call),
+                    row.apiUrl(),
+                    round,
+                    label,
+                    call.scope().name().toLowerCase(Locale.ROOT),
+                    call.subagentId().orElse(""),
+                    call.callKey(),
+                    previews.text(call, row.kind().endsWith("request")),
+                    previews.timestamp(call));
+              })
+          .toList();
+    } catch (IOException exception) {
+      throw new IllegalStateException("无法读取已验证的原文索引元数据", exception);
+    }
+  }
+
+  private static String payloadReadingStatus(
+      PayloadIndexDto row, SessionContentPreviews previews, NormalizedCall call) {
+    if ((row.kind().endsWith("_request") || row.kind().endsWith("_response"))
+        && "available".equals(row.status())
+        && !previews.hasPayload(call, row.kind().endsWith("_request"))) return "missing";
+    return row.status();
+  }
+
   private static void sendContentPayloads(Context ctx, LoadedDetail loaded, String filter) {
     int limit = windowLimit(ctx);
     String scope = cursorScope(ctx, loaded, "payloads", filter);
     long offset = windowOffset(ctx, scope);
     var items = new ArrayList<PayloadIndexDto>();
     long total = 0;
-    try (var cursor = loaded.annotated().content().openCursor()) {
-      while (cursor.hasNext()) {
-        for (var call : cursor.next().calls()) {
-          boolean child = call.scope() == com.feipi.session.browser.domain.enums.CallScope.SUBAGENT;
-          for (boolean request : new boolean[] {true, false}) {
-            String kind =
-                child
-                    ? (request ? "subagent_request" : "subagent_response")
-                    : (request ? "llm_request" : "llm_response");
-            String id = (child ? "sa:" : "main:") + (request ? "req:" : "resp:") + call.callId();
-            var item =
-                new PayloadIndexDto(
-                    id,
-                    kind,
-                    call.callId(),
-                    (request ? "Request " : "Response ") + call.callKey(),
-                    false,
-                    "available",
-                    loaded.apiBase() + "/payload/" + ApiQueryParams.url(id));
-            if (!payloadStatusMatches(filter, item.status())) continue;
-            if (total >= offset && items.size() < limit) items.add(item);
-            total++;
+    try {
+      var content = readingContent(loaded);
+      var index = ContentRoundIndex.build(content, 0);
+      var previews = SessionContentPreviews.read(content);
+      var labels = SessionContentPreviews.roundLabels(content, index);
+      try (var cursor = content.openCursor()) {
+        while (cursor.hasNext()) {
+          for (var call : cursor.next().calls()) {
+            boolean child = call.scope() == CallScope.SUBAGENT;
+            for (boolean request : new boolean[] {true, false}) {
+              String status = previews.hasPayload(call, request) ? "available" : "missing";
+              if (!payloadStatusMatches(filter, status)) continue;
+              if (total++ < offset || items.size() >= limit) continue;
+              int round = index.roundIndexForCall(call.callId()).orElse(0);
+              String kind =
+                  child
+                      ? (request ? "subagent_request" : "subagent_response")
+                      : (request ? "llm_request" : "llm_response");
+              String id = (child ? "sa:" : "main:") + (request ? "req:" : "resp:") + call.callId();
+              var item =
+                  new PayloadIndexDto(
+                      id,
+                      kind,
+                      call.callId(),
+                      (request ? "Request " : "Response ") + call.callKey(),
+                      false,
+                      status,
+                      loaded.apiBase() + "/payload/" + ApiQueryParams.url(id),
+                      round,
+                      labels.getOrDefault(round, ""),
+                      call.scope().name().toLowerCase(Locale.ROOT),
+                      call.subagentId().orElse(""),
+                      call.callKey(),
+                      previews.text(call, request),
+                      previews.timestamp(call));
+              items.add(item);
+            }
           }
         }
       }
@@ -382,7 +510,11 @@ public final class SessionDetailApiHandler {
         "payloads",
         filter,
         new PageWindow(
-            items, total, end < total ? SessionContentCursor.encode(scope, end) : null, null));
+            items,
+            total,
+            offset,
+            end < total ? SessionContentCursor.encode(scope, end) : null,
+            null));
   }
 
   private LoadedDetail load(Context ctx) {
@@ -423,6 +555,17 @@ public final class SessionDetailApiHandler {
                 0,
                 null,
                 new SessionExecutionProjection.Diagnostics(0, 0, 0, 0, "", List.of(), 0, null)));
+        return;
+      }
+      if ("1".equals(ctx.queryParam("summary"))) {
+        ctx.json(
+            new SessionExecutionProjection.Page(
+                ApiResponses.SCHEMA_VERSION,
+                List.of(),
+                0,
+                0,
+                null,
+                SessionExecutionProjection.diagnostics(content)));
         return;
       }
       var page =
@@ -586,8 +729,9 @@ public final class SessionDetailApiHandler {
    *
    * @param rows 当前页记录
    * @param total 筛选后的全量记录数
+   * @param offset 当前页在筛选结果中的起始偏移
    * @param next 下一页游标，末页为空
    * @param modelCalls 有独立边界的调用数，非 Trace 资源为空
    */
-  private record PageWindow(List<?> rows, long total, String next, Long modelCalls) {}
+  private record PageWindow(List<?> rows, long total, long offset, String next, Long modelCalls) {}
 }

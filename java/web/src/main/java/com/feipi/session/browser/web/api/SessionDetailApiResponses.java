@@ -120,6 +120,18 @@ public final class SessionDetailApiResponses {
       Map<String, Object> parity,
       PageStateDto state) {
 
+    /** 真实关联首问的有界安全预览；完整文本仍通过原文入口读取。 */
+    @JsonProperty("firstUserPrompt")
+    public String firstUserPrompt() {
+      return String.valueOf(parity.getOrDefault("firstUserPrompt", ""));
+    }
+
+    /** 与首问证据相同调用的输入原文定位符。 */
+    @JsonProperty("firstUserPromptPayloadId")
+    public String firstUserPromptPayloadId() {
+      return String.valueOf(parity.getOrDefault("firstUserPromptPayloadId", ""));
+    }
+
     /** 返回适合详情页阅读的安全标题，不覆盖原字段。 */
     @JsonProperty("displayTitle")
     public SafeMarkdownRenderer.Title displayTitle() {
@@ -394,6 +406,13 @@ public final class SessionDetailApiResponses {
    * @param truncated 该字段在 API 响应中的业务值。
    * @param status payload 状态。
    * @param apiUrl payload lazy-load API 地址。
+   * @param round 关联逻辑轮次，未知为零
+   * @param roundLabel 与 Trace 一致的 R/G 标签
+   * @param scope 调用上下文
+   * @param subagentId 子代理标识
+   * @param callKey 来源调用短标识
+   * @param summary 安全短预览
+   * @param timestamp 来源记录时间
    */
   public record PayloadIndexDto(
       String payloadId,
@@ -402,7 +421,26 @@ public final class SessionDetailApiResponses {
       String title,
       boolean truncated,
       String status,
-      String apiUrl) {
+      String apiUrl,
+      int round,
+      String roundLabel,
+      String scope,
+      String subagentId,
+      String callKey,
+      String summary,
+      String timestamp) {
+
+    /** 兼容未携带调用投影的目录来源。 */
+    public PayloadIndexDto(
+        String payloadId,
+        String kind,
+        String callId,
+        String title,
+        boolean truncated,
+        String status,
+        String apiUrl) {
+      this(payloadId, kind, callId, title, truncated, status, apiUrl, 0, "", "", "", "", "", "");
+    }
 
     /** 校验字段和业务不变量。 */
     public PayloadIndexDto {

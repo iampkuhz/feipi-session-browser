@@ -120,11 +120,6 @@
                     sel.selectedIndex = 0;
                 });
             }
-        } else if (action === 'close-full-payload') {
-            event.preventDefault();
-            if (typeof window.closeFullPayloadViewer === 'function') {
-                window.closeFullPayloadViewer();
-            }
         } else if (action === 'reload-page') {
             event.preventDefault();
             window.location.reload();

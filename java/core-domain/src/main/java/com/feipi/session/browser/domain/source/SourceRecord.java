@@ -35,6 +35,7 @@ import java.util.Optional;
  * @param timing 源显式计时事实，缺失时为空计时
  * @param metaContext provider 显式声明的 meta 上下文，不作为人类 prompt 计数
  * @param toolObservation 工具执行器显式观测，缺失时为空
+ * @param readingEvidence 该物理事件附带的阅读证据，不改变正文或事件类型
  * @param messageRole 原始消息的显式 user/assistant 角色；usage、推理和派生表示默认无角色
  */
 @DomainModel
@@ -95,7 +96,8 @@ public record SourceRecord(
 
     /* 仅原始消息的显式角色；不得从 usage 或调用边界推断。 */
     @NotNull Optional<String> messageRole,
-    @NotNull Optional<SourceToolObservation> toolObservation) {
+    @NotNull Optional<SourceToolObservation> toolObservation,
+    @NotNull List<SourceReadingEvidence> readingEvidence) {
 
   /** 未提供执行器观测时保持未知。 */
   public SourceRecord(
@@ -138,7 +140,8 @@ public record SourceRecord(
         timing,
         metaContext,
         messageRole,
-        Optional.empty());
+        Optional.empty(),
+        List.of());
   }
 
   /** 兼容未携带原始消息角色证据的旧构造器，不从事件类型猜角色。 */
@@ -385,7 +388,8 @@ public record SourceRecord(
         replacementTiming,
         metaContext,
         messageRole,
-        toolObservation);
+        toolObservation,
+        readingEvidence);
   }
 
   /** 返回仅替换文本内容的不可变副本，保留全部元数据。 */
@@ -410,7 +414,8 @@ public record SourceRecord(
         timing,
         metaContext,
         messageRole,
-        toolObservation);
+        toolObservation,
+        readingEvidence);
   }
 
   /** 仅标注源明确提供的消息角色，不改变调用、内容或身份。 */
@@ -435,7 +440,8 @@ public record SourceRecord(
         timing,
         metaContext,
         role,
-        toolObservation);
+        toolObservation,
+        readingEvidence);
   }
 
   /** 仅替换执行器观测，不更改事件分类、结果或计数。 */
@@ -460,7 +466,35 @@ public record SourceRecord(
         timing,
         metaContext,
         messageRole,
-        observation);
+        observation,
+        readingEvidence);
+  }
+
+  /** 返回绑定所选阅读证据的记录副本，保留全部事件字段。 */
+  public SourceRecord withReadingEvidence(List<SourceReadingEvidence> evidence) {
+    if (readingEvidence.equals(evidence)) return this;
+    return new SourceRecord(
+        locator,
+        eventIndex,
+        eventType,
+        callId,
+        model,
+        timestamp,
+        turnId,
+        usage,
+        toolCalls,
+        toolUseId,
+        toolName,
+        toolError,
+        relation,
+        content,
+        responseMessageId,
+        responseStopReason,
+        timing,
+        metaContext,
+        messageRole,
+        toolObservation,
+        evidence);
   }
 
   /** 日志摘要不包含文本或其他 provider 原始字段。 */
@@ -476,6 +510,7 @@ public record SourceRecord(
    */
   public SourceRecord {
     toolObservation = toolObservation == null ? Optional.empty() : toolObservation;
+    readingEvidence = readingEvidence == null ? List.of() : List.copyOf(readingEvidence);
     // eventType 默认值处理
     if (eventType == null || eventType.isBlank()) {
       eventType = "unknown";
@@ -514,7 +549,8 @@ public record SourceRecord(
           timing,
           metaContext,
           messageRole,
-          toolObservation);
+          toolObservation,
+          readingEvidence);
     } catch (ConstraintViolationException e) {
       translateValidation(e);
     }

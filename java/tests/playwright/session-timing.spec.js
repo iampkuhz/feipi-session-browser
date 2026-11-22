@@ -5,6 +5,7 @@ const path = require('path');
 // Synthetic API payloads and exact worktree JS; this suite does not claim packaged-resource parity.
 const resourceRoot = path.join(__dirname, '../../web/src/main/resources');
 const detailPath = '/sessions/claude_code/hifi-viz-session-001';
+const startedAt = '2026-01-01T23:59:58.000Z';
 const timing = {
   wallSeconds: 90000, wallPrecision: 'measured', activeTaskSeconds: 120, activeTaskPrecision: 'measured',
   activeTaskBasis: 'main_task_windows', agentTurnSeconds: 45, agentTurnPrecision: 'measured',
@@ -15,7 +16,7 @@ const provenance = { freshInput: 'provider_reported', cacheRead: 'provider_repor
 const tokens = { fresh: 100, cacheRead: 0, cacheWrite: 0, output: 10, total: 110, provenance };
 const pagination = { page: 1, pageSize: 25, totalItems: 1, totalPages: 1 };
 
-async function syntheticPage(page, { timingValue = timing, statistics, injectSource = process.env.FEIPI_UI_PACKAGED_RESOURCES !== '1', lowCacheAvailable = false } = {}) {
+async function syntheticPage(page, { timingValue = timing, statistics, injectSource = process.env.FEIPI_UI_PACKAGED_RESOURCES !== '1', lowCacheAvailable = false, start = startedAt } = {}) {
   if (injectSource) {
     await page.route('**/static/js/**', async (route) => {
       const relative = new URL(route.request().url()).pathname.replace(/^\/static\//, 'static/');
@@ -41,9 +42,13 @@ async function syntheticPage(page, { timingValue = timing, statistics, injectSou
           lowCacheRoundsAvailable: lowCacheAvailable, lowCacheRounds: 0 },
         totalCount: 1, sessionCount: 1, totalSessions: 1, cacheReadStatistics: statistics };
     }
-    if (pathname.endsWith('/meta')) data = { title: 'Synthetic overnight task', filters: {} };
+    if (pathname.endsWith('/meta')) data = { title: 'Synthetic overnight task', filters: {},
+      createdAt: start, updatedAt: '2026-01-03T01:00:00.000Z' };
     if (pathname.endsWith('/execution')) data = { items: [], total: 0, offset: 0, nextCursor: null };
-    if (pathname.endsWith('/rounds')) data = { rounds: [], roundCount: 0 };
+    if (pathname.endsWith('/rounds')) data = { roundCount: 2, rounds: [
+      { roundIndex: 1, callCount: 1, parity: { time: '23:59:58' } },
+      { roundIndex: 2, callCount: 0 },
+    ] };
     if (pathname.endsWith('/payloads')) data = { payloads: [], payloadCount: 0 };
     if (pathname.endsWith('/rows')) data = { rows: [{ title: 'Synthetic overnight task', sessionId: 'synthetic-timing',
       tokens, timing: timingValue, durationSeconds: 90000, processSeconds: 89880, detailUrl: detailPath }], pagination, filters: {} };
@@ -62,52 +67,56 @@ test('timing helper distinguishes measured zero, partial task windows, unknown a
       SessionTiming.value({ activeTaskSeconds: 0, activeTaskPrecision: 'measured' }, 'activeTaskSeconds'),
       SessionTiming.value({ activeTaskSeconds: 0, activeTaskPrecision: 'unknown' }, 'activeTaskSeconds'),
       SessionTiming.value({ activeTaskSeconds: 25, activeTaskPrecision: 'partial' }, 'activeTaskSeconds'),
-      SessionTiming.nonTaskWall({ ...sample, activeTaskPrecision: 'partial' }),
+      SessionTiming.seconds({ activeTaskSeconds: 0.35, activeTaskPrecision: 'partial' }, 'activeTaskSeconds'),
       SessionTiming.value({ modelExecutionSeconds: 0, modelExecutionPrecision: 'measured' }, 'modelExecutionSeconds'),
       SessionTiming.value({ toolExecutionSeconds: 0, toolExecutionPrecision: 'unknown' }, 'toolExecutionSeconds'),
       SessionTiming.value({ agentTurnSeconds: 90001, agentTurnPrecision: 'measured' }, 'agentTurnSeconds')];
   }, timing);
-  expect(values).toEqual(['2m 0s', 'N/A', '0s', 'N/A', '25s · Partial', 'N/A', '0s', 'N/A', '25h 0m']);
+  expect(values).toEqual(['2m 0s', 'N/A', '0s', 'N/A', '25s · Partial', 0.35, '0s', 'N/A', '25h 0m']);
 });
 
-for (const [label, sample] of [['measured', timing], ['unknown', undefined],
-  ['partial', { ...timing, activeTaskSeconds: 25, activeTaskPrecision: 'partial', incompleteTaskCount: 1 }]]) {
-  test(`detail shows ${label} source timing without legacy execution/wait fallback`, async ({ page }) => {
-    await syntheticPage(page, { timingValue: sample === undefined ? null : sample });
+for (const [label, sample, active] of [
+  ['measured', timing, '2 分 0 秒'],
+  ['rounds seconds', { ...timing, activeTaskSeconds: 21.899 }, '21.9 秒'],
+  ['rounds across a minute', { ...timing, activeTaskSeconds: 59.96 }, '1 分 0 秒'],
+  ['measured zero', { ...timing, activeTaskSeconds: 0 }, '0 秒'],
+  ['subsecond', { ...timing, activeTaskSeconds: 0.35 }, '0.4 秒'],
+  ['unknown', null, '未记录'],
+  ['partial', { ...timing, activeTaskSeconds: 25, activeTaskPrecision: 'partial', incompleteTaskCount: 1 }, '25 秒 · 部分'],
+]) {
+  test(`detail shows ${label} source duration separately from start timestamps`, async ({ page }) => {
+    await syntheticPage(page, { timingValue: sample, start: sample ? startedAt : null });
     await page.goto(detailPath);
     await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
-  await page.locator('[data-evidence-analysis] > summary').click();
-    await page.locator('[data-secondary-metrics] > summary').click();
-    const card = page.locator('[data-session-timing]');
-    await expect(card).toContainText('Source Task Active');
-    await expect(card.locator('.sd-kpi__value')).toHaveText(sample ? (label === 'partial' ? '25s · Partial' : '2m 0s') : 'N/A');
-    await expect(card).toContainText(sample ? 'Agent Turn 45s' : 'Agent Turn N/A');
-    await expect(card).toContainText('Model Execution N/A');
-    await expect(card).toContainText('Tool Execution N/A');
-    const disclosure = card.locator('[data-session-timing-note]');
-    const toggle = disclosure.locator('summary');
-    await expect(toggle).toHaveText('Timing details');
-    await expect(disclosure.locator('p')).toBeHidden();
-    await page.setViewportSize({ width: 390, height: 900 });
-    await toggle.focus();
-    await toggle.press('Enter');
-    await expect(disclosure.locator('p')).toBeVisible();
+    const started = page.locator('time[data-session-started]');
+    await expect(started).toBeVisible();
     if (sample) {
-      await expect(disclosure).toContainText('Completed: 2');
-      await expect(disclosure).toContainText('recorded main-agent turn durations');
-      await expect(disclosure).not.toContainText(/main_task_windows|main_agent_turn_duration/);
+      await expect(started).toHaveAttribute('datetime', startedAt);
+      await expect(started).toHaveText(/\d{2}:\d{2}:\d{2}/);
+    } else {
+      await expect(started).not.toHaveAttribute('datetime');
+      await expect(started).toHaveText('未记录');
     }
-    await expect(card).toContainText('Non-task Wall Time');
-    await expect(card).not.toContainText('Waiting Time');
-    await expect(card).toContainText('not model inference');
-    await expect(page.locator('.sd-kpi[aria-label="Cache Health"]')).toContainText('Low-cache rows N/A');
-    await expect(card).toContainText('Non-task Wall Time: ' + (label === 'measured' ? '24h 58m' : 'N/A'));
-    for (const width of [1440, 390]) {
-      await page.setViewportSize({ width, height: 1100 });
-      const overflow = await card.evaluate((element) => Array.from(element.querySelectorAll('.session-timing-note, .session-timing-value'))
-        .some((part) => part.scrollWidth > part.clientWidth + 1));
-      expect(overflow).toBe(false);
-    }
+    const card = page.locator('[data-session-timing]');
+    await expect(card.locator('.sd-kpi__label')).toHaveText('任务活动时长');
+    await expect(card.locator('[data-session-timing-value]')).toHaveText(active);
+    await expect(card.locator('.sd-kpi__subgrid > span')).toHaveText([
+      '会话总历时 ' + (sample ? '1500 分 0 秒' : '未记录'),
+      'Agent 累计耗时 ' + (sample ? '45 秒' : '未记录'),
+      '模型执行 未记录',
+      '工具执行 未记录',
+    ]);
+    await expect(card).toHaveAttribute('title', /包括任务内工具和等待，不等于模型执行时间/);
+    const trace = page.locator('[data-trace-list]');
+    await expect(trace.locator('th.time-col')).toHaveAttribute('title', /首个已记录的调用时间点/);
+    await expect(trace.locator('th.duration-col')).toHaveAttribute('title', /源中独立计量/);
+    await expect(trace.locator('td.time-col .sd-time-point')).toHaveText(['23:59:58', '—']);
+    await expect(trace.locator('td.duration-col .sd-time-duration')).toHaveText(['—', '—']);
+    await expect(page.locator('.sd-kpi[aria-label="Cache Health"]')).toContainText('低缓存记录 N/A');
+    await page.setViewportSize({ width: 1440, height: 1100 });
+    const overflow = await card.evaluate(element => [...element.querySelectorAll('.sd-kpi__value, .sd-kpi__subgrid > span')]
+      .some(part => part.scrollWidth > part.clientWidth + 1));
+    expect(overflow).toBe(false);
   });
 }
 

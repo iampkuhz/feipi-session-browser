@@ -133,16 +133,6 @@
     grid-template-columns: repeat(6, 1fr);
   }
 }
-@media (max-width: 900px) {
-  .kpi-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-@media (max-width: 620px) {
-  .kpi-grid {
-    grid-template-columns: 1fr;
-  }
-}
 
 .metric-card--kpi {
   align-items: flex-start;
@@ -227,11 +217,6 @@
 @media (min-width: 1440px) {
   .trend-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-@media (max-width: 720px) {
-  .trend-grid {
-    grid-template-columns: 1fr;
   }
 }
 
@@ -753,12 +738,6 @@
   align-items: start;
 }
 
-@media (max-width: 900px) {
-  .model-mix-layout {
-    grid-template-columns: 1fr;
-  }
-}
-
 .model-mix-donut-wrap {
   display: grid;
   place-items: center;
@@ -907,11 +886,6 @@
 @media (min-width: 1440px) {
   .contribution-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-@media (max-width: 720px) {
-  .contribution-grid {
-    grid-template-columns: 1fr;
   }
 }
 .contribution-card {
@@ -1360,17 +1334,6 @@
   white-space: nowrap;
 }
 
-@media (max-width: 720px) {
-  .sessions-cta {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .sessions-cta__button {
-    justify-content: center;
-  }
-}
-
 /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Chart empty state ==================================================` */
 .chart-empty {
   padding: 12px;
@@ -1504,111 +1467,4 @@
   font-size: 12px;
   text-align: right;
   white-space: nowrap;
-}
-
-@media (max-width: 520px) {
-  .chart-card__head {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-  .chart-card__stats {
-    flex-wrap: wrap;
-    gap: 6px 10px;
-  }
-  .chart, .chart--dual-axis {
-    grid-template-columns: 39px minmax(0, 1fr) 26px;
-  }
-  .y-axis-label {
-    font-size: 10px;
-  }
-  .dashboard-horizontal-row {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 6px;
-  }
-  .dashboard-horizontal-row__value {
-    text-align: left;
-  }
-}
-
-/* Dashboard event-activity section: constrain the evidence table without widening the page. */
-.event-activity-section {
-  min-width: 0;
-  margin-bottom: 24px;
-}
-.event-activity-section p {
-  overflow-wrap: anywhere;
-}
-.event-activity-table th,
-.event-activity-table td {
-  padding: 8px;
-  text-align: left;
-  white-space: nowrap;
-}
-
-.event-activity-heading,
-.event-activity-table-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 4px 16px;
-}
-.event-activity-heading p,
-.event-activity-summary {
-  margin: 4px 0 10px;
-  color: var(--text-subtle);
-}
-.event-activity-status {
-  color: var(--text);
-  font-size: 12px;
-  font-weight: 650;
-}
-.event-activity-table-head {
-  padding-block: 8px;
-  font-size: 12px;
-  color: var(--text-subtle);
-}
-.event-activity-scroll {
-  max-width: 100%;
-  max-height: 310px;
-  overflow: auto;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-}
-.event-activity-table {
-  width: 100%;
-  min-width: 650px;
-  border-collapse: collapse;
-  font-variant-numeric: tabular-nums;
-}
-.event-activity-table thead {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: var(--surface);
-}
-.event-activity-table :is(th, td):not(:first-child) {
-  text-align: right;
-}
-.event-activity-table tbody tr {
-  border-top: 1px solid var(--border);
-}
-.event-activity-table tbody tr:nth-child(even) {
-  background: var(--surface-soft);
-}
-.event-activity-evidence {
-  margin-top: 10px;
-  max-width: 76ch;
-  font-size: 12px;
-}
-.event-activity-evidence summary {
-  cursor: pointer;
-  font-weight: 650;
-}
-.event-activity-evidence dt {
-  font-weight: 650;
-  margin-top: 8px;
-}
-.event-activity-evidence dd {
-  margin: 2px 0 0;
 }

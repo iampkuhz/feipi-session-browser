@@ -58,22 +58,20 @@ final class ManagedSessionContent implements NormalizedSessionContent {
         record = read(ref.ordinal());
         previous = ref.ordinal();
       }
-      Map<String, Object> unit = new LinkedHashMap<>();
-      if (ref.toolIndex() >= 0) {
-        var tool = record.toolCalls().get(ref.toolIndex());
-        unit.put("type", "tool_use");
-        unit.put("role", "assistant");
-        unit.put("text", "");
-        unit.put("id", tool.toolCallId());
-        unit.put("name", tool.name());
-        unit.put("input", tool.input());
-      } else {
-        unit.put("type", record.eventType());
-        unit.put("role", ref.role());
-        unit.put("text", record.content());
-        if (record.metaContext()) unit.put("isMeta", true);
-        record.toolUseId().ifPresent(id -> unit.put("tool_call_id", id));
+      if ("context".equals(ref.role())) {
+        CallSourceUnitBuilder.addReadingEvidence(units, record);
+        continue;
       }
+      if (ref.toolIndex() >= 0) {
+        units.add(CallSourceUnitBuilder.toolUnit(record, record.toolCalls().get(ref.toolIndex())));
+        continue;
+      }
+      Map<String, Object> unit = new LinkedHashMap<>();
+      unit.put("type", record.eventType());
+      unit.put("role", ref.role());
+      unit.put("text", record.content());
+      if (record.metaContext()) unit.put("isMeta", true);
+      record.toolUseId().ifPresent(id -> unit.put("tool_call_id", id));
       units.add(Map.copyOf(unit));
     }
     return new NormalizedCall(

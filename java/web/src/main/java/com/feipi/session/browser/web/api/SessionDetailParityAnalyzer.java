@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.feipi.session.browser.application.sessiondetail.PayloadCallContentExtractor;
 import com.feipi.session.browser.application.sessiondetail.SessionDetail;
+import com.feipi.session.browser.application.sessiondetail.ToolInputContents;
 import com.feipi.session.browser.domain.enums.CallScope;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
@@ -63,11 +64,9 @@ final class SessionDetailParityAnalyzer {
   private static final String FIELD_TOKENS = "tokens";
   private static final String FIELD_TOOL = "tool";
   private static final String FIELD_TYPE = "type";
-  private static final String ISSUE_PAYLOAD_GAP = "Payload gap";
   private static final String SCOPE_MAIN = "main";
   private static final String SCOPE_SUBAGENT = "subagent";
   private static final String STATUS_AVAILABLE = "available";
-  private static final String TONE_CRITICAL = "critical";
 
   private SessionDetailParityAnalyzer() {}
 
@@ -100,13 +99,12 @@ final class SessionDetailParityAnalyzer {
     Map<String, Object> metrics = new LinkedHashMap<>(base.metrics);
     Map<String, Object> diagnostics = new LinkedHashMap<>(base.diagnostics);
     Map<String, Object> meta = new LinkedHashMap<>(base.meta);
-    Map<String, long[]> toolCounts = new LinkedHashMap<>();
     long main = 0;
     long child = 0;
     long failed = 0;
     Set<String> children = new HashSet<>();
     Map<String, CompactAgent> agents = new LinkedHashMap<>();
-    agents.put("", new CompactAgent(""));
+    agents.put("main", new CompactAgent(CallScope.MAIN, ""));
     try (var cursor = content.openCursor()) {
       while (cursor.hasNext()) {
         var unit = cursor.next();
@@ -123,24 +121,19 @@ final class SessionDetailParityAnalyzer {
         for (var call : unit.calls()) {
           if (call.scope() == CallScope.MAIN) main++;
           else child++;
-          call.subagentId().ifPresent(children::add);
-          String owner =
-              call.scope() == CallScope.MAIN
-                  ? ""
-                  : call.subagentId().orElse(call.parentCallId().orElse("unknown"));
-          var group = agents.computeIfAbsent(owner, CompactAgent::new);
+          if (call.scope() == CallScope.SUBAGENT)
+            call.subagentId().filter(id -> !id.isBlank()).ifPresent(children::add);
+          var group = compactAgent(agents, call.scope(), call.subagentId().orElse(""));
           group.calls++;
+          group.facts.add(content.header().agent(), call);
           group.usage.add(call);
         }
         for (var tool : unit.toolExecutions()) {
           boolean failure = hasFailedStatus(tool);
-          var counts = toolCounts.computeIfAbsent(tool.name(), key -> new long[2]);
-          counts[0]++;
-          if (failure) counts[1]++;
           if (failure) failed++;
-          String owner = tool.scope() == CallScope.MAIN ? "" : tool.subagentId().orElse("unknown");
-          var group = agents.computeIfAbsent(owner, CompactAgent::new);
-          if (tool.scope() == CallScope.SUBAGENT) tool.subagentId().ifPresent(children::add);
+          var group = compactAgent(agents, tool.scope(), tool.subagentId().orElse(""));
+          if (tool.scope() == CallScope.SUBAGENT)
+            tool.subagentId().filter(id -> !id.isBlank()).ifPresent(children::add);
           group.tools++;
           if (failure) group.failures++;
         }
@@ -214,40 +207,8 @@ final class SessionDetailParityAnalyzer {
       map.remove("payloadGaps");
       map.put("attributionGapsAvailable", false);
     }
-    for (String section : List.of("contextSegments", "toolImpact", "issues", "issueStrip")) {
-      diagnostics.put(section + "Available", false);
-      diagnostics.remove(section);
-    }
-    diagnostics.put("toolImpactAvailable", true);
-    diagnostics.put(
-        "toolImpact",
-        Map.of(
-            "allToolCalls",
-            tools,
-            "failedTools",
-            failed,
-            "distinctTools",
-            toolCounts.size(),
-            "failedToolsRate",
-            ratioLabel(failed, tools),
-            "rows",
-            toolCounts.entrySet().stream()
-                .map(
-                    entry ->
-                        Map.of(
-                            "tool",
-                            entry.getKey(),
-                            "calls",
-                            entry.getValue()[0],
-                            "failures",
-                            entry.getValue()[1],
-                            "failureRate",
-                            ratioLabel(entry.getValue()[1], entry.getValue()[0]),
-                            "tokens",
-                            "N/A · 未测量",
-                            "splitNote",
-                            "仅统计已归一化工具执行；结果 token 未测量"))
-                .toList()));
+    diagnostics.put("contextSegmentsAvailable", false);
+    diagnostics.remove("contextSegments");
     long observedTokens =
         agents.values().stream().mapToLong(value -> value.usage.segments().total()).sum();
     boolean allReported =
@@ -275,15 +236,18 @@ final class SessionDetailParityAnalyzer {
                   precision.output())
               .stream()
               .allMatch(PRECISION_REPORTED::equals);
+      boolean parent = group.scope == CallScope.MAIN;
       agentRows.add(
           agentRow(
               new AgentRowInput(
-                  group.id.isEmpty() ? SCOPE_MAIN : SCOPE_SUBAGENT,
-                  group.id.isEmpty() ? agentLabel(detail.sessionRow().agent()) : SCOPE_SUBAGENT,
+                  parent ? SCOPE_MAIN : childScope(group.id),
+                  parent
+                      ? agentLabel(detail.sessionRow().agent())
+                      : childLabel(group.id, SCOPE_SUBAGENT),
                   group.id,
                   compactId(group.id),
                   "",
-                  group.id.isEmpty() ? detail.sessionRow().sessionId() : group.id,
+                  parent ? detail.sessionRow().sessionId() : group.id,
                   group.calls,
                   segments.total(),
                   ratioLabel(segments.total(), observedTokens),
@@ -300,23 +264,32 @@ final class SessionDetailParityAnalyzer {
                   "observed_agent_usage",
                   group.tools,
                   group.failures,
-                  ratioLabel(group.failures, group.tools))));
+                  ratioLabel(group.failures, group.tools)),
+              group.facts));
     }
     diagnostics.put("agents", List.copyOf(agentRows));
-    diagnostics.remove("issueCount");
     diagnostics.put("roundSignals", roundSignalMap(roundParity));
     return new Result(meta, metrics, diagnostics, roundParity);
   }
 
-  /** 仅保存一个已观测代理实例的用量、调用数与工具状态标量。 */
+  private static CompactAgent compactAgent(
+      Map<String, CompactAgent> agents, CallScope scope, String id) {
+    return agents.computeIfAbsent(
+        RoundAgentUsage.owner(scope, id), key -> new CompactAgent(scope, id));
+  }
+
+  /** 仅保留已识别代理或未知子代理范围的聚合标量。 */
   private static final class CompactAgent {
+    final CallScope scope;
     final String id;
     final SessionContentUsage usage = new SessionContentUsage();
+    final AgentFacts facts = new AgentFacts();
     long calls;
     long tools;
     long failures;
 
-    CompactAgent(String id) {
+    CompactAgent(CallScope scope, String id) {
+      this.scope = scope;
       this.id = id;
     }
   }
@@ -377,18 +350,16 @@ final class SessionDetailParityAnalyzer {
                     .flatMap(child -> child.tools.values().stream())
                     .filter(tool -> tool.failed)
                     .count();
-    long subagentRuns = artifact == null ? row.subagentInstanceCount() : children.size();
+    long subagentRuns =
+        artifact == null
+            ? row.subagentInstanceCount()
+            : children.stream().filter(group -> !group.sessionId.isBlank()).count();
     long inputSide = row.freshInputTokens() + row.cacheReadTokens() + row.cacheWriteTokens();
     long lowCacheRounds = rounds.values().stream().filter(round -> round.lowCache).count();
     long freshSpikeRounds = rounds.values().stream().filter(round -> round.freshSpike).count();
 
-    List<IssueSeed> issues = buildIssues(rounds);
-    long payloadGaps = issues.stream().filter(seed -> ISSUE_PAYLOAD_GAP.equals(seed.issue)).count();
-    int issueRounds =
-        (int)
-            rounds.values().stream()
-                .filter(round -> round.hasIssues() || !round.issueSeeds.isEmpty())
-                .count();
+    long payloadGaps = rounds.values().stream().mapToLong(round -> round.payloadGaps).sum();
+    int issueRounds = (int) rounds.values().stream().filter(RoundParity::hasWorkloadIssues).count();
     boolean contentMeasured =
         row.contentMeasured()
             || !parent.roundSummaries.isEmpty()
@@ -397,8 +368,7 @@ final class SessionDetailParityAnalyzer {
                 && (!artifact.calls().isEmpty() || !artifact.toolExecutions().isEmpty()));
 
     RunIssueSummary issueSummary =
-        new RunIssueSummary(
-            totalTools, failedTools, payloadGaps, contentMeasured, issueRounds, issues);
+        new RunIssueSummary(totalTools, failedTools, payloadGaps, contentMeasured, issueRounds);
     Map<String, Object> diagnostics =
         diagnosticsMap(
             new DiagnosticsInput(
@@ -426,13 +396,13 @@ final class SessionDetailParityAnalyzer {
       boolean allowSourceFiles) {
     parent.sessionId = sessionId;
     Map<String, RolloutStats> children = new LinkedHashMap<>();
-    Map<String, RolloutStats> callOwners = new HashMap<>();
     for (NormalizedCall call : artifact.calls()) {
       RolloutStats owner =
           call.scope() == CallScope.MAIN
               ? parent
               : artifactChild(children, call.subagentId().orElse(""), sessionId);
       owner.llmCalls++;
+      owner.facts.add(artifact.agent(), call);
       owner.llmTokens += call.usage().total();
       owner.addUsage(
           new UsageDelta(
@@ -447,18 +417,14 @@ final class SessionDetailParityAnalyzer {
       if (call.scope() == CallScope.SUBAGENT) {
         owner.agentType = call.parentToolName().orElse(SCOPE_SUBAGENT);
       }
-      callOwners.put(call.callId(), owner);
     }
     Map<String, String> outputs = PayloadCallContentExtractor.extractToolResultContents(artifact);
     for (NormalizedToolExecution execution : artifact.toolExecutions()) {
       RolloutStats owner = parent;
       if (execution.scope() == CallScope.SUBAGENT) {
-        owner = callOwners.get(execution.declaredByCallId());
-        if (owner == null || Objects.equals(owner, parent)) {
-          owner = artifactChild(children, execution.subagentId().orElse(""), sessionId);
-        }
+        owner = artifactChild(children, execution.subagentId().orElse(""), sessionId);
       }
-      ToolEvent tool = new ToolEvent(execution.toolCallId(), execution.name(), owner.scope, "", 0);
+      ToolEvent tool = new ToolEvent(execution.toolCallId());
       tool.failed = hasFailedStatus(execution);
       tool.output = outputs.getOrDefault(execution.toolCallId(), "");
       tool.resultTokens = estimateTokens(tool.output);
@@ -596,12 +562,10 @@ final class SessionDetailParityAnalyzer {
     String pendingAssistant = "";
     String pendingUser = "";
     List<String> pendingToolNames = new ArrayList<>();
-    List<String> pendingToolInputPreviews = new ArrayList<>();
+    List<ToolInputPreview.Summary> pendingToolInputPreviews = new ArrayList<>();
     try (BufferedReader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
       String line;
-      int index = 0;
       while ((line = reader.readLine()) != null) {
-        index++;
         JsonNode root = MAPPER.readTree(line);
         String timestamp = text(root, "timestamp");
         String type = text(root, FIELD_TYPE);
@@ -613,10 +577,15 @@ final class SessionDetailParityAnalyzer {
           continue;
         }
         if ("response_item".equals(type)) {
-          String responseToolName = handleResponseItem(stats, payload, timestamp, index);
+          String responseToolName = handleResponseItem(stats, payload);
           if (!responseToolName.isBlank()) {
             pendingToolNames.add(responseToolName);
-            pendingToolInputPreviews.add("");
+            pendingToolInputPreviews.add(
+                ToolInputPreview.summarize(
+                    new ToolInputContents.Input(
+                        "",
+                        responseToolName,
+                        firstNonBlank(text(payload, "input"), text(payload, "arguments")))));
           }
           String payloadType = text(payload, FIELD_TYPE);
           if ("message".equals(payloadType)) {
@@ -645,15 +614,11 @@ final class SessionDetailParityAnalyzer {
           // 从 Claude Code / Qoder 原生格式提取 tool_result blocks
           JsonNode content = root.path("message").path(FIELD_CONTENT);
           if (content.isArray()) {
-            final int lineIndex = index;
             for (JsonNode part : content) {
               if ("tool_result".equals(text(part, FIELD_TYPE))) {
                 String callId = text(part, "tool_use_id");
                 if (!callId.isBlank()) {
-                  ToolEvent tool =
-                      stats.tools.computeIfAbsent(
-                          callId,
-                          id -> new ToolEvent(id, FIELD_TOOL, stats.scope, timestamp, lineIndex));
+                  ToolEvent tool = stats.tools.computeIfAbsent(callId, ToolEvent::new);
                   JsonNode resultContent = part.path(FIELD_CONTENT);
                   if (resultContent.isArray()) {
                     StringBuilder sb = new StringBuilder();
@@ -691,12 +656,14 @@ final class SessionDetailParityAnalyzer {
                 String callId = text(part, "id");
                 if (!callId.isBlank()) {
                   String name = firstNonBlank(text(part, "name"), FIELD_TOOL);
-                  ToolEvent toolEvent = new ToolEvent(callId, name, stats.scope, timestamp, index);
-                  toolEvent.inputPreview = extractToolUseInputPreview(name, part);
+                  ToolEvent toolEvent = new ToolEvent(callId);
+                  var inputPreview =
+                      ToolInputPreview.summarize(
+                          new ToolInputContents.Input(callId, name, part.path("input").toString()));
                   stats.tools.put(callId, toolEvent);
                   if (!name.isBlank() && !FIELD_TOOL.equals(name)) {
                     pendingToolNames.add(name);
-                    pendingToolInputPreviews.add(toolEvent.inputPreview);
+                    pendingToolInputPreviews.add(inputPreview);
                   }
                 }
               }
@@ -775,7 +742,7 @@ final class SessionDetailParityAnalyzer {
       String pendingUser,
       String pendingAssistant,
       List<String> pendingToolNames,
-      List<String> pendingToolInputPreviews,
+      List<ToolInputPreview.Summary> pendingToolInputPreviews,
       String timestamp) {
     stats.llmCalls++;
     stats.inputSideTokens += usage.fresh + usage.cacheRead + usage.cacheWrite;
@@ -789,8 +756,7 @@ final class SessionDetailParityAnalyzer {
         new RawRoundSummary(stats.llmCalls, summary, localTime(timestamp), !pendingUser.isBlank()));
   }
 
-  private static String handleResponseItem(
-      RolloutStats stats, JsonNode payload, String timestamp, int index) {
+  private static String handleResponseItem(RolloutStats stats, JsonNode payload) {
     String payloadType = text(payload, FIELD_TYPE);
     if ("function_call".equals(payloadType) || "custom_tool_call".equals(payloadType)) {
       String callId = text(payload, "call_id");
@@ -798,7 +764,7 @@ final class SessionDetailParityAnalyzer {
         return "";
       }
       String name = firstNonBlank(text(payload, "name"), FIELD_TOOL);
-      stats.tools.put(callId, new ToolEvent(callId, name, stats.scope, timestamp, index));
+      stats.tools.put(callId, new ToolEvent(callId));
       return !name.isBlank() && !FIELD_TOOL.equals(name) ? name : "";
     }
     if ("function_call_output".equals(payloadType)
@@ -807,9 +773,7 @@ final class SessionDetailParityAnalyzer {
       if (callId.isBlank()) {
         return "";
       }
-      ToolEvent tool =
-          stats.tools.computeIfAbsent(
-              callId, id -> new ToolEvent(id, FIELD_TOOL, stats.scope, timestamp, index));
+      ToolEvent tool = stats.tools.computeIfAbsent(callId, ToolEvent::new);
       tool.output =
           payload.path(FIELD_OUTPUT).isMissingNode() ? "" : payload.path(FIELD_OUTPUT).asText("");
       tool.failed = isFailedOutput(tool.output);
@@ -896,29 +860,19 @@ final class SessionDetailParityAnalyzer {
       parity.freshSpike = freshSpike;
       parity.failedToolIds.addAll(failedInRound);
       if (artifact != null) {
-        addArtifactIssues(parity, round, artifact, row.sessionId(), recordedResults);
+        addArtifactSignals(parity, round, artifact, recordedResults);
       } else if (!failedInRound.isEmpty()) {
         parity.signals.add("Failed");
-        for (String failedId : failedInRound) {
-          parity.issueSeeds.add(
-              new IssueSeed(
-                  "Tool failure",
-                  parent.toolName(failedId) + " · failed",
-                  round.roundIndex(),
-                  row.sessionId() + " + R" + round.roundIndex() + " + " + failedId,
-                  TONE_CRITICAL));
-        }
       }
       result.put(round.roundIndex(), parity);
     }
     return result;
   }
 
-  private static void addArtifactIssues(
+  private static void addArtifactSignals(
       RoundParity parity,
       CallRound round,
       NormalizedSessionArtifact artifact,
-      String sessionId,
       Set<String> recordedResults) {
     Set<String> failureIds = new HashSet<>();
     for (NormalizedToolExecution execution : artifact.toolExecutions()) {
@@ -928,17 +882,6 @@ final class SessionDetailParityAnalyzer {
       boolean child = execution.scope() == CallScope.SUBAGENT;
       String signal = child ? "Subagent failed" : "Failed";
       if (!parity.signals.contains(signal)) parity.signals.add(signal);
-      parity.issueSeeds.add(
-          new IssueSeed(
-              "Tool failure",
-              (child ? "Subagent · " : "")
-                  + execution.name()
-                  + " · "
-                  + execution.status().filter(status -> !status.isBlank()).orElse("failed")
-                  + execution.exitCode().map(code -> " · exit " + code).orElse(""),
-              round.roundIndex(),
-              sessionId + " + " + execution.declaredByCallId() + " + " + execution.toolCallId(),
-              TONE_CRITICAL));
     }
     Set<String> displayedCalls =
         Set.copyOf(RoundIndexProjection.project(round, artifact).callIds());
@@ -948,18 +891,12 @@ final class SessionDetailParityAnalyzer {
       for (String resultId : call.request().toolResultIds()) {
         if (!recordedResults.contains(resultId)) missingRefs.add("tool-result:" + resultId);
       }
-      for (String missing : missingRefs) {
+      if (!missingRefs.isEmpty()) {
+        parity.payloadGaps += missingRefs.size();
         boolean displayed = displayedCalls.contains(call.callId());
         parity.payloadGap |= displayed;
         String signal = displayed ? "Payload Gap" : "Subagent payload gap";
         if (!parity.signals.contains(signal)) parity.signals.add(signal);
-        parity.issueSeeds.add(
-            new IssueSeed(
-                ISSUE_PAYLOAD_GAP,
-                call.callKey() + " · payload reference missing",
-                round.roundIndex(),
-                sessionId + " + " + call.callId() + " + " + missing,
-                "warning"));
       }
     }
   }
@@ -1020,25 +957,6 @@ final class SessionDetailParityAnalyzer {
       }
     }
     return missing;
-  }
-
-  private static List<IssueSeed> buildIssues(Map<Integer, RoundParity> rounds) {
-    List<IssueSeed> critical = new ArrayList<>();
-    List<IssueSeed> warnings = new ArrayList<>();
-    for (RoundParity round : rounds.values()) {
-      for (IssueSeed seed : round.issueSeeds) {
-        if (TONE_CRITICAL.equals(seed.tone)) {
-          critical.add(seed);
-        } else {
-          warnings.add(seed);
-        }
-      }
-    }
-    critical.sort(Comparator.comparingInt(seed -> seed.roundId));
-    warnings.sort(Comparator.comparingInt(seed -> seed.roundId));
-    List<IssueSeed> all = new ArrayList<>(critical);
-    all.addAll(warnings);
-    return List.copyOf(all);
   }
 
   private static Map<String, Object> metaMap(SessionRecord row, String sourcePath) {
@@ -1162,7 +1080,6 @@ final class SessionDetailParityAnalyzer {
     long totalTools = issueSummary.totalTools;
     long failedTools = issueSummary.failedTools;
     long payloadGaps = issueSummary.payloadGaps;
-    List<IssueSeed> issues = issueSummary.issues;
     Map<String, Object> map = new LinkedHashMap<>();
     map.put(
         "runHealth",
@@ -1172,19 +1089,16 @@ final class SessionDetailParityAnalyzer {
                 ? "Issue signals detected"
                 : "No issue signals detected");
     map.put("issueRounds", issueSummary.issueRounds);
+    map.put("toolCalls", totalTools);
     map.put(FIELD_FAILED_TOOLS, failedTools);
     map.put(FIELD_FAILED_TOOLS_RATE, ratioLabel(failedTools, totalTools));
     map.put("payloadGaps", payloadGaps);
     map.put("attributionGapsAvailable", false);
     addCoverage(map, issueSummary.contentMeasured);
-    map.put("issueStrip", issueStrip(issues));
     map.put(
         "agents",
         agentRows(input.row, input.sourcePath, input.parent, input.children, input.mainCalls));
     map.put("contextSegments", contextSegments(input.row, input.parent, input.children));
-    map.put("toolImpact", toolImpact(input.parent, input.children, totalTools, failedTools));
-    map.put("issues", issueRows(issues));
-    map.put("issueCount", issues.size());
     map.put("roundSignals", roundSignalMap(input.rounds));
     return map;
   }
@@ -1273,7 +1187,8 @@ final class SessionDetailParityAnalyzer {
                 shareBasis,
                 mainTools,
                 mainFailures,
-                ratioLabel(mainFailures, mainTools))));
+                ratioLabel(mainFailures, mainTools)),
+            parent.facts));
     List<RolloutStats> sortedChildren =
         children.stream()
             .sorted(
@@ -1282,23 +1197,21 @@ final class SessionDetailParityAnalyzer {
             .toList();
     for (RolloutStats child : sortedChildren) {
       long parentTools =
-          parent.tools.values().stream()
-              .filter(tool -> child.sessionId.equals(tool.subagentId))
-              .count();
+          parent.tools.values().stream().filter(tool -> belongsToChild(tool, child)).count();
       long tools = child.tools.size() + parentTools;
       long failures =
           child.tools.values().stream().filter(tool -> tool.failed).count()
               + parent.tools.values().stream()
-                  .filter(tool -> tool.failed && child.sessionId.equals(tool.subagentId))
+                  .filter(tool -> tool.failed && belongsToChild(tool, child))
                   .count();
       long footprint = childAgentFootprint(child);
       rows.add(
           agentRow(
               new AgentRowInput(
-                  SCOPE_SUBAGENT,
-                  firstNonBlank(child.agentType, SCOPE_SUBAGENT),
+                  childScope(child.sessionId),
+                  childLabel(child.sessionId, firstNonBlank(child.agentType, SCOPE_SUBAGENT)),
                   child.sessionId,
-                  child.shortId(),
+                  child.sessionId.isBlank() ? "" : child.shortId(),
                   child.path,
                   child.sessionId,
                   child.llmCalls,
@@ -1311,9 +1224,22 @@ final class SessionDetailParityAnalyzer {
                   shareBasis,
                   tools,
                   failures,
-                  ratioLabel(failures, tools))));
+                  ratioLabel(failures, tools)),
+              child.facts));
     }
     return List.copyOf(rows);
+  }
+
+  private static boolean belongsToChild(ToolEvent tool, RolloutStats child) {
+    return !child.sessionId.isBlank() && child.sessionId.equals(tool.subagentId);
+  }
+
+  private static String childScope(String id) {
+    return id.isBlank() ? RoundAgentUsage.UNIDENTIFIED_SUBAGENT : SCOPE_SUBAGENT;
+  }
+
+  private static String childLabel(String id, String label) {
+    return id.isBlank() ? "未识别子 Agent（汇总）" : label;
   }
 
   private static long childAgentFootprint(RolloutStats child) {
@@ -1321,7 +1247,7 @@ final class SessionDetailParityAnalyzer {
     return child.llmTokens;
   }
 
-  private static Map<String, Object> agentRow(AgentRowInput input) {
+  private static Map<String, Object> agentRow(AgentRowInput input, AgentFacts facts) {
     Map<String, Object> row = new LinkedHashMap<>();
     row.put("scope", input.scope);
     row.put("agent", input.agent);
@@ -1332,6 +1258,11 @@ final class SessionDetailParityAnalyzer {
     row.put("sessionId", input.sessionId);
     row.put("sessionIdDisplay", compactId(input.sessionId));
     row.put("llmCalls", input.llmCalls);
+    if (facts.records > 0) {
+      row.put("localRecords", facts.records);
+      row.put("confirmedModelCalls", facts.confirmed);
+    }
+    row.put("models", List.copyOf(facts.models));
     row.put(FIELD_TOKENS, compact(input.tokens));
     row.put("tokenSegments", input.tokenSegments);
     row.put("tokenUsageBasis", input.tokenUsageBasis);
@@ -1346,6 +1277,23 @@ final class SessionDetailParityAnalyzer {
     row.put("failureRate", input.failureRate);
     row.put("failureLabel", input.failures + " failed · " + input.failureRate);
     return row;
+  }
+
+  /** 仅基于归一化证据计算调用边界，未知模型不继承其他上下文的模型。 */
+  private static final class AgentFacts {
+    long records;
+    long confirmed;
+    final Set<String> models = new LinkedHashSet<>();
+
+    void add(
+        com.feipi.session.browser.domain.normalized.NormalizedAgent agent, NormalizedCall call) {
+      records++;
+      if (!com.feipi.session.browser.index.api.query.ContentRoundIndex.modelCallEvidence(
+              agent, call)
+          .isEmpty()) confirmed++;
+      if (!call.model().isBlank() && !"unknown".equalsIgnoreCase(call.model()))
+        models.add(call.model());
+    }
   }
 
   private static List<Map<String, Object>> contextSegments(
@@ -1400,102 +1348,6 @@ final class SessionDetailParityAnalyzer {
       rows.add(rowMap);
     }
     return List.copyOf(rows);
-  }
-
-  private static Map<String, Object> toolImpact(
-      RolloutStats parent, List<RolloutStats> children, long totalTools, long failedTools) {
-    Map<String, ToolStat> stats = new LinkedHashMap<>();
-    accumulateToolStats(stats, parent, true);
-    for (RolloutStats child : children) {
-      accumulateToolStats(stats, child, false);
-    }
-    List<Map<String, Object>> rows =
-        stats.values().stream()
-            .sorted(
-                Comparator.comparingLong(ToolStat::calls)
-                    .reversed()
-                    .thenComparing(stat -> stat.name))
-            .limit(5)
-            .map(SessionDetailParityAnalyzer::toolRow)
-            .toList();
-    Map<String, Object> map = new LinkedHashMap<>();
-    map.put("allToolCalls", totalTools);
-    map.put(FIELD_FAILED_TOOLS, failedTools);
-    map.put(FIELD_FAILED_TOOLS_RATE, ratioLabel(failedTools, totalTools));
-    map.put("distinctTools", stats.size());
-    map.put("rows", rows);
-    return map;
-  }
-
-  private static void accumulateToolStats(
-      Map<String, ToolStat> stats, RolloutStats rollout, boolean main) {
-    for (ToolEvent tool : rollout.tools.values()) {
-      ToolStat stat = stats.computeIfAbsent(tool.name, ToolStat::new);
-      stat.calls++;
-      if (main && tool.subagentId.isBlank()) {
-        stat.mainCalls++;
-      } else {
-        stat.subagentCalls++;
-      }
-      if (tool.failed) {
-        stat.failures++;
-      }
-      stat.resultTokens += tool.resultTokens;
-    }
-  }
-
-  private static Map<String, Object> toolRow(ToolStat stat) {
-    Map<String, Object> map = new LinkedHashMap<>();
-    map.put(FIELD_TOOL, stat.name);
-    map.put("calls", stat.calls);
-    map.put(FIELD_TOKENS, stat.resultTokens == 0 ? "0" : "~" + compact(stat.resultTokens));
-    map.put("failures", stat.failures);
-    map.put("failureRate", ratioLabel(stat.failures, stat.calls));
-    map.put("splitNote", "Main " + stat.mainCalls + " · Subagent " + stat.subagentCalls);
-    return map;
-  }
-
-  private static List<Map<String, Object>> issueStrip(List<IssueSeed> signals) {
-    Map<String, Integer> counts = new LinkedHashMap<>();
-    Map<String, IssueSeed> first = new LinkedHashMap<>();
-    for (IssueSeed seed : signals) {
-      if (seed.roundId <= 0) {
-        continue;
-      }
-      String key = seed.roundId + "\t" + seed.issue;
-      counts.put(key, counts.getOrDefault(key, 0) + 1);
-      first.putIfAbsent(key, seed);
-    }
-    List<Map<String, Object>> rows = new ArrayList<>();
-    for (Map.Entry<String, IssueSeed> entry : first.entrySet()) {
-      if (rows.size() >= 4) {
-        break;
-      }
-      IssueSeed seed = entry.getValue();
-      int count = counts.getOrDefault(entry.getKey(), 1);
-      Map<String, Object> map = new LinkedHashMap<>();
-      map.put("label", "R" + seed.roundId + " · " + seed.issue + (count > 1 ? " ×" + count : ""));
-      map.put("roundId", seed.roundId);
-      map.put("tone", TONE_CRITICAL.equals(seed.tone) ? "err" : "warn");
-      rows.add(map);
-    }
-    return List.copyOf(rows);
-  }
-
-  private static List<Map<String, Object>> issueRows(List<IssueSeed> issues) {
-    return issues.stream()
-        .map(
-            seed -> {
-              Map<String, Object> map = new LinkedHashMap<>();
-              map.put("issue", seed.issue);
-              map.put("evidence", seed.evidence);
-              map.put("roundId", seed.roundId);
-              map.put("roundLabel", "R" + seed.roundId);
-              map.put("seed", seed.seed);
-              map.put("tone", seed.tone);
-              return map;
-            })
-        .toList();
   }
 
   private static Map<String, Object> roundSignalMap(Map<Integer, RoundParity> rounds) {
@@ -1646,61 +1498,14 @@ final class SessionDetailParityAnalyzer {
     return first != null && !first.isBlank() ? first : (second == null ? "" : second);
   }
 
-  /**
-   * 从工具名列表和输入预览生成稳定安全摘要。
-   *
-   * <p>如果有输入预览，格式为 "Read: path, Grep: pattern in path"；否则回退到 "Tool: Read, Write"。
-   */
-  private static String toolSummaryLabel(List<String> toolNames, List<String> inputPreviews) {
-    if (toolNames == null || toolNames.isEmpty()) {
-      return "";
+  private static String toolSummaryLabel(
+      List<String> toolNames, List<ToolInputPreview.Summary> inputPreviews) {
+    var counts = new LinkedHashMap<String, Integer>();
+    for (int i = 0; i < toolNames.size(); i++) {
+      counts.merge(
+          ToolInputPreview.category(toolNames.get(i), inputPreviews.get(i)), 1, Integer::sum);
     }
-    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Build labeled summaries with input previews when available`
-    if (inputPreviews != null && inputPreviews.size() == toolNames.size()) {
-      List<String> labeled = new ArrayList<>();
-      for (int i = 0; i < toolNames.size(); i++) {
-        String name = toolNames.get(i);
-        String preview = inputPreviews.get(i);
-        if (preview != null && !preview.isBlank()) {
-          labeled.add(name + ": " + preview);
-        } else {
-          labeled.add(name);
-        }
-      }
-      return "Tool: " + String.join(", ", labeled);
-    }
-    LinkedHashSet<String> unique = new LinkedHashSet<>(toolNames);
-    return "Tool: " + String.join(", ", unique);
-  }
-
-  /**
-   * 从 tool_use JSON 节点中提取安全输入预览。
-   *
-   * <p>Read → file_path，Grep → pattern + path，Bash → command，其他 → 空字符串。
-   */
-  private static String extractToolUseInputPreview(String toolName, JsonNode toolUseNode) {
-    if (toolUseNode == null) return "";
-    JsonNode inputNode = toolUseNode.path("input");
-    if (!inputNode.isObject()) return "";
-    String name = toolName == null ? "" : toolName.toLowerCase();
-    if (name.contains("read") || name.contains("write") || name.contains("edit")) {
-      String path = inputNode.path("file_path").asText("");
-      if (!path.isBlank()) return path;
-    }
-    if (name.contains("grep") || name.contains("search")) {
-      String pattern = inputNode.path("pattern").asText("");
-      String path = inputNode.path("path").asText("");
-      if (!pattern.isBlank() && !path.isBlank()) return pattern + " in " + path;
-      if (!pattern.isBlank()) return pattern;
-    }
-    if (name.contains("bash") || name.contains("shell") || name.contains("exec")) {
-      String cmd = inputNode.path("command").asText("");
-      if (!cmd.isBlank()) {
-        String singleLine = cmd.replace('\n', ' ').replace('\r', ' ').trim();
-        return singleLine.length() <= 80 ? singleLine : singleLine.substring(0, 79) + "…";
-      }
-    }
-    return "";
+    return ToolActionCategory.summary(counts);
   }
 
   private static long firstPositive(long first, long second) {
@@ -1835,12 +1640,12 @@ final class SessionDetailParityAnalyzer {
     final int roundIndex;
     final List<String> failedToolIds = new ArrayList<>();
     final List<String> signals = new ArrayList<>();
-    final List<IssueSeed> issueSeeds = new ArrayList<>();
     String summary = "";
     String time = "";
     boolean lowCache;
     boolean freshSpike;
     boolean payloadGap;
+    long payloadGaps;
     boolean userInput;
 
     RoundParity(int roundIndex) {
@@ -1849,6 +1654,13 @@ final class SessionDetailParityAnalyzer {
 
     boolean hasIssues() {
       return !failedToolIds.isEmpty() || payloadGap;
+    }
+
+    boolean hasWorkloadIssues() {
+      return hasIssues()
+          || payloadGaps > 0
+          || signals.contains("Failed")
+          || signals.contains("Subagent failed");
     }
 
     Map<String, Object> toMap() {
@@ -1873,6 +1685,7 @@ final class SessionDetailParityAnalyzer {
     final String parentSessionId;
     final Map<String, ToolEvent> tools = new LinkedHashMap<>();
     final List<RawRoundSummary> roundSummaries = new ArrayList<>();
+    final AgentFacts facts = new AgentFacts();
     String sessionId = "";
     String agentType = "";
     String startedAt = "";
@@ -1931,61 +1744,24 @@ final class SessionDetailParityAnalyzer {
       return sessionId.length() <= 8 ? sessionId : sessionId.substring(sessionId.length() - 8);
     }
 
-    long footprintTokens() {
-      long toolTokens = tools.values().stream().mapToLong(tool -> tool.resultTokens).sum();
-      return llmTokens + toolTokens;
-    }
-
     RawRoundSummary roundSummary(int roundIndex) {
       int idx = roundIndex - 1;
       return idx >= 0 && idx < roundSummaries.size()
           ? roundSummaries.get(idx)
           : new RawRoundSummary(roundIndex, "", "", false);
     }
-
-    String toolName(String id) {
-      ToolEvent tool = tools.get(id);
-      return tool == null ? FIELD_TOOL : tool.name;
-    }
   }
 
   /** 表示 rollout 中的一次工具调用事件。 */
   private static final class ToolEvent {
     final String id;
-    final String name;
-    final String scope;
-    final String timestamp;
-    final int lineIndex;
     String output = "";
     String subagentId = "";
-    String inputPreview = "";
     boolean failed;
     int resultTokens;
 
-    ToolEvent(String id, String name, String scope, String timestamp, int lineIndex) {
+    ToolEvent(String id) {
       this.id = id;
-      this.name = name;
-      this.scope = scope;
-      this.timestamp = timestamp;
-      this.lineIndex = lineIndex;
-    }
-  }
-
-  /** 表示按工具名称聚合后的统计。 */
-  private static final class ToolStat {
-    final String name;
-    long calls;
-    long mainCalls;
-    long subagentCalls;
-    long failures;
-    long resultTokens;
-
-    ToolStat(String name) {
-      this.name = name;
-    }
-
-    long calls() {
-      return calls;
     }
   }
 
@@ -2021,23 +1797,6 @@ final class SessionDetailParityAnalyzer {
     }
   }
 
-  /** 表示生成诊断 issue 所需的种子信息。 */
-  private static final class IssueSeed {
-    final String issue;
-    final String evidence;
-    final int roundId;
-    final String seed;
-    final String tone;
-
-    IssueSeed(String issue, String evidence, int roundId, String seed, String tone) {
-      this.issue = issue;
-      this.evidence = evidence;
-      this.roundId = roundId;
-      this.seed = seed;
-      this.tone = tone;
-    }
-  }
-
   /** 表示 token 分段展示条目。 */
   private static final class Segment {
     final String label;
@@ -2058,21 +1817,18 @@ final class SessionDetailParityAnalyzer {
     final long payloadGaps;
     final boolean contentMeasured;
     final int issueRounds;
-    final List<IssueSeed> issues;
 
     RunIssueSummary(
         long totalTools,
         long failedTools,
         long payloadGaps,
         boolean contentMeasured,
-        int issueRounds,
-        List<IssueSeed> issues) {
+        int issueRounds) {
       this.totalTools = totalTools;
       this.failedTools = failedTools;
       this.payloadGaps = payloadGaps;
       this.contentMeasured = contentMeasured;
       this.issueRounds = issueRounds;
-      this.issues = List.copyOf(issues);
     }
   }
 

@@ -218,7 +218,7 @@ class SessionDetailResourceApiTest {
   }
 
   @Test
-  @DisplayName("payloads 返回 visibility/truncated contract")
+  @DisplayName("payloads 在两种可见性下区分原文缺失和可读")
   void payloadsReturnVisibilityContract() {
     WebCompositionRoot webRoot = createWebRoot();
 
@@ -233,21 +233,25 @@ class SessionDetailResourceApiTest {
           assertThat(standardBody.at("/payloads/0/payloadId").asText())
               .isEqualTo("main:req:alpha-call-1");
           assertThat(standardBody.at("/payloads/0/truncated").asBoolean()).isFalse();
-          assertThat(standardBody.at("/payloads/0/status").asText()).isEqualTo("available");
+          assertThat(standardBody.at("/payloads/0/status").asText()).isEqualTo("missing");
           assertThat(standardBody.at("/payloads/0/apiUrl").asText())
               .isEqualTo("/api/sessions/claude_code/s-alpha-001/payload/main%3Areq%3Aalpha-call-1");
+          assertThat(standardBody.at("/payloads/1/payloadId").asText())
+              .isEqualTo("main:resp:alpha-call-1");
+          assertThat(standardBody.at("/payloads/1/status").asText()).isEqualTo("available");
 
           var full = client.get(ALPHA_URL + "/payloads?visibility=full");
           assertThat(full.code()).isEqualTo(200);
           JsonNode fullBody = MAPPER.readTree(full.body().string());
           assertThat(fullBody.at("/filters/visibility").asText()).isEqualTo("full");
           assertThat(fullBody.at("/payloads/0/truncated").asBoolean()).isFalse();
-          assertThat(fullBody.at("/payloads/0/status").asText()).isEqualTo("available");
+          assertThat(fullBody.at("/payloads/0/status").asText()).isEqualTo("missing");
+          assertThat(fullBody.at("/payloads/1/status").asText()).isEqualTo("available");
         });
   }
 
   @Test
-  @DisplayName("payloads 支持 status=failed 过滤并返回显式 no_results state")
+  @DisplayName("payloads 将缺失原文纳入 failed 过滤，空过滤显式返回 no_results")
   void payloadsFilterFailedStatus() {
     WebCompositionRoot webRoot = createWebRoot();
 
@@ -259,9 +263,18 @@ class SessionDetailResourceApiTest {
           JsonNode body = MAPPER.readTree(response.body().string());
 
           assertThat(body.at("/filters/payloadStatus").asText()).isEqualTo("failed");
-          assertThat(body.get("payloadCount").asLong()).isEqualTo(0);
-          assertThat(body.get("payloads")).isEmpty();
-          assertThat(body.at("/state/kind").asText()).isEqualTo("no_results");
+          assertThat(body.get("payloadCount").asLong()).isEqualTo(3);
+          assertThat(body.get("payloads").findValuesAsText("status"))
+              .containsExactly("missing", "missing", "missing");
+          assertThat(body.at("/state/kind").asText()).isEqualTo("ready");
+
+          var none = client.get(ALPHA_URL + "/payloads?status=error");
+          assertThat(none.code()).isEqualTo(200);
+          JsonNode noneBody = MAPPER.readTree(none.body().string());
+          assertThat(noneBody.at("/filters/payloadStatus").asText()).isEqualTo("error");
+          assertThat(noneBody.get("payloadCount").asLong()).isZero();
+          assertThat(noneBody.get("payloads")).isEmpty();
+          assertThat(noneBody.at("/state/kind").asText()).isEqualTo("no_results");
         });
   }
 

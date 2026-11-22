@@ -63,7 +63,8 @@ class CodexParseMemoryTest {
             com.feipi.session.browser.domain.source.SourceRecordRelation.class,
             java.util.Map.class,
             java.util.List.class,
-            CodexRecordSpool.class);
+            CodexRecordSpool.class,
+            java.util.List.class);
     method.setAccessible(true);
     try (var records = new CodexRecordSpool()) {
       method.invoke(
@@ -73,7 +74,8 @@ class CodexParseMemoryTest {
           com.feipi.session.browser.domain.source.SourceRecordRelation.empty(),
           java.util.Map.of(),
           new java.util.ArrayList<>(),
-          records);
+          records,
+          java.util.List.of());
       records.seal();
       assertThat(mapper.<com.fasterxml.jackson.databind.JsonNode>valueToTree(events))
           .isEqualTo(expected);

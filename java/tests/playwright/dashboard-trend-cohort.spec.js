@@ -6,26 +6,13 @@ async function fulfillIndexedJson(route, json) {
   return route.fulfill({ response, status: 200, json });
 }
 
-test('event coverage presents measured counts in prose without exposing API keys', async ({ page }) => {
-  await page.route('**/api/dashboard/event-activity?*', (route) => fulfillIndexedJson(route, {
-    coverage: 'partial', windowDays: 30, days: [], coverageCounts: {
-      indexedSessions: 1234, summarizedSessions: 23, unknownSessions: 1211,
-      observedUserMessages: 39, undatedUserMessages: 2, supportedUsageEvents: 57,
-      unsupportedUsageEvents: 14, undatedUsageEvents: 0,
-      futureExcludedDayBuckets: 1, futureExcludedObservedUserMessages: 3,
-    },
-  }));
+test('dashboard does not request or render the retired UTC event activity', async ({ page }) => {
+  const requests = [];
+  page.on('request', req => { if (req.url().includes('/event-activity')) requests.push(req.url()); });
   await page.goto('/dashboard');
-  const coverage = page.locator('[data-event-activity-coverage]');
-  await expect(coverage).toBeHidden();
-  const disclosure = page.locator('[data-event-activity-disclosure] summary');
-  await expect(disclosure).toBeVisible();
-  await disclosure.press('Enter');
-  await expect(coverage).toBeVisible();
-  await expect(coverage).toContainText('1,234 indexed sessions', { timeout: 3000 });
-  await expect(coverage).toContainText('1,211 without event coverage');
-  await expect(coverage).not.toContainText(/indexedSessions=|futureExcluded/);
-  await expect(page.locator('[data-event-activity-future]')).toContainText('3 observed user messages');
+  await expect(page.locator('[data-chart-card="sessions"]')).toBeVisible();
+  await expect(page.getByText('UTC Event Activity', { exact: true })).toHaveCount(0);
+  expect(requests).toEqual([]);
 });
 
 test('dashboard secondary values disclose partial segments and describe UTC session starts', async ({ page }) => {
@@ -38,7 +25,7 @@ test('dashboard secondary values disclose partial segments and describe UTC sess
   });
   await page.goto('/dashboard?agent=qoder');
   await expect(page.locator('[data-secondary-tooltip="Cache Write"] .metric-card__secondary-value'))
-    .toHaveText('N/A · Partial', { timeout: 2500 });
+    .toHaveText('N/A', { timeout: 2500 });
   await expect(page.locator('[data-secondary-tooltip="Today"]')).toHaveAttribute('data-tooltip-def', /UTC.*started_at/);
 });
 
@@ -200,9 +187,9 @@ for (const timezoneId of ['America/Los_Angeles', 'Asia/Shanghai']) {
               state: TokenProvenance.state(data.tokens), estimated: (data.tokens.provenance || {}).estimatedSessionCount > 0 };
           }));
           expect(tokenParts.map(part => part.total)).toEqual(sample.rows.map(row => row[5] === 'provider_reported'
-            ? String(row[4]) + ' · 服务商上报' : row[5] === 'partial' ? expect.stringContaining('部分数据') : 'N/A · 来源未知'));
+            ? String(row[4]) : row[5] === 'partial' ? expect.stringMatching(/^≈/) : 'N/A'));
           expect(tokenParts.filter((part, index) => sample.rows[index][5] === 'provider_reported').map(part => part.read))
-            .toEqual(sample.rows.filter(row => row[5] === 'provider_reported').map(() => '0 · 服务商上报'));
+            .toEqual(sample.rows.filter(row => row[5] === 'provider_reported').map(() => '0'));
           const partial = tokenParts.filter(part => part.estimated);
           expect(partial).toHaveLength(grain === 'day' ? 0 : 1);
           if (grain !== 'day') expect(partial[0].state).toBe('mixed');
@@ -224,26 +211,3 @@ for (const timezoneId of ['America/Los_Angeles', 'Asia/Shanghai']) {
     }
   });
 }
-
-test('event table keeps coverage and exact values available without a full-height table', async ({ page }) => {
-  await page.clock.setFixedTime(new Date('2026-11-20T12:00:00Z'));
-  const measured = { reportedTokens: 12345678, reportedSamples: 1, estimatedSamples: 0,
-    unavailableSamples: 0, unknownSamples: 0, mixedSamples: 0 };
-  await page.route('**/api/dashboard/event-activity?*', route => fulfillIndexedJson(route, {
-    coverage: 'partial', windowDays: 30, coverageCounts: { indexedSessions: 9, summarizedSessions: 3, unknownSessions: 6 },
-    days: Array.from({ length: 20 }, (_, i) => ({ date: '2026-11-' + String(i + 1).padStart(2, '0'),
-      observedUserMessages: i, tokens: { fresh: measured, cacheRead: { ...measured, reportedTokens: 0 }, cacheWrite: { ...measured, reportedSamples: 0 }, output: measured } })),
-  }));
-  await page.goto('/dashboard');
-  const scroll = page.locator('.event-activity-scroll');
-  await expect(scroll.locator('tbody tr')).toHaveCount(20);
-  await expect(scroll.locator('tbody tr').first()).toContainText('2026-11-20');
-  await expect(scroll.locator('tbody tr').first()).toContainText('12.3M');
-  expect(await scroll.evaluate(e => e.scrollHeight > e.clientHeight && e.clientHeight <= 360)).toBe(true);
-  await expect(page.locator('[data-event-activity-coverage]')).toBeHidden();
-  const coverage = page.locator('[data-event-activity-disclosure] summary');
-  await coverage.press('Enter');
-  await expect(page.locator('[data-event-activity-coverage]')).toBeVisible();
-  await page.locator('[data-event-activity-exact]').press('Space');
-  await expect(scroll.locator('tbody tr').first()).toContainText('12,345,678');
-});

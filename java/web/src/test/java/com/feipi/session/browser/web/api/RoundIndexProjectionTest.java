@@ -200,7 +200,7 @@ class RoundIndexProjectionTest {
     assertThat(
             RoundIndexProjection.toolCountSummary(
                 List.of("read-1", "read-2", "grep-1", "read-1"), artifact))
-        .isEqualTo("Read × 2 · Grep × 1");
+        .isEqualTo("读取 × 2 · 搜索");
     assertThat(RoundIndexProjection.toolCountSummary(List.of(), artifact)).isEmpty();
     assertThat(RoundIndexProjection.toolCountSummary(List.of("read-1"), null)).isEmpty();
   }

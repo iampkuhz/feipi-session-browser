@@ -195,12 +195,8 @@ class ReadOnlyGateTest {
       repo.tokenBreakdown();
       repo.modelDistribution();
       repo.agentDistribution();
-      repo.toolDistribution(10);
       repo.topProjectsByTokens(5);
       repo.topProjectsByTools(5);
-      repo.topSlowestSessions(5);
-      repo.topFailedToolSessions(5);
-      repo.topHighCacheReadSessions(5);
       repo.aggregateMetrics();
       repo.agentEfficiency();
       repo.trendData(TrendFilter.defaults());

@@ -72,7 +72,7 @@
         return fetch(job.url, { headers: headers, cache: 'no-store' }).then(function (response) {
           var stamp = response.headers.get(HEADER) || '';
           if (response.status === 409 || (expected && stamp && expected !== stamp)) return { changed: true, generation: stamp };
-          if (!response.ok) return { error: new Error('HTTP ' + response.status), generation: stamp, unavailable: response.status === job.unavailableStatus };
+          if (!response.ok) return { error: new Error('HTTP ' + response.status), generation: stamp };
           if (expected && !stamp) return { changed: true, generation: '' };
           return response.json().then(function (data) { return { data: data, generation: stamp }; })
             .catch(function (error) { return { error: error, generation: stamp }; });
@@ -89,7 +89,7 @@
             if (documentGeneration && parts.some(function (part) {
               return part.changed || (part.generation
                 ? part.generation !== documentGeneration
-                : !part.error || part.unavailable);
+                : !part.error);
             })) {
               quarantine(new Error('Index generation no longer matches this document; reload the entire page'), true);
               return;
@@ -109,8 +109,7 @@
               jobs.forEach(function (job) { errorNode(job, new Error('Index changed repeatedly; no consistent snapshot rendered'), function () { return run(currentJobs, false); }); });
               return;
             }
-            // 明确不支持的资源仍展示错误，但不阻塞其余完整同代资源；其它失败不能豁免。
-            var requiredFailure = parts.some(function (part) { return part.error && !part.unavailable; });
+            var requiredFailure = parts.some(function (part) { return part.error; });
             if (hiddenRegions && requiredFailure) {
               quarantine(new Error('Snapshot recovery requires every resource; one or more requests failed'));
               return;

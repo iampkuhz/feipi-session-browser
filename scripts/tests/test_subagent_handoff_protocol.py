@@ -35,9 +35,9 @@ def test_native_model_routing_and_host_constraints():
     assert policy["implementation"] == "current-agent-native-subagents"
     assert policy["handoff_protocol"] == "subagent_instance_protocol"
     assert policy["model_routing"] == {
-        "important_implementation": "gpt-6.1-sol",
-        "complex_analysis": "gpt-6.1-sol",
-        "independent_validation": "gpt-6.1-sol",
+        "important_implementation": "gpt-6.2-sol",
+        "complex_analysis": "gpt-6.2-sol",
+        "independent_validation": "gpt-6.2-sol",
         "lightweight_lookup": "gpt-6-luna",
     }
     host = "\n".join(policy["host_constraints"])
@@ -48,7 +48,7 @@ def test_native_model_routing_and_host_constraints():
     contract = _read(
         'skills/authoring/feipi-openspec-orchestrate-change/references/subagent-contract.md'
     )
-    for constraint in ('gpt-6.1-sol', 'gpt-6-luna', 'fork_turns="none"', '必要上下文'):
+    for constraint in ('gpt-6.2-sol', 'gpt-6-luna', 'fork_turns="none"', '必要上下文'):
         assert constraint in contract
 
 

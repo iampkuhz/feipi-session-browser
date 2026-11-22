@@ -14,7 +14,6 @@ import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
 import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
 import com.feipi.session.browser.index.store.sqlite.repository.SqliteAggregateQueryRepository;
 import com.feipi.session.browser.index.store.sqlite.row.TopProjectRow;
-import com.feipi.session.browser.index.store.sqlite.row.TopSessionRow;
 import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
 import com.feipi.session.browser.query.api.AgentFilter;
 import com.feipi.session.browser.query.api.PageRequest;
@@ -571,25 +570,6 @@ class AggregateQueryRepositoryTest {
       // claude_code 在前
       assertThat(dist.keySet().iterator().next()).isEqualTo("claude_code");
     }
-
-    @Test
-    @DisplayName("工具分布返回 top-N 会话")
-    void toolDistribution() throws Exception {
-      Map<String, SqliteAggregateQueryRepository.ToolDistributionEntry> dist =
-          repo.toolDistribution(10);
-      assertThat(dist).hasSize(3);
-      // sess-003 工具最多（80 次），排在首位
-      var first = dist.values().iterator().next();
-      assertThat(first.toolCallCount()).isEqualTo(80);
-    }
-
-    @Test
-    @DisplayName("工具分布 limit=1 只返回一条")
-    void toolDistributionLimited() throws Exception {
-      Map<String, SqliteAggregateQueryRepository.ToolDistributionEntry> dist =
-          repo.toolDistribution(1);
-      assertThat(dist).hasSize(1);
-    }
   }
 
   // ── Top-N 查询 ──
@@ -617,29 +597,9 @@ class AggregateQueryRepositoryTest {
     }
 
     @Test
-    @DisplayName("最慢会话按时长排行")
-    void topSlowestSessions() throws Exception {
-      List<TopSessionRow> rows = repo.topSlowestSessions(10);
-      assertThat(rows).hasSize(3);
-      // sess-003 时长 5400 秒最长，排在首位
-      assertThat(rows.get(0).sessionKey()).isEqualTo("claude_code:sess-003");
-      assertThat(rows.get(0).durationSeconds()).isEqualTo(5400.0);
-    }
-
-    @Test
-    @DisplayName("失败工具会话按失败数排行")
-    void topFailedToolSessions() throws Exception {
-      List<TopSessionRow> rows = repo.topFailedToolSessions(10);
-      // 只有 sess-001 有失败工具
-      assertThat(rows).hasSize(1);
-      assertThat(rows.get(0).sessionKey()).isEqualTo("claude_code:sess-001");
-      assertThat(rows.get(0).failedToolCount()).isEqualTo(3);
-    }
-
-    @Test
-    @DisplayName("limit 为负数时抛异常")
+    @DisplayName("limit 为非正数时抛异常")
     void invalidLimitThrows() {
-      assertThatThrownBy(() -> repo.topSlowestSessions(0))
+      assertThatThrownBy(() -> repo.topProjectsByTokens(0))
           .isInstanceOf(IllegalArgumentException.class);
     }
   }
@@ -829,13 +789,9 @@ class AggregateQueryRepositoryTest {
           // 分布查询
           assertThat(emptyRepo.modelDistribution()).isEmpty();
           assertThat(emptyRepo.agentDistribution()).isEmpty();
-          assertThat(emptyRepo.toolDistribution(10)).isEmpty();
 
           // Top-N 排行
           assertThat(emptyRepo.topProjectsByTokens(10)).isEmpty();
-          assertThat(emptyRepo.topSlowestSessions(10)).isEmpty();
-          assertThat(emptyRepo.topFailedToolSessions(10)).isEmpty();
-          assertThat(emptyRepo.topHighCacheReadSessions(10)).isEmpty();
 
           // 衍生指标
           AggregateMetrics metrics = emptyRepo.aggregateMetrics();

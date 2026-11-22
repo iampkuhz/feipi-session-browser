@@ -31,8 +31,14 @@ public final class ApiResponses {
    * @param schemaVersion 响应 schema 版本
    * @param text payload 文本内容，与 content 一致，供前端 payloadNodeFromJson 读取
    * @param status 内容可用状态，区分已记录内容与缺失内容
-   * @param reading 按来源角色投影的阅读正文，不含工具结果或系统上下文
+   * @param reading 按证据来源和角色投影的阅读片段
    * @param unconfirmedContext 原始请求含归属无法确认的独立上下文样式段落
+   * @param modelProvider 当时记录的模型提供方
+   * @param source 来源枚举，不从 originator 推测
+   * @param originator 原始客户端标识
+   * @param cliVersion 原始客户端版本
+   * @param tokens 可证的 total 和 reasoning
+   * @param skillNames 当时记录的技能清单名称
    */
   public record PayloadResponse(
       String payloadId,
@@ -44,7 +50,13 @@ public final class ApiResponses {
       String text,
       String status,
       List<PayloadReadingBlock> reading,
-      boolean unconfirmedContext) {
+      boolean unconfirmedContext,
+      String modelProvider,
+      String source,
+      String originator,
+      String cliVersion,
+      Map<String, Long> tokens,
+      List<String> skillNames) {
 
     /**
      * 紧凑构造器，验证不变量。
@@ -65,11 +77,15 @@ public final class ApiResponses {
   /**
    * 阅读区片段；纯文本和安全 HTML 二选一。
    *
+   * @param kind 正文类别
+   * @param source 当前记录或历史重建
    * @param label 多个调用并列时显示的简短标识
    * @param text 无需 Markdown 渲染的纯文本
    * @param html presentation 层生成并净化的结构化内容
+   * @param toolCallId 有关联工具时的稳定调用标识
    */
-  public record PayloadReadingBlock(String label, String text, String html) {}
+  public record PayloadReadingBlock(
+      String kind, String source, String label, String text, String html, String toolCallId) {}
 
   /**
    * round lazy-load API 响应。
@@ -143,6 +159,7 @@ public final class ApiResponses {
    * @param declaredByCallId 声明该工具调用的 LLM call ID
    * @param status 工具状态或错误描述
    * @param exitCode 退出码，缺失时为 null
+   * @param timestamp 独立来源的工具声明时间，缺测时为 null，不表示执行器启动时间
    * @param durationMs 执行耗时毫秒
    * @param subagentId 子 agent 标识，主会话为空
    * @param inputPreview 安全输入预览（路径、查询或命令）
@@ -157,6 +174,7 @@ public final class ApiResponses {
       String declaredByCallId,
       String status,
       Integer exitCode,
+      String timestamp,
       Long durationMs,
       String subagentId,
       String inputPreview,
@@ -194,6 +212,9 @@ public final class ApiResponses {
    * @param parentCallId 启动子代理的父调用
    * @param parentToolCallId 触发子 agent 的父工具调用 ID
    * @param parentToolName 触发子 agent 的父工具名
+   * @param phaseLabel 来源明确时展示的 Side Chat 调用阶段
+   * @param requestAvailable 请求载荷是否可单独打开
+   * @param responseAvailable 响应是否有正文、工具声明或明确的逐响应计量证据
    */
   public record CallSummary(
       String callId,
@@ -207,7 +228,10 @@ public final class ApiResponses {
       String subagentId,
       String parentCallId,
       String parentToolCallId,
-      String parentToolName) {
+      String parentToolName,
+      String phaseLabel,
+      boolean requestAvailable,
+      boolean responseAvailable) {
 
     /**
      * 紧凑构造器，验证不变量。
@@ -338,8 +362,9 @@ public final class ApiResponses {
    * @param id 工具调用身份
    * @param name 工具名称
    * @param preview 工具输入的短预览
+   * @param resultObserved 当前会话记录中是否观察到此工具结果
    */
-  public record AttributionTool(String id, String name, String preview) {}
+  public record AttributionTool(String id, String name, String preview, boolean resultObserved) {}
 
   /**
    * bucket-detail API 响应。

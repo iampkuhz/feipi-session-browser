@@ -30,19 +30,39 @@
         }
         var reload = node('button', 'btn', '刷新状态');
         reload.type = 'button';
-        reload.dataset.action = 'reload-page';
+        reload.addEventListener('click', function () {
+            reload.disabled = true;
+            reload.textContent = '正在读取…';
+            refresh();
+        });
         content.appendChild(reload);
+        var checked = node('small', 'muted', ' 最近检查：' + new Date().toLocaleTimeString('zh-CN', { hour12: false }));
+        content.appendChild(checked);
         target.appendChild(panel);
     }
 
+    var pending = false;
     function refresh() {
-        if (document.visibilityState === 'hidden') return;
-        fetch('/api/scan-status', { cache: 'no-store' }).then(function (response) {
-            if (!response.ok) throw new Error('scan_status_unavailable');
-            return response.json();
-        }).then(display).catch(function () {
-            display({ status: 'unknown', message: '扫描状态读取失败，当前页面数据是否最新尚未确认。请刷新状态重试。' });
-        });
+        if (pending || document.visibilityState === 'hidden') return;
+        pending = true;
+        fetch('/api/scan-status', {
+            cache: 'no-store', headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(10000)
+        }).then(function (response) {
+            if (!response.ok) {
+                var reason = { 404: '状态接口不存在', 500: '服务未能读取状态记录', 503: '本地服务暂不可用' };
+                throw new Error('HTTP ' + response.status + (reason[response.status] ? '，' + reason[response.status] : ''));
+            }
+            return response.json().catch(function () { throw new Error('响应不是有效的 JSON'); });
+        }, function (error) {
+            throw new Error(error.name === 'TimeoutError' ? '本地服务在 10 秒内未响应' : '无法连接本地服务');
+        }).then(function (data) {
+            if (!data || !['success', 'running', 'failure', 'unknown'].includes(data.status)) {
+                throw new Error('响应缺少有效的扫描状态');
+            }
+            display(data);
+        }).catch(function (error) {
+            display({ status: 'unknown', message: '扫描状态读取失败：' + error.message + '。当前页面数据是否最新尚未确认。' });
+        }).finally(function () { pending = false; });
     }
     refresh();
     window.setInterval(refresh, 15000);

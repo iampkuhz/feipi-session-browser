@@ -409,7 +409,8 @@ final class ToolIdentityPlan {
         record.timing(),
         record.metaContext(),
         record.messageRole(),
-        observation(ordinal, record.toolObservation()));
+        observation(ordinal, record.toolObservation()),
+        record.readingEvidence());
   }
 
   /** 只透传已唯一归属的观测，不制造声明或结果边。 */

@@ -48,6 +48,28 @@ env -u QUALITY_CHANGED_FILES ./java/gradlew -p java :java:tests:quality-gates:ru
 格式/静态规则通过后才跑原失败单点，再按消费者扩大回归；纯注释修改不强制无关行为测试。
 不使用 root `check` 作为每次编辑反馈，也不把 `spotlessApply` 或自动修复挂入检查。最终交付仍按下文完整 Gate。
 
+### 清理已替代的实现
+
+先区分正式使用方、仅测试使用方和未找到使用方。测试、fixture、质量基线不是产品入口；但测试可能在守护对外 API 或安全契约，不能仅凭「只在测试中命中」删除。
+
+```bash
+# 查 Java 方法、文件名、data-action、CSS 类或路由；每次换成实际候选。
+symbol=wrapInDiv
+git grep -n -w -F "$symbol" -- ':(glob)java/**/src/main/**' ':!java/tests/**'
+git grep -n -w -F "$symbol" -- ':(glob)java/**/src/test/**' java/tests
+git grep -n -w -F "$symbol" -- docs openspec README.md
+
+# 可选静态审计；版本固定，依赖只安装到忽略目录，不加入产品或 Gate。
+tools="$PWD/tmp/session-static-tools"
+npm install --prefix "$tools" --no-audit --no-fund eslint@9.39.1 postcss@8.5.6 postcss-selector-parser@7.1.0
+node java/tests/playwright/audit-session-static.cjs "$tools"
+```
+
+- JS 按模板加载顺序组合经典脚本，由 ESLint 找未使用绑定。还要查其他页面、`window` 导出、字符串回调及事件触发元素；删完根节点再查其依赖。未加载的整份资产用路径搜索确认。
+- PostCSS 逐个拆分选择器，`test-only` 表示只找到测试字面量，`no-literal` 表示连测试字面量也没有。先排除动态拼接、条件状态、模板、Java 生成 HTML 与离线导出，再删对应分支；不把报告整批自动删除。
+- Java 用模块的 `pmdMain` 找未使用的私有方法、字段和局部变量；对包可见或公开成员用上述分域搜索，并核查路由、序列化、模板注册、反射和对外文档。只有废弃的实现和只覆盖该实现的测试可以一起删；保留对当前行为的验证。
+- 删后复测实际消费者。必要时用 Playwright 的 Chromium JS/CSS 覆盖，以及对运行中服务采集的 JaCoCo 跟踪辅助反证；不要把未命中或单元测试覆盖率当作删除结论。
+
 ### Python 静态反馈
 
 `ruff check` 不检查格式；修改 Python 后先对精确路径同时检查格式和 lint，失败先修复，不继续重测试。

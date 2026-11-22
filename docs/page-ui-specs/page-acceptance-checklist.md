@@ -34,13 +34,12 @@
 
 ## Session Detail
 
-- [ ] 目标主 tab 只有 Trace、Payload。
-- [ ] Hero 固定 5 张一级 KPI：Run Health、Total Tokens、Cache Health、Workload、Active Time；每卡二级 KPI 不超过 4 个。
-- [ ] 诊断区覆盖 Agents Breakdown、Context Budget、Tool Impact、Issues & Repro Seeds；Top Token Drivers、Call Token Footprint Distribution 和 Payload Availability 不再独立渲染。
-- [ ] Trace 无 sidecar；round 全宽；全局只有一个 Expand all / Collapse all。
-- [ ] Failed filter 覆盖 failed round 和含失败信号的 round，不允许 Hero/Issue Signals 有问题但筛选为空。
-- [ ] Round 非按钮区域可 toggle；LLM/subagent call 有 request/response attribution 和 payload 入口。
-- [ ] Payload 左侧 selector 支持 All / Failed / Missing / Error，右侧按 Overview、Request Attribution、Response Attribution、Raw Request、Raw Response、Related Results 展示。
+- [ ] 在 1024 CSS px 及以上桌面窗口，会话头与指标、Token 分析、执行过程依次直接显示，无顶层 tab。
+- [ ] 四张指标卡分别展示 Token 总量、输入端缓存命中率、本地记录工作量、耗时；主值及多个子值都直接可读，每卡二级指标不超过四个。
+- [ ] Token 分析左为 Agent 候选表，右为图表；图例简短，切换 Agent 同步更新图表，不伪造缺失走势。
+- [ ] Trace 的五列分别展示轮次标识、摘要、Token、原文入口、时间点。时刻与秒或分秒表示的时长分开，启动时间有明确来源，实测零、非零及未知可区分。
+- [ ] Trace 无 sidecar；round 全宽；全局只有一个 Expand all / Collapse all。Failed 筛选保留已观察的失败证据及关联记录。
+- [ ] Round 非按钮区域可展开；可用的 Request、Response、归因及工具原文从对应记录按需读取。独立导入保持相同阅读路径，且仅请求导入范围。
 
 ## Projects
 

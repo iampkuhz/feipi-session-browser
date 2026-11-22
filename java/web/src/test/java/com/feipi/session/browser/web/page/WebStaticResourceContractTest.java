@@ -238,10 +238,10 @@ class WebStaticResourceContractTest {
             "token-breakdown__row",
             "line.dataset.tokenPart = key",
             "占比以当前总量为分母，包含 Output；N/A 不等于 0%。",
-            "Fresh input",
-            "Cache read",
-            "Cache write",
-            "Output");
+            "'Fresh', 'fresh'",
+            "'Cache Read', 'cacheRead'",
+            "'Cache Write', 'cacheWrite'",
+            "'Output', 'output'");
     assertThat(cssBlock(css, ".p-projects .agents-cell"))
         .contains("vertical-align: middle;")
         .doesNotContain("display: flex");
@@ -280,7 +280,7 @@ class WebStaticResourceContractTest {
     assertThat(cssBlock(buttons, ".btn")).contains("font: inherit;").doesNotContain("font-size:");
     assertThat(cssBlock(tables, ".data-table")).doesNotContain("font-size:");
     assertThat(cssBlock(timeline, ".sd-round-preview__title")).doesNotContain("font-size:");
-    assertThat(pixelFontSize(header, ".sd-summary-item")).isGreaterThanOrEqualTo(12.0);
+    assertThat(pixelFontSize(header, ".sd-session-start")).isGreaterThanOrEqualTo(12.0);
     assertThat(pixelFontSize(header, ".sd-kpi__value")).isGreaterThanOrEqualTo(14.0);
   }
 
@@ -301,9 +301,16 @@ class WebStaticResourceContractTest {
             "data-session-overview-hero",
             "data-session-metrics-shell",
             "data-session-diagnostics",
-            "data-session-tabs",
+            "<section class=\"se-analysis\"",
+            "data-token-composition",
             "data-trace-panel",
-            "data-payload-sources-container");
+            "data-payload-sources-container")
+        .doesNotContain(
+            "role=\"tablist\"",
+            "data-execution-items",
+            "data-tab-panel",
+            "data-round-sources",
+            "data-payload-index");
   }
 
   /** 验收映射：UI-SD-016。 */
@@ -346,7 +353,8 @@ class WebStaticResourceContractTest {
   /** 提取指定 CSS 选择器的声明块，避免整份文件中的同名属性造成误判。 */
   private static String cssBlock(String css, String selector) {
     var matcher =
-        Pattern.compile(Pattern.quote(selector) + "\\s*\\{([^}]*)}", Pattern.DOTALL).matcher(css);
+        Pattern.compile("(?m)^\\s*" + Pattern.quote(selector) + "\\s*\\{([^}]*)}", Pattern.DOTALL)
+            .matcher(css);
     assertThat(matcher.find()).as("CSS 选择器 %s", selector).isTrue();
     return matcher.group(1);
   }

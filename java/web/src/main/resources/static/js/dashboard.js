@@ -699,7 +699,6 @@
             });
             paths += '<path class="area-total-line" d="' + linePath(data, maxVal, plottableTokenTotal) + '"></path>';
 
-            var activeScope = getActiveScope();
             var targets = '';
             data.forEach(function(d, i) {
                 var total = plottableTokenTotal(d);
@@ -896,12 +895,10 @@
             var params = currentApiParams();
             var activeScope = getActiveScope();
             var paths = ['summary', 'trends/sessions', 'trends/tokens', 'trends/prompts', 'trends/cache-health', 'agents/contribution', 'agents/efficiency',
-                'agents/' + encodeURIComponent(activeScope === 'all' ? 'claude-code' : activeScope) + '/deep-dive', 'event-activity'];
-            params.set('days', getGrain() === 'month' ? '366' : getGrain() === 'week' ? '140' : '30');
+                'agents/' + encodeURIComponent(activeScope === 'all' ? 'claude-code' : activeScope) + '/deep-dive'];
             return dashboardSnapshot.load(paths.map(function (path, index) {
-                return { key: 'dashboard/' + path, url: '/api/dashboard/' + path + '?' + params.toString(), unavailableStatus: index === 8 ? 501 : undefined, error: index === 8 ? eventActivityError : undefined, apply: function (part) {
+                return { key: 'dashboard/' + path, url: '/api/dashboard/' + path + '?' + params.toString(), apply: function (part) {
                     dashboardParts[index] = part;
-                    if (index === 8) renderEventActivity(part);
                     if (index === 0) updateDashboardSummary(part);
                     if (index === 1 || index === 2) rawData = mergeSessionTokenTrends(dashboardParts[1], dashboardParts[2]);
                     if (index === 3) promptRawData = promptTrendRows(part);
@@ -912,154 +909,6 @@
                     renderAll();
                 } };
             }));
-        }
-
-        // 只聚合 API 给出的实际日桶，不创建没有观察证据的日期。
-        var eventTokenKeys = ['fresh', 'cacheRead', 'cacheWrite', 'output'];
-        var eventSampleKeys = ['reportedSamples', 'estimatedSamples', 'unavailableSamples', 'unknownSamples', 'mixedSamples'];
-
-        function eventText(hook, value) {
-            var node = document.querySelector('[data-event-activity-' + hook + ']');
-            if (node) node.textContent = value;
-        }
-
-        function showEventPart(hook, show) {
-            var node = document.querySelector('[data-event-activity-' + hook + ']');
-            if (node) node.hidden = !show;
-        }
-
-        function eventActivityError(error, retry) {
-            var unavailable = error && error.message === 'HTTP 501';
-            var status = error && /^HTTP [0-9]{3}$/.test(error.message) ? error.message : 'Request failed';
-            eventText('window', 'UTC · no event window available');
-            eventText('state', unavailable
-                ? 'Unavailable (HTTP 501)'
-                : 'Unable to load event activity: ' + status + '.');
-            var state = document.querySelector('[data-event-activity-state]');
-            if (state) {
-                state.setAttribute('role', unavailable ? 'status' : 'alert');
-                if (typeof retry === 'function') {
-                    var button = document.createElement('button');
-                    button.type = 'button';
-                    button.className = 'btn';
-                    button.textContent = 'Retry event activity';
-                    button.addEventListener('click', function () {
-                        button.disabled = true;
-                        Promise.resolve(retry()).finally(function () { button.disabled = false; });
-                    });
-                    state.appendChild(document.createTextNode(' '));
-                    state.appendChild(button);
-                }
-            }
-            var rows = document.querySelector('[data-event-activity-days]');
-            if (rows) rows.replaceChildren();
-            showEventPart('table-wrap', false);
-            showEventPart('summary', false);
-            showEventPart('disclosure', false);
-            eventText('empty', unavailable ? 'The selected query source does not provide event-date statistics.' : '');
-            showEventPart('empty', unavailable);
-        }
-
-        function eventComponentText(component, exact) {
-            if (!component || !(component.reportedSamples > 0) || component.reportedTokens == null) return 'N/A';
-            var n = component.reportedTokens;
-            return exact || n < 1000 ? formatNumber(n) : formatTokens(n);
-        }
-
-        function eventComponentEvidence(component) {
-            component = component || {};
-            return 'Modern Codex usage report day only; provider reported=' + (component.reportedSamples || 0)
-                + ', estimated=' + (component.estimatedSamples || 0)
-                + ', unavailable=' + (component.unavailableSamples || 0)
-                + ', unknown=' + (component.unknownSamples || 0)
-                + ', mixed=' + (component.mixedSamples || 0)
-                + '. Amount sums provider-reported evidence only; not a complete bill.';
-        }
-
-        function renderEventActivity(part) {
-            if (!part) return;
-            var coverage = part.coverageCounts || {};
-            function count(key) {
-                return coverage[key] == null ? 'N/A' : formatNumber(coverage[key]);
-            }
-            eventText('state', part.coverage === 'partial' ? 'Partial coverage' : 'Unknown coverage');
-            var state = document.querySelector('[data-event-activity-state]');
-            if (state) state.setAttribute('role', 'status');
-            eventText('coverage', count('indexedSessions') + ' indexed sessions; ' + count('summarizedSessions')
-                + ' with event evidence; ' + count('unknownSessions') + ' without event coverage. '
-                + count('observedUserMessages') + ' observed user messages (' + count('undatedUserMessages') + ' undated).');
-            eventText('usage', count('supportedUsageEvents') + ' supported usage events; '
-                + count('unsupportedUsageEvents') + ' unsupported usage events; ' + count('undatedUsageEvents') + ' undated usage events.');
-            eventText('future', count('futureExcludedDayBuckets') + ' excluded day buckets · '
-                + count('futureExcludedObservedUserMessages') + ' observed user messages. Entire mixed day buckets are excluded until their latest event occurs.');
-            var undated = part.undatedTokens || {};
-            var tokenLabels = ['Fresh', 'Cache read', 'Cache write', 'Output'];
-            eventText('undated', 'Undated usage — never assigned to a date; only provider-reported amounts: '
-                + eventTokenKeys.map(function (key, i) {
-                    return tokenLabels[i] + ': ' + eventComponentText(undated[key], true);
-                }).join(' · '));
-            var buckets = {};
-            var window = calendarWindow();
-            (part.days || []).forEach(function (day) {
-                if (typeof day.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(day.date)
-                    || day.date < window.start || day.date > window.end) return;
-                var key = getGrain() === 'week' ? weekKey(day.date) : getGrain() === 'month' ? monthKey(day.date) : day.date;
-                if (!buckets[key]) {
-                    buckets[key] = { observedUserMessages: 0, tokens: {} };
-                    eventTokenKeys.forEach(function (tokenKey) {
-                        var component = { reportedTokens: null };
-                        eventSampleKeys.forEach(function (sampleKey) { component[sampleKey] = 0; });
-                        buckets[key].tokens[tokenKey] = component;
-                    });
-                }
-                var bucket = buckets[key];
-                bucket.observedUserMessages += day.observedUserMessages;
-                eventTokenKeys.forEach(function (tokenKey) {
-                    var source = day.tokens[tokenKey];
-                    var target = bucket.tokens[tokenKey];
-                    eventSampleKeys.forEach(function (sampleKey) { target[sampleKey] += source[sampleKey]; });
-                    if (source.reportedSamples > 0 && source.reportedTokens != null) {
-                        target.reportedTokens = (target.reportedTokens == null ? 0 : target.reportedTokens) + source.reportedTokens;
-                    }
-                });
-            });
-            var rows = document.querySelector('[data-event-activity-days]');
-            if (!rows) return;
-            rows.replaceChildren();
-            var dates = Object.keys(buckets).sort().reverse();
-            var exact = document.querySelector('[data-event-activity-exact]');
-            var tokenCells = [];
-            eventText('window', window.start + ' to ' + window.end + ' UTC · ' + dates.length + ' observed '
-                + ({ day: 'days', week: 'weeks', month: 'months' }[getGrain()] || 'periods'));
-            eventText('summary', count('summarizedSessions') + ' of ' + count('indexedSessions')
-                + ' indexed sessions have event evidence across the selected sources.');
-            showEventPart('summary', part.coverage === 'partial');
-            showEventPart('table-wrap', dates.length > 0);
-            showEventPart('empty', !dates.length);
-            showEventPart('disclosure', part.coverage === 'partial' || dates.length > 0);
-            eventText('empty', 'No observed event dates in this window. Missing evidence is not measured zero.');
-            dates.forEach(function (key) {
-                var row = document.createElement('tr');
-                var bucket = buckets[key];
-                [key, formatNumber(bucket.observedUserMessages)].forEach(function (value) {
-                    var cell = document.createElement('td');
-                    cell.textContent = value;
-                    row.appendChild(cell);
-                });
-                eventTokenKeys.forEach(function (tokenKey) {
-                    var component = bucket.tokens[tokenKey];
-                    var cell = document.createElement('td');
-                    cell.title = eventComponentText(component, true) + ' · ' + eventComponentEvidence(component);
-                    row.appendChild(cell);
-                    tokenCells.push([cell, component]);
-                });
-                rows.appendChild(row);
-            });
-            function updateAmounts() {
-                tokenCells.forEach(function (entry) { entry[0].textContent = eventComponentText(entry[1], exact && exact.checked); });
-            }
-            if (exact) exact.onchange = updateAmounts;
-            updateAmounts();
         }
 
         function updateDashboardSummary(summary) {

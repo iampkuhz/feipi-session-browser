@@ -1,3 +1,50 @@
+.sd-trace-title {
+  margin: 0 0 8px;
+  color: var(--sd-text);
+  font-size: 18px;
+}
+.sd-record-card {
+  background: var(--sd-surface);
+  border: 1px solid var(--sd-line);
+  border-radius: var(--sd-radius-card);
+  overflow-x: auto;
+}
+.sd-trace-panel {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+.sd-empty-state {
+  padding: 20px;
+  text-align: center;
+  color: var(--sd-muted);
+  font-size: 13px;
+}
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`sd-trace-head mapped to table-toolbar` */
+.sd-trace-head {
+  height: 46px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--sd-line-soft);
+  background: linear-gradient(180deg, #fff, #fbfcff);
+}
+.sd-trace-sub {
+  color: var(--sd-muted);
+  font-size: 12px;
+}
+.sd-toggle-all-btn {
+  min-width: 120px;
+}
+.sd-trace-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .sd-seg {
   display: flex;
   gap: 3px;
@@ -75,6 +122,10 @@
 .sd-round-toggle.round-id.failed {
   color: var(--sd-err);
 }
+.sd-round-signals { display: flex; align-items: center; gap: 3px; min-width: 0; }
+.sd-round-signals .sd-signal-badge { display: block; overflow: hidden; text-overflow: ellipsis; }
+.sd-more-signals { flex: none; padding: 0 3px; font: inherit; font-size: 11px; cursor: pointer; }
+.sd-signal-list { padding: 12px; border: 1px solid var(--sd-line); border-radius: var(--sd-radius-card); }
 .sd-round-status {
   height: 22px;
   min-width: 0;
@@ -170,7 +221,7 @@
   display: none;
   background: #fbfdff;
   border-top: 1px solid var(--sd-line-soft);
-  padding: 10px 14px 12px 76px;
+  padding: 2px 0;
 }
 .expanded-row .sd-round-detail {
   display: block;
@@ -189,7 +240,7 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 0;
 }
 .sd-timeline:before {
   content: "";
@@ -213,7 +264,7 @@
   height: 10px;
   border-radius: 50%;
   margin-left: 7px;
-  margin-top: 14px;
+  margin-top: 9px;
   z-index: 2;
   background: var(--sd-brand);
   box-shadow: 0 0 0 4px #eef2ff;
@@ -329,6 +380,16 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   justify-content: flex-start;
+}
+.sd-attribution-actions--row .sd-btn {
+  min-width: 0;
+  padding-inline: 4px;
+  font-size: 11px;
+}
+.sd-attribution-actions--row .se-missing {
+  font-size: 11px;
+  line-height: 1.1;
+  white-space: normal;
 }
 .sd-attribution-actions--subround {
   flex-wrap: wrap;
@@ -520,7 +581,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 7px;
+  margin-bottom: 0;
 }
 .sd-tool-group__title {
   font-weight: 850;
@@ -552,11 +613,31 @@
   padding: 0 8px;
   position: relative;
 }
-.sd-tool-time[data-meta-label]::before {
-  content: attr(data-meta-label) " ";
-  font-size: 10px;
-  color: var(--sd-text-2);
+.sd-time-point,
+.sd-time-duration {
+  color: var(--sd-muted);
+  font-variant-numeric: tabular-nums;
+  font-family: var(--sd-mono);
+  font-size: 11px;
+  white-space: nowrap;
 }
+.sd-time-duration { color: var(--sd-text-2); }
+[data-tool-execution-kind] [data-clock-label]::before {
+  content: attr(data-clock-label);
+  display: block;
+  color: var(--sd-muted);
+  font-family: var(--sd-font);
+  font-size: 10px;
+  line-height: 1;
+}
+.sd-call-sources {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding-inline-start: 26px;
+}
+.sd-call-identity { color: var(--sd-text-2); }
 .round-row > td:not(:first-child) { border-left: 1px solid var(--sd-line-soft); }
 .trace-table .round-row:nth-of-type(4n + 1) { background: var(--sd-panel); }
 .trace-table .expanded-row > td { background: var(--sd-panel); border-block: 1px solid var(--sd-line); }
@@ -566,7 +647,8 @@
   border: 0;
   --sd-tool-kind-col: 78px;
   --sd-tool-meta-col: minmax(80px, .35fr);
-  --sd-tool-time-col: 104px;
+  --sd-tool-time-col: 70px;
+  --sd-tool-duration-col: 86px;
   --sd-tool-status-col: 104px;
   --sd-tool-token-col: 64px;
   --sd-tool-action-col: 148px;
@@ -577,10 +659,11 @@
     minmax(0, 1fr)
     var(--sd-tool-meta-col)
     var(--sd-tool-time-col)
+    var(--sd-tool-duration-col)
     var(--sd-tool-status-col)
     var(--sd-tool-token-col)
     var(--sd-tool-action-col);
-  min-height: 38px;
+  min-height: 28px;
 }
 .sd-tool-group--flat .sd-tool-row--quiet {
   --sd-tool-meta-col: 0px;
@@ -680,20 +763,20 @@
 /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Nested subagent under parent LLM call (Issues 3, 4)` */
 .sd-subagent-nested {
   margin-left: 0;
-  margin-top: 6px;
-  margin-bottom: 6px;
+  margin-top: 0;
+  margin-bottom: 0;
   position: relative;
 }
 .sd-subagent-nested::before {
   display: none;
 }
 .sd-subagent__head {
-  min-height: 36px;
+  min-height: 28px;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
-  padding: 6px 10px;
+  padding: 1px 8px;
   border-bottom: 1px solid #bae6fd;
   background: #ecfeff;
   border-radius: calc(var(--sd-radius-card) - 1px) calc(var(--sd-radius-card) - 1px) 0 0;
@@ -714,13 +797,13 @@
   flex-shrink: 0;
 }
 .sd-sub-rounds {
-  padding: 8px 10px 10px;
+  padding: 0 4px;
 }
 .sd-sub-round {
   border: 1px solid #dbeafe;
   background: #fff;
   border-radius: 12px;
-  margin-bottom: 7px;
+  margin-bottom: 0;
   overflow: visible;
   scroll-margin-top: 12px;
 }
@@ -737,12 +820,12 @@
   border-bottom-left-radius: 12px;
 }
 .sd-sub-round__summary {
-  min-height: 34px;
+  min-height: 28px;
   display: grid;
-  grid-template-columns: 18px 60px minmax(0, 1fr) minmax(136px, auto) auto 84px;
+  grid-template-columns: 18px 60px minmax(0, 1fr) minmax(136px, auto) 68px 76px 84px;
   gap: 8px;
   align-items: center;
-  padding: 5px 9px;
+  padding: 1px 6px;
   border-bottom: 1px solid transparent;
   background: transparent;
   cursor: pointer;
@@ -853,23 +936,12 @@
 .sd-sub-tokenbar:focus-within {
   z-index: 80;
 }
-@media (max-width: 720px) {
-  .sd-sub-round__summary {
-    grid-template-columns: 18px minmax(0, 1fr);
-  }
-  .sd-sub-round__summary > .sd-sub-title,
-  .sd-sub-round__summary > .sd-attribution-actions,
-  .sd-sub-round__summary > .sd-sub-time,
-  .sd-sub-round__summary > .sd-sub-tokenbar {
-    grid-column: 1 / -1;
-  }
-}
 .sd-sub-steps {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 7px 9px 8px 28px;
+  gap: 0;
+  padding: 0 4px 0 20px;
 }
 .sd-sub-steps[hidden] {
   display: none;
@@ -997,26 +1069,47 @@
   contain: layout style;
 }
 .trace-table col.col-round {
-  width: 78px;
+  width: 60px;
 }
 .trace-table col.col-summary {
   width: auto;
 }
 .trace-table col.col-metrics {
-  width: 218px;
+  width: 108px;
 }
 .trace-table col.col-attribution {
-  width: 180px;
-}
-.trace-table col.col-status {
-  width: 120px;
+  width: 152px;
 }
 .trace-table col.col-time {
-  width: 90px;
+  width: 78px;
+}
+.trace-table col.col-duration {
+  width: 84px;
+}
+.summary-content {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+.summary-content .summary-line {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.summary-content .summary-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.summary-content .sd-round-signals {
+  flex: none;
+  max-width: 44%;
 }
 .trace-table thead th {
-  height: 36px;
-  padding: 0 12px;
+  height: var(--sd-h-round);
+  white-space: nowrap;
+  padding: 0 var(--sd-card-inset);
   font-size: 11px;
   font-weight: 850;
   text-transform: uppercase;
@@ -1036,7 +1129,9 @@
   scroll-margin-top: 12px;
 }
 .round-row td {
-  padding: 0 12px;
+  height: var(--sd-h-round);
+  white-space: nowrap;
+  padding: 0 var(--sd-card-inset);
   vertical-align: middle;
   text-align: left;
 }
@@ -1054,7 +1149,7 @@
   display: none;
 }
 .expanded-row td {
-  padding: 8px 14px 12px;
+  padding: 2px 8px 4px;
   background: transparent;
   border-top: 0;
 }
@@ -1062,10 +1157,10 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 0;
   min-width: 0;
-  padding: 10px;
-  border: 1px solid var(--sd-line-soft);
+  padding: 0;
+  border: 0;
   border-radius: 10px;
   background: #fbfdff;
   box-shadow: 0 1px 2px rgba(15,23,42,.025);
@@ -1073,9 +1168,9 @@
 .expanded-row td .sd-timeline:before {
   content: "";
   position: absolute;
-  left: 22px;
-  top: 10px;
-  bottom: 10px;
+  left: 12px;
+  top: 5px;
+  bottom: 5px;
   width: 2px;
   background: linear-gradient(#dbe5f1, #f3cad0);
   border-radius: 999px;
@@ -1176,15 +1271,10 @@
 }
 /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`metric-cell for trace table` */
 .trace-table .metric-cell {
-  display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
+  display: flex;
   align-items: center;
-  gap: 4px 10px;
-  padding: 6px 0;
-}
-.trace-table .metric-cell > .token-provenance {
-  grid-column: 1 / -1;
-  margin-top: 0;
+  gap: 8px;
+  padding: 2px 0;
 }
 .metric-tools {
   font-size: 11.5px;
@@ -1194,10 +1284,12 @@
 }
 .token-group {
   display: flex;
-  flex-direction: column;
-  gap: 3px;
+  align-items: center;
+  flex: none;
+  gap: 6px;
 }
 .metric-token {
+  min-width: 7ch;
   font-family: var(--sd-mono);
   font-weight: 820;
   font-size: 13px;
@@ -1208,7 +1300,7 @@
 .tokenbar-wrap {
   position: relative;
   display: inline-flex;
-  width: 96px;
+  width: 36px;
   height: 7px;
   border-radius: 999px;
   background: #e5e7eb;
@@ -1262,15 +1354,16 @@
 .sd-round-toggle[aria-expanded="true"] .round-chevron {
   transform: rotate(90deg);
 }
+.summary-line {
+  display: block;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+  overflow: hidden;
+}
 .summary-title {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
   font-weight: 650;
   color: var(--sd-text);
-  line-height: 1.4;
-  overflow-wrap: anywhere;
-  overflow: hidden;
 }
 .summary-title--missing,
 .summary-role,
@@ -1282,64 +1375,51 @@
   font-weight: 500;
 }
 .summary-role {
-  display: block;
-  margin-bottom: 2px;
+  display: inline-block;
+  margin-inline-end: 0.5em;
+}
+.sd-action-category,
+.summary-role--tool + .summary-title {
+  color: var(--sd-purple);
+}
+/* Wording stays visible; color only groups related tool operations. */
+[data-tool-execution-kind] .sd-action-category {
+  padding-inline: 3px;
+  border-radius: 3px;
+  color: var(--sd-text-2);
+  background: var(--sd-line-soft);
+}
+:is([data-tool-execution-kind="read"], [data-tool-execution-kind="search"]) .sd-action-category {
+  color: #075985;
+  background: #e0f2fe;
+}
+:is([data-tool-execution-kind="write"], [data-tool-execution-kind="edit"]) .sd-action-category {
+  color: #166534;
+  background: #dcfce7;
+}
+:is([data-tool-execution-kind="shell"], [data-tool-execution-kind="python"], [data-tool-execution-kind="javascript"]) .sd-action-category {
+  color: #5b21b6;
+  background: #ede9fe;
+}
+:is([data-tool-execution-kind="wait"], [data-tool-execution-kind="agent"], [data-tool-execution-kind="process-input"]) .sd-action-category {
+  color: #854d0e;
+  background: #fef3c7;
+}
+.sd-call-tools__label {
+  position: relative;
+  margin-inline-start: 26px;
+  color: var(--sd-purple);
+  font-size: 11px;
+  font-weight: 750;
 }
 .metric-calls-tools {
-  display: grid;
-  gap: 2px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 .trace-table .summary-col {
-  padding-block: 7px;
-}
-@media (max-width: 850px) {
-  .trace-table :is(colgroup, thead) {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-  }
-  .trace-table,
-  .trace-table tbody,
-  .round-row.is-open + .expanded-row:not([hidden]),
-  .expanded-row td {
-    display: block;
-    width: 100%;
-  }
-  .trace-table .round-row:not(.is-filtered-out) {
-    display: grid;
-    grid-template-columns: minmax(70px, 0.65fr) minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-areas:
-      "round summary summary"
-      "metrics metrics actions"
-      "status status time";
-    align-items: center;
-    gap: 6px;
-    padding: 8px 10px;
-  }
-  .trace-table .round-row td { min-width: 0; padding: 0; }
-  .trace-table .round-col { grid-area: round; }
-  .trace-table .summary-col { grid-area: summary; }
-  .trace-table .metrics-col { grid-area: metrics; }
-  .trace-table .attribution-col { grid-area: actions; }
-  .trace-table .status-col { grid-area: status; }
-  .trace-table .time-col { grid-area: time; }
-  .trace-table .expanded-row td { padding-inline: 8px; }
-}
-@media (max-width: 500px) {
-  .trace-table .round-row:not(.is-filtered-out) {
-    grid-template-columns: minmax(55px, .55fr) minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-areas:
-      "round summary summary"
-      "metrics metrics metrics"
-      "actions actions actions"
-      "status status time";
-  }
-  .trace-table .sd-attribution-actions--row {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
+  padding-block: 0;
 }
 .round-id {
   font-family: var(--sd-mono);
@@ -1363,45 +1443,52 @@
   white-space: nowrap;
 }
 @media (max-width: 1180px) {
-  .sd-tool-group--flat {
-    --sd-tool-kind-col: 64px;
-    --sd-tool-meta-col: minmax(60px, .3fr);
-    --sd-tool-time-col: 104px;
-    --sd-tool-status-col: 104px;
-    --sd-tool-token-col: 64px;
-    --sd-tool-action-col: 148px;
+  .trace-table col.col-round { width: 44px; }
+  .trace-table col.col-metrics { width: 92px; }
+  .trace-table col.col-attribution { width: 108px; }
+  .trace-table col.col-time,
+  .trace-table col.col-duration { width: 60px; }
+  .tokenbar-wrap { width: 16px; }
+  .trace-table :is(th, .round-row td, .round-row td:first-child) { padding-inline: 6px; }
+  .trace-table .round-row td:is(.time-col, .duration-col) { padding-inline: 2px; }
+  .trace-table .round-row td.attribution-col { padding-inline: 1px; }
+  .sd-attribution-actions--row {
+    grid-template-columns: minmax(0, .92fr) minmax(0, 1.08fr);
+    gap: 2px;
   }
-  .sd-tool-group--flat .sd-tool-row {
-    grid-template-columns:
-      var(--sd-tool-kind-col)
-      minmax(0, 1fr)
-      var(--sd-tool-meta-col)
-      var(--sd-tool-time-col)
-      var(--sd-tool-status-col)
-      var(--sd-tool-token-col)
-      var(--sd-tool-action-col);
+  .round-time { font-size: 11px; }
+  .token-group { gap: 4px; }
+  .sd-tool-group--flat {
+    --sd-tool-kind-col: 60px;
+    --sd-tool-meta-col: minmax(60px, .3fr);
+    --sd-tool-time-col: 60px;
+    --sd-tool-duration-col: 72px;
+    --sd-tool-status-col: 66px;
+    --sd-tool-token-col: 47px;
+    --sd-tool-action-col: 126px;
   }
 }
 /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Badge variants moved to ui-primitives.css (.badge-manual, .badge-err, .badge-warn, .badge-info, .badge-model) Page CSS should not redefine global primitives.` */
 /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Trace table (T089 HIFI migration) END ──` */
 
-/* Trace detail owner: preserve content and actions on compact screens. */
-@media (max-width: 800px) {
-  .sd-tool-group--flat .sd-tool-row {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    padding-block: 8px;
-  }
-  .sd-tool-group--flat .sd-tool-cmd {
-    grid-column: 1 / -1;
-    white-space: normal;
-    overflow-wrap: anywhere;
-    line-height: 1.5;
-    max-height: 4.5em;
-  }
-  .sd-tool-group--flat .sd-tool-actions {
-    grid-column: 1 / -1;
-  }
-  .sd-tool-row--quiet .sd-tool-result {
-    display: none;
-  }
+/* 展开成员连续排列；正文仍通过原有 lazy payload 入口完整访问。 */
+.expanded-row .sd-tool-row {
+  border-radius: 0;
+  border-width: 0 0 1px;
+  gap: 6px;
+}
+.expanded-row .sd-tool-group--flat .sd-btn {
+  min-height: 24px;
+  min-width: 52px;
+  height: 24px;
+  padding: 0 6px;
+}
+.expanded-row .sd-sub-round,
+.expanded-row .sd-sub-round__summary {
+  border-radius: 0;
+}
+.expanded-row .sd-sub-round__toggle,
+.expanded-row .sd-sub-round__toggle span {
+  width: 24px;
+  height: 24px;
 }

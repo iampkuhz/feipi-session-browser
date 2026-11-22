@@ -141,7 +141,8 @@ class ToolObservationTest {
         value.timing(),
         value.metaContext(),
         value.messageRole(),
-        value.toolObservation());
+        value.toolObservation(),
+        value.readingEvidence());
   }
 
   private static NormalizedSessionArtifact compare(List<SourceRecord> records) throws Exception {

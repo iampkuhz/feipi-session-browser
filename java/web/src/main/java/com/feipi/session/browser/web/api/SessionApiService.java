@@ -4,7 +4,6 @@ import com.feipi.session.browser.application.SessionDetailUseCase;
 import com.feipi.session.browser.application.sessiondetail.PayloadLookup;
 import com.feipi.session.browser.application.sessiondetail.SessionContentReader;
 import com.feipi.session.browser.application.sessiondetail.SessionDetail;
-import com.feipi.session.browser.domain.enums.CallScope;
 import com.feipi.session.browser.domain.normalized.NormalizedAgent;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedConstants;
@@ -290,20 +289,6 @@ public final class SessionApiService {
     /** 查找轮次内的归一化调用。 */
     public List<NormalizedCall> callsInRound(CallRound round) {
       return calls().stream().filter(c -> round.calls().contains(c.callId())).toList();
-    }
-
-    /** 查找指定轮次内特定索引的调用（0-based）。 */
-    public Optional<NormalizedCall> callAtRound(CallRound round, int callIndexInRound) {
-      List<NormalizedCall> roundCalls = callsInRound(round);
-      if (callIndexInRound < 0 || callIndexInRound >= roundCalls.size()) {
-        return Optional.empty();
-      }
-      return Optional.of(roundCalls.get(callIndexInRound));
-    }
-
-    /** 查找特定作用域的调用。 */
-    public List<NormalizedCall> findCallsByScope(CallScope scope) {
-      return calls().stream().filter(c -> c.scope() == scope).toList();
     }
   }
 }

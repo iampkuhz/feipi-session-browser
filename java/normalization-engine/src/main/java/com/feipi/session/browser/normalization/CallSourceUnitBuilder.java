@@ -16,7 +16,7 @@ final class CallSourceUnitBuilder {
       List<? extends SourceRecord> records, Function<SourceRecord, String> scopeKey) {
     Map<String, List<Map<String, Object>>> pending = new LinkedHashMap<>();
     Map<String, List<Map<String, Object>>> latest = new LinkedHashMap<>();
-    Map<String, List<SourceToolCall>> pendingTools = new LinkedHashMap<>();
+    Map<String, List<Map<String, Object>>> pendingTools = new LinkedHashMap<>();
     Map<String, Boolean> closingFrames = new LinkedHashMap<>();
     List<List<Map<String, Object>>> calls = new ArrayList<>();
     for (SourceRecord record : records) {
@@ -26,9 +26,10 @@ final class CallSourceUnitBuilder {
       String scope = scopeKey.apply(record);
       List<Map<String, Object>> units = pending.computeIfAbsent(scope, key -> new ArrayList<>());
       String type = record.eventType();
+      addReadingEvidence(units, record);
       if ("assistant".equals(type)) {
         addAssistantUnits(units, record);
-        addToolUnits(units, pendingTools.getOrDefault(scope, List.of()));
+        units.addAll(pendingTools.getOrDefault(scope, List.of()));
         pendingTools.remove(scope);
         calls.add(units);
         latest.put(scope, units);
@@ -38,10 +39,10 @@ final class CallSourceUnitBuilder {
         List<Map<String, Object>> current = latest.get(scope);
         boolean newInput = units.stream().anyMatch(unit -> "user".equals(unit.get("role")));
         if (current != null && !closingFrames.getOrDefault(scope, false) && !newInput) {
-          addToolUnits(current, record.toolCalls());
+          addToolUnits(current, record);
         } else {
           // 独立声明属于同 scope 下一响应帧，不能被 tool_result/user 边界回填到上一调用。
-          pendingTools.computeIfAbsent(scope, key -> new ArrayList<>()).addAll(record.toolCalls());
+          addToolUnits(pendingTools.computeIfAbsent(scope, key -> new ArrayList<>()), record);
         }
       } else if ("user".equals(type) || "tool_result".equals(type)) {
         flushResponses(units, latest.get(scope));
@@ -58,25 +59,30 @@ final class CallSourceUnitBuilder {
   /**
    * 为 assistant 记录添加源单元。
    *
-   * <p>文本内容作为 assistant 单元写入（即使为空，以保持调用边界）；工具声明以独立 tool_use 单元写入，包含 id/name/input。
+   * <p>文本内容作为 assistant 单元写入（即使为空，以保持调用边界）；独立工具单元保留声明事件时间。
    */
   private static void addAssistantUnits(List<Map<String, Object>> units, SourceRecord record) {
     addUnit(units, record, "assistant");
-    addToolUnits(units, record.toolCalls());
+    addToolUnits(units, record);
   }
 
-  private static void addToolUnits(
-      List<Map<String, Object>> units, List<SourceToolCall> toolCalls) {
-    for (SourceToolCall tc : toolCalls) {
-      Map<String, Object> unit = new LinkedHashMap<>();
-      unit.put("type", "tool_use");
-      unit.put("role", "assistant");
-      unit.put("text", "");
-      unit.put("id", tc.toolCallId());
-      unit.put("name", tc.name());
-      unit.put("input", tc.input());
-      units.add(Map.copyOf(unit));
-    }
+  private static void addToolUnits(List<Map<String, Object>> units, SourceRecord record) {
+    for (SourceToolCall tool : record.toolCalls()) units.add(toolUnit(record, tool));
+  }
+
+  static Map<String, Object> toolUnit(SourceRecord record, SourceToolCall tool) {
+    Map<String, Object> unit = new LinkedHashMap<>();
+    unit.put("type", "tool_use");
+    unit.put("role", "assistant");
+    unit.put("text", "");
+    unit.put("id", tool.toolCallId());
+    unit.put("name", tool.name());
+    unit.put("input", tool.input());
+    record
+        .timestamp()
+        .filter(value -> !value.isBlank())
+        .ifPresent(value -> unit.put("timestamp", value));
+    return Map.copyOf(unit);
   }
 
   private static void flushResponses(
@@ -85,6 +91,19 @@ final class CallSourceUnitBuilder {
         && pending.stream().allMatch(unit -> "assistant".equals(unit.get("role")))) {
       previous.addAll(pending);
       pending.clear();
+    }
+  }
+
+  static void addReadingEvidence(List<Map<String, Object>> units, SourceRecord record) {
+    for (var evidence : record.readingEvidence()) {
+      units.add(
+          Map.of(
+              "type",
+              "codex_context_" + evidence.kind(),
+              "role",
+              "context",
+              "text",
+              evidence.text()));
     }
   }
 

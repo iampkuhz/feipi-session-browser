@@ -88,12 +88,6 @@ public final class SqliteIndexWriter implements IndexWriterPort {
 
   @Override
   public void clearExistingIndex() {
-    try (Statement facts = conn.createStatement()) {
-      for (String table : EventActivitySql.TABLES)
-        publicationRequired |= facts.executeUpdate("DELETE FROM " + table) > 0;
-    } catch (SQLException e) {
-      throw new IndexWriteException("Clear event activity failed", e);
-    }
     try (PreparedStatement artifacts = conn.prepareStatement("DELETE FROM session_artifacts")) {
       publicationRequired |= artifacts.executeUpdate() > 0;
       try (PreparedStatement metadata =
@@ -121,10 +115,7 @@ public final class SqliteIndexWriter implements IndexWriterPort {
     String placeholders = String.join(",", Collections.nCopies(selected.size(), "?"));
     String selectedSessions =
         "SELECT session_key FROM sessions WHERE agent IN (" + placeholders + ")";
-    List<String> deletes = new ArrayList<>();
-    for (String table : EventActivitySql.TABLES)
-      deletes.add("DELETE FROM " + table + " WHERE session_key IN (" + selectedSessions + ")");
-    deletes.addAll(
+    List<String> deletes =
         List.of(
             "DELETE FROM session_artifacts WHERE session_key IN (" + selectedSessions + ")",
             "DELETE FROM index_metadata WHERE key IN (SELECT '"
@@ -132,7 +123,7 @@ public final class SqliteIndexWriter implements IndexWriterPort {
                 + "' || session_key FROM sessions WHERE agent IN ("
                 + placeholders
                 + "))",
-            "DELETE FROM sessions WHERE agent IN (" + placeholders + ")"));
+            "DELETE FROM sessions WHERE agent IN (" + placeholders + ")");
     try {
       for (String sql : deletes) {
         try (PreparedStatement statement = conn.prepareStatement(sql)) {
@@ -378,11 +369,6 @@ public final class SqliteIndexWriter implements IndexWriterPort {
       Map<String, Object> session,
       long sizeBytes,
       Instant indexedAt) {
-    if (session.containsKey("eventActivity") && session.get("eventActivity") == null) {
-      throw new IllegalArgumentException("Present event activity metadata must be an object");
-    }
-    List<String> eventRows =
-        EventActivitySql.replacement(sessionRow.sessionKey(), session.get("eventActivity"));
     SessionArtifactRow artifactRow =
         ArtifactRowMapper.toArtifactRow(
             sessionRow.sessionKey(),
@@ -392,7 +378,6 @@ public final class SqliteIndexWriter implements IndexWriterPort {
             sessionRow.fileMtime(),
             sizeBytes,
             epochSeconds(indexedAt));
-    pending.addAll(eventRows);
     addSessionInsert(sessionRow);
     addArtifactInsert(artifactRow);
     Object fingerprint = session.get("candidate_metadata_fingerprint");
@@ -440,7 +425,6 @@ public final class SqliteIndexWriter implements IndexWriterPort {
             indexedAt,
             0,
             "");
-    pending.addAll(EventActivitySql.replacement(session.sessionKey(), null));
     addSessionInsert(row);
   }
 

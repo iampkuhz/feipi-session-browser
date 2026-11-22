@@ -2,12 +2,14 @@ package com.feipi.session.browser.web.api;
 
 import com.feipi.session.browser.application.sessiondetail.SessionContentReader;
 import com.feipi.session.browser.application.sessiondetail.SessionDetail;
+import com.feipi.session.browser.application.sessiondetail.ToolInputContents;
 import com.feipi.session.browser.domain.enums.CallScope;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionContent;
 import com.feipi.session.browser.index.api.query.ContentRoundIndex;
 import com.feipi.session.browser.web.api.PageApiDtos.TokenSegments;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +33,7 @@ final class SessionContentProjection {
     var summaries = new ArrayList<Summary>();
     for (int i = 0; i < index.roundCount(); i++) summaries.add(new Summary());
     var previews = SessionContentPreviews.read(content);
+    var inlineToolPreviews = new HashMap<String, ToolInputPreview.Summary>();
     if (content.header().totals().getOrDefault("calls", 0L) == 0 && !summaries.isEmpty()) {
       summaries.getFirst().userPreview = reader.observedInputPreview();
       summaries.getFirst().observedInputAvailable = reader.hasObservedInput();
@@ -45,24 +48,33 @@ final class SessionContentProjection {
           if (summary.time.isEmpty()) {
             summary.time = RoundContentProjection.displayTime(previews.timestamp(call));
           }
+          if (summary.sideTask == null) {
+            summary.sideTask = ContentRoundIndex.sideTask(call).orElse(null);
+          }
           if (summary.calls == 1) {
             summary.evidence = ContentRoundIndex.modelCallEvidence(content.header().agent(), call);
             summary.parent = call.parentCallId().orElse("");
           }
           summary.usage.add(call);
+          summary.agentUsage.add(call);
+          summary.requestAvailable |= previews.hasPayload(call, true);
+          summary.responseAvailable |= previews.hasPayload(call, false);
           if (call.scope() == CallScope.MAIN || summary.calls == 1) {
             String userText = previews.userText(call, round);
-            if (summary.userPreview.isEmpty()) summary.userPreview = userText;
+            summary.userPreview =
+                RoundContentProjection.preferredUser(
+                    summary.userPreview, userText, summary.sideTask != null);
           }
           if (summary.assistantPreview.isEmpty())
             summary.assistantPreview = previews.text(call, false);
-          if (summary.toolPreview.isEmpty()) {
-            summary.toolPreview =
-                previews.toolInputs(call).values().stream()
-                    .filter(value -> !value.isEmpty())
-                    .findFirst()
-                    .orElse("");
-          }
+          ToolInputContents.inline(call)
+              .forEach(
+                  (id, input) -> {
+                    var catalog = previews.toolInput(id);
+                    if (catalog == null || catalog.preview().isEmpty()) {
+                      inlineToolPreviews.putIfAbsent(id, ToolInputPreview.summarize(input));
+                    }
+                  });
           var usage = call.usage();
           summary.fresh += usage.fresh();
           summary.read += usage.cacheRead();
@@ -75,9 +87,12 @@ final class SessionContentProjection {
           if (round.isEmpty()) continue;
           var summary = summaries.get(round.getAsInt() - 1);
           summary.tools++;
-          summary.toolCounts.merge(tool.name(), 1, Integer::sum);
+          var inline = inlineToolPreviews.remove(tool.toolCallId());
+          var input = inline == null ? previews.toolInput(tool.toolCallId()) : inline;
+          summary.toolCounts.merge(ToolInputPreview.category(tool.name(), input), 1, Integer::sum);
           if (SessionDetailParityAnalyzer.hasFailedStatus(tool)) {
             summary.failed++;
+            summary.agentUsage.markFailure(tool);
           }
         }
       }
@@ -114,14 +129,7 @@ final class SessionContentProjection {
           summary.calls == 0 && summary.tools == 0 && summary.userPreview.isEmpty()
               ? RoundContentProjection.observedInputSummary(detail.sessionRow())
               : "";
-      String toolSummary =
-          String.join(
-              " · ",
-              summary.toolCounts.entrySet().stream()
-                  .map(entry -> entry.getKey() + " × " + entry.getValue())
-                  .toList());
-      if (!toolSummary.isEmpty() && !summary.toolPreview.isEmpty())
-        toolSummary += " · " + summary.toolPreview;
+      String toolSummary = ToolActionCategory.summary(summary.toolCounts);
       String preview =
           !summary.userPreview.isEmpty()
               ? summary.userPreview
@@ -148,31 +156,32 @@ final class SessionContentProjection {
               sessionTokens > 0 ? tokens / (double) sessionTokens : null,
               summary.failed > 0 ? "failed" : "ok",
               signals,
-              Map.of(
-                  "summary",
-                  observedInput.isEmpty() ? preview : observedInput,
-                  "summaryRole",
-                  !summary.userPreview.isEmpty()
-                      ? "user"
-                      : !toolSummary.isEmpty()
-                          ? "tool"
-                          : summary.assistantPreview.isEmpty() ? "" : "assistant",
-                  "time",
-                  summary.time,
-                  "membersPaged",
-                  true,
-                  "observedInputAvailable",
-                  summary.observedInputAvailable,
-                  "isUserInput",
-                  !observedInput.isEmpty() || !summary.userPreview.isEmpty(),
-                  "hasIssues",
-                  summary.failed > 0,
-                  "isLowCache",
-                  lowCache,
-                  "isFreshSpike",
-                  freshSpike,
-                  "modelCallEvidence",
-                  summary.calls == 1 ? summary.evidence : "")));
+              RoundContentProjection.withTask(
+                  Map.ofEntries(
+                      Map.entry("summary", observedInput.isEmpty() ? preview : observedInput),
+                      Map.entry(
+                          "summaryRole",
+                          !summary.userPreview.isEmpty()
+                              ? "user"
+                              : !toolSummary.isEmpty()
+                                  ? "tool"
+                                  : summary.assistantPreview.isEmpty() ? "" : "assistant"),
+                      Map.entry(
+                          "time",
+                          RoundContentProjection.withTaskTime(summary.time, summary.sideTask)),
+                      Map.entry("membersPaged", true),
+                      Map.entry("observedInputAvailable", summary.observedInputAvailable),
+                      Map.entry(
+                          "isUserInput",
+                          !observedInput.isEmpty() || !summary.userPreview.isEmpty()),
+                      Map.entry("hasIssues", summary.failed > 0),
+                      Map.entry("isLowCache", lowCache),
+                      Map.entry("isFreshSpike", freshSpike),
+                      Map.entry("modelCallEvidence", summary.calls == 1 ? summary.evidence : ""),
+                      Map.entry("requestAvailable", summary.requestAvailable),
+                      Map.entry("responseAvailable", summary.responseAvailable),
+                      Map.entry("agentUsage", summary.agentUsage.snapshot())),
+                  summary.sideTask)));
     }
     return List.copyOf(rows);
   }
@@ -180,6 +189,7 @@ final class SessionContentProjection {
   /** 保存单个逻辑轮次的标量汇总，不持有成员正文或完整标识符列表。 */
   private static final class Summary {
     final SessionContentUsage usage = new SessionContentUsage();
+    final RoundAgentUsage agentUsage = new RoundAgentUsage();
     int calls;
     int tools;
     int failed;
@@ -189,12 +199,14 @@ final class SessionContentProjection {
     long output;
     boolean subagent;
     boolean observedInputAvailable;
+    boolean requestAvailable;
+    boolean responseAvailable;
+    ContentRoundIndex.SideTask sideTask;
     String evidence = "";
     String parent = "";
     String userPreview = "";
     String assistantPreview = "";
     String time = "";
-    String toolPreview = "";
     final Map<String, Integer> toolCounts = new LinkedHashMap<>();
   }
 }

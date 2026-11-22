@@ -99,9 +99,9 @@ class ImportedSessionParityTest {
       if (!forgedRowPath.isBlank()) {
         var withoutArtifact = SessionDetailParityAnalyzer.analyze(detail);
         // 控制分支确实可读取这两个可读源文件；导入分支不能靠测试路径不可读而通过。
-        assertThat((List<?>) withoutArtifact.diagnostics.get("agents")).hasSize(2);
-        var rawImpact = (Map<?, ?>) withoutArtifact.diagnostics.get("toolImpact");
-        assertThat(rawImpact.get("distinctTools")).isEqualTo(1);
+        var agents = (List<?>) withoutArtifact.diagnostics.get("agents");
+        assertThat(agents).hasSize(2);
+        assertThat(((Map<?, ?>) agents.getFirst()).get("tools")).isEqualTo(1L);
       }
       var imported = SessionDetailParityAnalyzer.analyze(detail, artifact, false);
       assertThat(imported.metrics.get("toolCalls")).isEqualTo(0L);

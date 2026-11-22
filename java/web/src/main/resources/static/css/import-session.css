@@ -87,8 +87,3 @@
   margin: 0;
   padding-left: var(--space-xl);
 }
-@media (max-width: 1023px) {
-  .import-session__panel {
-    padding: var(--space-lg);
-  }
-}

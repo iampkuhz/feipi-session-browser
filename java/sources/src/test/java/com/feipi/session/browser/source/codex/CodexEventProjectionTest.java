@@ -54,8 +54,10 @@ class CodexEventProjectionTest {
         .remove("encrypted_content");
     ((com.fasterxml.jackson.databind.node.ObjectNode) expected.get(2).path("payload"))
         .remove("item");
-    ((com.fasterxml.jackson.databind.node.ObjectNode) expected.get(3).path("payload"))
-        .remove("replacement_history");
+    var compacted =
+        (com.fasterxml.jackson.databind.node.ObjectNode) expected.get(3).path("payload");
+    compacted.remove("replacement_history");
+    compacted.put(CodexEventProjection.PROJECTED_HISTORY_FIELD, true);
     assertThat(mapper.<com.fasterxml.jackson.databind.JsonNode>valueToTree(projected.events()))
         .isEqualTo(expected);
     assertThat(Files.readString(file)).isEqualTo(content);
@@ -82,6 +84,28 @@ class CodexEventProjectionTest {
     assertThat(projected.events()).hasSize(1);
     assertThat(projected.diagnostics())
         .noneMatch(diagnostic -> diagnostic.code().contains("BUFFER_OVERFLOW"));
+  }
+
+  @Test
+  void largeCompactionRetainsOnlyPresenceAndNeverTrustsAnInjectedProjectionMarker()
+      throws Exception {
+    String marker = CodexEventProjection.PROJECTED_HISTORY_FIELD;
+    Path file =
+        Files.writeString(
+            directory.resolve("compaction.jsonl"),
+            "{\"type\":\"compacted\",\"payload\":{\"replacement_history\":[\""
+                + "x".repeat(4096)
+                + "\"]}}\n"
+                + "{\"type\":\"compacted\",\"payload\":{\""
+                + marker
+                + "\":true}}\n");
+    var projected =
+        CodexEventProjection.read(new JsonlReader(new JsonlReaderConfig(100, 200, 40)), file);
+    assertThat(projected.events()).hasSize(2);
+    var actual = projected.events().getFirst().path("payload");
+    assertThat(actual.path(marker).booleanValue()).isTrue();
+    assertThat(actual.has("replacement_history")).isFalse();
+    assertThat(projected.events().getLast().path("payload").has(marker)).isFalse();
   }
 
   @Test

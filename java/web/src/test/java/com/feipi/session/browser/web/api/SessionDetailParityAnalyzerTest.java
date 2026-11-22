@@ -240,14 +240,6 @@ class SessionDetailParityAnalyzerTest {
     assertThat(agents).hasSize(2);
     assertThat(agents.get(1)).containsEntry("agent", "repo-mapper");
     assertThat(agents.get(1)).containsEntry("tools", 2L);
-
-    @SuppressWarnings("unchecked")
-    java.util.Map<String, Object> toolImpact =
-        (java.util.Map<String, Object>) result.diagnostics.get("toolImpact");
-    @SuppressWarnings("unchecked")
-    List<java.util.Map<String, Object>> toolRows =
-        (List<java.util.Map<String, Object>>) toolImpact.get("rows");
-    assertThat(toolRows).anySatisfy(tool -> assertThat(tool).containsEntry("failureRate", "50.0%"));
   }
 
   @Test
@@ -431,7 +423,7 @@ class SessionDetailParityAnalyzerTest {
   }
 
   @Test
-  @DisplayName("Qoder tool-only round 使用工具名摘要而非 Round N 占位")
+  @DisplayName("Qoder tool-only round 使用工具类别摘要而非 Round N 占位")
   void qoderToolOnlyRoundUsesToolNameSummary() throws Exception {
     Path source = tempDir.resolve("qoder-tool-only.jsonl");
     Files.writeString(source, qoderToolOnlyRollout());
@@ -489,7 +481,7 @@ class SessionDetailParityAnalyzerTest {
 
     // 第 2 轮没有用户输入和助手文本，使用多个工具名生成摘要。
     assertThat(result.round(2).toMap())
-        .containsEntry("summary", "Tool: Write, Edit")
+        .containsEntry("summary", "写入 · 编辑")
         .containsEntry("isUserInput", false);
     assertThat(result.round(2).time).isNotEmpty();
 
@@ -500,7 +492,7 @@ class SessionDetailParityAnalyzerTest {
   }
 
   @Test
-  @DisplayName("Qoder 纯 tool_use round（无用户输入无 assistant text）使用单工具名摘要")
+  @DisplayName("Qoder 纯 tool_use round（无用户输入无 assistant text）使用单工具类别摘要")
   void qoderPureToolOnlyRoundUsesSingleToolNameSummary() throws Exception {
     Path source = tempDir.resolve("qoder-pure-tool-only.jsonl");
     Files.writeString(source, qoderPureToolOnlyRollout());
@@ -548,7 +540,7 @@ class SessionDetailParityAnalyzerTest {
     SessionDetailParityAnalyzer.Result result = SessionDetailParityAnalyzer.analyze(detail);
 
     assertThat(result.round(1).toMap())
-        .containsEntry("summary", "Tool: Read")
+        .containsEntry("summary", "读取")
         .containsEntry("isUserInput", false);
     assertThat(result.round(1).time).isNotEmpty();
   }

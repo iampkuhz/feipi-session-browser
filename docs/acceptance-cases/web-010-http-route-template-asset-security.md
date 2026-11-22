@@ -75,13 +75,13 @@
 ### 渲染 (4): render_llm_blocks_html, normalize_llm_content, content_parts, parts_mode_from_raw
 ### URL (2): urlencode, urldecode
 ### 工具 (2): strip_line_numbers, renumber_lines
-### Dashboard (8): kpi_icon_color, kpi_icon, sum_attribute, db_agent_to_scope, scope_to_agent_url, severity_variant, precision_label, format_coverage
+### Dashboard (7): kpi_icon_color, kpi_icon, db_agent_to_scope, scope_to_agent_url, severity_variant, precision_label, format_coverage
 
 ## Static Asset 清单
 
 ### CSS (18): tokens, base, shell, states, ui-primitives (10), dashboard, projects, glossary, sessions-list, session-detail (10)
-### JS (21): app, arp-storage, view-state, ui_primitives, states, dashboard, projects, data-table, sessions-list, timeline, glossary, payload_viewer, session_detail_timeline, session-detail (11), trace-interactions
-### Images (2): favicon.svg（圆角正方形 Logo）、logo-circle.svg（圆形 Logo）
+### JS (23): app, arp-storage, dashboard, data-table, glossary, import-session, index-snapshot, projects, scan-status, session-detail (9), session-timing, sessions-list, token-provenance, ui_primitives, view-state
+### Images (1): favicon.svg（圆角正方形 Logo）
 
 ## 安全契约
 

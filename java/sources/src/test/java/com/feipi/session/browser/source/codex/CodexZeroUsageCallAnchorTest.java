@@ -70,7 +70,31 @@ class CodexZeroUsageCallAnchorTest {
                         "response-after-counter-reset",
                         () -> unmeteredResponse(managed, true)),
                     test(managed, "invalid-input-is-not-reported-zero", () -> invalidZero(managed)),
+                    test(
+                        managed,
+                        "preparation-before-first-user",
+                        () -> preparationBeforeFirstUser(managed)),
                     test(managed, "two-observed-zero-responses", () -> twoResponses(managed))));
+  }
+
+  private void preparationBeforeFirstUser(boolean managed) throws Exception {
+    String user = question(managed);
+    var records =
+        parse(
+            message("user", "<environment_context>synthetic preparation</environment_context>")
+                + message("assistant", "preparation response")
+                + legacy(false)
+                + message("user", user)
+                + message("assistant", "user response")
+                + legacy(false),
+            managed);
+    assertThat(
+            records.stream()
+                .filter(
+                    record ->
+                        "assistant".equals(record.eventType()) || user.equals(record.content())))
+        .extracting(SourceRecord::eventType)
+        .containsExactly("assistant", "user", "assistant");
   }
 
   private void response(boolean managed, boolean missingWrite, boolean repeat, boolean modern)

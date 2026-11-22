@@ -77,29 +77,4 @@ public sealed interface SafeHtml permits SafeHtmlImpl {
   default SafeHtml append(SafeHtml other) {
     return new SafeHtmlImpl(this.value() + other.value());
   }
-
-  /**
-   * 使用指定 CSS 类名包装为 {@code <div>} 容器。
-   *
-   * <p>类名经过 HTML 转义，防止属性注入。
-   *
-   * @param className CSS 类名
-   * @return 包装后的安全 HTML 实例
-   */
-  default SafeHtml wrapInDiv(String className) {
-    String safeClass = escapeAttribute(className);
-    return new SafeHtmlImpl("<div class=\"" + safeClass + "\">" + this.value() + "</div>");
-  }
-
-  /** 对属性值进行 HTML 转义。 */
-  private static String escapeAttribute(String raw) {
-    if (raw == null || raw.isEmpty()) {
-      return "";
-    }
-    return raw.replace("&", "&amp;")
-        .replace("\"", "&quot;")
-        .replace("'", "&#39;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;");
-  }
 }

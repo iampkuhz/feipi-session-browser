@@ -125,13 +125,13 @@ class SessionDetailPageTest {
           assertThat(body).contains("Agent Run Profiler");
           assertThat(body).contains("data-trace-page");
           assertThat(body).contains("sd-kpi");
-          assertThat(body).contains("Run Health");
+          assertThat(body).contains("data-session-timing-value");
         });
   }
 
   @Test
-  @DisplayName("session detail summary strip 不展示 payload policy")
-  void sessionDetailSummaryStripOmitsPayloadPolicy() throws Exception {
+  @DisplayName("会话起始与更新时刻不展示 payload policy")
+  void sessionTimestampsOmitPayloadPolicy() throws Exception {
     insertTestSession();
 
     QueryCompositionRoot root =
@@ -146,7 +146,7 @@ class SessionDetailPageTest {
           String diagnostics = assertCurrentAppResponse(response);
           assertThat(response.code()).as(diagnostics).isEqualTo(200);
           String body = response.body().string();
-          assertThat(body).contains("data-summary-strip");
+          assertThat(body).contains("data-session-started");
           assertThat(body).contains("data-session-updated");
           assertThat(body).doesNotContain("Payload hidden");
           assertThat(body).doesNotContain("data-session-payload-policy");

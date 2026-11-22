@@ -104,12 +104,6 @@
 .token-cell .token-evidence dt:not(:first-child) {
   margin-top: 4px;
 }
-.token-total__status {
-  color: var(--text-subtle);
-  font-size: 10px;
-  font-weight: 500;
-  white-space: nowrap;
-}
 .token-bar-trigger {
   display: inline-grid;
   place-items: center;

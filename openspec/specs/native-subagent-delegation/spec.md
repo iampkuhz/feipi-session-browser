@@ -4,13 +4,18 @@
 
 ### Requirement: 当前 Agent 原生委派
 
-工程任务 SHALL 直接使用当前 Agent 提供的原生 subagent 能力。主线程 SHALL 负责目标拆分、范围、独立复核与集成。重要实现、复杂分析及验证 SHALL 使用 `gpt-6.1-sol`，轻量定位 SHALL 使用 `gpt-6-luna`；调用 SHALL 遵守宿主原生 API 的模型与上下文约束。原生能力受限时 SHALL 如实说明，由主线程接管或调整范围，不新增替代调度框架。工程任务 SHALL NOT 要求 Qoder CLI 或工程 `.qoder/` 开发入口。
+工程任务 SHALL 直接使用当前 Agent 提供的原生 subagent 能力。主线程 SHALL 负责目标拆分、范围、独立复核与集成。重要实现、复杂分析及验证 SHALL 使用 `gpt-6.2-sol`，轻量定位 SHALL 使用 `gpt-6-luna`；调用 SHALL 遵守宿主原生 API 的模型与上下文约束。原生能力受限时 SHALL 如实说明，由主线程接管或调整范围，不新增替代调度框架。工程任务 SHALL NOT 要求 Qoder CLI 或工程 `.qoder/` 开发入口。
+
+#### Scenario: 单次复杂任务或多项交付
+
+- **When** 用户给出复杂任务或在一次指令中要求多个交付
+- **Then** 主线程 SHALL 按独立职责分给不同原生 subagent；可并行部分并行，有依赖的部分顺序交接，统一复核交付；仅授权设计的子任务不实施。
 
 #### Scenario: 实现与轻量定位
 
 - **Given** 当前 Agent 能直接派发原生 subagent
 - **When** 主线程拆分重要实现及轻量定位任务
-- **Then** 分别使用 `gpt-6.1-sol` 和 `gpt-6-luna`，显式传递必要上下文，使用宿主原生生命周期
+- **Then** 分别使用 `gpt-6.2-sol` 和 `gpt-6-luna`，显式传递必要上下文，使用宿主原生生命周期
 - **And** 不调用 qodercli、不启动仓库 worker/callback/watchdog、不要求新 receipt
 
 ### Requirement: 复用共享 handoff 与证据隔离

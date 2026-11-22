@@ -174,6 +174,25 @@ class PayloadCallContentExtractorTest {
   }
 
   @Test
+  void codexLegacyProjectContextDoesNotBecomeTheFirstUserMessage() {
+    String context =
+        "# AGENTS.md instructions\nUse synthetic rules.\n"
+            + "<environment_context><cwd>/synthetic</cwd></environment_context>";
+    var call =
+        makeCallWithSourceUnits(
+            "synthetic",
+            List.of(
+                Map.of("role", "user", "text", context),
+                Map.of("role", "user", "text", "Run tests")));
+    assertThat(PayloadCallContentExtractor.inlinePreview(call, true, true)).isEqualTo("Run tests");
+    var reading = PayloadCallContentExtractor.readingInline(call, true, true);
+    assertThat(reading.text()).isEqualTo("Run tests");
+    assertThat(reading.unconfirmedContext()).isTrue();
+    assertThat(codexReading("# AGENTS.md instructions\nExplain this heading.").text())
+        .contains("Explain this heading.");
+  }
+
+  @Test
   void codexUnclosedProjectInstructionsKeepFencedExampleAndRequest() {
     String request =
         "# AGENTS.md instructions for synthetic\n<INSTRUCTIONS>\n"

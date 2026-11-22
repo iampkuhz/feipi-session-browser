@@ -22,6 +22,37 @@ import org.junit.jupiter.api.Test;
 /** 对照旧列表路径的完整对象，保留文本 occurrence、关系和 header 的精确语义。 */
 class ManagedNormalizationParityTest {
   @Test
+  void firstUserInputBelongsToTheFollowingCallRatherThanThePreparationCall() throws Exception {
+    for (boolean preparation : List.of(false, true)) {
+      var records = new ArrayList<SourceRecord>();
+      if (preparation) {
+        records.add(record(0, "main", "response_item", "preparation response", "preparation-text"));
+        records.add(record(1, "main", "assistant", "", "token_count:preparation"));
+      }
+      records.add(record(records.size(), "main", "user", "synthetic first question", "question"));
+      records.add(record(records.size(), "main", "assistant", "synthetic answer", "answer"));
+      try (var sequence = SourceRecordSequence.fromList(records)) {
+        var engine = new NormalizationEngine();
+        for (var content :
+            List.of(
+                engine.normalizeContent(NormalizedAgent.CODEX, records, List.of(), List.of()),
+                engine.normalizeContent(NormalizedAgent.CODEX, sequence, List.of(), List.of()))) {
+          var calls = content.toArtifact().calls();
+          assertThat(calls).hasSize(preparation ? 2 : 1);
+          assertThat(calls.getLast().sourceUnits())
+              .filteredOn(unit -> "user".equals(unit.get("role")))
+              .extracting(unit -> unit.get("text"))
+              .containsExactly("synthetic first question");
+          if (preparation) {
+            assertThat(calls.getFirst().sourceUnits())
+                .noneMatch(unit -> "user".equals(unit.get("role")));
+          }
+        }
+      }
+    }
+  }
+
+  @Test
   void recordedTailResultsRemainIndependentOfMissingConsumersIncludingEmptyBodies()
       throws Exception {
     for (String body : List.of("synthetic tail result", "")) {

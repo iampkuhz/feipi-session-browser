@@ -59,7 +59,7 @@ test('Sessions titles, merged Tools and Partial explanation remain distinct and 
   await expect(page).toHaveURL(/\/sessions$/);
   await page.keyboard.press('Escape');
   await expect(help).toBeHidden();
-  for (const width of [1920, 1440, 800]) {
+  for (const width of [1920, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
     const layout = await rows.first().evaluate(row => {
@@ -86,14 +86,14 @@ test('Tokens share aligned category/value-source/share rows and keep zero distin
   await page.goto('/sessions');
   const triggers = page.getByRole('button', { name: 'Token breakdown', exact: true });
   const panel = page.locator('#token-bar-popover');
-  for (const width of [1440, 800, 390]) {
+  for (const width of [1440, 1024]) {
     await page.mouse.move(0, 0);
     await page.setViewportSize({ width, height: 1000 });
     await triggers.first().scrollIntoViewIfNeeded();
     await triggers.first().hover();
     await expect(panel).toBeVisible();
     await expect(panel.locator('.token-breakdown__row .token-component')).toHaveText(['Fresh', 'Cache Read', 'Cache Write', 'Output', 'Total']);
-    await expect(panel.locator('.token-breakdown__row')).toHaveText(['Fresh2,500 · 服务商上报25.0%', 'Cache Read5,000 · 服务商上报50.0%', 'Cache Write1,000 · 服务商上报10.0%', 'Output1,500 · 服务商上报15.0%', 'Total10,000 · 服务商上报100.0%']);
+    await expect(panel.locator('.token-breakdown__row')).toHaveText(['Fresh2,50025%', 'Cache Read5,00050%', 'Cache Write1,00010%', 'Output1,50015%', 'Total10,000100%']);
     await expect(panel).not.toContainText('Shown total');
     await expect(panel.locator('.tokenbar')).toHaveCount(0);
     await expect(panel).toContainText('服务商上报');
@@ -121,9 +121,9 @@ test('Tokens share aligned category/value-source/share rows and keep zero distin
   await resized;
   await triggers.nth(1).focus();
   await expect(panel).toBeVisible();
-  await expect(panel.locator('.token-breakdown__row').nth(0)).toHaveText('Fresh2,000 · 服务商上报≈20.0%');
-  await expect(panel.locator('.token-breakdown__row').nth(1)).toHaveText('Cache Read7,000 · 来源未知N/A');
-  await expect(panel.locator('.token-breakdown__row').nth(2)).toHaveText('Cache Write0 · 服务商上报≈0.0%');
+  await expect(panel.locator('.token-breakdown__row').nth(0)).toHaveText('Fresh2,000≈20%');
+  await expect(panel.locator('.token-breakdown__row').nth(1)).toHaveText('Cache Read7,000N/A');
+  await expect(panel.locator('.token-breakdown__row').nth(2)).toHaveText('Cache Write0≈0%');
   await expect(panel.locator('.token-breakdown__row').nth(1).locator('.token-breakdown__share')).toHaveText('N/A');
   const screenshot = test.info().outputPath('tokens-synthetic-after.png');
   await panel.screenshot({ path: screenshot });

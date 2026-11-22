@@ -46,36 +46,12 @@ class DashboardTemplateContractTest {
   }
 
   @Test
-  @DisplayName("事件日观察独立于 cohort，并披露未恢复及未来排除范围")
-  void eventActivityHasIndependentSemanticSection() {
-    String template = dashboardTemplate();
-    assertThat(template)
+  @DisplayName("首页保留 cohort 趋势，不再展示事件日观察")
+  void dashboardFocusesOnSessionCohort() {
+    assertThat(dashboardTemplate())
         .contains(
-            "session-start cohort", "data-chart-card=\"sessions\"", "data-chart-card=\"tokens\"");
-    int start = template.indexOf("data-chart-card=\"event-activity\"");
-    assertThat(start).isNotNegative();
-    int end = template.indexOf("</section>", start);
-    assertThat(end).isGreaterThan(start);
-    String section = template.substring(start, end);
-    assertThat(section)
-        .contains(
-            "data-event-activity-state",
-            "data-event-activity-disclosure",
-            "data-event-activity-exact",
-            "data-event-activity-days",
-            "data-event-activity-coverage",
-            "data-event-activity-undated",
-            "data-event-activity-future")
-        .containsIgnoringCase("unknown")
-        .containsIgnoringCase("Codex")
-        .containsIgnoringCase("legacy")
-        .containsIgnoringCase("Claude")
-        .containsIgnoringCase("Qoder")
-        .containsIgnoringCase("observed user messages are a lower bound")
-        .contains("not a count of human questions")
-        .contains("usage report day, not the actual consumption date")
-        .containsIgnoringCase("missing logs")
-        .containsIgnoringCase("missing timestamps");
+            "session-start cohort", "data-chart-card=\"sessions\"", "data-chart-card=\"tokens\"")
+        .doesNotContain("event-activity");
   }
 
   private static String dashboardTemplate() {

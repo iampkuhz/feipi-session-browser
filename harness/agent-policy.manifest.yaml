@@ -76,9 +76,9 @@ native_delegation:
   implementation: current-agent-native-subagents
   handoff_protocol: subagent_instance_protocol
   model_routing:
-    important_implementation: gpt-6.1-sol
-    complex_analysis: gpt-6.1-sol
-    independent_validation: gpt-6.1-sol
+    important_implementation: gpt-6.2-sol
+    complex_analysis: gpt-6.2-sol
+    independent_validation: gpt-6.2-sol
     lightweight_lookup: gpt-6-luna
   host_constraints:
     - 使用宿主原生 API 的模型和上下文参数约束，不固定所有角色模型。
@@ -86,6 +86,7 @@ native_delegation:
     - 原生能力不可用或模型受限时如实报告，由 main 接管或调整范围。
   lifecycle:
     - 直接使用 spawn_agent/followup_task 和原生等待/完成事件，不轮询仓库状态。
+    - 复杂任务或一条指令中的多项工作主动分给不同原生 subagent；独立部分并行，有依赖时串行交接。
     - main 负责单一目标拆分、独立复核与串行集成；修改型任务写范围互斥。
     - 不新增 CLI、调度器、队列、receipt、callback、watchdog、ack 或仓库状态机。
   permissions:

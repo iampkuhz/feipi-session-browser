@@ -25,16 +25,6 @@ class WebConfigTest {
   }
 
   @Test
-  @DisplayName("指定端口配置保留端口值")
-  void withPortRetainsPortValue() {
-    WebConfig config = WebConfig.withPort(8080);
-
-    assertThat(config.host()).isEqualTo("127.0.0.1");
-    assertThat(config.port()).isEqualTo(8080);
-    assertThat(config.staticPath()).isNull();
-  }
-
-  @Test
   @DisplayName("自定义完整配置保留所有值")
   void fullConfigRetainsAllValues() {
     WebConfig config = new WebConfig("0.0.0.0", 9090, "/static");

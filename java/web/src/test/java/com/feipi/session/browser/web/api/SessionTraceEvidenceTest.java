@@ -42,9 +42,9 @@ class SessionTraceEvidenceTest {
         .containsEntry("summary", "检查合成模块")
         .containsEntry("summaryRole", "user")
         .containsEntry("time", "09:02:03");
-    assertThat(rows.get(1).parity().get("summary").toString())
-        .contains("exec × 2", "printf beta")
-        .doesNotContain("alpha", "历史工具输出", "子任务文本", "检查合成模块");
+    assertThat(rows.get(1).parity())
+        .containsEntry("summary", "Shell × 2")
+        .containsEntry("summaryRole", "tool");
     assertThat(rows.get(1).callCount()).isEqualTo(2);
     assertThat(rows.get(1).toolCallCount()).isEqualTo(2);
     assertThat(rows.get(1).parity()).containsEntry("time", "09:03:04");
@@ -64,6 +64,9 @@ class SessionTraceEvidenceTest {
     assertThat(reader.payload("tool:input:ta", PayloadVisibility.STANDARD).orElseThrow().content())
         .contains("alpha")
         .doesNotContain("beta");
+    assertThat(reader.payload("tool:input:tb", PayloadVisibility.STANDARD).orElseThrow().content())
+        .contains("printf beta")
+        .doesNotContain("alpha", "child");
     assertThat(reader.payload("tool:result:ta", PayloadVisibility.STANDARD).orElseThrow().content())
         .isEqualTo("历史工具输出");
     try (var export = reader.exportPayloads()) {
@@ -74,9 +77,35 @@ class SessionTraceEvidenceTest {
     var previews = SessionContentPreviews.read(content);
     assertThat(reader.payload("main:req:b", PayloadVisibility.STANDARD).orElseThrow().content())
         .contains("检查合成模块", "历史工具输出");
-    assertThat(previews.toolInputs(reader.findCall("b").orElseThrow()))
+    assertThat(previews.toolInputSummaries(reader.findCall("b").orElseThrow()))
         .containsOnlyKeys("tb")
-        .containsEntry("tb", "printf beta");
+        .containsEntry("tb", new ToolInputPreview.Summary("printf beta", "shell"));
+  }
+
+  @Test
+  void toolClockUsesItsDeclaringSourceRatherThanAnotherScopeOrItsResult() throws Exception {
+    var content = content();
+    var page = SessionExecutionProjection.read(content, "synthetic-clock", null, 30, null, "");
+    var timings =
+        page.items().stream()
+            .map(SessionExecutionProjection.Item::tool)
+            .filter(java.util.Objects::nonNull)
+            .toList();
+    assertThat(timings).hasSize(3);
+    assertThat(timings)
+        .filteredOn(tool -> "ta".equals(tool.toolCallId()))
+        .singleElement()
+        .satisfies(
+            tool -> {
+              assertThat(tool.timestamp()).isEqualTo("2026-01-01T01:02:03Z");
+              assertThat(tool.durationMs()).isZero();
+            });
+    assertThat(timings)
+        .filteredOn(tool -> "tc".equals(tool.toolCallId()))
+        .singleElement()
+        .satisfies(tool -> assertThat(tool.timestamp()).isNull());
+    var previews = SessionContentPreviews.read(content);
+    assertThat(previews.toolTimestamp(tool("ta", "child", true))).isNull();
   }
 
   @Test
@@ -94,15 +123,11 @@ class SessionTraceEvidenceTest {
     assertThat(parity.round(1).toMap())
         .containsEntry("summary", "检查合成模块")
         .containsEntry("time", "09:02:03");
-    assertThat(parity.round(2).toMap().get("summary").toString())
-        .contains("printf beta")
-        .doesNotContain("alpha", "检查合成模块", "历史工具输出");
+    assertThat(parity.round(2).toMap()).containsEntry("summary", "Shell");
     assertThat(parity.round(2).toMap()).containsEntry("time", "09:03:04");
     var rows = RoundIndexProjection.pageDtos(detail, artifact, parity);
     assertThat(rows.getFirst().parity()).containsEntry("summary", "检查合成模块");
-    assertThat(rows.get(1).parity().get("summary").toString())
-        .contains("printf beta")
-        .doesNotContain("alpha", "检查合成模块");
+    assertThat(rows.get(1).parity()).containsEntry("summary", "Shell");
   }
 
   @Test
@@ -110,10 +135,7 @@ class SessionTraceEvidenceTest {
     var detail = SessionDetailParityAnalyzerTest.healthDetail(false, 0);
     var local = SessionDetailParityAnalyzer.analyze(detail, null, content(), true);
     assertThat(local.meta).containsEntry("sessionFilePath", "/synthetic/trace.jsonl");
-    assertThat(local.diagnostics)
-        .containsEntry("contextSegmentsAvailable", false)
-        .containsEntry("issuesAvailable", false)
-        .containsEntry("toolImpactAvailable", true);
+    assertThat(local.diagnostics).containsEntry("contextSegmentsAvailable", false);
     assertThat(SessionDetailParityAnalyzer.analyze(detail, null, content(), false).meta)
         .containsEntry("sessionFilePath", "");
   }
@@ -149,7 +171,7 @@ class SessionTraceEvidenceTest {
                     resultType,
                     true,
                     "",
-                    "",
+                    "2026-01-01T01:33:04Z",
                     Map.of("type", resultType, "call_id", "ta", "output", "历史工具输出")),
             "text",
                 entry(
@@ -219,7 +241,7 @@ class SessionTraceEvidenceTest {
         "call_id",
         id,
         "name",
-        "exec",
+        "exec_command",
         "arguments",
         "{\"command\":\"printf " + text + "\"}");
   }
@@ -288,7 +310,7 @@ class SessionTraceEvidenceTest {
   private static NormalizedToolExecution tool(String id, String owner, boolean child) {
     return new NormalizedToolExecution(
         id,
-        "exec",
+        "exec_command",
         child ? CallScope.SUBAGENT : CallScope.MAIN,
         owner,
         id.equals("ta") ? Optional.of("b") : Optional.empty(),

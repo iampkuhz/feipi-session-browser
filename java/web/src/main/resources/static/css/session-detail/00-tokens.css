@@ -24,7 +24,9 @@
   --sd-mono: var(--font-mono);
   --sd-h-btn-sm: 28px;
   --sd-h-btn-md: 30px;
-  --sd-h-round: 46px;
+  --sd-h-round: 36px;
+  --sd-card-gap: 8px;
+  --sd-card-inset: 12px;
   --sd-radius-card: 14px;
   --sd-radius-panel: 18px;
 }

@@ -43,25 +43,6 @@
         updateSortIndicators();
     }
 
-    function getSortValue(row, key) {
-        switch (key) {
-            case 'sessions':
-                return parseInt(row.dataset.totalSessions) || 0;
-            case 'tokens':
-                return parseInt(row.dataset.totalTokens) || 0;
-            case 'tools':
-                return parseInt(row.dataset.totalTools) || 0;
-            case 'failed':
-                return parseInt(row.dataset.totalFailed) || 0;
-            case 'first_seen':
-                return row.dataset.firstSeen || '';
-            case 'last_active':
-                return row.dataset.lastSeen || '';
-            default:
-                return 0;
-        }
-    }
-
     function updateSortIndicators() {
         var buttons = document.querySelectorAll('#projects-table th .c-data-table__sort');
         buttons.forEach(function(btn) {
@@ -131,13 +112,6 @@
         if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
         if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
         return formatNumber(n);
-    }
-
-    function formatDuration(seconds) {
-        var n = Math.max(0, Math.round(Number(seconds || 0)));
-        if (n >= 3600) return Math.floor(n / 3600) + 'h ' + Math.floor((n % 3600) / 60) + 'm';
-        if (n >= 60) return Math.floor(n / 60) + 'm ' + (n % 60) + 's';
-        return n + 's';
     }
 
     function formatDate(value) {
@@ -855,12 +829,6 @@
                 else fetchProjectSessions(params);
             }
         });
-    }
-
-    function navigateToPage(pageNum) {
-        var params = new URLSearchParams(window.location.search);
-        params.set('page', pageNum.toString());
-        window.location.search = params.toString();
     }
 
     /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── DOM ready: initialize all behaviors ────────────────────` */

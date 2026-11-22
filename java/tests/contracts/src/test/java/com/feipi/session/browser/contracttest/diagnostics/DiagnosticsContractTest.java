@@ -9,7 +9,6 @@ import com.feipi.session.browser.index.store.sqlite.util.PercentileCalculator;
 import com.feipi.session.browser.query.api.AnomalySeverity;
 import com.feipi.session.browser.query.api.AnomalyType;
 import com.feipi.session.browser.query.api.DetectedAnomaly;
-import com.feipi.session.browser.query.api.DiagnosticIssue;
 import com.feipi.session.browser.query.api.RoundSignalKey;
 import com.feipi.session.browser.query.api.SessionAnomalyKey;
 import com.feipi.session.browser.query.api.SessionAnomalySummary;
@@ -134,22 +133,6 @@ class DiagnosticsContractTest {
     @DisplayName("MIN_ROWS 常量为正整数")
     void minRowsIsPositive() {
       assertThat(PercentileCalculator.MIN_ROWS).isGreaterThan(0);
-    }
-  }
-
-  @Nested
-  @DisplayName("解析诊断契约")
-  class ParseDiagnosticsContractTests {
-
-    @Test
-    @DisplayName("DiagnosticIssue 枚举值与 Python 对齐")
-    void diagnosticIssueValuesAlignedWithPython() {
-      assertThat(DiagnosticIssue.BAD_JSON.getValue()).isEqualTo("BAD_JSON");
-      assertThat(DiagnosticIssue.NON_OBJECT_SKIPPED.getValue()).isEqualTo("NON_OBJECT_SKIPPED");
-      assertThat(DiagnosticIssue.FILE_NOT_FOUND.getValue()).isEqualTo("FILE_NOT_FOUND");
-      assertThat(DiagnosticIssue.EMPTY_FILE.getValue()).isEqualTo("EMPTY_FILE");
-      assertThat(DiagnosticIssue.MISSING_TIMESTAMP.getValue()).isEqualTo("MISSING_TIMESTAMP");
-      assertThat(DiagnosticIssue.TOKEN_ESTIMATED.getValue()).isEqualTo("TOKEN_ESTIMATED");
     }
   }
 

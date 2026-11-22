@@ -31,33 +31,36 @@
       var url = new URL(window.location.href);
       if (status === 'all') url.searchParams.delete('trace_status');
       else url.searchParams.set('trace_status', status);
-      window.history.replaceState({}, '', url.toString());
+      window.history.replaceState(window.history.state, '', url);
     }
   }
 
+  var roundExpansionEpoch = 0;
+
   function collapseAll(page) {
+    roundExpansionEpoch++;
     qsa(page, '[data-trace-round-row]').forEach(function (round) {
       setRoundOpen(round, false);
     });
   }
 
   function expandAll(page) {
-    var rounds = qsa(page, '[data-trace-round-row]');
-    var loadCount = 0;
-    var maxConcurrent = 5;
-    for (var i = 0; i < rounds.length; i++) {
-      var round = rounds[i];
-      if (!isRoundVisible(round)) continue;
-      if (round.getAttribute('data-detail-loaded') === 'true') {
-        setRoundOpen(round, true);
-      } else {
-        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Batch the first few, skip the rest to avoid flooding`
-        if (loadCount < maxConcurrent) {
-          loadCount++;
-          lazyLoadRoundDetail(round);
+    var epoch = ++roundExpansionEpoch;
+    var rounds = Array.from(qsa(page, '[data-trace-round-row]')).filter(isRoundVisible);
+    var index = 0;
+    async function next() {
+      while (epoch === roundExpansionEpoch && index < rounds.length) {
+        var round = rounds[index++];
+        if (!round.isConnected || !isRoundVisible(round)) continue;
+        if (round.getAttribute('data-detail-loaded') === 'true') {
+          setRoundOpen(round, true);
+        } else {
+          try { await lazyLoadRoundDetail(round); }
+          catch (error) { /* 保留该行的重试入口，继续下一条记录。 */ }
         }
       }
     }
+    for (var worker = 0; worker < Math.min(5, rounds.length); worker++) next();
   }
 
   function toggleAll(page) {
@@ -157,7 +160,8 @@
 
   function scrollTraceTarget(target, smooth) {
     if (!target) return;
-    var marginTop = 12;
+    var head = qs(target.ownerDocument, '.sd-workspace-head');
+    var marginTop = 12 + (head ? head.getBoundingClientRect().height : 0);
     ensureTraceScrollRoom(target, marginTop);
 
     var scrollToTarget = function () {
@@ -209,44 +213,106 @@
     if (!window.history || !window.URLSearchParams) return;
     options = options || {};
     var url = new URL(window.location.href);
-    url.searchParams.set('tab', 'trace');
+    url.searchParams.delete('tab');
+    if (options.execution) url.searchParams.set('execution', options.execution);
+    else url.searchParams.delete('execution');
     url.searchParams.set('round', roundId);
     if (options.subagent) url.searchParams.set('subagent', options.subagent);
     else url.searchParams.delete('subagent');
     if (options.subagentRound) url.searchParams.set('subagentround', options.subagentRound);
     else url.searchParams.delete('subagentround');
     url.searchParams.delete('subagent_round');
-    window.history.replaceState({}, '', url.toString());
+    window.history.replaceState(window.history.state, '', url);
   }
 
-  function jumpRound(page, roundId, options) {
+  var readingNavigationTicket = 0;
+
+  async function runReadingNavigation(navigate) {
+    var ticket = ++readingNavigationTicket;
+    var prior = qs(document, '[data-reading-navigation-error]');
+    if (prior) prior.remove();
+    try {
+      await navigate(function () { return ticket === readingNavigationTicket; });
+    } catch (error) {
+      if (ticket !== readingNavigationTicket) return;
+      var host = document.getElementById('session-records') || qs(document, '[data-trace-page]');
+      if (!host) return;
+      var callout = document.createElement('div');
+      callout.dataset.readingNavigationError = '';
+      callout.setAttribute('role', 'alert');
+      callout.textContent = '无法定位执行记录：' + error.message + ' ';
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'sd-btn sd-btn--secondary sd-btn--sm';
+      var refresh = /refresh/i.test(error.message);
+      button.textContent = refresh ? 'Refresh page' : 'Retry';
+      button.onclick = function () {
+        if (refresh) window.location.reload();
+        else runReadingNavigation(navigate);
+      };
+      callout.appendChild(button);
+      host.prepend(callout);
+      scrollTraceTarget(callout, false);
+    }
+  }
+
+  function roundEvidenceTarget(detail, options) {
+    if (!detail || !options.target) return null;
+    var key = cssEscape(options.target);
+    return qs(detail, options.targetKind === 'tool'
+      ? '[data-tool-payload-pair][data-tool-id="' + key + '"]'
+      : '[data-execution-call="' + key + '"]');
+  }
+
+  async function jumpRound(page, roundId, options) {
     options = options || {};
-    var round = qs(page, '[data-trace-round-row][data-round="' + cssEscape(roundId) + '"]');
-    if (!round) return;
-    var analysis = closest(round, '[data-evidence-analysis]');
-    if (analysis) analysis.open = true;
-    if (typeof switchTab === 'function') switchTab(page, 'trace', true);
-    if (round.classList.contains('is-filtered-out')) {
+    if (!/^\d+$/.test(String(roundId)) || Number(roundId) < 1) throw new Error('无效的轮次');
+    var current = options.current || function () { return true; };
+    var findRow = function () { return qs(page, '[data-trace-round-row][data-round="' + cssEscape(roundId) + '"]'); };
+    var round = findRow();
+    if (!round || round.classList.contains('is-filtered-out')) {
+      var ticket = ++sessionDetailState.filterTicket;
+      var response = await readSessionContentPage(getApiBase() + '/rounds?target=' + encodeURIComponent(roundId));
+      if (!current() || ticket !== sessionDetailState.filterTicket) return;
+      sessionDetailState.roundFilter = '';
       setFilter(page, 'all');
+      applySessionRounds(response);
+      round = findRow();
     }
-    round.hidden = false;
+    if (!round) throw new Error('当前索引中没有此轮次');
+    var getDetail = function () { return document.getElementById('round-' + roundId + '-detail'); };
+    var detail = getDetail();
+    var target = roundEvidenceTarget(detail, options);
+    if (!target && round.pendingRoundDetail) {
+      await round.pendingRoundDetail;
+      detail = getDetail();
+      target = roundEvidenceTarget(detail, options);
+    }
+    if (!current() || !round.isConnected) return;
+    if (!target && (options.target || !detail)) {
+      await lazyLoadRoundDetail(round, options, detail);
+      detail = getDetail();
+      target = roundEvidenceTarget(detail, options);
+    }
+    if (!current() || !round.isConnected) return;
+    if (options.target && !target) throw new Error('当前轮次未找到指定证据');
+    setRoundOpen(round, true);
     updateTraceJumpUrl(roundId, options);
-
-    var finishJump = function () {
-      setRoundOpen(round, true);
-      scrollTraceTarget(findSubagentTraceTarget(round, options), options.smooth === true);
-    };
-
-    var detailEl = document.getElementById('round-' + roundId + '-detail');
-    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`If detail not loaded and not pre-rendered, trigger lazy load then scroll after load.`
-    if (round.getAttribute('data-detail-loaded') !== 'true' && !detailEl) {
-      var load = lazyLoadRoundDetail(round);
-      if (load && typeof load.then === 'function') {
-        load.then(finishJump).catch(finishJump);
-      } else {
-        finishJump();
+    if (target) {
+      var subround = target.closest('[data-sub-round-id]');
+      if (subround) expandSubagentRound(subround);
+      var filter = qs(detail, '[data-tool-kind-filter]');
+      if (filter?.value) {
+        filter.value = '';
+        applyToolKindFilter(detail);
       }
-    } else {
-      finishJump();
+      if (target.matches('[data-tool-payload-pair]')) {
+        target.open = true;
+        target.querySelector('summary').focus({ preventScroll: true });
+      } else {
+        target.tabIndex = -1;
+        target.focus({ preventScroll: true });
+      }
     }
+    scrollTraceTarget(target || findSubagentTraceTarget(round, options), options.smooth === true);
   }

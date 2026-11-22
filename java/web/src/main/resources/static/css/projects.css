@@ -629,24 +629,3 @@
     grid-template-columns: 1fr;
   }
 }
-
-@media (max-width: 520px) {
-  .p-projects .metric-grid,
-  .p-projects .project-detail-kpis {
-    grid-template-columns: 1fr;
-  }
-
-  .p-projects .project-analysis-card__header {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .p-projects .agent-mix-row {
-    grid-template-columns: 1fr;
-  }
-
-  .p-projects .project-session-filter .search {
-    min-width: 0;
-    width: 100%;
-  }
-}

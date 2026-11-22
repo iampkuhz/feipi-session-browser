@@ -21,6 +21,58 @@ import org.junit.jupiter.api.Test;
 /** 验证逻辑轮次跨内容单元后仍保留精确计数，且不构造无限增长的成员数组。 */
 class SessionContentProjectionTest {
   @Test
+  void firstUserPromptLinksToTheCallThatContainsTheUserText() {
+    var detail = SessionDetailParityAnalyzerTest.healthDetail(false, 0);
+    var content = content(List.of(call(1), call(2, "synthetic-2", "synthetic first question")));
+    var annotated =
+        new com.feipi.session.browser.application.SessionDetailUseCase.AnnotatedDetailContext(
+            detail,
+            com.feipi.session.browser.query.api.SessionAnomalySummary.empty(
+                detail.sessionRow().sessionKey()),
+            null,
+            content);
+    var meta =
+        new SessionDetailApiHandler(
+            ctx ->
+                new SessionDetailApiHandler.LoadedDetail(
+                    new SessionDetailApiResponses.SessionDetailFilterEcho(
+                        "codex", "health", "standard", "", ""),
+                    annotated,
+                    "/synthetic",
+                    false));
+    var payload =
+        new SessionApiHandler(
+            new SessionApiService(
+                (key, visibility) ->
+                    Optional.of(
+                        new com.feipi.session.browser.application.SessionDetailUseCase
+                            .DetailContext(detail, null, content))));
+    io.javalin.testtools.JavalinTest.test(
+        io.javalin.Javalin.create(
+            config -> {
+              config.routes.get("/meta", meta::handleMeta);
+              config.routes.get(
+                  "/payload/{id}",
+                  ctx -> payload.handlePayload(ctx, "codex", "health", ctx.pathParam("id")));
+            }),
+        (app, client) -> {
+          var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+          var body = mapper.readTree(client.get("/meta").body().string());
+          assertThat(body.path("firstUserPrompt").asText()).isEqualTo("synthetic first question");
+          String payloadId = body.path("firstUserPromptPayloadId").asText();
+          assertThat(payloadId).isEqualTo("main:req:synthetic-2");
+          var preparation =
+              mapper.readTree(client.get("/payload/main:req:synthetic-1").body().string());
+          assertThat(preparation.path("content").asText()).isEmpty();
+          var question = mapper.readTree(client.get("/payload/" + payloadId).body().string());
+          assertThat(question.path("content").asText()).isEqualTo("synthetic first question");
+          var answer =
+              mapper.readTree(client.get("/payload/main:resp:synthetic-2").body().string());
+          assertThat(answer.path("content").asText()).isEqualTo("synthetic response 2");
+        });
+  }
+
+  @Test
   void oneLogicalRoundCrossesUnitsWithoutLeakingAllMemberIds() throws Exception {
     var content = content();
     var rows =
@@ -121,10 +173,34 @@ class SessionContentProjectionTest {
           var nextExecution =
               mapper.readTree(client.get("/execution?cursor=" + executionCursor).body().string());
           assertThat(nextExecution.at("/items/0/group/id").asText()).isEqualTo("synthetic-21");
+          var head = mapper.readTree(client.get("/execution?summary=1").body().string());
+          assertThat(head.path("items").size()).isZero();
+          assertThat(head.path("diagnostics")).isEqualTo(execution.path("diagnostics"));
+          var row = mapper.readTree(client.get("/rounds?target=1&limit=1").body().string());
+          assertThat(row.at("/rounds/0/roundIndex").asInt()).isOne();
+          assertThat(client.get("/rounds?target=2").code()).isEqualTo(404);
+          assertThat(client.get("/rounds?target=0").code()).isEqualTo(400);
+          var focused =
+              mapper.readTree(
+                  client
+                      .get("/round/1?target_kind=call&target=synthetic-10233&limit=1")
+                      .body()
+                      .string());
+          assertThat(focused.path("offset").asLong()).isEqualTo(10232);
+          assertThat(focused.at("/round/calls/0/callId").asText()).isEqualTo("synthetic-10233");
+          assertThat(focused.at("/round/calls").size()).isOne();
+          var after =
+              mapper.readTree(
+                  client
+                      .get("/round/1?cursor=" + focused.path("nextCursor").asText())
+                      .body()
+                      .string());
+          assertThat(after.at("/round/calls/0/callId").asText()).isEqualTo("synthetic-10234");
+          assertThat(client.get("/round/1?target=missing-tool").code()).isEqualTo(404);
           var diagnostics = mapper.readTree(client.get("/diagnostics").body().string());
           assertThat(diagnostics.at("/parity/contentMeasured").asBoolean()).isTrue();
-          assertThat(diagnostics.at("/parity/toolImpactAvailable").asBoolean()).isTrue();
-          assertThat(diagnostics.at("/parity/toolImpact/allToolCalls").asLong()).isZero();
+          assertThat(diagnostics.at("/parity/toolCalls").longValue()).isZero();
+          assertThat(diagnostics.at("/parity/toolCallsAvailable").asBoolean()).isTrue();
           assertThat(diagnostics.path("parity").has("payloadGaps")).isFalse();
           int payloads = 0;
           String next = null;
@@ -203,6 +279,113 @@ class SessionContentProjectionTest {
         .doesNotContain("synthetic response 1");
     assertThat(reader.payload("sa:resp:child-SR1", detail.visibility()).orElseThrow().content())
         .isEqualTo("synthetic child output");
+  }
+
+  @Test
+  void sideTaskGroupsCallsWithoutLosingUsageOrMeaningfulUserPreview() throws Exception {
+    var calls =
+        List.of(
+            sideTaskCall(1, "first", "S", true),
+            sideTaskCall(2, "first", "The actual user question", false),
+            sideTaskCall(3, "second", "S\n```\nsynthetic code\n```\n\n可见的用户正文", false),
+            sideTaskCall(4, "third", "X", false));
+    var content = content(calls);
+    var rows =
+        SessionContentProjection.rounds(
+            SessionDetailParityAnalyzerTest.healthDetail(false, 0), content);
+    assertThat(rows).hasSize(3);
+    var first = rows.getFirst();
+    assertThat(first.callCount()).isEqualTo(2);
+    assertThat(first.tokens().total()).isEqualTo(4);
+    assertThat(first.parity())
+        .containsEntry("summary", "The actual user question")
+        .containsEntry("userTask", true)
+        .containsEntry("taskStartedAt", "2026-01-01T01:00:00Z")
+        .containsEntry("taskDurationMs", 900L);
+    assertThat(rows.get(1).parity()).containsEntry("summary", "可见的用户正文");
+    assertThat(rows.getLast().callCount()).isEqualTo(1);
+    assertThat(rows.getLast().parity())
+        .containsEntry("summary", "X")
+        .doesNotContainKey("taskDurationMs");
+  }
+
+  @Test
+  void groupedRoundHttpReportsUsageOnlyResponseAndPhases() throws Exception {
+    var content =
+        content(
+            List.of(
+                sideTaskCall(1, "first", "", true),
+                sideTaskCall(2, "first", "A visible question", false)));
+    var detail = SessionDetailParityAnalyzerTest.healthDetail(false, 0);
+    var handler =
+        new SessionApiHandler(
+            new SessionApiService(
+                (key, visibility) ->
+                    Optional.of(
+                        new com.feipi.session.browser.application.SessionDetailUseCase
+                            .DetailContext(detail, null, content))));
+    io.javalin.testtools.JavalinTest.test(
+        io.javalin.Javalin.create(
+            cfg -> cfg.routes.get("/round", ctx -> handler.handleRound(ctx, "codex", "health", 1))),
+        (app, client) -> {
+          var json =
+              new com.fasterxml.jackson.databind.ObjectMapper()
+                  .readTree(client.get("/round?limit=10").body().string());
+          var calls = json.path("round").path("calls");
+          assertThat(calls.size()).isEqualTo(2);
+          assertThat(calls.get(0).path("phaseLabel").asText()).isEqualTo("上下文压缩");
+          assertThat(calls.get(0).path("responseAvailable").asBoolean()).isTrue();
+          assertThat(calls.get(0).path("requestAvailable").asBoolean(true)).isFalse();
+          assertThat(calls.get(1).path("phaseLabel").asText()).isEqualTo("压缩后调用");
+          assertThat(calls.get(1).path("requestAvailable").asBoolean()).isTrue();
+        });
+  }
+
+  private static NormalizedCall sideTaskCall(int index, String task, String text, boolean timing) {
+    var base = call(index, "token_usage_record:side-" + index, text);
+    var units = new java.util.ArrayList<>(base.sourceUnits());
+    if (index == 1) {
+      units.removeIf(unit -> "assistant".equals(unit.get("role")));
+      units.add(
+          Map.of("role", "context", "type", "codex_context_response_usage", "text", "observed"));
+      units.add(
+          Map.of(
+              "role", "context", "type", "codex_context_response_compaction", "text", "identity"));
+    } else if (index == 2) {
+      units.add(Map.of("role", "context", "type", "codex_context_boundary", "text", "compacted"));
+    }
+    units.add(Map.of("role", "context", "type", "codex_context_side_task_id", "text", task));
+    if (timing) {
+      units.add(
+          Map.of(
+              "role",
+              "context",
+              "type",
+              "codex_context_side_task_started_at",
+              "text",
+              "2026-01-01T01:00:00Z"));
+      units.add(
+          Map.of("role", "context", "type", "codex_context_side_task_duration_ms", "text", "900"));
+    }
+    return new NormalizedCall(
+        base.callId(),
+        index,
+        base.callKey(),
+        base.scope(),
+        base.parentCallId(),
+        base.parentToolCallId(),
+        Optional.of(task),
+        base.model(),
+        base.timestamp(),
+        base.usage(),
+        base.request(),
+        base.response(),
+        base.sourceUnitRefRanges(),
+        units,
+        base.attributionCandidates(),
+        base.usageSource(),
+        base.subagentId(),
+        base.parentToolName());
   }
 
   @Test
@@ -288,8 +471,11 @@ class SessionContentProjectionTest {
   }
 
   private static NormalizedSessionContent content() {
-    var calls =
-        IntStream.rangeClosed(1, 10234).mapToObj(SessionContentProjectionTest::call).toList();
+    return content(
+        IntStream.rangeClosed(1, 10234).mapToObj(SessionContentProjectionTest::call).toList());
+  }
+
+  private static NormalizedSessionContent content(List<NormalizedCall> calls) {
     return NormalizedSessionContent.fromLists(
         new NormalizedContentHeader(
             NormalizedConstants.SCHEMA_VERSION,
@@ -297,7 +483,7 @@ class SessionContentProjectionTest {
             new NormalizedSessionMetadata(Map.of()),
             Map.of(
                 "calls",
-                10234L,
+                (long) calls.size(),
                 "toolExecutions",
                 0L,
                 "diagnostics",
@@ -321,6 +507,13 @@ class SessionContentProjectionTest {
   }
 
   private static NormalizedCall call(int index, String id) {
+    return call(index, id, "");
+  }
+
+  private static NormalizedCall call(int index, String id, String user) {
+    var response =
+        Map.<String, Object>of(
+            "role", "assistant", "type", "text", "text", "synthetic response " + index);
     return new NormalizedCall(
         id,
         index,
@@ -335,7 +528,9 @@ class SessionContentProjectionTest {
         NormalizedCallRequest.empty(),
         NormalizedCallResponse.empty(),
         List.of(),
-        List.of(Map.of("role", "assistant", "type", "text", "text", "synthetic response " + index)),
+        user.isEmpty()
+            ? List.of(response)
+            : List.of(Map.of("role", "user", "type", "text", "text", user), response),
         Map.of(),
         Map.of(
             "freshInputTokenPrecision",

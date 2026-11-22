@@ -13,6 +13,7 @@ final class RoundGrouping {
   private final NormalizedAgent agent;
   private final Map<String, Integer> calls = new HashMap<>();
   private final Map<String, Integer> turns = new HashMap<>();
+  private final Map<String, Integer> sideTaskRounds = new HashMap<>();
   private final Set<Integer> modelRounds = new HashSet<>();
   private int count;
 
@@ -23,7 +24,12 @@ final class RoundGrouping {
   int add(NormalizedCall call) {
     Integer round;
     if (!evidence(agent, call).isEmpty()) {
-      round = ++count;
+      var sideTask =
+          call.scope() == CallScope.MAIN ? ContentRoundIndex.sideTask(call).orElse(null) : null;
+      round =
+          sideTask == null
+              ? ++count
+              : sideTaskRounds.computeIfAbsent(sideTask.identity(), ignored -> ++count);
       modelRounds.add(round);
     } else if (call.scope() == CallScope.MAIN) {
       String turn = call.turnId().orElse("");

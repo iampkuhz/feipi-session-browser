@@ -18,8 +18,7 @@
 - 文本不得重叠；空间不足使用横向滚动、截断和 tooltip。
 - 不用营销式 hero、大装饰卡片、布局说明、快捷键说明占用首屏。
 - 不提供全局搜索入口；搜索只出现在 Sessions、Projects、Token Glossary 三类需要检索当前列表的页面内。
-- 断点固定为标准桌面 `1024px-1439px`、宽屏 `>=1440px`、窄宽兜底 `<1024px`。
-- 窄宽兜底只用于单列堆叠、横向滚动和防重叠，不维护独立移动端信息架构。
+- 只支持桌面窗口：标准桌面 `1024px-1439px`，宽屏 `>=1440px`。不维护手机、平板或触屏专用布局。
 
 ## 共享组件
 
@@ -119,9 +118,9 @@
 ### Token Measurement Provenance
 
 - Dashboard、Sessions、Projects、Project Detail、Session Detail 共用 API `tokens.provenance`，四段状态独立于数值；不按 agent 名称、非零值或 session 总量推断 round/call 精度。
-- `provider_reported` 显示上报值；`estimated` 数值带 `≈`，并常驻 `Estimated` 和估算法；`unavailable` 显示 `Not reported`；缺 provenance 或 `unknown` 显示 `Unknown`（非零 observed 值可保留，零显示 `N/A`）。
-- `mixed`/不同四段精度显示 `Partial`，常驻估算、未上报、未知覆盖会话数。覆盖数可重叠，不能相加当作总会话数。
-- Cache Read Ratio 仅在全部输入段为 `provider_reported` 且分母大于 0 时显示精确百分比；其余显示 `N/A` 和 `Partial`/`Not reported`/`Unknown`，不补 0% 折线、不触发低缓存信号。
+- `provider_reported` 显示上报值；`estimated` 数值带 `≈`，有估算依据时可展开查看；`unavailable` 显示 `Not reported`；缺 provenance 或 `unknown` 不重复添加来源徽标（非零 observed 值可保留，零显示 `N/A`）。
+- 不同分段精度不在每个值旁重复添加 Partial 或 Unknown 标签。保留有用的估算、未上报依据和按需分段；覆盖数可重叠，不能相加当作总会话数。
+- Cache Read Ratio 仅在全部输入段为 `provider_reported` 且分母大于 0 时显示精确百分比；其余显示 `N/A` 或未上报说明，不补 0% 折线、不触发低缓存信号。
 - 必要精度说明不能仅放 tooltip。缩略数值、分段、趋势、平均值、贡献比较使用同一语义；导入页只使用当前 import API，不从个人 API 补 provenance。
 
 ### Chart Tooltip
@@ -172,7 +171,7 @@
 - `shell.css` 只维护壳层；`ui-primitives.css` 维护共享组件；页面 CSS 只维护页面布局和特有组合。
 - 页面 CSS 不直接重写共享组件基础定义。
 - 不新增版本化、patch、fix、overlay、alias CSS 文件。
-- 当前 UI 只维护标准桌面、宽屏和窄宽兜底规则，不维护独立移动端、平板端断点。
+- 布局媒体查询仅使用桌面宽度；保留桌面防溢出和无障碍媒体配置。
 
 ## 质量门
 
@@ -187,6 +186,6 @@
 
 ### Token Breakdown 共享弹框（TASK-57）
 
-- `TokenProvenance.breakdown` 统一四段 + Total 的色标/类型、数量/来源、占比三列；来源显示中文，长标签完整换行、不做省略截断。`bindTooltips` / Token Cell 复用同一 viewport popover，hover、键盘 focus、Escape 和触屏点击可达。
+- `TokenProvenance.breakdown` 统一四段 + Total 的色标/类型、数量/来源、占比三列；来源显示中文，长标签完整换行、不做省略截断。`bindTooltips` / Token Cell 复用同一 viewport popover，支持鼠标悬停、点击、键盘聚焦及 Escape 关闭。
 - 不统一错误分母：分段相对当前总量（含 Output）；Dashboard 总量相对窗口的比例单独注明；缓存比率只用服务商完整上报输入，不含 Output。Partial/Estimated/Unknown/未上报保留区分，不从非零数值推断精确来源。
 - Context Budget 自有分类与纳入标记，不套四段构成；仅明确纳入且有可用 share 的分类进入条形，Tool Results 本地估算在外。

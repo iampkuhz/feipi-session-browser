@@ -124,8 +124,10 @@ class StaticResourceContractRuleTest {
     write(
         STATIC + "/css/desktop.css",
         """
-        /* @media tablet and (max-width: 768px) */
+        /* @media (max-width: 600px) { .ignored { display: block; } } */
+        @media (max-width: 1040px) { .desktop { display: grid; } }
         @media (min-width: 1512px) { .desktop { display: grid; } }
+        @media (prefers-reduced-motion: reduce) { .desktop { animation: none; } }
         """);
     write(
         STATIC + "/js/viewport-notes.js",
@@ -134,20 +136,29 @@ class StaticResourceContractRuleTest {
     assertThat(run(null).exitCode()).isZero();
 
     write(
-        STATIC + "/css/mobile.css",
+        STATIC + "/css/unsupported-width.css",
         """
-        @media (max-width: 768px) { .compact { display: block; } }
-        @media screen and (min-width: 768px) and (max-width: 1024px) {
-          .tablet { display: block; }
+        @media
+          (max-width: 900px) { .compact { display: block; } }
+        @media (768px <= width < 1024px), (min-width: 1440px) {
+          .range { display: block; }
         }
+        @media (any-pointer: coarse) { .touch { display: block; } }
         """);
+    write(
+        STATIC + "/js/unsupported-width.js", "const compact = matchMedia('(max-width: 850px)');\n");
 
     var invalid = run(null);
 
     assertThat(invalid.exitCode()).isEqualTo(QualityGateExitCodes.VIOLATIONS);
     assertThat(invalid.out())
         .contains("VIEWPORT_OUTSIDE_DESKTOP_CONTRACT")
-        .contains("mobile.css")
+        .contains("unsupported-width.css", "unsupported-width.js")
+        .contains(
+            "max-width: 900px",
+            "768px <= width < 1024px",
+            "any-pointer: coarse",
+            "max-width: 850px")
         .contains("desktop-viewports-only");
   }
 

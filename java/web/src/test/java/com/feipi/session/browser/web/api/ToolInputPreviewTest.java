@@ -20,14 +20,30 @@ class ToolInputPreviewTest {
 
   @Test
   void classifiesOnlyTheRecordedTopLevelExecutionSurface() {
-    assertThat(ToolInputPreview.executionKind("exec", "const r = await tools.exec_command(...)"))
-        .isEqualTo("javascript");
-    assertThat(ToolInputPreview.executionKind("functions__exec_command", "printf x"))
-        .isEqualTo("shell");
-    assertThat(ToolInputPreview.executionKind("Bash", "/usr/bin/python3 -c 'print(1)'"))
-        .isEqualTo("python");
-    assertThat(ToolInputPreview.executionKind("Read", "/synthetic/example.py")).isEqualTo("tool");
-    assertThat(ToolInputPreview.executionKind("exec", "")).isEqualTo("tool");
+    assertThat(category("exec", "const r = await tools.exec_command(...)")).isEqualTo("javascript");
+    assertThat(category("functions__exec_command", "printf x")).isEqualTo("shell");
+    assertThat(category("Bash", "/usr/bin/python3 -c 'print(1)'")).isEqualTo("python");
+    assertThat(category("Read", "/synthetic/example.py")).isEqualTo("read");
+    assertThat(category("exec", "")).isEqualTo("javascript");
+  }
+
+  @Test
+  void classifiesActionsWithoutInterpretingArbitraryArgumentsAsToolNames() {
+    assertThat(category("exec", "text(await tools.exec_command({cmd: 'ls'}))")).isEqualTo("shell");
+    assertThat(category("exec", "text('await tools.exec_command(...)')")).isEqualTo("javascript");
+    assertThat(category("functions.exec", "await tools.exec_command({})")).isEqualTo("shell");
+    assertThat(category("tools.exec_command", "python3 task.py")).isEqualTo("python");
+    assertThat(category("unrelated.exec", "")).isEqualTo("tool");
+    assertThat(category("wait", "{\"metadata\":{\"terminate\":true}}")).isEqualTo("wait");
+    assertThat(category("wait", "{\"terminate\":\"true\"}")).isEqualTo("wait");
+    assertThat(category("mcp__files__read_file", "printf x")).isEqualTo("read");
+    assertThat(category("search", "node example.js")).isEqualTo("search");
+    assertThat(category("apply_patch", "python")).isEqualTo("edit");
+    assertThat(category("read_unrelated", "node example.js")).isEqualTo("tool");
+    assertThat(category("write_stdin", "{\"session_id\":1,\"chars\":\"\"}")).isEqualTo("wait");
+    assertThat(category("write_stdin", "{\"session_id\":1,\"chars\":\"x\"}"))
+        .isEqualTo("process-input");
+    assertThat(category("wait", "{\"cell_id\":\"a\",\"terminate\":true}")).isEqualTo("stop");
   }
 
   @Test
@@ -127,6 +143,28 @@ class ToolInputPreviewTest {
         .endsWith("…");
     assertThat(preview("wait", "{\"cell_id\":\"" + "x".repeat(64 * 1024) + "\"}"))
         .isEqualTo("长参数 · 打开 Input 查看完整内容");
+  }
+
+  @Test
+  void categoryUsesBoundedOriginalInputInsteadOfFormattedPreview() {
+    var longCell = "x".repeat(200);
+    assertThat(category("wait", "{\"cell_id\":\"" + longCell + "\",\"terminate\":true}"))
+        .isEqualTo("stop");
+    assertThat(category("wait", "{\"command\":\"echo x\",\"terminate\":true}")).isEqualTo("stop");
+    for (String name : List.of("Write_stdin", "functions.write_stdin", "mcp__write_stdin")) {
+      assertThat(category(name, "{\"session_id\":1,\"chars\":\"\"}")).isEqualTo("wait");
+    }
+    assertThat(category("write_stdin", "等待读取输出 · session 1")).isEqualTo("process-input");
+    assertThat(category("wait", "{\"terminate\":true} trailing")).isEqualTo("wait");
+    assertThat(category("Bash", "echo|/usr/bin/python3")).isEqualTo("shell");
+    assertThat(category("Bash", "{\"path\":\"/usr/bin/python3\"}")).isEqualTo("shell");
+    assertThat(category("Bash", "{\"cmd\":\"/usr/bin/python3\\n-c '\u0070rint(1)'\"}"))
+        .isEqualTo("python");
+  }
+
+  private static String category(String name, String input) {
+    return ToolInputPreview.summarize(new ToolInputContents.Input("synthetic-tool", name, input))
+        .category();
   }
 
   private static String preview(String name, String input) {

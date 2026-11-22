@@ -138,8 +138,7 @@ for (const vp of viewports) {
 const FIXTURE_SESSION_URL = '/sessions/claude_code/hifi-viz-session-001';
 const sessionDetailChecks: VisibleCheck[] = [
   { selector: '.sd-hero', label: 'session detail hero', first: true },
-  { selector: '.sd-kpi', label: 'session detail header card', first: true },
-  { selector: '.sd-tabs', label: 'session detail tabs' },
+  { selector: '[data-session-metrics-shell]', label: 'persistent token summary' },
   { selector: '[data-trace-panel]', label: 'session trace panel' },
   { selector: '[data-trace-round-row]', label: 'session trace round rows', first: true },
 ];
@@ -148,9 +147,8 @@ for (const vp of viewports) {
   test(`[UI-SD-015] 会话详情 @ ${vp.label} — 结构 + 可见性`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto(FIXTURE_SESSION_URL, { waitUntil: 'domcontentloaded', timeout: 15000 });
-    await expect(page.locator('[data-execution-judgment]')).toBeVisible();
-    await expect(page.locator('[data-execution-items]')).toBeVisible();
-    await page.locator('[data-evidence-analysis] > summary').click();
+    await expect(page.getByRole('tab')).toHaveCount(0);
+    await expect(page.getByRole('region', { name: '执行过程', exact: true })).toBeVisible();
     await expectPageStructure(page, sessionDetailChecks);
     await expectViewportFits(page);
   });

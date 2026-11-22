@@ -16,6 +16,6 @@
 8. main 只能聚合同一 `client/session_id` 的证据；subagent 的 PASS 不替代 main 的独立 required checks；subagent `FAIL`/`BLOCKED` 不得让 main 静默跳过 validation。
 9. 直接使用当前 Agent 原生 `spawn_agent`/`followup_task` 和原生等待/完成事件，不新增 CLI、队列、receipt、
    callback、watchdog 或仓库状态机。模型路由真源为共享 policy 的 `native_delegation`。
-10. 重要实现、复杂分析和独立验证用 `gpt-6.1-sol`，轻量定位用 `gpt-6-luna`；遵守宿主 API 模型/上下文限制，
+10. 重要实现、复杂分析和独立验证用 `gpt-6.2-sol`，轻量定位用 `gpt-6-luna`；遵守宿主 API 模型/上下文限制，
     模型覆盖要求 `fork_turns="none"` 时显式提供必要上下文。保持当前环境权限，受限时如实报告，由 main 接管或调整范围。
 11. 旧 Qoder PASS 不可作为原生验收证据；旧 callback 仅识别为已退役，不重新执行旧链。产品 Qoder session 和安全保护保留。

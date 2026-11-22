@@ -109,27 +109,6 @@ class SafeHtmlTest {
   }
 
   @Nested
-  @DisplayName("wrapInDiv 包装")
-  class WrapInDiv {
-
-    @Test
-    @DisplayName("使用 CSS 类名包装")
-    void wrapsWithClassName() {
-      SafeHtml content = SafeHtml.trusted("content");
-      SafeHtml wrapped = content.wrapInDiv("my-class");
-      assertThat(wrapped.value()).isEqualTo("<div class=\"my-class\">content</div>");
-    }
-
-    @Test
-    @DisplayName("类名中的特殊字符被转义")
-    void escapesClassName() {
-      SafeHtml content = SafeHtml.trusted("x");
-      SafeHtml wrapped = content.wrapInDiv("a\"b");
-      assertThat(wrapped.value()).contains("&quot;");
-    }
-  }
-
-  @Nested
   @DisplayName("对象语义")
   class ObjectSemantics {
 

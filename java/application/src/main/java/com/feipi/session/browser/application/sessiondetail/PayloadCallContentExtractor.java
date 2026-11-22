@@ -51,6 +51,7 @@ public final class PayloadCallContentExtractor {
           "\\A# AGENTS\\.md instructions for [^\\r\\n]+\\R(?:[ \\t]*\\R)*[ \\t]*<INSTRUCTIONS>");
   private static final Pattern PROJECT_INSTRUCTIONS_BOUNDARY =
       Pattern.compile("(?m)^([ \\t]*)(`{3,}|~{3,}|</INSTRUCTIONS>)([^\\r\\n]*)");
+  private static final Pattern PREVIEW_FENCE = Pattern.compile("^ {0,3}(`{3,}|~{3,})(.*)$");
   private static final List<String> CODEX_CONTEXT_TAGS =
       List.of(
           "environment_context",
@@ -162,15 +163,26 @@ public final class PayloadCallContentExtractor {
    * @return 经过默认遮蔽的首行短预览，没有证据时为空
    */
   public static String inlinePreview(NormalizedCall call, boolean request, boolean codexRequest) {
+    return inlinePreview(call, request, codexRequest, false);
+  }
+
+  /** 返回最后一条可见内联助手文本的安全短预览。 */
+  public static String latestInlineAssistantPreview(NormalizedCall call) {
+    return inlinePreview(call, false, false, true);
+  }
+
+  private static String inlinePreview(
+      NormalizedCall call, boolean request, boolean codexRequest, boolean latest) {
     String role = request ? ROLE_USER : ROLE_ASSISTANT;
-    for (var unit : call.sourceUnits()) {
+    var units = call.sourceUnits();
+    for (var unit : latest ? units.reversed() : units) {
       if (!isReadingInline(unit, role)) continue;
       String value = extractTextValue(unit);
       if (codexRequest) {
         String suffix = projectInstructionsSuffix(value);
         if (suffix != null) value = suffix;
         else if (PROJECT_INSTRUCTIONS_OPEN.matcher(value.stripLeading()).find()) continue;
-        if (standaloneContext(value)) continue;
+        if (standaloneContext(value) || legacyProjectContext(value)) continue;
       }
       String preview = shortPreview(value);
       if (!preview.isEmpty()) return preview;
@@ -187,17 +199,71 @@ public final class PayloadCallContentExtractor {
       String suffix = projectInstructionsSuffix(value);
       if (suffix != null) value = suffix;
       else if (PROJECT_INSTRUCTIONS_OPEN.matcher(value.stripLeading()).find()) return "";
-      if (standaloneContext(value)) return "";
+      if (standaloneContext(value) || legacyProjectContext(value)) return "";
     }
     return shortPreview(value);
   }
 
+  /** 判断目录是否有可打开的原文，不通过非空预览推断载荷。 */
+  public static boolean hasCatalogPayload(SourceUnitCatalogEntry entry) {
+    return !List.of("tool_use", "function_call", "custom_tool_call").contains(entry.unitType())
+        && !catalogEntryText(entry).isEmpty();
+  }
+
+  /** 判断已读取的内联调用是否有可打开的指定方向文本。 */
+  public static boolean hasInlinePayload(NormalizedCall call, boolean request) {
+    String role = request ? ROLE_USER : ROLE_ASSISTANT;
+    return call.sourceUnits().stream()
+        .anyMatch(unit -> role.equals(unit.get(FIELD_ROLE)) && !extractTextValue(unit).isEmpty());
+  }
+
   private static String shortPreview(String value) {
-    String first = value.stripLeading().lines().findFirst().orElse("").stripTrailing();
+    var lines = value.stripLeading().lines().iterator();
+    String first = lines.hasNext() ? lines.next().stripTrailing() : "";
+    if (first.length() == 1
+        && ((first.charAt(0) >= 'A' && first.charAt(0) <= 'Z')
+            || (first.charAt(0) >= 'a' && first.charAt(0) <= 'z'))) {
+      first = afterLeadingCode(lines).orElse(first);
+    }
     if (first.isEmpty() || first.length() > 4096) return "";
     String masked = SensitiveFieldPolicy.DEFAULT.applyMasking(first);
     int length = masked.codePointCount(0, masked.length());
     return length > 160 ? masked.substring(0, masked.offsetByCodePoints(0, 160)) + "…" : masked;
+  }
+
+  // 单字母后若紧跟完整代码围栏，摘要优先采用其后的明确正文；没有可证正文则保留原字符。
+  private static Optional<String> afterLeadingCode(java.util.Iterator<String> lines) {
+    String opening = "";
+    while (lines.hasNext() && opening.isBlank()) opening = lines.next();
+    var start = PREVIEW_FENCE.matcher(opening);
+    if (!start.matches()) return Optional.empty();
+    String marker = start.group(1);
+    if (marker.charAt(0) == '`' && start.group(2).contains("`")) return Optional.empty();
+    while (lines.hasNext()) {
+      var close = PREVIEW_FENCE.matcher(lines.next());
+      if (close.matches() && close.group(1).startsWith(marker) && close.group(2).isBlank()) {
+        while (lines.hasNext()) {
+          String prose = lines.next().strip();
+          if (prose.isEmpty()) continue;
+          return prose.length() > 1
+                  && !PREVIEW_FENCE.matcher(prose).matches()
+                  && prose.codePoints().anyMatch(Character::isLetter)
+              ? Optional.of(prose)
+              : Optional.empty();
+        }
+      }
+    }
+    return Optional.empty();
+  }
+
+  // 旧 Codex 记录以独立消息承载项目说明；标题本身不足以判断，须同时有完整的环境尾块。
+  private static boolean legacyProjectContext(String value) {
+    String text = value.strip();
+    if (!text.startsWith("# AGENTS.md instructions\n")
+        && !text.startsWith("# AGENTS.md instructions\r\n")) return false;
+    int start = text.lastIndexOf("<environment_context>");
+    return start > 0
+        && contextEnd(text.substring(start), "environment_context") == text.length() - start;
   }
 
   /** 汇集可归属的对话；无法区分真实引用与上下文注入的独立段落只留在原始记录。 */
@@ -218,7 +284,7 @@ public final class PayloadCallContentExtractor {
           unconfirmedContext = true;
           value = suffix;
         }
-        if (standaloneContext(value)) {
+        if (standaloneContext(value) || legacyProjectContext(value)) {
           unconfirmedContext = true;
           return;
         }
@@ -259,6 +325,18 @@ public final class PayloadCallContentExtractor {
       if (contextEnd >= 0) suffix = suffix.substring(contextEnd).stripLeading();
     }
     return suffix;
+  }
+
+  static String projectInstructions(String value) {
+    String text = value.stripLeading();
+    var opening = PROJECT_INSTRUCTIONS_OPEN.matcher(text);
+    if (opening.find()) {
+      int end = projectInstructionsEnd(text, opening.end());
+      return end < 0 ? "" : text.substring(0, end);
+    }
+    return legacyProjectContext(text)
+        ? text.substring(0, text.lastIndexOf("<environment_context>")).stripTrailing()
+        : "";
   }
 
   // 只扫描边界候选行。围栏中的标签是示例；不完整或含糊的边界保留原文。
@@ -449,7 +527,7 @@ public final class PayloadCallContentExtractor {
   }
 
   /** 从 sourceUnit 中提取文本值，支持 text、content、output 字段。 */
-  private static String extractTextValue(Map<?, ?> unit) {
+  static String extractTextValue(Map<?, ?> unit) {
     Object text = unit.get(FIELD_TEXT);
     if (text instanceof String s && !s.isEmpty()) {
       return s;

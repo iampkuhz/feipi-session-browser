@@ -13,18 +13,6 @@ final class ApiSessionDetails {
 
   private ApiSessionDetails() {}
 
-  /** 加载带 anomaly 注解的 session detail，并写出统一错误响应。 */
-  static Optional<SessionDetailUseCase.AnnotatedDetail> loadAnnotatedDetail(
-      Context ctx,
-      QueryCompositionRoot queryRoot,
-      String sessionKey,
-      PayloadVisibility visibility) {
-    return loadAnnotatedDetailContext(ctx, queryRoot, sessionKey, visibility)
-        .map(
-            context ->
-                new SessionDetailUseCase.AnnotatedDetail(context.detail(), context.anomalies()));
-  }
-
   /** 加载带 anomaly 注解和归一化制品上下文的 session detail，并写出统一错误响应。 */
   static Optional<SessionDetailUseCase.AnnotatedDetailContext> loadAnnotatedDetailContext(
       Context ctx,

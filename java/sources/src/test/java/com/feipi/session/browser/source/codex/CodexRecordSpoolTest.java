@@ -3,6 +3,7 @@ package com.feipi.session.browser.source.codex;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.feipi.session.browser.domain.source.SourceReadingEvidence;
 import com.feipi.session.browser.domain.source.SourceRecord;
 import com.feipi.session.browser.domain.source.SourceRecordRelation;
 import com.feipi.session.browser.domain.source.SourceRecordUsage;
@@ -43,7 +44,11 @@ class CodexRecordSpoolTest {
                         "123",
                         "executor_reported",
                         "codex:exec_command_end#event[0]",
-                        null)));
+                        null)))
+            .withReadingEvidence(
+                List.of(
+                    new SourceReadingEvidence("base", "合成说明" + Character.toString(0xd800)),
+                    new SourceReadingEvidence("input_tokens", "17")));
     try (var spool = new CodexRecordSpool()) {
       spool.add(expected);
       spool.add(expected);

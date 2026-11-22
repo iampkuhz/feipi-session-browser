@@ -6,7 +6,6 @@ import com.feipi.session.browser.index.api.query.ActivityTrend;
 import com.feipi.session.browser.index.api.query.AgentBreakdown;
 import com.feipi.session.browser.index.api.query.AgentEfficiency;
 import com.feipi.session.browser.index.api.query.DashboardStats;
-import com.feipi.session.browser.index.api.query.EventActivity;
 import com.feipi.session.browser.index.api.query.KpiSupplement;
 import com.feipi.session.browser.index.api.query.TrendDay;
 import com.feipi.session.browser.query.api.AgentFilter;
@@ -32,7 +31,6 @@ import com.feipi.session.browser.web.api.DashboardApiResponses.TokenTrendPoint;
 import com.feipi.session.browser.web.api.PageApiDtos.PageStateDto;
 import com.feipi.session.browser.web.api.PageApiDtos.TokenSegments;
 import com.feipi.session.browser.web.model.WebDisplayValues;
-import io.javalin.http.BadRequestResponse;
 import io.javalin.http.Context;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -57,43 +55,6 @@ public final class DashboardApiHandler {
   /** 创建对应对象。 */
   public DashboardApiHandler(QueryCompositionRoot queryRoot) {
     this.queryRoot = Objects.requireNonNull(queryRoot, "queryRoot must not be null");
-  }
-
-  /** 返回独立事件日观察，不把旧端口不支持解释为空的实测结果。 */
-  public void handleEventActivity(Context ctx) {
-    Map<String, String> params = ApiQueryParams.flat(ctx);
-    String agent = params.getOrDefault("agent", "all");
-    if (!VALID_AGENT_SCOPES.contains(agent)) {
-      throw new BadRequestResponse("invalid event activity agent");
-    }
-    int days;
-    try {
-      days = Integer.parseInt(params.getOrDefault("days", "30"));
-      if (days < 1) {
-        throw new NumberFormatException("nonpositive window");
-      }
-    } catch (NumberFormatException exception) {
-      throw (BadRequestResponse)
-          new BadRequestResponse("event activity days must be a positive integer")
-              .initCause(exception);
-    }
-    TrendFilter filter = TrendFilter.ofDays(days).withAgent(buildAgentFilter(agent));
-    EventActivity result;
-    try {
-      result = queryRoot.dashboard().eventActivity(filter);
-    } catch (UnsupportedOperationException exception) {
-      ctx.status(501).json(Map.of("error", "EVENT_ACTIVITY_UNAVAILABLE"));
-      return;
-    }
-    ctx.json(
-        new DashboardApiResponses.EventActivityResponse(
-            "source_event_utc",
-            "codex_modern_usage_report_day",
-            result.coverage().getOrDefault("summarizedSessions", 0L) > 0 ? "partial" : "unknown",
-            days,
-            result.days(),
-            result.coverage(),
-            result.undatedTokens()));
   }
 
   /** 处理 /api/dashboard/summary 的 GET 请求。 */

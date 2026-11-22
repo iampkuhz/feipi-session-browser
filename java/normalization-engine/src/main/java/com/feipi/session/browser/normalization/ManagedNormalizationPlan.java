@@ -85,8 +85,6 @@ final class ManagedNormalizationPlan {
       new UnknownEventDiagnostics.Collector(NormalizedAgent.CODEX);
   private final SessionTimingCalculator.Accumulator timing =
       new SessionTimingCalculator.Accumulator();
-  private final EventActivityAccumulator eventActivity =
-      new EventActivityAccumulator(NormalizedAgent.CODEX);
   private final Set<String> userMessages = new HashSet<>();
   private final Set<String> assistantMessages = new HashSet<>();
   private Optional<String> start = Optional.empty();
@@ -123,12 +121,12 @@ final class ManagedNormalizationPlan {
                 record.toolError().isPresent(),
                 !record.content().isEmpty(),
                 record.metaContext(),
+                !record.readingEvidence().isEmpty(),
                 CallBuilder.callScope(record),
                 CallBuilder.displaySubagentId(record));
         facts.add(fact);
         if (ToolResultContents.isResult(record)) resultOrdinals.add(fact.ordinal());
         timing.accept(record);
-        eventActivity.accept(record);
         observe(record);
         if ("assistant".equals(type)) {
           var subagent = CallBuilder.displaySubagentId(record);
@@ -193,6 +191,7 @@ final class ManagedNormalizationPlan {
               old.hasError(),
               old.hasContent(),
               old.metaContext(),
+              old.hasReadingEvidence(),
               scope.equals(old.scope()) ? old.executionScope() : CallScope.SUBAGENT,
               old.subagent()));
     }
@@ -356,6 +355,7 @@ final class ManagedNormalizationPlan {
     for (Fact fact : facts) {
       List<UnitRef> units = pending.computeIfAbsent(fact.scope(), k -> new ArrayList<>());
       Frame current = latest.get(fact.scope());
+      if (fact.hasReadingEvidence()) units.add(new UnitRef(fact.ordinal(), -1, "context"));
       switch (fact.type()) {
         case "assistant" -> {
           Frame frame = frames.get(frameIndex++);
@@ -486,7 +486,6 @@ final class ManagedNormalizationPlan {
               "sourceLocator,eventType,eventMsgSubtype",
               "positionUnit",
               "sourceEventIndex"));
-    session.put("eventActivity", eventActivity.snapshot());
     header =
         new NormalizedContentHeader(
             NormalizedConstants.SCHEMA_VERSION,
@@ -520,6 +519,7 @@ final class ManagedNormalizationPlan {
    * @param hasError 是否有错误正文
    * @param hasContent 是否有非空正文
    * @param metaContext 是否为显式元上下文输入，不结束真实用户段
+   * @param hasReadingEvidence 同一源记录是否带阅读证据
    * @param executionScope 工具执行的归一化作用域
    * @param subagent 子代理展示标识
    */
@@ -534,6 +534,7 @@ final class ManagedNormalizationPlan {
       boolean hasError,
       boolean hasContent,
       boolean metaContext,
+      boolean hasReadingEvidence,
       CallScope executionScope,
       Optional<String> subagent) {}
 

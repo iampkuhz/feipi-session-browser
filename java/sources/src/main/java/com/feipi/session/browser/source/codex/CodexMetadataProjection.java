@@ -38,9 +38,12 @@ final class CodexMetadataProjection {
     JsonNode output =
         toolOutput ? CodexSourceAdapter.metadataSpawnOutput(payload.get("output")) : null;
     boolean metadata = "session_meta".equals(type);
+    boolean sideCheckpoint =
+        CodexActivityRange.sidePolicy(event) || CodexActivityRange.sideBoundary(event);
     if (!usage
         && !boundary
         && !metadata
+        && !sideCheckpoint
         && !spawnCall
         && (output == null || output.isEmpty())
         && !event.has("ordinal")) {
@@ -58,6 +61,7 @@ final class CodexMetadataProjection {
               "id",
               "parent_thread_id",
               "forked_from_id",
+              "attached_thread",
               "history_mode",
               "subagent_history_start_ordinal"));
       JsonNode parent =
@@ -70,6 +74,7 @@ final class CodexMetadataProjection {
             .set("parent_thread_id", parent);
       }
     }
+    if (sideCheckpoint) copy(payload, projected, List.of("role", "content"));
     if ("token_usage_record".equals(type)) {
       copy(payload, projected, List.of("response_id", "usage", "thread_token_usage"));
     } else if ("event_msg".equals(type) && "token_count".equals(subtype)) {

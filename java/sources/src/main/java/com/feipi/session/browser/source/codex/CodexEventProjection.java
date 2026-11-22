@@ -20,6 +20,7 @@ import java.util.function.UnaryOperator;
 
 /** 仅投影 Codex 当前不消费的非文本和历史快照字段；原始来源按 locator 保留。 */
 final class CodexEventProjection implements UnaryOperator<JsonNode> {
+  static final String PROJECTED_HISTORY_FIELD = "_feipi_replacement_history_present";
   private static final Set<String> IMAGE_TYPES =
       Set.of("input_image", "output_image", "image", "image_url");
 
@@ -91,7 +92,10 @@ final class CodexEventProjection implements UnaryOperator<JsonNode> {
     String type = event.path("type").asText();
     String subtype = payload.path("type").asText();
     if ("compacted".equals(type)) {
+      payload.remove(PROJECTED_HISTORY_FIELD);
+      boolean present = payload.has("replacement_history");
       removeStructure(payload, "replacement_history");
+      if (present) payload.put(PROJECTED_HISTORY_FIELD, true);
     } else if ("event_msg".equals(type) && "item_completed".equals(subtype)) {
       removeStructure(payload, "item");
     } else if ("response_item".equals(type)) {

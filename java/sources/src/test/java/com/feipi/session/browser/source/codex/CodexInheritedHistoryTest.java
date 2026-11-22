@@ -47,6 +47,32 @@ class CodexInheritedHistoryTest {
   }
 
   @Test
+  void onlyOwnSessionMetadataSurvivesForkCutoffAsSidecar() throws Exception {
+    var child = inherited();
+    child.set(
+        0,
+        child
+            .getFirst()
+            .replace(
+                "\"subagent_history_start_ordinal\":9",
+                "\"subagent_history_start_ordinal\":9,\"instructions\":\"child config\""));
+    child.set(1, meta("parent", "\"instructions\":\"copied parent config\""));
+    appendOwn(child, true);
+
+    var records = parse(child);
+    assertThat(records.getFirst().eventIndex()).isEqualTo(9);
+    assertThat(records.getFirst().eventType()).isEqualTo("event_msg");
+    assertThat(
+            records.stream()
+                .flatMap(record -> record.readingEvidence().stream())
+                .map(evidence -> evidence.text())
+                .toList())
+        .contains("child config")
+        .doesNotContain("copied parent config");
+    assertThat(records).noneMatch(record -> record.eventType().startsWith("codex_context_"));
+  }
+
+  @Test
   void inheritedModelRemainsContextWithoutInheritedExecution() throws Exception {
     var child = inherited();
     child.set(8, "{\"type\":\"turn_context\",\"payload\":{\"model\":\"inherited-context-model\"}}");

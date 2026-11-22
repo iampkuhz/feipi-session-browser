@@ -1,7 +1,10 @@
 package com.feipi.session.browser.web.api;
 
+import com.feipi.session.browser.application.sessiondetail.SessionContentReader;
+import com.feipi.session.browser.domain.enums.CallScope;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionContent;
 import com.feipi.session.browser.index.api.query.ContentRoundIndex;
+import com.feipi.session.browser.query.api.PayloadVisibility;
 import io.javalin.http.BadRequestResponse;
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -36,7 +39,7 @@ final class SessionExecutionProjection {
         var unit = reader.next();
         for (var call : unit.calls()) {
           String text = previews.text(call, false);
-          boolean outputAvailable = !text.isBlank() || !call.response().toolCallIds().isEmpty();
+          boolean outputAvailable = previews.hasPayload(call, false);
           String evidence = ContentRoundIndex.modelCallEvidence(content.header().agent(), call);
           boolean response = outputAvailable || "response_usage".equals(evidence);
           groups.put(
@@ -53,8 +56,9 @@ final class SessionExecutionProjection {
                   call.response().toolCallIds().size(),
                   response,
                   shortText(previews.timestamp(call)),
-                  !previews.text(call, true).isBlank() || !call.request().toolResultIds().isEmpty(),
-                  outputAvailable));
+                  previews.hasPayload(call, true),
+                  outputAvailable,
+                  previews.newUserText(call, index.roundIndexForCall(call.callId()).orElse(1))));
         }
       }
     }
@@ -66,8 +70,9 @@ final class SessionExecutionProjection {
               .add(
                   SessionApiHandler.toolSummary(
                       tool,
-                      inputPreviews.getOrDefault(tool.toolCallId(), ""),
-                      previews.hasToolResult(tool.toolCallId())));
+                      inputPreviews.get(tool.toolCallId()),
+                      previews.hasToolResult(tool.toolCallId()),
+                      previews.toolTimestamp(tool)));
         }
       }
     }
@@ -103,7 +108,8 @@ final class SessionExecutionProjection {
                 false,
                 "",
                 false,
-                false);
+                false,
+                "");
         if (!"failed".equals(filter) || failed(tool)) items.add(new Item(group, tool, 0));
       }
     }
@@ -137,21 +143,35 @@ final class SessionExecutionProjection {
     var workNanos = BigInteger.ZERO;
     long failed = 0;
     String firstFailure = "";
+    String firstFailureResultPreview = "";
     ApiResponses.ToolExecutionSummary firstFailureTool = null;
     var longest = new LinkedHashMap<List<String>, ApiResponses.ToolExecutionSummary>();
     var families = new LinkedHashMap<List<String>, WorkloadBuilder>();
     var seen = new HashSet<String>();
     var previews = SessionContentPreviews.read(content);
     var inputs = inputPreviews(content, previews);
+    String lastReply = "";
+    String lastReplyCallId = "";
+    int lastReplyIndex = 0;
     try (var reader = content.openCursor()) {
       while (reader.hasNext()) {
-        for (var tool : reader.next().toolExecutions()) {
+        var unit = reader.next();
+        for (var call : unit.calls()) {
+          if (call.scope() != CallScope.MAIN || call.callIndex() < lastReplyIndex) continue;
+          String reply = previews.latestAssistantText(call);
+          if (reply.isBlank()) continue;
+          lastReply = reply;
+          lastReplyCallId = call.callId();
+          lastReplyIndex = call.callIndex();
+        }
+        for (var tool : unit.toolExecutions()) {
           if (!seen.add(tool.toolCallId())) continue;
           var summary =
               SessionApiHandler.toolSummary(
                   tool,
-                  inputs.getOrDefault(tool.toolCallId(), ""),
-                  previews.hasToolResult(tool.toolCallId()));
+                  inputs.get(tool.toolCallId()),
+                  previews.hasToolResult(tool.toolCallId()),
+                  previews.toolTimestamp(tool));
           total++;
           if (("main".equals(summary.scope()) && summary.subagentId().isBlank())
               || ("subagent".equals(summary.scope()) && !summary.subagentId().isBlank())) {
@@ -162,7 +182,17 @@ final class SessionExecutionProjection {
             failed++;
             if (firstFailure.isEmpty()) {
               firstFailure = tool.toolCallId();
-              firstFailureTool = summary;
+              // 只为首个失败读取结果，沿用原文弹框的标准脱敏。
+              var result =
+                  new SessionContentReader(content, 0)
+                      .payload("tool:result:" + firstFailure, PayloadVisibility.STANDARD);
+              firstFailureResultPreview =
+                  result.map(value -> shortText(value.content())).orElse("");
+              firstFailureTool =
+                  firstFailureResultPreview.isBlank()
+                      ? summary
+                      : SessionApiHandler.toolSummary(
+                          tool, inputs.get(tool.toolCallId()), true, previews.toolTimestamp(tool));
             }
           }
           if (summary.durationMs() != null) {
@@ -204,7 +234,10 @@ final class SessionExecutionProjection {
         firstFailureTool,
         workloads.stream().limit(8).toList(),
         workloads.size(),
-        total - families.values().stream().mapToLong(value -> value.measured).sum());
+        total - families.values().stream().mapToLong(value -> value.measured).sum(),
+        firstFailureResultPreview,
+        lastReply,
+        lastReplyCallId);
   }
 
   /** 只接受已知执行器事件族；完整 source 是证据定位符，不是口径身份。 */
@@ -256,12 +289,12 @@ final class SessionExecutionProjection {
     }
   }
 
-  private static Map<String, String> inputPreviews(
+  private static Map<String, ToolInputPreview.Summary> inputPreviews(
       NormalizedSessionContent content, SessionContentPreviews previews) throws IOException {
-    var inputs = new java.util.HashMap<String, String>();
+    var inputs = new java.util.HashMap<String, ToolInputPreview.Summary>();
     try (var reader = content.openCursor()) {
       while (reader.hasNext()) {
-        for (var call : reader.next().calls()) inputs.putAll(previews.toolInputs(call));
+        for (var call : reader.next().calls()) inputs.putAll(previews.toolInputSummaries(call));
       }
     }
     return inputs;
@@ -338,6 +371,7 @@ final class SessionExecutionProjection {
    * @param timestamp 来源记录时间，不表示执行起止区间
    * @param inputAvailable 是否有本地输入正文或工具结果引用
    * @param outputAvailable 是否有本地输出正文或工具声明
+   * @param userPreview 首次关联的真实用户输入安全预览，同轮后续调用为空
    */
   record Group(
       String id,
@@ -352,7 +386,40 @@ final class SessionExecutionProjection {
       boolean response,
       String timestamp,
       boolean inputAvailable,
-      boolean outputAvailable) {}
+      boolean outputAvailable,
+      String userPreview) {
+    /** 兼容没有关联用户输入的来源记录。 */
+    Group(
+        String id,
+        int index,
+        int round,
+        String label,
+        String scope,
+        String subagentId,
+        String parentCallId,
+        String preview,
+        int toolCount,
+        boolean response,
+        String timestamp,
+        boolean inputAvailable,
+        boolean outputAvailable) {
+      this(
+          id,
+          index,
+          round,
+          label,
+          scope,
+          subagentId,
+          parentCallId,
+          preview,
+          toolCount,
+          response,
+          timestamp,
+          inputAvailable,
+          outputAvailable,
+          "");
+    }
+  }
 
   /**
    * 全量工具证据覆盖；工作量之和不冒充墙钟或关键路径。
@@ -368,6 +435,9 @@ final class SessionExecutionProjection {
    * @param workloads 按可信上下文分块、块内按已测累计排序的有界汇总
    * @param workloadGroups 完整范围中可比较的汇总数，用于披露截断
    * @param unrankedTools 未参与可信累计比较的调用数，含缺测、口径和上下文未知
+   * @param firstFailureResultPreview 首个失败的真实结果安全预览，无结果证据时为空
+   * @param lastReply 最近有可见文本的主会话响应预览，不证明任务完成
+   * @param lastReplyCallId 最近有可见文本的主会话响应来源
    */
   record Diagnostics(
       long totalTools,
@@ -380,7 +450,40 @@ final class SessionExecutionProjection {
       ApiResponses.ToolExecutionSummary firstFailureTool,
       List<Workload> workloads,
       long workloadGroups,
-      long unrankedTools) {
+      long unrankedTools,
+      String firstFailureResultPreview,
+      String lastReply,
+      String lastReplyCallId) {
+    /** 兼容不携带结果预览的调用方。 */
+    Diagnostics(
+        long totalTools,
+        long measuredTools,
+        double measuredWorkMs,
+        long failures,
+        String firstFailure,
+        List<ApiResponses.ToolExecutionSummary> longestByName,
+        long measuredKinds,
+        ApiResponses.ToolExecutionSummary firstFailureTool,
+        List<Workload> workloads,
+        long workloadGroups,
+        long unrankedTools) {
+      this(
+          totalTools,
+          measuredTools,
+          measuredWorkMs,
+          failures,
+          firstFailure,
+          longestByName,
+          measuredKinds,
+          firstFailureTool,
+          workloads,
+          workloadGroups,
+          unrankedTools,
+          "",
+          "",
+          "");
+    }
+
     /** 空内容投影仍使用同一包内构造入口，不虚构可信累计项。 */
     Diagnostics(
         long totalTools,
@@ -402,7 +505,10 @@ final class SessionExecutionProjection {
           firstFailureTool,
           List.of(),
           0,
-          totalTools);
+          totalTools,
+          "",
+          "",
+          "");
     }
   }
 

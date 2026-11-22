@@ -53,13 +53,11 @@ final class EnumExternalValueGuardTest {
     // 查询接口层枚举：application/query-api/
     enums.add(Arguments.of("com.feipi.session.browser.query.api.SessionSortField"));
     enums.add(Arguments.of("com.feipi.session.browser.query.api.ProjectSortField"));
-    enums.add(Arguments.of("com.feipi.session.browser.query.api.DiagnosticSeverity"));
     enums.add(Arguments.of("com.feipi.session.browser.query.api.PayloadSourceKind"));
     enums.add(Arguments.of("com.feipi.session.browser.query.api.PayloadVisibility"));
     enums.add(Arguments.of("com.feipi.session.browser.query.api.SortOrder"));
     enums.add(Arguments.of("com.feipi.session.browser.query.api.FailureStatus"));
     enums.add(Arguments.of("com.feipi.session.browser.query.api.SessionAnomalyKey"));
-    enums.add(Arguments.of("com.feipi.session.browser.query.api.DiagnosticIssue"));
     enums.add(Arguments.of("com.feipi.session.browser.query.api.AnomalyType"));
     enums.add(Arguments.of("com.feipi.session.browser.query.api.AnomalySeverity"));
     enums.add(Arguments.of("com.feipi.session.browser.query.api.RoundSignalKey"));

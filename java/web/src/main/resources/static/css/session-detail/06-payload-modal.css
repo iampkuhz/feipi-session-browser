@@ -19,9 +19,13 @@
   background: rgba(15, 23, 42, 0.45);
 }
 
-.sd-payload-modal__panel {
-  width: min(96vw, 2000px);
+.sd-payload-modal .payload-modal__panel {
+  position: static;
+  transform: none;
+  min-width: 0;
+  width: min(calc(100% - 24px), 1200px);
   max-height: 90vh;
+  max-height: 90dvh;
   background: var(--sd-surface);
   border-radius: 16px;
   box-shadow: 0 20px 60px rgba(15, 23, 42, 0.18);
@@ -74,6 +78,8 @@
   overflow: auto;
   padding: 16px 20px;
   min-height: 0;
+  min-width: 0;
+  overscroll-behavior: contain;
 }
 
 .sd-modal-close {
@@ -82,6 +88,183 @@
 
 .sd-conversation-payload {
   color: var(--sd-text);
+}
+.sd-reading-token-note,
+.sd-reading-usage-note {
+  margin: 0;
+  color: var(--sd-muted, var(--text-subtle));
+  font-size: 12px;
+}
+.sd-payload-modal .sd-conversation-payload .sd-response-block-head {
+  height: auto;
+  min-height: 32px;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  padding-block: 4px;
+}
+.sd-reading-preview {
+  max-block-size: 14rem;
+  overflow-y: auto;
+}
+.sd-reading-block-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: 2px 10px;
+  margin-inline-start: auto;
+}
+.sd-reading-block-measure {
+  color: var(--sd-text);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.sd-reading-composition .sd-reading-usage-parts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 21rem), 1fr));
+}
+.sd-reading-composition .sd-reading-usage-part {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  background: var(--sd-panel);
+  padding: 3px 8px;
+}
+.sd-reading-usage-chars {
+  margin-inline-start: auto;
+  color: var(--sd-muted);
+  font-size: inherit;
+}
+.sd-reading-composition .sd-reading-usage-part strong {
+  font-variant-numeric: tabular-nums;
+}
+.sd-reading-usage-band,
+.sd-reading-cache-band {
+  grid-column: 1 / -1;
+  width: 100%;
+  block-size: 8px;
+  border-radius: 4px;
+  margin-block-start: 4px;
+}
+.sd-reading-usage-band rect,
+.sd-reading-cache-band rect {
+  fill: var(--sd-reading-meter-color);
+}
+.sd-reading-usage-parts {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin: 4px 0;
+  padding: 0;
+  list-style: none;
+}
+.sd-reading-usage-part {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-inline-start: 3px solid var(--sd-reading-meter-color);
+  padding-inline-start: 6px;
+  font-size: 12px;
+}
+.sd-reading-usage-part--fresh { --sd-reading-meter-color: var(--sd-blue, #2563eb); }
+.sd-reading-usage-part--cacheRead { --sd-reading-meter-color: var(--sd-cyan, #0891b2); }
+.sd-reading-usage-part--cacheWrite { --sd-reading-meter-color: var(--sd-warn, #d97706); }
+.sd-reading-usage-part--output { --sd-reading-meter-color: var(--sd-purple, #7c3aed); }
+.sd-reading-usage-part--loadedSkill { --sd-reading-meter-color: var(--sd-ok); }
+.sd-reading-usage-part--skills { --sd-reading-meter-color: #0369a1; }
+.sd-reading-usage-part--base { --sd-reading-meter-color: #9333ea; }
+.sd-reading-usage-part--side { --sd-reading-meter-color: #2563eb; }
+.sd-reading-usage-part--instructions { --sd-reading-meter-color: #6d28d9; }
+.sd-reading-usage-part--agents { --sd-reading-meter-color: #be185d; }
+.sd-reading-usage-part--tools { --sd-reading-meter-color: #b45309; }
+.sd-reading-usage-part--toolCall { --sd-reading-meter-color: #92400e; }
+.sd-reading-usage-part--toolResult { --sd-reading-meter-color: #c2410c; }
+.sd-reading-usage-part--history { --sd-reading-meter-color: #0f766e; }
+.sd-reading-usage-part--current { --sd-reading-meter-color: #15803d; }
+.sd-reading-usage-part--result { --sd-reading-meter-color: #a16207; }
+.sd-reading-usage-part--other { --sd-reading-meter-color: #475569; }
+.sd-reading-usage-part--compaction { --sd-reading-meter-color: #475569; }
+.sd-reading-usage-part--reasoning { --sd-reading-meter-color: #4338ca; }
+.sd-reading-usage-part--fork_instructions { --sd-reading-meter-color: #7e22ce; }
+.sd-reading-usage-part--fork_user { --sd-reading-meter-color: #0284c7; }
+.sd-reading-usage-part--fork_assistant { --sd-reading-meter-color: #4d7c0f; }
+.sd-reading-usage-part--fork_tool_input { --sd-reading-meter-color: #b45309; }
+.sd-reading-usage-part--fork_tool_result { --sd-reading-meter-color: #0f766e; }
+.sd-reading-usage-part--fork_tool_definitions { --sd-reading-meter-color: #9f1239; }
+.sd-reading-usage-part--remainder { --sd-reading-meter-color: #94a3b8; }
+
+.sd-payload-metadata {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  margin: 0;
+  border-block-start: 1px solid var(--sd-line-soft);
+  border-inline-start: 1px solid var(--sd-line-soft);
+}
+.sd-payload-meta-cell {
+  padding: 5px 9px;
+  border-block-end: 1px solid var(--sd-line-soft);
+  border-inline-end: 1px solid var(--sd-line-soft);
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+.sd-payload-meta-cell dt { color: var(--sd-muted); }
+.sd-payload-meta-cell dd { margin: 0; }
+.sd-reading-compression {
+  padding: 6px 10px;
+  border-inline-start: 3px solid var(--sd-line);
+  background: var(--sd-panel);
+  font-size: 12px;
+}
+.sd-reading-panel {
+  padding: 8px 10px;
+  border: 1px solid var(--sd-line-soft);
+  border-radius: 8px;
+}
+.sd-reading-turn {
+  margin-block-end: 8px;
+}
+.sd-reading-panel .sd-payload-reported { margin-block-start: 8px; }
+.sd-reading-cache-ratio {
+  display: grid;
+  grid-template-columns: minmax(4rem, 8rem) auto;
+  align-items: center;
+  gap: 8px;
+}
+.sd-reading-cache-band { margin: 0; }
+.sd-payload-navigation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.sd-payload-modal .sd-payload-nav-action {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1e40af;
+}
+.sd-payload-modal .sd-payload-evidence-action {
+  background: #fff7ed;
+  border-color: #fdba74;
+  color: #9a3412;
+}
+.sd-payload-modal .sd-payload-evidence-action summary { color: inherit; }
+
+.sd-payload-modal .sd-payload-tool-link {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  padding-block: 4px;
+  overflow-wrap: anywhere;
+}
+.sd-payload-tool-link > code {
+  flex: 1 1 20ch;
+  min-width: 0;
+  white-space: pre-wrap;
+}
+.sd-payload-tool-actions {
+  display: flex;
+  gap: 4px;
 }
 .sd-payload-original {
   border: 1px solid var(--sd-line-soft);
@@ -98,7 +281,6 @@
 }
 .sd-reading-markdown {
   min-width: 0;
-  max-width: 74ch;
   font-size: 14px;
   line-height: 1.65;
   overflow-wrap: anywhere;
@@ -204,7 +386,6 @@
 }
 
 /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Content width: session detail page wider for 2560x1440 ────` */
-.session-detail-page .sd-content,
 .session-detail-page .content {
   max-width: 2200px;
   width: min(100%, 2200px);
@@ -220,26 +401,7 @@
   max-width: none;
 }
 
-/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`LLM call cards: wider on large screens` */
-.session-detail-page .sd-llm-card {
-  max-width: none;
-}
-
-.session-detail-page .sd-llm-body {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding: 10px;
-}
-
 /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Attribution modal layout` */
-.session-detail-page .sd-payload-shell--attribution {
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0;
-  align-items: start;
-}
-
 .session-detail-page .sd-attribution-topgrid,
 .sd-payload-modal .sd-attribution-topgrid {
   display: grid;
@@ -257,18 +419,6 @@
   overflow-x: auto;
 }
 
-.session-detail-page .sd-attribution-topcard--wide,
-.sd-payload-modal .sd-attribution-topcard--wide {
-  grid-column: 1 / -1;
-}
-
-.sd-attribution-info-divider {
-  grid-column: 1 / -1;
-  height: 1px;
-  background: var(--sd-line-soft, #e2e8f0);
-  margin: 4px 0;
-}
-
 .session-detail-page .sd-attribution-topcard h3,
 .sd-payload-modal .sd-attribution-topcard h3 {
   margin: 0;
@@ -284,10 +434,8 @@
 
 .session-detail-page .sd-attribution-identity-grid,
 .session-detail-page .sd-attribution-summary-grid,
-.session-detail-page .sd-attribution-call-grid,
 .sd-payload-modal .sd-attribution-identity-grid,
-.sd-payload-modal .sd-attribution-summary-grid,
-.sd-payload-modal .sd-attribution-call-grid {
+.sd-payload-modal .sd-attribution-summary-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -316,465 +464,4 @@
 .sd-attribution-topcard .sd-kv span:last-child {
   color: var(--sd-text-2, #334155);
   font-family: var(--sd-mono, ui-monospace, monospace);
-}
-
-.session-detail-page .sd-attribution-availability--topgrid {
-  max-height: 190px;
-  overflow: auto;
-}
-
-.session-detail-page .sd-attribution-availability--topgrid .sd-attribution-avail-row {
-  grid-template-columns: minmax(130px, 1fr) auto auto minmax(90px, .8fr);
-}
-
-/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Precision tag pills` */
-.session-detail-page .sd-precision-tag {
-  font-size: 10px;
-  font-weight: 760;
-  padding: 1px 6px;
-  border-radius: 4px;
-  display: inline-flex;
-  align-items: center;
-  white-space: nowrap;
-  margin-left: 4px;
-}
-.session-detail-page .sd-precision-tag--provider_reported { background: #dcfce7; color: #15803d; }
-.session-detail-page .sd-precision-tag--exact { background: #dbeafe; color: #1d4ed8; }
-.session-detail-page .sd-precision-tag--estimated { background: #fef3c7; color: #92400e; }
-.session-detail-page .sd-precision-tag--heuristic { background: #eef2ff; color: #4f46e5; }
-.session-detail-page .sd-precision-tag--residual { background: #fce7f3; color: #be185d; }
-.session-detail-page .sd-precision-tag--unavailable { background: #f1f5f9; color: #64748b; }
-
-/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Availability table` */
-.session-detail-page .sd-attrib-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12px;
-}
-.session-detail-page .sd-attrib-table th {
-  height: 30px;
-  padding: 0 10px;
-  font-size: 10px;
-  font-weight: 850;
-  text-transform: uppercase;
-  letter-spacing: .06em;
-  color: #94a3b8;
-  text-align: left;
-  border-bottom: 1px solid var(--sd-line-soft, #e2e8f0);
-  background: #fbfcff;
-}
-.session-detail-page .sd-attrib-table td {
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--sd-line-soft, #e2e8f0);
-  vertical-align: top;
-  color: #475569;
-}
-.session-detail-page .sd-attrib-table td:first-child {
-  font-family: var(--sd-mono, ui-monospace, monospace);
-  font-weight: 700;
-  color: #1e293b;
-}
-
-/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Attribution banner` */
-.session-detail-page .sd-attribution-banner {
-  padding: 8px 12px;
-  border-radius: 8px;
-  background: #fffbeb;
-  border: 1px solid #fde68a;
-  color: #92400e;
-  font-size: 12px;
-  margin-bottom: 12px;
-  line-height: 1.4;
-}
-.session-detail-page .sd-attribution-banner--error {
-  background: #fef2f2;
-  border-color: #fecaca;
-  color: #dc2626;
-}
-
-/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Usage grid` */
-.session-detail-page .sd-usage-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 8px;
-}
-.session-detail-page .sd-usage-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 4px 8px;
-  background: #f8fafc;
-  border-radius: 6px;
-  font-size: 12px;
-}
-.session-detail-page .sd-usage-label { color: #64748b; }
-.session-detail-page .sd-usage-value { font-weight: 600; color: #1e293b; }
-
-/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Attribution chip` */
-.session-detail-page .sd-chip--attrib {
-  background: #f0f9ff;
-  color: #0369a1;
-  border: 1px solid #bae6fd;
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 4px;
-  display: inline-block;
-  margin: 2px 4px 2px 0;
-}
-
-/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Context preview` */
-.session-detail-page .sd-context-preview {
-  max-height: 200px;
-  overflow: auto;
-  font-size: 11px;
-  line-height: 1.4;
-  white-space: pre-wrap;
-  word-break: break-word;
-  padding: 8px;
-  background: #f8fafc;
-  border-radius: 6px;
-}
-
-/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Notes list` */
-.session-detail-page .sd-notes-list {
-  margin: 0;
-  padding-left: 18px;
-  font-size: 12px;
-  color: #475569;
-}
-.session-detail-page .sd-notes-list li { margin-bottom: 4px; }
-
-/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Error shell` */
-.session-detail-page .sd-payload-shell--error .sd-payload-meta {
-  border-left: 3px solid #dc2626;
-}
-
-/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Missing precision tag: transcript_exact ──` */
-.session-detail-page .sd-precision-tag--transcript_exact { background: #dbeafe; color: #1d4ed8; }
-
-/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Attribution distribution stacked bar ──` */
-.session-detail-page .sd-attribution-distribution {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.session-detail-page .sd-attribution-distribution__bar {
-  height: 28px;
-  border-radius: 8px;
-  background: #e8eef6;
-  display: flex;
-  overflow: hidden;
-  border: 1px solid var(--sd-line-soft, #e2e8f0);
-}
-.session-detail-page .sd-attribution-segment {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  font-weight: 700;
-  color: #fff;
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  padding: 0 4px;
-  transition: opacity 120ms ease;
-  width: var(--seg-w, 0%);
-  flex: 0 0 var(--seg-w, 0%);
-}
-.session-detail-page .sd-attribution-segment:hover { opacity: 0.85; }
-.session-detail-page .sd-attribution-segment--0 { background: #2563eb; }
-.session-detail-page .sd-attribution-segment--1 { background: #16a34a; }
-.session-detail-page .sd-attribution-segment--2 { background: #f97316; }
-.session-detail-page .sd-attribution-segment--3 { background: #dc2626; }
-.session-detail-page .sd-attribution-segment--4 { background: #0891b2; }
-.session-detail-page .sd-attribution-segment--5 { background: #9333ea; }
-.session-detail-page .sd-attribution-segment--6 { background: #db2777; }
-.session-detail-page .sd-attribution-segment--7 { background: #0f766e; }
-.session-detail-page .sd-attribution-segment--8 { background: #64748b; }
-
-.session-detail-page .sd-attribution-distribution__note {
-  margin-top: 5px;
-  color: var(--sd-muted);
-  font-size: 11px;
-  font-family: var(--sd-mono, ui-monospace, monospace);
-}
-
-/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Legend` */
-.session-detail-page .sd-attribution-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 14px;
-}
-.session-detail-page .sd-attribution-legend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11px;
-  color: #64748b;
-}
-.session-detail-page .sd-attribution-legend__dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.session-detail-page .sd-attribution-legend__dot--0 { background: #2563eb; }
-.session-detail-page .sd-attribution-legend__dot--1 { background: #16a34a; }
-.session-detail-page .sd-attribution-legend__dot--2 { background: #f97316; }
-.session-detail-page .sd-attribution-legend__dot--3 { background: #dc2626; }
-.session-detail-page .sd-attribution-legend__dot--4 { background: #0891b2; }
-.session-detail-page .sd-attribution-legend__dot--5 { background: #9333ea; }
-.session-detail-page .sd-attribution-legend__dot--6 { background: #db2777; }
-.session-detail-page .sd-attribution-legend__dot--7 { background: #0f766e; }
-.session-detail-page .sd-attribution-legend__dot--8 { background: #64748b; }
-.session-detail-page .sd-attribution-legend__label { font-weight: 700; color: #1e293b; }
-.session-detail-page .sd-attribution-legend__pct { font-family: var(--sd-mono, ui-monospace, monospace); color: #94a3b8; }
-.session-detail-page .sd-attribution-legend__tokens { font-family: var(--sd-mono, ui-monospace, monospace); font-weight: 600; color: #475569; }
-
-/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Bucket cards` */
-.session-detail-page .sd-attribution-bucket-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.session-detail-page .sd-attribution-bucket {
-  border: 1px solid var(--sd-line-soft, #e2e8f0);
-  border-radius: 10px;
-  background: #fff;
-  padding: 8px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.session-detail-page .sd-attribution-bucket__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.session-detail-page .sd-attribution-bucket__title {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 760;
-  font-size: 12px;
-  color: #1e293b;
-}
-.session-detail-page .sd-attribution-bucket__dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.session-detail-page .sd-attribution-bucket__dot--0 { background: #2563eb; }
-.session-detail-page .sd-attribution-bucket__dot--1 { background: #16a34a; }
-.session-detail-page .sd-attribution-bucket__dot--2 { background: #f97316; }
-.session-detail-page .sd-attribution-bucket__dot--3 { background: #dc2626; }
-.session-detail-page .sd-attribution-bucket__dot--4 { background: #0891b2; }
-.session-detail-page .sd-attribution-bucket__dot--5 { background: #9333ea; }
-.session-detail-page .sd-attribution-bucket__dot--6 { background: #db2777; }
-.session-detail-page .sd-attribution-bucket__dot--7 { background: #0f766e; }
-.session-detail-page .sd-attribution-bucket__dot--8 { background: #64748b; }
-.session-detail-page .sd-attribution-bucket__meta {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-.session-detail-page .sd-attribution-bucket__tokens {
-  font-family: var(--sd-mono, ui-monospace, monospace);
-  font-weight: 700;
-  font-size: 12px;
-  color: #1e293b;
-}
-.session-detail-page .sd-attribution-bucket__pct {
-  font-family: var(--sd-mono, ui-monospace, monospace);
-  font-size: 11px;
-  color: #94a3b8;
-}
-.session-detail-page .sd-attribution-bucket__source {
-  font-size: 11px;
-  color: #94a3b8;
-  font-style: italic;
-}
-.session-detail-page .sd-attribution-bucket__summary {
-  font-size: 12px;
-  color: #475569;
-  line-height: 1.45;
-  padding: 4px 0 0;
-}
-.session-detail-page .sd-attribution-bucket__preview {
-  max-height: 120px;
-  overflow: auto;
-  font-size: 11px;
-  line-height: 1.4;
-  white-space: pre-wrap;
-  word-break: break-word;
-  padding: 8px;
-  background: #f8fafc;
-  border-radius: 6px;
-  margin: 0;
-  border: 1px solid var(--sd-line-soft, #e2e8f0);
-}
-
-/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Display-only bucket` */
-.session-detail-page .sd-attribution-bucket--display-only {
-  background: #fafbfc;
-  border-color: var(--sd-line-soft, #e2e8f0);
-  border-left: 3px solid #e2e8f0;
-  opacity: 0.78;
-}
-.session-detail-page .sd-attribution-bucket--display-only .sd-attribution-bucket__title {
-  color: #64748b;
-  font-weight: 600;
-}
-.session-detail-page .sd-attribution-bucket--display-only .sd-attribution-bucket__tokens {
-  color: #64748b;
-}
-
-/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Empty state in attribution payload` */
-.session-detail-page .sd-payload-shell--attribution .sd-empty-state {
-  padding: 14px 16px;
-  text-align: center;
-  color: #94a3b8;
-  font-size: 12px;
-  line-height: 1.5;
-  background: #f8fafc;
-  border: 1px dashed var(--sd-line-soft, #e2e8f0);
-  border-radius: 8px;
-}
-
-/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Attribution two-column layout ──` */
-.sd-attribution-layout {
-  display: block;
-  min-width: 0;
-}
-
-.sd-attribution-canvas {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-}
-
-/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Attribution rail cards ──` */
-.sd-attribution-rail {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.sd-attribution-rail__card {
-  border: 1px solid var(--sd-line-soft);
-  border-radius: 10px;
-  background: #fff;
-  overflow: hidden;
-}
-
-.sd-attribution-rail__card h3 {
-  margin: 0;
-  padding: 6px 10px;
-  font-size: 11px;
-  font-weight: 800;
-  color: var(--sd-muted);
-  text-transform: uppercase;
-  letter-spacing: .06em;
-  border-bottom: 1px solid var(--sd-line-soft);
-  background: #f8fafc;
-}
-
-.sd-attribution-rail__card .sd-kv {
-  display: grid;
-  grid-template-columns: 80px minmax(0, 1fr);
-}
-
-.sd-attribution-rail__card .sd-kv > span {
-  padding: 5px 10px;
-  border-bottom: 1px solid var(--sd-line-soft);
-  font-size: 12px;
-  line-height: 1.35;
-}
-
-.sd-attribution-rail__card .sd-kv > span:first-child {
-  color: var(--sd-muted);
-  background: #fbfcff;
-  font-family: var(--sd-mono);
-  font-weight: 700;
-}
-
-.sd-attribution-rail__card .sd-kv > span:last-child {
-  color: var(--sd-text-2);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  position: relative;
-  cursor: text;
-}
-
-/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`KV value: horizontal scroll on hover for long content` */
-.sd-attribution-rail__card .sd-kv > span:last-child:hover {
-  overflow-x: auto;
-  white-space: nowrap;
-  text-overflow: clip;
-  scrollbar-width: thin;
-  scrollbar-color: var(--sd-line-soft) transparent;
-}
-
-.sd-attribution-rail__card .sd-kv > span:last-child::-webkit-scrollbar {
-  height: 3px;
-}
-.sd-attribution-rail__card .sd-kv > span:last-child::-webkit-scrollbar-thumb {
-  background: var(--sd-line-soft);
-  border-radius: 2px;
-}
-
-/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`KV value: copy button on hover` */
-.sd-kv-value-wrapper {
-  position: relative;
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.sd-kv-value-wrapper .sd-kv-copy-btn {
-  position: absolute;
-  right: 4px;
-  top: 50%;
-  transform: translateY(-50%);
-  opacity: 0;
-  width: 20px;
-  height: 20px;
-  border: 1px solid var(--sd-line-soft);
-  border-radius: 4px;
-  background: var(--sd-surface);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  font-size: 11px;
-  line-height: 1;
-  padding: 0;
-  color: var(--sd-muted);
-  transition: opacity 120ms ease;
-  z-index: 2;
-  flex-shrink: 0;
-}
-.sd-kv-value-wrapper:hover .sd-kv-copy-btn {
-  opacity: 1;
-}
-.sd-kv-value-wrapper .sd-kv-copy-btn:hover {
-  background: var(--sd-panel);
-  border-color: var(--sd-line);
-}
-.sd-kv-value-wrapper .sd-kv-value-text {
-  display: inline-block;
-  max-width: calc(100% - 28px);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  vertical-align: middle;
 }

@@ -220,12 +220,10 @@ function copyFixtures(runtimeDir) {
 }
 
 function copyDistribution(runtimeDir, source = path.join(ROOT, 'java', 'app-cli', 'build', 'install', 'app-cli')) {
-  const distribution = path.join(runtimeDir, 'app-cli');
-  fs.cpSync(source, distribution, {
-    recursive: true,
-    // Never share mutable build output through symlinks with the running JVM.
-    dereference: true,
-  });
+  const distribution = path.resolve(runtimeDir, 'app-cli');
+  fs.mkdirSync(distribution, { recursive: true });
+  // Materialize symlink targets in the snapshot and preserve launcher permissions.
+  runChecked('/bin/cp', ['-RLp', `${path.resolve(source)}/`, distribution], 'fixture distribution copy');
   return path.join(distribution, 'bin', 'app-cli');
 }
 

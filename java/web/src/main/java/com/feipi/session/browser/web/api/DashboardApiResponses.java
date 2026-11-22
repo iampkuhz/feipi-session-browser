@@ -2,37 +2,15 @@ package com.feipi.session.browser.web.api;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.feipi.session.browser.domain.normalized.TokenProvenance;
-import com.feipi.session.browser.index.api.query.EventActivity;
 import com.feipi.session.browser.web.api.PageApiDtos.PageStateDto;
 import com.feipi.session.browser.web.api.PageApiDtos.TokenSegments;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 /** Dashboard resource APIs 的类型化 JSON 响应。 */
 public final class DashboardApiResponses {
 
   private DashboardApiResponses() {}
-
-  /**
-   * 独立的源事件 UTC 日观察响应；覆盖集合与日期窗口明确分离。
-   *
-   * @param basis 消息日期依据
-   * @param tokenBasis token 报告日依据，不是实际消费日
-   * @param coverage 部分观察或未知，不声明完整历史
-   * @param windowDays 日桶查询窗口天数
-   * @param days 窗口内已发生的实际日桶，不补空日
-   * @param coverageCounts 所选全部来源的覆盖计数，不限日窗口
-   * @param undatedTokens 无法日期化的 usage 分量
-   */
-  public record EventActivityResponse(
-      String basis,
-      String tokenBasis,
-      String coverage,
-      int windowDays,
-      List<EventActivity.Day> days,
-      Map<String, Long> coverageCounts,
-      Map<String, EventActivity.TokenComponent> undatedTokens) {}
 
   /**
    * 表示 DashboardFilterEcho 数据。

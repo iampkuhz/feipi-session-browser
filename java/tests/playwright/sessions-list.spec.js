@@ -87,20 +87,20 @@ test.describe('会话列表页', () => {
     await expect(firstDataRow).toBeVisible({ timeout: 10000 });
     await expect(firstDataRow.locator(':scope > td')).toHaveCount(11);
     const disclosure = firstDataRow.locator('.token-total__status');
-    await expect(disclosure).toBeVisible();
-    await expect(disclosure).toContainText(/Partial|Unknown/);
+    await expect(disclosure).toHaveCount(0);
+    await expect(firstDataRow.getByRole('button', { name: 'Token breakdown' })).toBeVisible();
     const clipping = await firstDataRow.evaluate((row) => {
       const cell = row.querySelector('.token-cell');
       const inside = (inner, outer) => inner.top >= outer.top - 1 && inner.bottom <= outer.bottom + 1
         && inner.left >= outer.left - 1 && inner.right <= outer.right + 1;
-      return Array.from(cell.querySelectorAll('.token-total__value, .token-total__status')).some((element) => {
+      return Array.from(cell.querySelectorAll('.token-total__value')).some((element) => {
         const range = document.createRange();
         range.selectNodeContents(element);
         return element.scrollWidth > element.clientWidth + 1 || element.scrollHeight > element.clientHeight + 1
           || Array.from(range.getClientRects()).some((rect) => !inside(rect, cell.getBoundingClientRect()) || !inside(rect, row.getBoundingClientRect()));
       });
     });
-    expect(clipping, 'Partial/Unknown 来源说明与 token 值必须完整保留在单元格和行边界内').toBe(false);
+    expect(clipping, 'Token 值必须完整保留在单元格和行边界内').toBe(false);
     const rowsResponse = await rowsResponsePromise;
     expect(rowsResponse.ok()).toBe(true);
     const rowsApi = await rowsResponse.json();

@@ -31,18 +31,17 @@
 <meta name="session-page-api-base" content="{{ api_base }}">
 <meta name="session-id" content="{{ session_id }}">
 <meta name="session-source" content="{{ current_agent }}">
-<meta name="slim-mode" content="true">
 <link rel="stylesheet" href="/static/css/session-detail.css">
 {% endblock %}
 
 {% block script_extra %}
 <script src="/static/js/session-detail/namespace.js"></script>
 <script src="/static/js/session-detail/dom.js"></script>
-<script src="/static/js/session-detail/tabs.js"></script>
 <script src="/static/js/session-detail/filters.js"></script>
 <script src="/static/js/session-detail/payload.js"></script>
 <script src="/static/js/session-detail/lazy_rounds.js"></script>
 <script src="/static/js/session-detail/attribution.js"></script>
+<script src="/static/js/session-detail/skill-reference.js"></script>
 <script src="/static/js/session-detail/events.js"></script>
 <script src="/static/js/session-detail/execution.js"></script>
 <script src="/static/js/session-detail/init.js"></script>
@@ -51,10 +50,7 @@
 {% block content %}
 {% if imported_analysis is defined and imported_analysis %}
 <section class="sd-import-scope" data-import-scope role="note" aria-label="导入分析范围">
-    <div class="sd-import-scope__summary">
-        <strong>导入会话 · 仅本文件分析 · 不计入个人统计</strong>
-        <span>缺少的外部会话或子会话不会计入本文件分析。</span>
-    </div>
+    <span>仅分析此文件，不计入个人统计。</span>
     <div class="sd-import-scope__actions">
         <a class="sd-btn sd-btn--md" href="/imports" data-action="nav-imports">导入另一个文件</a>
         <a class="sd-btn sd-btn--md" href="/sessions" data-action="nav-sessions">返回个人 Sessions</a>
@@ -62,156 +58,125 @@
 </section>
 {% endif %}
 
-<section class="sd-hero" data-session-overview-hero data-session-hero>
-    <div class="sd-hero__top">
-        <div class="sd-hero__main">
-            <div class="sd-hero__id">
-                <span class="sd-agent-pill" data-session-agent>{{ current_agent }}</span>
-                <h1 title="Session metadata is loaded from /meta API">Loading session…</h1>
+<div class="sd-workspace-head">
+    <section class="sd-hero" data-session-overview-hero data-session-hero>
+        <div class="sd-hero__top">
+            <div class="sd-hero__main">
+                <div class="sd-hero__id">
+                    <span class="sd-agent-pill" data-session-agent>{{ current_agent }}</span>
+                    <h1 title="Session metadata is loaded from /meta API">Loading session…</h1>
+                    <span data-session-first-question></span>
+                </div>
+                <div class="sd-session-start"><span>会话开始</span> <time data-session-started>Loading…</time></div>
+                <details class="sd-session-info" data-session-info>
+                    <summary>会话信息</summary>
+                    <div class="sd-session-info__body">
+                        <span class="sd-chip sd-chip--mono" data-session-model-brief hidden></span>
+                        <details class="sd-title-original" data-session-original-title hidden>
+                            <summary>原始标题</summary>
+                            <pre></pre>
+                        </details>
+                        <div class="sd-hero-url">
+                            <span class="sd-hero-url-label">Session ID</span>
+                            <span class="sd-hero-url-text" title="{{ session_id }}" data-session-id-text>{{ session_id }}</span>
+                            <button type="button"
+                                    class="sd-icon-btn sd-btn--copy"
+                                    data-action="copy"
+                                    data-copy-text="{{ session_id }}"
+                                    aria-label="Copy session ID"
+                                    title="Copy session ID">
+                                <span class="sd-icon-btn-label" aria-hidden="true">&#x1F4CB;</span>
+                            </button>
+                        </div>
+                        <div class="sd-hero-url sd-hero-url--file" data-session-file-path>
+                            <span class="sd-hero-url-label">Session file</span>
+                            <span class="sd-hero-url-text" title="" data-session-file-text>正在加载会话文件信息…</span>
+                            <button type="button"
+                                    class="sd-icon-btn sd-btn--copy"
+                                    data-action="copy"
+                                    data-copy-text=""
+                                    aria-label="Copy session file path"
+                                    title="Copy session file path" hidden>
+                                <span class="sd-icon-btn-label" aria-hidden="true">&#x1F4CB;</span>
+                            </button>
+                        </div>
+                        <div class="sd-session-start">最近更新 <time data-session-updated>Loading…</time></div>
+                        <div class="sd-hero__meta" data-session-meta-chips>
+                            <span class="sd-chip">Project loading…</span>
+                        </div>
+                    </div>
+                </details>
             </div>
-            <details class="sd-session-info" data-session-info>
-                <summary>会话信息</summary>
-            <details class="sd-title-original" data-session-original-title hidden>
-                <summary>Original title</summary>
-                <pre></pre>
-            </details>
-            <div class="sd-hero-url">
-                <span class="sd-hero-url-label">Session ID</span>
-                <span class="sd-hero-url-text" title="{{ session_id }}" data-session-id-text>{{ session_id }}</span>
-                <button type="button"
-                        class="sd-icon-btn sd-btn--copy"
-                        data-action="copy"
-                        data-copy-text="{{ session_id }}"
-                        aria-label="Copy session ID"
-                        title="Copy session ID">
-                    <span class="sd-icon-btn-label" aria-hidden="true">&#x1F4CB;</span>
-                </button>
-            </div>
-            <div class="sd-hero-url sd-hero-url--file" data-session-file-path>
-                <span class="sd-hero-url-label">Session file</span>
-                <span class="sd-hero-url-text" title="" data-session-file-text>正在加载会话文件信息…</span>
-                <button type="button"
-                        class="sd-icon-btn sd-btn--copy"
-                        data-action="copy"
-                        data-copy-text=""
-                        aria-label="Copy session file path"
-                        title="Copy session file path" hidden>
-                    <span class="sd-icon-btn-label" aria-hidden="true">&#x1F4CB;</span>
-                </button>
-            </div>
-            <div class="sd-hero__meta" data-session-meta-chips>
-                <span class="sd-chip sd-chip--mono">Model loading…</span>
-                <span class="sd-chip">Project loading…</span>
-                <span class="sd-chip">Updated loading…</span>
-            </div>
-            <div class="sd-issue-strip sd-issue-strip--loading"
-                 data-issue-strip
-                 aria-label="Session issue summary">
-                <span class="sd-issue-title">Issue signals loading…</span>
-            </div>
-            <div class="sd-summary-strip" data-summary-strip>
-                <div class="sd-summary-item"><b>updated</b><span data-session-updated>Loading…</span></div>
-            </div>
-            </details>
         </div>
-
-
-    </div>
-
-</section>
-
-
-<nav class="sd-tabs" data-session-tabs aria-label="Session view tabs" role="tablist">
-    <a class="sd-tab is-active" href="#" data-action="tab-trace" data-tab="trace" role="tab" aria-selected="true" aria-controls="sd-tab-panel-trace">
-        <span class="sd-tab-icon" aria-hidden="true">&#x1F9ED;</span>Trace
-    </a>
-    <a class="sd-tab" href="#" data-action="tab-payload" data-tab="payload" role="tab" aria-selected="false" aria-controls="sd-tab-panel-payload">Payload · 原文</a>
-</nav>
-
-<section class="sd-trace-panel" id="sd-tab-panel-trace" data-trace-panel data-tab-panel="trace" role="tabpanel">
-    <section class="se-judgment" data-execution-judgment aria-label="执行判断"><h2>执行判断</h2><p>正在加载同范围的全量工具证据…</p></section>
-    <section class="se-process" aria-label="执行过程">
-        <div class="se-process__head"><div><h2>执行过程</h2><p>分组表示本地来源关系，不表示并行；模型输入仅限本地可见记录。</p></div>
-            <div role="group" aria-label="执行筛选"><button type="button" class="sd-btn sd-btn--secondary sd-btn--md" data-execution-filter="all" aria-pressed="true">全部动作</button><button type="button" class="sd-btn sd-btn--secondary sd-btn--md" data-execution-filter="failed" aria-pressed="false">失败信号</button></div>
-        </div>
-        <p data-execution-status role="status" aria-live="polite"></p>
-        <div data-execution-items>正在加载过程摘要…</div><div data-execution-pagination></div>
     </section>
-    <details class="se-analysis" data-evidence-analysis><summary>Token 分析与完整记录证据 · 按需查看</summary>
-        <div class="sd-kpis" aria-label="Session metrics" data-session-metrics-shell>
-            <div class="sd-kpi sd-kpi--stack" aria-label="Total Tokens" title="会话互斥四段总量；来源与精度见计量说明，不代表 context window 占用率">
-                <div class="sd-kpi__value" title="Loaded from metrics API">Loading…</div>
-                <div class="sd-kpi__label">Total Tokens</div>
-                {% if imported_analysis is defined and imported_analysis %}
-                <div class="sd-import-kpi-scope">仅本文件用量，不计个人总量</div>
-                {% endif %}
-                <div class="sd-kpi__subgrid">
-                    <span>Fresh <b class="sd-kpi-token-share">Loading…</b></span>
-                    <span>Cache Read <b class="sd-kpi-token-share">Loading…</b></span>
-                    <span>Cache Write <b class="sd-kpi-token-share">Loading…</b></span>
-                    <span>Output <b class="sd-kpi-token-share">Loading…</b></span>
-                </div>
+    <div class="sd-kpis" aria-label="Session metrics" data-session-metrics-shell>
+        <div class="sd-kpi sd-kpi--stack" aria-label="Total Tokens" title="会话累计 Token，不代表单次窗口占用">
+            <div class="sd-kpi__value" title="Loaded from metrics API">Loading…</div>
+            <div class="sd-kpi__label">Token 总量</div>
+            <div class="sd-kpi__subgrid">
+                <span>新输入 <b class="sd-kpi-token-share">Loading…</b></span>
+                <span>缓存读取 <b class="sd-kpi-token-share">Loading…</b></span>
+                <span>缓存写入 <b class="sd-kpi-token-share">Loading…</b></span>
+                <span>输出 <b class="sd-kpi-token-share">Loading…</b></span>
             </div>
-            <div class="sd-kpi sd-kpi--stack" aria-label="Cache Health" title="只用完整服务商上报输入计算缓存比例，分母不含 Output；未知或估算不当作 0%">
-                <div class="sd-kpi__value">Loading…</div>
-                <div class="sd-kpi__label">Cache Health</div>
-                <div class="sd-kpi__subgrid">
-                    <span>Input-side Tokens <b>Loading…</b></span>
-                    <span>Low-cache rows <b>Loading…</b></span>
-                    <span>Fresh-spike rows <b>Loading…</b></span>
-                </div>
-            </div>
-            <div class="sd-kpi sd-kpi--stack" aria-label="Workload" title="本地归一化记录和工具体量，不等同独立服务商请求数">
-                <div class="sd-kpi__value">Loading…</div>
-                <div class="sd-kpi__label">Workload</div>
-                <div class="sd-kpi__subgrid">
-                    <span>Main records <b>Loading…</b></span>
-                    <span>Subagent records <b>Loading…</b></span>
-                    <span>Tool Calls <b>Loading…</b></span>
-                    <span>Subagent Runs <b>Loading…</b></span>
-                </div>
-            </div>
-            <details class="sd-secondary-metrics" data-secondary-metrics>
-                <summary>运行诊断与耗时 · 按需查看</summary>
-                <div class="sd-secondary-metrics__grid">
-            <div class="sd-kpi sd-kpi--stack sd-kpi--health" aria-label="Run Health" title="仅检查可用内容中的问题信号，不证明会话已完成。Payload Gaps 只检查部分来源/结果关联，不代表原文完整性；缺少覆盖证据时 Attribution Gaps 为 N/A。">
-                <div class="sd-kpi__value" title="Loaded from diagnostics API">Loading…</div>
-                <div class="sd-kpi__label">Run Health</div>
-                <div class="sd-kpi__subgrid">
-                    <span>Issue rows <b>Loading…</b></span>
-                    <span>Failed Tools <b class="sd-kpi-tone">Loading…</b></span>
-                    <span>Payload Gaps <b>Loading…</b></span>
-                    <span>Attribution Gaps <b>Loading…</b></span>
-                </div>
-            </div>
-            <div class="sd-kpi sd-kpi--stack" aria-label="Source Task Active">
-                <div class="sd-kpi__value">Loading…</div>
-                <div class="sd-kpi__label">Source Task Active</div>
-                <div class="sd-kpi__subgrid">
-                    <span>Wall Duration <b>Loading…</b></span>
-                    <span>Agent Turn <b>Loading…</b></span>
-                    <span>Model Execution <b>Loading…</b></span>
-                    <span>Tool Execution <b>Loading…</b></span>
-                </div>
-            </div>
-                </div>
-            </details>
         </div>
-<section class="sd-diagnostics" data-session-diagnostics aria-label="Session diagnostics">
-    <article class="sd-diagnostic-card sd-diagnostic-card--wide sd-diagnostic-card--agents">
-        <div class="sd-diagnostic-card__head">
-            <h2>Session API State</h2>
-            <span>API-first</span>
+        <div class="sd-kpi sd-kpi--stack" aria-label="Cache Health" title="只用完整服务商上报输入计算缓存比例，分母不含 Output；未知或估算不当作 0%">
+            <div class="sd-kpi__value">Loading…</div>
+            <div class="sd-kpi__label">输入缓存命中率</div>
+            <div class="sd-kpi__subgrid">
+                <span>输入端 Token <b>Loading…</b></span>
+                <span>低缓存记录 <b>Loading…</b></span>
+                <span>新输入突增记录 <b>Loading…</b></span>
+            </div>
         </div>
-        <div class="sd-diagnostic-card__body">
-            <div class="sd-card-empty">正在加载会话诊断。</div>
+        <div class="sd-kpi sd-kpi--stack" aria-label="Workload" title="本地归一化记录和工具体量，不等同独立服务商请求数">
+            <div class="sd-kpi__value">Loading…</div>
+            <div class="sd-kpi__label">本地归一化记录</div>
+            <div class="sd-kpi__subgrid">
+                <span>主 Agent 记录 <b>Loading…</b></span>
+                <span>子 Agent 记录 <b>Loading…</b></span>
+                <span>工具调用 <b>Loading…</b></span>
+                <span>子 Agent 运行 <b>Loading…</b></span>
+                <span>工具失败 <b>Loading…</b></span>
+            </div>
         </div>
-    </article>
+        <div class="sd-kpi sd-kpi--stack" aria-label="Source Task Active" data-session-timing title="主任务活动时间按来源记录；包括任务内工具和等待，不等于模型执行时间">
+            <div class="sd-kpi__value" data-session-timing-value>Loading…</div>
+            <div class="sd-kpi__label">任务活动时长</div>
+            <div class="sd-kpi__subgrid">
+                <span>会话总历时 <b>Loading…</b></span>
+                <span>Agent 累计耗时 <b>Loading…</b></span>
+                <span>模型执行 <b>Loading…</b></span>
+                <span>工具执行 <b>Loading…</b></span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<section class="se-analysis" id="session-analysis" data-evidence-analysis aria-label="Token 与 Agent 用量">
+    <section class="sd-token-composition" aria-labelledby="sd-token-title">
+        <h2 id="sd-token-title">Token 构成</h2>
+        <div data-token-composition>正在加载构成…</div>
+    </section>
+    <section class="sd-diagnostics" data-session-diagnostics aria-label="Agent 用量">
+        <article class="sd-diagnostic-card sd-diagnostic-card--wide sd-diagnostic-card--agents">
+            <div class="sd-diagnostic-card__head">
+                <h2>Agent 用量明细</h2>
+            </div>
+            <div class="sd-diagnostic-card__body">
+                <div class="sd-card-empty">正在加载 Agent 用量。</div>
+            </div>
+        </article>
+    </section>
 </section>
 
-    <div class="sd-trace-head">
+<section class="sd-trace-panel" data-trace-panel aria-labelledby="sd-execution-title">
+    <h2 id="sd-execution-title" class="sd-trace-title">执行过程</h2>
+    <div class="se-judgment" data-execution-judgment hidden></div>
+    <div class="sd-record-card">
+    <div class="sd-trace-head" id="session-records" tabindex="-1">
         <div>
-            <div class="sd-trace-sub"><span data-trace-boundaries></span> R：有本地模型响应边界；G：独立调用边界未确认的记录组。日志不包含全部 provider 请求或重试。</div>
+            <div class="sd-trace-sub"><span data-trace-boundaries></span></div>
         </div>
         <div class="sd-trace-actions">
             <div class="sd-seg" role="group" aria-label="Trace status filter">
@@ -223,38 +188,39 @@
         </div>
     </div>
 
-    <table class="trace-table" data-trace-list>
-        <colgroup>
-            <col class="col-round"/>
-            <col class="col-summary"/>
-            <col class="col-metrics"/>
-            <col class="col-attribution"/>
-            <col class="col-status"/>
-            <col class="col-time"/>
-        </colgroup>
-        <thead>
-            <tr>
-                <th class="round-col">Round / group</th>
-                <th>Summary</th>
-                <th class="metrics-col">Metrics</th>
-                <th class="attribution-col">Attribution</th>
-                <th class="status-col">Signals</th>
-                <th class="time-col">Time</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr><td colspan="6">
-                <div class="empty-state" role="status" aria-live="polite">
-                    <div class="empty-state__icon" aria-hidden="true">⏳</div>
-                    <h2 class="empty-state__title">Loading rounds</h2>
-                    <p class="empty-state__text">正在加载轮次摘要。</p>
-                </div>
-            </td></tr>
-        </tbody>
-    </table>
-    </details>
+    <div>
+        <table class="trace-table" data-trace-list>
+            <colgroup>
+                <col class="col-round"/>
+                <col class="col-summary"/>
+                <col class="col-metrics"/>
+                <col class="col-attribution"/>
+                <col class="col-time"/>
+                <col class="col-duration"/>
+            </colgroup>
+            <thead>
+                <tr>
+                    <th class="round-col">轮次</th>
+                    <th>摘要</th>
+                    <th class="metrics-col" title="本行本地归一化记录的 Token，不是整会话累计">本行 Token</th>
+                    <th class="attribution-col">原文入口</th>
+                    <th class="time-col" title="首个已记录的调用时间点">时间</th>
+                    <th class="duration-col" title="只显示源中独立计量的耗时">耗时</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td colspan="6">
+                    <div class="empty-state" role="status" aria-live="polite">
+                        <div class="empty-state__icon" aria-hidden="true">⏳</div>
+                        <h2 class="empty-state__title">Loading rounds</h2>
+                        <p class="empty-state__text">正在加载轮次摘要。</p>
+                    </div>
+                </td></tr>
+            </tbody>
+        </table>
+    </div>
+    </div>
 </section>
-<section id="sd-tab-panel-payload" data-tab-panel="payload" role="tabpanel" hidden><h2>Payload · 原文证据</h2><p>仅在打开时读取索引；模型输入为本地来源记录/重建，不等同完整原始 HTTP。</p><div data-payload-index><button type="button" class="sd-btn sd-btn--secondary sd-btn--md" data-action="load-payload-index">加载原文索引</button></div></section>
 
 <div data-payload-sources-container class="sd-hidden"></div>
 

@@ -321,23 +321,6 @@ class NPlus1GateTest {
             .isGreaterThanOrEqualTo(top.get(i).totalTokens());
       }
     }
-
-    @Test
-    @DisplayName("topSlowestSessions 使用 LIMIT 单次查询")
-    void topSlowestSessionsSingleQuery() throws Exception {
-      SqliteAggregateQueryRepository repo = new SqliteAggregateQueryRepository(ic);
-
-      var top = repo.topSlowestSessions(5);
-
-      assertThat(top).hasSizeLessThanOrEqualTo(5);
-
-      // 结果按 duration_seconds DESC 排序
-      for (int i = 1; i < top.size(); i++) {
-        assertThat(top.get(i - 1).durationSeconds())
-            .as("应按 duration_seconds DESC 排序")
-            .isGreaterThanOrEqualTo(top.get(i).durationSeconds());
-      }
-    }
   }
 
   @Nested

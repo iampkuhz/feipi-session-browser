@@ -77,9 +77,9 @@ def test_native_contract_replaces_the_default_dispatch_policy() -> None:
     text = yaml.safe_dump(native, allow_unicode=True)
     assert native['implementation'] == 'current-agent-native-subagents'
     assert native['model_routing'] == {
-        'important_implementation': 'gpt-6.1-sol',
-        'complex_analysis': 'gpt-6.1-sol',
-        'independent_validation': 'gpt-6.1-sol',
+        'important_implementation': 'gpt-6.2-sol',
+        'complex_analysis': 'gpt-6.2-sol',
+        'independent_validation': 'gpt-6.2-sol',
         'lightweight_lookup': 'gpt-6-luna',
     }
     assert 'subagent_instance_protocol' in policy

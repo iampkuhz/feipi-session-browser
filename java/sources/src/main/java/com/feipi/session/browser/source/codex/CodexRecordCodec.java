@@ -1,5 +1,6 @@
 package com.feipi.session.browser.source.codex;
 
+import com.feipi.session.browser.domain.source.SourceReadingEvidence;
 import com.feipi.session.browser.domain.source.SourceRecord;
 import com.feipi.session.browser.domain.source.SourceRecordRelation;
 import com.feipi.session.browser.domain.source.SourceRecordUsage;
@@ -88,6 +89,11 @@ final class CodexRecordCodec {
       w.string(observation.kind());
       w.string(observation.source());
       w.optional(Optional.ofNullable(observation.issue()));
+    }
+    out.writeInt(r.readingEvidence().size());
+    for (var evidence : r.readingEvidence()) {
+      w.string(evidence.kind());
+      w.string(evidence.text());
     }
   }
 
@@ -246,6 +252,11 @@ final class CodexRecordCodec {
       boolean meta = flag();
       var role = optional();
       var observation = observation();
+      int evidenceCount = count(8);
+      var evidence = new ArrayList<SourceReadingEvidence>();
+      for (int i = 0; i < evidenceCount; i++) {
+        evidence.add(new SourceReadingEvidence(string(), string()));
+      }
       return new SourceRecord(
           locator,
           eventIndex,
@@ -266,7 +277,8 @@ final class CodexRecordCodec {
           timing,
           meta,
           role,
-          observation);
+          observation,
+          evidence);
     }
   }
 }

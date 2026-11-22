@@ -200,7 +200,6 @@ test.describe('unbound legacy generation consistency regressions', () => {
     });
     await page.goto(SESSION_PATH);
     await expect(page.locator('[data-resource-error="metrics"]')).toContainText('HTTP 500');
-    await page.locator('[data-evidence-analysis] > summary').click();
     await expect(page.locator('[data-trace-round-row]').first()).toBeVisible();
     await page.locator('[data-resource-error="metrics"] button').click();
     await expect(page.locator('body')).toHaveAttribute('data-index-generation', 'G2');
@@ -212,40 +211,22 @@ test.describe('unbound legacy generation consistency regressions', () => {
 
 test.describe('real detail evidence regressions', () => {
   for (const hasContent of [false, true]) {
-    test(`health does not infer success from ${hasContent ? 'issue-free content' : 'missing content'}`, async ({ page }) => {
-      await page.route('**/api/sessions/**/metrics', async (route) => {
-        const response = await route.fetch();
-        const data = await response.json();
-        if (!hasContent) Object.assign(data, { roundCount: 0, userMessages: 0, assistantMessages: 0, toolCalls: 0, subagents: 0, parity: {} });
-        await route.fulfill({ response, json: data });
-      });
-      await page.route('**/api/sessions/**/diagnostics', async (route) => {
-        const response = await route.fetch();
-        const data = await response.json();
-        Object.assign(data, { anomalyCount: 0, parity: { runHealth: 'Completed', issueRounds: 0, attributionGaps: 0, payloadGaps: 0, failedTools: 0, toolCalls: 0 } });
-        await route.fulfill({ response, json: data });
-      });
-      if (!hasContent) await page.route('**/api/sessions/**/rounds', async (route) => {
-        const response = await route.fetch();
-        await route.fulfill({ response, json: { ...(await response.json()), roundCount: 0, rounds: [] } });
-      });
+    test(`workload distinguishes ${hasContent ? 'measured' : 'missing'} round evidence`, async ({ page }) => {
+      if (!hasContent) {
+        await page.route('**/api/sessions/**/metrics', async (route) => {
+          const response = await route.fetch();
+          const data = await response.json();
+          await route.fulfill({ response, json: { ...data, roundCount: 0, userMessages: 0,
+            assistantMessages: 0, toolCalls: 0, subagents: 0, parity: {} } });
+        });
+        await page.route('**/api/sessions/**/rounds', async (route) => {
+          const response = await route.fetch();
+          await route.fulfill({ response, json: { ...(await response.json()), roundCount: 0, rounds: [] } });
+        });
+      }
       await page.goto(SESSION_PATH);
       await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
-      const health = page.locator('.sd-kpi[aria-label="Run Health"]');
-      await expect(health).not.toContainText('Completed');
-      await expect(health.locator('.sd-kpi__value')).toHaveText(hasContent ? '未发现问题信号' : '未知');
-      await expect(health).toContainText('Attribution Gaps N/A');
-      await expect(page.locator('[data-issue-strip]')).not.toContainText('All rounds completed successfully');
-      if (hasContent) {
-        await expect(health).toContainText('Failed Tools 0');
-        await expect(health).toContainText('Payload Gaps 0');
-        await expect(page.locator('.sd-kpi[aria-label="Workload"] .sd-kpi__value')).not.toHaveText('N/A');
-      }
-      if (!hasContent) {
-        await expect(page.locator('.sd-kpi[aria-label="Workload"] .sd-kpi__value')).toHaveText('N/A');
-        await expect(health).toContainText('Failed Tools N/A');
-        await expect(health).toContainText('Payload Gaps N/A');
-      }
+      await expect(page.locator('.sd-kpi[aria-label="Workload"] .sd-kpi__value')).toHaveText(hasContent ? /\d/ : 'N/A');
     });
   }
 });
@@ -266,7 +247,6 @@ async function openHydratedSession(page, path = SESSION_PATH) {
   const response = await page.goto(path, { waitUntil: 'domcontentloaded', timeout: 30_000 });
   expect(response && response.ok(), `fixture URL must return HTTP success: ${path}`).toBe(true);
   await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true', { timeout: 10_000 });
-  if (!/[?&]round=/.test(path)) await page.locator('[data-evidence-analysis] > summary').click();
   await expect(page.locator('[data-trace-round-row]').first()).toBeVisible({ timeout: 10_000 });
 }
 
@@ -343,7 +323,7 @@ for (const scenario of ['subagent-only', 'mixed', 'unowned-fallback']) {
 }
 
 async function openAttribution(page, kind) {
-  const button = page.locator(`[data-evidence-analysis] [data-attribution-path*="/${kind}"]:visible`).first();
+  const button = page.locator(`[data-trace-panel] [data-attribution-path*="/${kind}"]:visible`).first();
   await expect(button).toHaveText(kind === 'request' ? 'Request' : 'Response');
   const path = await button.getAttribute('data-attribution-path');
   const pending = page.waitForResponse((response) => response.url().endsWith(path));
@@ -356,11 +336,14 @@ async function openAttribution(page, kind) {
   expect(callId).toBeTruthy();
   if (explicitId) expect(callId).toBe(explicitId);
   expect(payload.kind).toBe(`llm.${kind}_attribution`);
+  const [, roundIndex, callIndex] = new URL(response.url()).pathname.match(/\/attribution\/(\d+)\/(\d+)\//);
+  expect(payload.roundIndex).toBe(Number(roundIndex));
+  expect(payload.callIndex).toBe(Number(callIndex));
   const modal = page.locator('dialog.payload-modal');
   await expect(modal).toBeVisible();
   const disclosure = modal.locator(`[data-payload-attribution="${kind}"]`);
   await expect(disclosure).toHaveAttribute('data-attribution-call', callId);
-  await expect(disclosure.locator('summary')).toHaveText(kind === 'request' ? '输入归因' : '输出归因');
+  await expect(disclosure.locator(':scope > summary')).toBeVisible();
   await expect(disclosure.locator('.sd-kv').first()).toBeHidden();
   await disclosure.locator('summary').press('Enter');
   await expect(disclosure.locator('.sd-kv').first()).toBeVisible();
@@ -369,19 +352,18 @@ async function openAttribution(page, kind) {
 
 async function installDetailedAttributionRoute(page) {
   await page.route(/\/api\/sessions\/[^/]+\/[^/]+\/attribution\/\d+\/\d+\/(request|response)(?:\?|$)/, async (route) => {
-    const url = new URL(route.request().url());
-    const kind = url.pathname.split('/').at(-1);
     const response = await route.fetch();
     expect(response.ok()).toBe(true);
     const actual = await response.json();
     await route.fulfill({ response, json: {
-      kind: `llm.${kind}_attribution`,
+      ...actual,
       data: {
-        callId: actual.data.callId,
+        ...actual.data,
         callKey: 'fixture-attribution-key',
         scope: 'main',
         freshInputTokens: 120,
         outputTokens: 90,
+        totalTokens: 240,
         cacheReadTokens: 30,
         cacheWriteTokens: 0,
         requestToolResultCount: 3,
@@ -402,6 +384,16 @@ test('[UI-SD-036] real Java attribution API returns the current call identity an
     const { modal, disclosure, payload } = await openAttribution(page, kind);
     callIds.push(payload.data.callId);
     expect(payload.data.model).toBeTruthy();
+    const parts = kind === 'request' ? [
+      ['freshInput', 'freshInputTokens'], ['cacheRead', 'cacheReadTokens'], ['cacheWrite', 'cacheWriteTokens'],
+    ] : [['output', 'outputTokens']];
+    const reported = parts.filter(([key]) => payload.data.provenance[key] === 'provider_reported');
+    const total = reported.reduce((sum, [, field]) => sum + payload.data[field], 0);
+    const totalText = new Intl.NumberFormat('en-US').format(total);
+    const detail = reported.length === parts.length ? `来源报告 ${totalText} tokens`
+      : reported.length ? `已报告 ${totalText} tokens，另有未知分项` : '来源报告总量未知';
+    await expect(disclosure.locator(':scope > summary')).toHaveText(kind === 'request'
+      ? `输入用量明细 · ${detail}` : `输出用量明细 · ${detail} · 推理等非正文用量未单列`);
     for (const field of [
       'totalTokens', 'freshInputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens',
       'requestToolResultCount', 'responseToolCallCount',
@@ -425,17 +417,21 @@ for (const viewport of ATTRIBUTION_VIEWPORTS) {
       await page.setViewportSize(viewport);
       await openHydratedSession(page);
       const { modal, disclosure } = await openAttribution(page, kind);
-      const tokens = kind === 'request'
-        ? [['新鲜输入', '120'], ['缓存读取', '30'], ['缓存写入', '0']]
-        : [['输出', '90']];
+      const request = kind === 'request';
+      await expect(disclosure.locator(':scope > summary')).toHaveText(request
+        ? '输入用量明细 · 来源报告 150 tokens'
+        : '输出用量明细 · 来源报告 90 tokens · 推理等非正文用量未单列');
       await expect(disclosure.locator('.sd-kv > span:first-child')).toHaveText([
-        '调用', ...tokens.map(([label]) => label), '计量依据',
-        kind === 'request' ? '已记录工具结果' : '已记录工具指令',
+        '调用', request ? '已记录工具结果' : '已记录工具指令',
       ]);
       await expect(disclosure.locator('.sd-kv > span:last-child')).toHaveText([
-        'fixture-attribution-key · 主会话', ...tokens.map(([, value]) => value),
-        '提供方报告', kind === 'request' ? '3' : '2',
+        'fixture-attribution-key · 主会话', request ? '3' : '2',
       ]);
+      const parts = disclosure.locator('.sd-reading-usage-part');
+      await expect(parts.locator('span:first-child')).toHaveText(request ? ['新鲜输入', '缓存读取', '缓存写入'] : ['输出']);
+      await expect(parts.locator('strong')).toHaveText(request ? ['120', '30', '0'] : ['90']);
+      await expect(disclosure.locator('.sd-reading-usage-band')).toHaveCount(0);
+      await expect(modal.locator('.sd-reading-usage-band')).toHaveCount(1);
       const bounds = await modal.boundingBox();
       const grid = await disclosure.locator('.sd-attribution-summary-grid').boundingBox();
       expect(grid.x).toBeGreaterThanOrEqual(bounds.x - 2);
@@ -585,13 +581,14 @@ test.describe('会话资源独立失败与恢复', () => {
   test('diagnostics failure preserves expandable rounds and retry restores hydration', async ({ page }) => {
     const recover = await failResource(page, '**/diagnostics');
     await page.goto(detail);
-    await page.locator('[data-evidence-analysis] > summary').click();
     const round = page.locator('[data-trace-round-row]').first();
     await expect(round).toBeVisible();
     await round.locator('[data-action="toggle-round"]').click();
     await expect(round).toHaveAttribute('data-detail-loaded', 'true');
     await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'false');
+    await expect(page.locator('[data-resource-error="diagnostics"]')).toBeVisible();
     await expect(page.locator('[data-resource-error="diagnostics"]')).toContainText('HTTP 500');
+    await expect(page.locator('[data-token-composition]')).toHaveText('Unavailable');
     recover();
     await page.locator('[data-resource-error="diagnostics"] button').click();
     await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
@@ -601,7 +598,6 @@ test.describe('会话资源独立失败与恢复', () => {
   test('round failure replaces loading with retryable error', async ({ page }) => {
     const recover = await failResource(page, '**/rounds');
     await page.goto(detail);
-    await page.locator('[data-evidence-analysis] > summary').click();
     const table = page.locator('.trace-table[data-trace-list] tbody');
     await expect(table).toContainText('Unable to load rounds');
     await expect(table).not.toContainText('Loading');
@@ -794,10 +790,9 @@ for (const shape of ['event-only', 'event-usage', 'dual', 'anonymous-dual', 'mul
       await expect(page).toHaveURL(/\/imports\/[0-9a-f-]{36}$/);
       importId = new URL(page.url()).pathname.split('/').pop();
       await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
-      await page.locator('[data-evidence-analysis] > summary').click();
       await expect(page.locator('[data-trace-round-row]')).toHaveCount(messages.length);
       await expect(page.locator('[aria-label="Total Tokens"] .sd-kpi__value')).toHaveText(
-        shape === 'event-usage' || shape === 'multiturn' ? '15 · Partial' : 'N/A · Unknown',
+        shape === 'event-usage' || shape === 'multiturn' ? '≈15' : 'N/A',
       );
       for (const [index, [userText, assistantText]] of messages.entries()) {
         const round = page.locator('[data-trace-round-row]').nth(index);
@@ -805,9 +800,9 @@ for (const shape of ['event-only', 'event-usage', 'dual', 'anonymous-dual', 'mul
         for (const [title, original] of [['Request', userText], ['Response', assistantText]]) {
           await round.getByRole('button', { name: title, exact: true }).click();
           const modal = page.locator('dialog.payload-modal');
-          const block = modal.locator('.sd-content-block').filter({ has: page.getByText(title, { exact: true }) });
-          await expect(block.locator('pre')).toBeVisible();
-          await expect(block.locator('pre')).toContainText(original);
+          const current = modal.locator('[data-reading-category="current"]:not([data-reading-source="reconstructed"]) .sd-reading-preview');
+          await expect(current.filter({ hasText: original })).toBeVisible();
+          await expect(current).toContainText(original);
           await modal.getByRole('button', { name: 'Close', exact: true }).click();
         }
       }
@@ -822,7 +817,7 @@ for (const shape of ['event-only', 'event-usage', 'dual', 'anonymous-dual', 'mul
 
 // Regression evidence from the real-data audit; all payloads below are synthetic.
 const projectMeasuredProvenance = { freshInput: 'provider_reported', cacheRead: 'provider_reported', cacheWrite: 'provider_reported', output: 'provider_reported' };
-test('project agent mix coverage labels fit the card at desktop and narrow widths', async ({ page }) => {
+test('project agent mix coverage labels fit the card on desktop', async ({ page }) => {
   await page.route('**/api/projects/*/agent-mix*', route => fulfillIndexedJson(route, {
     rows: [
       { agent: 'claude_code', label: 'Claude Code', sessions: 12345, sessionShare: 60,
@@ -835,24 +830,22 @@ test('project agent mix coverage labels fit the card at desktop and narrow width
   await page.goto('/projects/test-hifi-project');
   const rows = page.locator('.agent-mix-row');
   await expect(rows).toHaveCount(2);
-  for (const width of [1440, 390]) {
-    await page.setViewportSize({ width, height: 900 });
-    await expect(rows.nth(0)).toContainText('Partial');
-    await expect(rows.nth(0)).toContainText('Observed (123/12345)');
-    await expect(rows.nth(1)).toContainText('Unknown');
-    for (const row of await rows.all()) {
-      for (const child of await row.locator(':scope > span').all()) await expect(child).toBeVisible();
-      expect(await row.evaluate(node => {
-        const card = node.closest('.project-analysis-card').getBoundingClientRect();
-        return [...node.children].every(child => {
-          const rect = child.getBoundingClientRect();
-          const style = getComputedStyle(child);
-          return rect.left >= card.left && rect.right <= card.right
-            && child.scrollWidth <= child.clientWidth + 1
-            && style.textOverflow !== 'ellipsis' && style.whiteSpace !== 'nowrap';
-        });
-      }), `Agent Mix content fits at ${width}px without truncation`).toBe(true);
-    }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(rows.nth(0)).toContainText('≈1.2M tokens');
+  await expect(rows.nth(0)).toContainText('Observed (123/12345)');
+  await expect(rows.nth(1)).toContainText('N/A tokens');
+  for (const row of await rows.all()) {
+    for (const child of await row.locator(':scope > span').all()) await expect(child).toBeVisible();
+    expect(await row.evaluate(node => {
+      const card = node.closest('.project-analysis-card').getBoundingClientRect();
+      return [...node.children].every(child => {
+        const rect = child.getBoundingClientRect();
+        const style = getComputedStyle(child);
+        return rect.left >= card.left && rect.right <= card.right
+          && child.scrollWidth <= child.clientWidth + 1
+          && style.textOverflow !== 'ellipsis' && style.whiteSpace !== 'nowrap';
+      });
+    }), `Agent Mix content fits at 1440px without truncation`).toBe(true);
   }
 });
 
@@ -896,7 +889,6 @@ test('an input-only group explains why the expanded trace has no model records',
     roundId: 1, round: { calls: [], tools: [] },
   }));
   await page.goto(SESSION_PATH);
-  await page.locator('[data-evidence-analysis] > summary').click();
   const row = page.locator('[data-trace-round-row][data-round="1"]');
   await expect(row).toHaveAttribute('data-is-user-input', 'true');
   await expect(row).toContainText('已记录 1 条用户输入');
@@ -912,12 +904,12 @@ test('real audit: an empty rounds response resolves the diagnostic timeline empt
   }));
   await page.goto(SESSION_PATH);
   await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
-  await page.locator('[data-evidence-analysis] > summary').click();
   await expect(page.locator('.trace-table')).toContainText('No readable log');
   const diagnostics = page.locator('[data-session-diagnostics]');
   await expect(diagnostics.getByRole('heading', { name: '内容证据不可用', exact: true })).toBeVisible();
   await expect(diagnostics).toContainText('Agent、工具及失败次数均为 N/A，不代表实测为零。');
   await expect(diagnostics).not.toContainText('is loading');
+  await expect(page.locator('[data-token-composition]')).not.toContainText('正在加载');
   await expect(diagnostics.locator('.sd-subagent-timeline')).toHaveCount(0);
 });
 
@@ -1085,249 +1077,25 @@ test('failed scan status keeps published content and exposes distinct candidate 
 });
 
 test('unavailable scan status is unknown rather than silently successful', async ({ page }) => {
-  await page.route('**/api/scan-status', route => route.fulfill({ status: 503, json: { error: 'synthetic unavailable' } }));
+  let restored = false;
+  await page.route('**/api/scan-status', route => restored
+    ? route.fulfill({ json: { status: 'success' } })
+    : route.fulfill({ status: 503, json: { error: 'synthetic unavailable' } }));
   await page.goto('/sessions');
   const banner = page.locator('[data-scan-status-banner]');
   await expect(banner).toContainText('扫描状态读取失败');
   await expect(banner).toContainText('当前页面数据是否最新尚未确认');
   await expect(banner).not.toContainText('最新扫描失败');
+  await expect(banner).toContainText('HTTP 503');
+  await page.evaluate(() => { window.sameDocumentMarker = true; });
+  restored = true;
+  await banner.getByRole('button', { name: '刷新状态' }).click();
+  await expect(banner).toBeEmpty();
+  expect(await page.evaluate(() => window.sameDocumentMarker)).toBe(true);
   await expect(page.locator('.data-table')).toBeVisible();
 });
 
 // Server-free synthetic probes exercise the shared helper in a real browser.
-test.describe('event optional snapshot:', () => {
-  async function openOptionalProbe(page) {
-    const path = require('path');
-    await page.route('http://snapshot.test/', route => route.fulfill({
-      contentType: 'text/html',
-      // Match the product's hidden-state rule; the probe isolates snapshot logic, not CSS ownership.
-      body: '<!doctype html><html><head><style>[hidden]{display:none!important}main{display:block;padding:16px}p{min-height:24px}</style></head><body><main><p id="required">initial</p><p id="optional">initial</p></main></body></html>',
-    }));
-    await page.goto('http://snapshot.test/');
-    await page.addScriptTag({ path: path.resolve(__dirname, '../../web/src/main/resources/static/js/index-snapshot.js') });
-    await page.evaluate(() => {
-      window.optionalProbe = { generation: 'A', optionalGeneration: 'A', status: 501, failure: '', throwApply: false, optionalApplies: 0, errors: [] };
-      // A local synthetic origin and explicit resource URLs prevent real-source requests.
-      window.fetch = async url => {
-        const state = window.optionalProbe;
-        if (url === 'http://snapshot.test/required') {
-          return new Response(JSON.stringify({ value: state.generation }), { status: 200, headers: { 'X-Session-Index-Generation': state.generation } });
-        }
-        if (url !== 'http://snapshot.test/optional') throw new Error('unexpected synthetic URL');
-        if (state.failure === 'network') throw new Error('synthetic network failure');
-        return new Response(state.failure === 'json' ? '{invalid' : JSON.stringify({ value: state.optionalGeneration }), {
-          status: state.status, headers: { 'X-Session-Index-Generation': state.optionalGeneration },
-        });
-      };
-      window.optionalSnapshot = window.IndexSnapshot.create();
-      window.loadOptionalProbe = () => window.optionalSnapshot.load([
-        { key: 'event-probe-required', url: 'http://snapshot.test/required', apply(data) {
-          if (window.optionalProbe.throwApply) throw new Error('synthetic required apply failure');
-          document.querySelector('#required').textContent = data.value;
-        } },
-        { key: 'event-probe-optional', url: 'http://snapshot.test/optional', unavailableStatus: 501,
-          apply(data) { window.optionalProbe.optionalApplies += 1; document.querySelector('#optional').textContent = data.value; },
-          error(error) { window.optionalProbe.errors.push(error.message); document.querySelector('#optional').textContent = 'Unknown ' + error.message; },
-        },
-      ]);
-      return window.loadOptionalProbe();
-    });
-  }
-
-  test('event optional snapshot: matching 501 settles a new generation without applying error data', async ({ page }) => {
-    await openOptionalProbe(page);
-    await expect(page.locator('main')).toBeVisible();
-    await expect(page.locator('#required')).toHaveText('A');
-    await expect(page.locator('#optional')).toHaveText('Unknown HTTP 501');
-    await expect(page.locator('body')).toHaveAttribute('data-index-generation', 'A');
-    await page.evaluate(async () => {
-      Object.assign(window.optionalProbe, { generation: 'B', optionalGeneration: 'B' });
-      await window.loadOptionalProbe();
-    });
-    await expect(page.locator('main')).toBeVisible();
-    await expect(page.locator('#required')).toHaveText('B');
-    await expect(page.locator('#optional')).toHaveText('Unknown HTTP 501');
-    await expect(page.locator('body')).toHaveAttribute('data-index-generation', 'B');
-    expect(await page.evaluate(() => window.optionalProbe.optionalApplies)).toBe(0);
-    expect(await page.evaluate(() => window.optionalProbe.errors)).toEqual(['HTTP 501', 'HTTP 501']);
-    await expect(page.locator('[data-snapshot-error], [data-snapshot-batch-error]')).toHaveCount(0);
-  });
-
-  test('event optional snapshot: quarantined recovery permits only the declared 501 status', async ({ page }) => {
-    await openOptionalProbe(page);
-    await page.evaluate(async () => {
-      Object.assign(window.optionalProbe, { generation: 'B', optionalGeneration: 'B', status: 200, throwApply: true });
-      await window.loadOptionalProbe();
-    });
-    await expect(page.locator('main')).toBeHidden();
-    await expect(page.locator('[data-snapshot-batch-error]')).toContainText('synthetic required apply failure');
-    for (const failure of ['500', 'network', 'json', '409']) {
-      await page.evaluate(async failure => {
-        Object.assign(window.optionalProbe, { generation: 'C', optionalGeneration: 'C', throwApply: false,
-          status: failure === '500' ? 500 : failure === '409' ? 409 : 200,
-          failure: failure === 'network' || failure === 'json' ? failure : '' });
-        await window.loadOptionalProbe();
-      }, failure);
-      await expect(page.locator('main')).toBeHidden();
-      await expect(page.locator('[data-snapshot-batch-error]')).toBeVisible();
-      await expect(page.locator('#required')).toHaveText('A');
-    }
-    await page.evaluate(async () => {
-      Object.assign(window.optionalProbe, { status: 501, failure: '' });
-      await window.loadOptionalProbe();
-    });
-    await expect(page.locator('main')).toBeVisible();
-    await expect(page.locator('#required')).toHaveText('C');
-    await expect(page.locator('#optional')).toHaveText('Unknown HTTP 501');
-    await expect(page.locator('body')).toHaveAttribute('data-index-generation', 'C');
-    await expect(page.locator('[data-snapshot-batch-error]')).toHaveCount(0);
-    expect(await page.evaluate(() => window.optionalProbe.optionalApplies)).toBe(0);
-  });
-
-  test('event optional snapshot: a 501 with a different generation never permits mixed rendering', async ({ page }) => {
-    await openOptionalProbe(page);
-    await page.evaluate(async () => {
-      Object.assign(window.optionalProbe, { generation: 'B', optionalGeneration: 'A' });
-      await window.loadOptionalProbe();
-    });
-    await expect(page.locator('#required')).toHaveText('A');
-    await expect(page.locator('body')).toHaveAttribute('data-index-generation', 'A');
-    await expect(page.locator('[data-snapshot-error]').first()).toContainText('Index changed repeatedly');
-    expect(await page.evaluate(() => window.optionalProbe.optionalApplies)).toBe(0);
-  });
-});
-
-test.describe('event dashboard:', () => {
-  test.use({ timezoneId: 'America/Los_Angeles' });
-  const eventRows = page => page.locator('[data-event-activity-days] tr');
-  function eventTokens() {
-    const component = (reportedTokens, reportedSamples, estimatedSamples, unavailableSamples, unknownSamples, mixedSamples) =>
-      ({ reportedTokens, reportedSamples, estimatedSamples, unavailableSamples, unknownSamples, mixedSamples });
-    return { fresh: component(null, 0, 1, 2, 3, 4), cacheRead: component(0, 1, 0, 0, 0, 0),
-      cacheWrite: component(11, 2, 3, 4, 5, 6), output: component(13, 1, 0, 0, 0, 0) };
-  }
-  function eventResponse(params, empty = false) {
-    const factor = params.get('agent') === 'codex' ? 2 : 1;
-    return { basis: 'source_event_utc', tokenBasis: 'codex_modern_usage_report_day', coverage: empty ? 'unknown' : 'partial',
-      windowDays: Number(params.get('days')), coverageCounts: { summarizedSessions: empty ? 0 : 2,
-        unknownSessions: 4, undatedUserMessages: 7, undatedUsageEvents: 5, unsupportedUsageEvents: 6,
-        futureExcludedDayBuckets: 2, futureExcludedObservedUserMessages: 9 }, undatedTokens: eventTokens(),
-      days: empty ? [] : [['2025-01-01', 999], ['2026-10-29', 2], ['2026-11-03', 3], ['2026-11-05', 5], ['2026-11-06', 999]]
-        .map(([date, count]) => ({ date, observedUserMessages: count * factor, tokens: eventTokens() })) };
-  }
-  async function interceptEvents(page, state = {}) {
-    await page.clock.setFixedTime(new Date('2026-11-05T00:30:00Z'));
-    state.requests = [];
-    await page.route('**/api/dashboard/event-activity?*', async route => {
-      const params = new URL(route.request().url()).searchParams;
-      state.requests.push(Object.fromEntries(params));
-      if (state.unavailable) {
-        const response = await route.fetch();
-        return route.fulfill({ response, status: 501, json: { error: 'EVENT_ACTIVITY_UNAVAILABLE' } });
-      }
-      return fulfillIndexedJson(route, eventResponse(params, state.empty));
-    });
-    return state;
-  }
-  async function expectHealthyCohort(page) {
-    await expect(page.locator('main')).toBeVisible();
-    await expect(page.locator('.metric-card--kpi')).toHaveCount(6);
-    await expect(page.locator('[data-stat="latest-sessions"]')).not.toContainText('Loading');
-    await expect(page.locator('[data-chart-card="sessions"]')).toBeVisible();
-    await expect(page.locator('[data-chart-card="tokens"]')).toBeVisible();
-    await expect(page.locator('[data-snapshot-batch-error]')).toHaveCount(0);
-  }
-
-  for (const [grain, expected] of [
-    ['day', [['2026-10-29', '2', 'N/A', '0', '11', '13'], ['2026-11-03', '3', 'N/A', '0', '11', '13'], ['2026-11-05', '5', 'N/A', '0', '11', '13']]],
-    ['week', [['2026-W44', '2', 'N/A', '0', '11', '13'], ['2026-W45', '8', 'N/A', '0', '22', '26']]],
-    ['month', [['2026-10', '2', 'N/A', '0', '11', '13'], ['2026-11', '8', 'N/A', '0', '22', '26']]],
-  ]) {
-    test(`event dashboard: ${grain} aggregates only actual UTC observations with nullable precision evidence`, async ({ page }) => {
-      const state = await interceptEvents(page);
-      await page.goto('/dashboard?grain=' + grain);
-      await expect(page.locator('[data-event-activity-state]')).toContainText('Partial');
-      await expect(eventRows(page)).toHaveCount(expected.length);
-      for (let index = 0; index < expected.length; index += 1) {
-        await expect(eventRows(page).nth(index).locator('td')).toHaveText(expected[expected.length - index - 1]);
-      }
-      const latest = eventRows(page).first();
-      const multiplier = grain === 'day' ? 1 : 2;
-      await expect(latest.locator('td').nth(2)).toHaveAttribute('title', new RegExp(`provider reported=0, estimated=${multiplier}, unavailable=${2 * multiplier}, unknown=${3 * multiplier}, mixed=${4 * multiplier}`));
-      await expect(latest.locator('td').nth(4)).toHaveAttribute('title', new RegExp(`provider reported=${2 * multiplier}, estimated=${3 * multiplier}, unavailable=${4 * multiplier}, unknown=${5 * multiplier}, mixed=${6 * multiplier}`));
-      await expect(page.locator('[data-event-activity-summary]')).toContainText('across the selected sources');
-      await page.locator('[data-event-activity-disclosure] summary').click();
-      await expect(page.locator('[data-event-activity-coverage]')).toContainText('(7 undated)');
-      await expect(page.locator('[data-event-activity-usage]')).toContainText('6 unsupported usage events');
-      await expect(page.locator('[data-event-activity-future]')).toContainText('2 excluded day buckets · 9 observed user messages');
-      await expect(page.locator('[data-event-activity-future]')).toContainText('Entire mixed day buckets');
-      await expect(page.locator('[data-event-activity-undated]')).toContainText('never assigned to a date');
-      await expect(page.locator('[data-event-activity-undated]')).toContainText('Fresh: N/A');
-      await expect(page.locator('[data-event-activity-undated]')).toContainText('Cache read: 0');
-      expect(state.requests.at(-1)).toMatchObject({ agent: 'all', grain, days: grain === 'day' ? '30' : grain === 'week' ? '140' : '366' });
-      await expectHealthyCohort(page);
-    });
-  }
-
-  test('event dashboard: real grain and agent controls reload filters and observation rows', async ({ page }) => {
-    const state = await interceptEvents(page);
-    await page.goto('/dashboard?grain=day');
-    await expect(eventRows(page)).toHaveCount(3);
-    await page.locator('[data-action="grain"][data-grain="week"]').click();
-    await expect(page).toHaveURL(/grain=week/);
-    await expect(eventRows(page)).toHaveCount(2);
-    await expect(eventRows(page).first().locator('td').nth(1)).toHaveText('8');
-    await page.locator('[data-action="agent-scope"][data-scope="codex"]').click();
-    await expect(page).toHaveURL(/agent=codex/);
-    await expect(eventRows(page).first().locator('td').nth(1)).toHaveText('16');
-    expect(state.requests.at(-1)).toMatchObject({ agent: 'codex', grain: 'week', days: '140' });
-    await expectHealthyCohort(page);
-  });
-
-  test('event dashboard: empty unknown and 501 retry recover without blocking cohort KPIs', async ({ page }) => {
-    const state = await interceptEvents(page, { empty: true });
-    await page.goto('/dashboard');
-    await expect(page.locator('[data-event-activity-state]')).toContainText('Unknown');
-    await expect(eventRows(page)).toHaveCount(0);
-    const empty = page.locator('[data-event-activity-empty]');
-    await expect(empty).toBeVisible();
-    await expect(empty).toContainText('No observed event dates');
-    await expect(empty).toContainText('not measured zero');
-    await expectHealthyCohort(page);
-    state.unavailable = true;
-    await page.reload();
-    await expect(page.locator('[data-event-activity-state]')).toContainText('HTTP 501');
-    await expect(page.locator('[data-event-activity-state]')).toHaveAttribute('role', 'status');
-    await expect(eventRows(page)).toHaveCount(0);
-    await expectHealthyCohort(page);
-    const before = state.requests.length;
-    state.unavailable = false;
-    state.empty = false;
-    await page.getByRole('button', { name: 'Retry event activity', exact: true }).click();
-    await expect(page.locator('[data-event-activity-state]')).toContainText('Partial');
-    await expect(eventRows(page)).toHaveCount(3);
-    expect(state.requests.length).toBeGreaterThan(before);
-    await expectHealthyCohort(page);
-  });
-
-  test('event dashboard: narrow viewport keeps table scrolling local without document overflow', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await interceptEvents(page);
-    await page.goto('/dashboard');
-    await expect(eventRows(page)).toHaveCount(3);
-    const geometry = await page.locator('.event-activity-scroll').evaluate(node => ({
-      client: node.clientWidth, content: node.scrollWidth, overflow: getComputedStyle(node).overflowX,
-      documentWidth: document.documentElement.scrollWidth, viewport: window.innerWidth,
-    }));
-    expect(geometry.overflow).toBe('auto');
-    expect(geometry.content).toBeGreaterThan(geometry.client);
-    expect(geometry.documentWidth).toBeLessThanOrEqual(geometry.viewport + 1);
-    await page.locator('.event-activity-scroll').evaluate(node => { node.scrollLeft = node.scrollWidth; });
-    expect(await page.locator('.event-activity-scroll').evaluate(node => node.scrollLeft)).toBeGreaterThan(0);
-    await expectHealthyCohort(page);
-  });
-});
-
 // C14: SSR-only values cannot be silently retained while another generation hydrates.
 test.describe('SSR document generation hydration boundary:', () => {
   async function openSsrGenerationProbe(page, apiGeneration, options = {}) {
@@ -1335,9 +1103,8 @@ test.describe('SSR document generation hydration boundary:', () => {
     const path = require('path');
     const runtime = fs.readFileSync(path.resolve(__dirname,
       '../../web/src/main/resources/static/js/index-snapshot.js'), 'utf8');
-    const state = { documents: 0, apiRequests: [], applies: [], errors: [] };
+    const state = { documents: 0, apiRequests: [], applies: [] };
     await page.exposeFunction('recordC14Apply', value => { state.applies.push(value); });
-    await page.exposeFunction('recordC14Error', value => { state.errors.push(value); });
     await page.route('**/c14-snapshot-runtime.js', route => route.fulfill({
       contentType: 'application/javascript', body: runtime,
     }));
@@ -1349,7 +1116,7 @@ test.describe('SSR document generation hydration boundary:', () => {
       const generation = chart && options.chartGeneration !== undefined ? options.chartGeneration : apiGeneration;
       const headers = { 'Content-Type': 'application/json',
         ...((options.headerless || (chart && options.chartHeaderless)) ? {} : { 'X-Session-Index-Generation': generation }) };
-      const status = chart && options.optional501 ? 501 : chart && options.chartStatus ? options.chartStatus : options.status || 200;
+      const status = chart && options.chartStatus ? options.chartStatus : options.status || 200;
       if (chart && options.malformedChart) return route.fulfill({ status, headers, body: '{invalid' });
       return route.fulfill({ status, headers, json: { generation, key } });
     });
@@ -1366,16 +1133,10 @@ test.describe('SSR document generation hydration boundary:', () => {
           <p id="c14-chart">SSR-chart-${generation}</p>
         </main><script src="/c14-snapshot-runtime.js"></script><script>
           const documentGeneration = document.body.dataset.indexGeneration;
-          const optionalChart = ${!!options.optional501};
           window.c14ApplyHistory = [];
           window.c14LoadComplete = false;
           window.IndexSnapshot.create().load(['primary', 'chart'].map(key => ({
             key: 'c14/' + key, url: '/api/c14-ssr-probe/' + key,
-            unavailableStatus: optionalChart && key === 'chart' ? 501 : undefined,
-            error: optionalChart && key === 'chart' ? function(error) {
-              window.recordC14Error(error.message);
-              document.getElementById('c14-chart').textContent = 'Unknown ' + error.message;
-            } : undefined,
             apply(data) {
               const evidence = { key, documentGeneration, apiGeneration: data.generation };
               window.c14ApplyHistory.push(evidence);
@@ -1440,7 +1201,7 @@ test.describe('SSR document generation hydration boundary:', () => {
     expect(state.documents).toBe(1);
   });
 
-  for (const [scenario, options] of [['headerless', { headerless: true }], ['HTTP 409', { status: 409 }]]) {
+  for (const [scenario, options] of [['headerless', { headerless: true }], ['HTTP 409', { status: 409 }], ['HTTP error with a different stamp', { chartStatus: 501, chartGeneration: 'B' }]]) {
     test(`SSR A cannot downgrade through ${scenario} API responses`, async ({ page }) => {
       const state = await openSsrGenerationProbe(page, 'A', options);
       await expect(page.locator('main')).toBeHidden();
@@ -1457,39 +1218,7 @@ test.describe('SSR document generation hydration boundary:', () => {
   }
 
 
-  test('SSR-bound optional 501 with stamp A permits only the required same-generation apply', async ({ page }) => {
-    const state = await openSsrGenerationProbe(page, 'A', { optional501: true });
-    await expect(page.locator('#c14-primary')).toHaveText('API-A');
-    await expect(page.locator('#c14-chart')).toHaveText('Unknown HTTP 501');
-    await expect(page.locator('#c14-ssr-only-aux')).toHaveText('aux-A');
-    await expect(page.locator('main')).toBeVisible();
-    await expect(page.locator('body')).toHaveAttribute('data-index-generation', 'A');
-    await expect(page.locator('[data-snapshot-error], [data-snapshot-batch-error]')).toHaveCount(0);
-    await expect.poll(() => state.applies.length).toBe(1);
-    expect(state.applies).toEqual([{ key: 'primary', documentGeneration: 'A', apiGeneration: 'A' }]);
-    await expect.poll(() => state.errors).toEqual(['HTTP 501']);
-    expect(state.documents).toBe(1);
-    expect(state.apiRequests).toHaveLength(2);
-  });
-
-  for (const [scenario, options] of [['stamp B', { chartGeneration: 'B' }], ['missing stamp', { chartHeaderless: true }]]) {
-    test(`SSR-bound optional 501 with ${scenario} blocks the entire batch before callbacks`, async ({ page }) => {
-      const state = await openSsrGenerationProbe(page, 'A', { optional501: true, ...options });
-      await expect(page.locator('main')).toBeHidden();
-      await expect(page.locator('[data-snapshot-batch-error]')).toContainText(/generation.*document/i);
-      await expect(page.getByRole('button', { name: 'Reload entire page', exact: true })).toBeVisible();
-      await expect(page.locator('#c14-primary')).toHaveText('SSR-A');
-      await expect(page.locator('#c14-chart')).toHaveText('SSR-chart-A');
-      await expect(page.locator('#c14-ssr-only-aux')).toHaveText('aux-A');
-      await expect(page.locator('body')).toHaveAttribute('data-index-generation', 'A');
-      expect(state.applies).toEqual([]);
-      expect(state.errors).toEqual([]);
-      expect(state.documents).toBe(1);
-      expect(state.apiRequests).toHaveLength(2);
-    });
-  }
-
-  for (const [scenario, initial] of [['network failure', { networkFailure: true }], ['malformed JSON', { malformedChart: true }], ['HTTP 500', { chartStatus: 500 }]]) {
+  for (const [scenario, initial] of [['network failure', { networkFailure: true }], ['malformed JSON', { malformedChart: true }], ['HTTP 500', { chartStatus: 500 }], ['HTTP 501', { chartStatus: 501 }]]) {
     test(`SSR-bound same-generation ${scenario} preserves independent resources and pins retry to the document`, async ({ page }) => {
       const options = { ...initial };
       const state = await openSsrGenerationProbe(page, 'A', options);

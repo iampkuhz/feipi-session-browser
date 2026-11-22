@@ -67,7 +67,7 @@ class CallSourceUnitBuilderTest {
             record("main", "user", "first request", ""),
             closingAssistant("main", "token_usage_record:main-first"),
             record("main", "user", "next request", ""),
-            standaloneTool("main", "main-tool", "main synthetic input"),
+            standaloneTool("main", "main-tool", "main synthetic input", "2026-01-01T00:00:01Z"),
             standaloneTool("child", "child-tool", "child synthetic input"),
             record("main", "tool_result", "main result", "main-tool"),
             record("child", "tool_result", "child result", "child-tool"),
@@ -84,6 +84,7 @@ class CallSourceUnitBuilderTest {
             unit ->
                 assertThat(unit)
                     .containsEntry("id", "main-tool")
+                    .containsEntry("timestamp", "2026-01-01T00:00:01Z")
                     .containsEntry("input", "main synthetic input")
                     .containsEntry("role", "assistant"));
     assertThat(toolUnits(calls.get(2)))
@@ -92,6 +93,7 @@ class CallSourceUnitBuilderTest {
             unit ->
                 assertThat(unit)
                     .containsEntry("id", "child-tool")
+                    .doesNotContainKey("timestamp")
                     .containsEntry("input", "child synthetic input")
                     .containsEntry("role", "assistant"));
     assertThat(calls.stream().flatMap(List::stream))
@@ -256,13 +258,18 @@ class CallSourceUnitBuilderTest {
   }
 
   private static SourceRecord standaloneTool(String scope, String id, String input) {
+    return standaloneTool(scope, id, input, null);
+  }
+
+  private static SourceRecord standaloneTool(
+      String scope, String id, String input, String timestamp) {
     return new SourceRecord(
         scope,
         0,
         "tool_use",
         Optional.of(id),
         Optional.empty(),
-        Optional.empty(),
+        Optional.ofNullable(timestamp),
         Optional.empty(),
         SourceRecordUsage.empty(),
         List.of(new SourceToolCall(id, "exec", input)),

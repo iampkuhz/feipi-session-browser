@@ -55,7 +55,7 @@
       return;
     }
     // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Lazy load round detail from API`
-    lazyLoadRoundDetail(row);
+    lazyLoadRoundDetail(row)?.catch(function () { /* 行内已显示失败与重试。 */ });
   }
 
   function syncSubagentToggle(block) {
