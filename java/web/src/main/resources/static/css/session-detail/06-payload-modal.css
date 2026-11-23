@@ -224,14 +224,24 @@
 .sd-reading-turn {
   margin-block-end: 8px;
 }
-.sd-reading-panel .sd-payload-reported { margin-block-start: 8px; }
+.sd-reading-panel .sd-payload-reported {
+  margin-block-start: 8px;
+  padding-block-start: 8px;
+  border-block-start: 1px solid var(--sd-line-soft);
+}
+.sd-reading-usage-heading {
+  margin: 0 0 3px;
+  color: var(--sd-text);
+  font-size: 13px;
+}
 .sd-reading-cache-ratio {
   display: grid;
-  grid-template-columns: minmax(4rem, 8rem) auto;
+  grid-template-columns: 1fr;
   align-items: center;
-  gap: 8px;
+  margin-block-end: 8px;
 }
 .sd-reading-cache-band { margin: 0; }
+.sd-reading-cache-ratio .sd-reading-usage-part { padding-inline: 6px; }
 .sd-payload-navigation {
   display: flex;
   flex-wrap: wrap;
@@ -250,21 +260,22 @@
 .sd-payload-modal .sd-payload-evidence-action summary { color: inherit; }
 
 .sd-payload-modal .sd-payload-tool-link {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 10px;
-  padding-block: 4px;
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border-block-start: 1px solid var(--sd-line-soft);
   overflow-wrap: anywhere;
 }
 .sd-payload-tool-link > code {
-  flex: 1 1 20ch;
   min-width: 0;
   white-space: pre-wrap;
 }
 .sd-payload-tool-actions {
   display: flex;
-  gap: 4px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-block: 4px;
 }
 .sd-payload-original {
   border: 1px solid var(--sd-line-soft);

@@ -460,7 +460,7 @@
 /* 一次执行只有一个分隔面；命令与展开的原文共享同一行组。 */
 .expanded-row .sd-tool-group--flat:has(> .sd-tool-payload-pair) {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) 112px;
   align-items: start;
   min-width: 0;
   background: var(--sd-panel);
@@ -469,6 +469,10 @@
   border-bottom: 1px solid var(--sd-line-soft);
 }
 .expanded-row .sd-tool-group--flat > .sd-tool-row[data-declaring-call-id] {
+  --sd-tool-kind-col: 24px;
+  --sd-tool-status-col: 56px;
+  --sd-tool-token-col: 0px;
+  --sd-tool-action-col: 58px;
   border: 0;
 }
 .expanded-row .sd-tool-group--flat > .sd-tool-row[data-declaring-call-id]:not([data-status="failed"]) {
@@ -483,7 +487,7 @@
 }
 .expanded-row .sd-tool-payload-pair > summary {
   min-height: 28px;
-  padding: 4px 6px;
+  padding: 4px 8px;
   box-sizing: border-box;
   white-space: nowrap;
 }

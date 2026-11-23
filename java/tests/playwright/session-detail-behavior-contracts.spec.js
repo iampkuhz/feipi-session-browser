@@ -343,9 +343,7 @@ async function openAttribution(page, kind) {
   await expect(modal).toBeVisible();
   const disclosure = modal.locator(`[data-payload-attribution="${kind}"]`);
   await expect(disclosure).toHaveAttribute('data-attribution-call', callId);
-  await expect(disclosure.locator(':scope > summary')).toBeVisible();
-  await expect(disclosure.locator('.sd-kv').first()).toBeHidden();
-  await disclosure.locator('summary').press('Enter');
+  await expect(disclosure.locator(':scope > .sd-reading-usage-heading')).toBeVisible();
   await expect(disclosure.locator('.sd-kv').first()).toBeVisible();
   return { modal, disclosure, payload };
 }
@@ -392,7 +390,7 @@ test('[UI-SD-036] real Java attribution API returns the current call identity an
     const totalText = new Intl.NumberFormat('en-US').format(total);
     const detail = reported.length === parts.length ? `来源报告 ${totalText} tokens`
       : reported.length ? `已报告 ${totalText} tokens，另有未知分项` : '来源报告总量未知';
-    await expect(disclosure.locator(':scope > summary')).toHaveText(kind === 'request'
+    await expect(disclosure.locator(':scope > .sd-reading-usage-heading')).toHaveText(kind === 'request'
       ? `输入用量明细 · ${detail}` : `输出用量明细 · ${detail} · 推理等非正文用量未单列`);
     for (const field of [
       'totalTokens', 'freshInputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens',
@@ -418,7 +416,7 @@ for (const viewport of ATTRIBUTION_VIEWPORTS) {
       await openHydratedSession(page);
       const { modal, disclosure } = await openAttribution(page, kind);
       const request = kind === 'request';
-      await expect(disclosure.locator(':scope > summary')).toHaveText(request
+      await expect(disclosure.locator(':scope > .sd-reading-usage-heading')).toHaveText(request
         ? '输入用量明细 · 来源报告 150 tokens'
         : '输出用量明细 · 来源报告 90 tokens · 推理等非正文用量未单列');
       await expect(disclosure.locator('.sd-kv > span:first-child')).toHaveText([
@@ -427,7 +425,7 @@ for (const viewport of ATTRIBUTION_VIEWPORTS) {
       await expect(disclosure.locator('.sd-kv > span:last-child')).toHaveText([
         'fixture-attribution-key · 主会话', request ? '3' : '2',
       ]);
-      const parts = disclosure.locator('.sd-reading-usage-part');
+      const parts = disclosure.locator('.sd-attribution-summary-grid .sd-reading-usage-part');
       await expect(parts.locator('span:first-child')).toHaveText(request ? ['新鲜输入', '缓存读取', '缓存写入'] : ['输出']);
       await expect(parts.locator('strong')).toHaveText(request ? ['120', '30', '0'] : ['90']);
       await expect(disclosure.locator('.sd-reading-usage-band')).toHaveCount(0);

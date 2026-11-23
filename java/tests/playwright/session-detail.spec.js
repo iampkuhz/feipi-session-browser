@@ -87,8 +87,8 @@ test('request attribution preserves request-side counters without borrowing resp
   const action = page.locator('[data-attribution-path*="/request"]:visible').first();
   await action.click();
   const card = page.locator('[data-payload-attribution="request"]');
-  await card.locator('summary').press('Enter');
-  await expect(card).toContainText('1,000,000');
+  await expect(card.getByRole('heading', { name: /输入用量明细/ })).toBeVisible();
+  await expect(card.locator('.sd-attribution-summary-grid')).toContainText('1,000,000');
   await expect(card).not.toContainText('500,000');
   expect(await card.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
 });

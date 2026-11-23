@@ -132,8 +132,9 @@ async function openContent(page, button, label, content) {
   await button.click();
   const modal = page.locator('dialog.payload-modal');
   await expect(modal).toBeVisible();
-  await expect(modal.locator('.sd-card-title')).toHaveText(label);
-  await expect(modal.locator('pre')).toHaveText(content);
+  const body = label === 'Result' ? modal.locator('[data-reading-category="result"]') : modal;
+  await expect(body.locator('.sd-card-title')).toHaveText(label);
+  await expect(body.locator('pre')).toHaveText(content);
   return modal;
 }
 
@@ -165,10 +166,10 @@ for (const scenario of [
     await row.getByRole('button', { name: scenario.title, exact: true }).click();
     const modal = page.locator('dialog.payload-modal');
     await expect(modal).toBeVisible();
-    await expect(modal).toContainText('仅展示本地记录；完整上下文与未公开推理范围未知。');
+    await expect(modal).toContainText('仅展示本地记录，不等同于完整发送载荷；未公开推理范围未知。');
     if (scenario.empty) {
       await expect(modal.locator('.sd-payload-empty')).toHaveText(scenario.empty);
-      await expect(modal.locator('.sd-reading-token-note')).toContainText('总 Token 未知，比例与余量未计算');
+      await expect(modal.locator('.sd-reading-composition .sd-reading-token-note').first()).toContainText('总 Token 未知，比例与余量未计算');
       await expect(modal.locator('.sd-reading-token-meter')).toHaveCount(0);
     } else {
       await expect(modal.locator('.sd-payload-empty')).toHaveCount(0);
@@ -202,8 +203,8 @@ test('Request and Response visible estimates exclude raw and do not invent share
   for (const title of ['Request', 'Response']) {
     await row.getByRole('button', { name: title, exact: true }).click();
     const modal = page.locator('dialog.payload-modal');
-    await expect(modal.locator('.sd-reading-composition .sd-reading-token-note')).toContainText('可见文本约 6 tokens');
-    await expect(modal.locator('.sd-reading-composition .sd-reading-token-note')).toContainText('原始记录与本机参考不计入');
+    await expect(modal.locator('.sd-reading-composition .sd-reading-token-note').first()).toContainText('可见文本约 6 tokens');
+    await expect(modal.locator('.sd-reading-composition .sd-reading-token-note').first()).toContainText('原始记录与本机参考不计入');
     const legend = modal.locator('.sd-reading-composition li strong');
     await expect(legend).toHaveText(['约 6 tokens']);
     await expect(modal.locator('.sd-reading-usage-band')).toHaveCount(0);
@@ -277,25 +278,23 @@ test('[UI-SD-044] side-specific attribution is linked to the expanded record; to
   const call = page.locator('#round-1-detail [data-call-tools="synthetic-call-8"]');
   const request = await openContent(page, call.getByRole('button', { name: 'Request', exact: true }), 'Request', REQUEST);
   const input = request.locator('[data-payload-attribution="request"]');
-  await input.locator('summary').press('Enter');
   await expect(input).toHaveAttribute('data-attribution-call', 'synthetic-call-8');
-  await expect(input.locator('summary')).toContainText('已报告 16,567 tokens，另有未知分项');
+  await expect(input.locator(':scope > .sd-reading-usage-heading')).toContainText('已报告 16,567 tokens，另有未知分项');
   await expect(input.locator('.sd-reading-usage-band')).toHaveCount(0);
   await expect(request.locator('.sd-payload-metadata')).toContainText('记录来源claude_code');
   await expect(request.locator('.sd-payload-metadata')).toContainText('模型fixture-model');
   await expect(input).toContainText('4,567');
   await expect(input).toContainText('12,000');
-  await expect(input.locator('.sd-reading-usage-part').filter({ hasText: '缓存写入' })).toContainText('N/A');
+  await expect(input.locator('.sd-attribution-summary-grid .sd-reading-usage-part').filter({ hasText: '缓存写入' })).toContainText('N/A');
   await expect(input).not.toContainText('890');
   await closeContent(request);
 
   await call.getByRole('button', { name: 'Response', exact: true }).click();
   const response = page.locator('dialog.payload-modal');
   const output = response.locator('[data-payload-attribution="response"]');
-  await output.locator('summary').press('Enter');
   await expect(output).toHaveAttribute('data-attribution-call', 'synthetic-call-8');
-  await expect(output.locator('summary')).toContainText('来源报告 890 tokens');
-  await expect(output.locator('summary')).toContainText('推理等非正文用量未单列');
+  await expect(output.locator(':scope > .sd-reading-usage-heading')).toContainText('来源报告 890 tokens');
+  await expect(output.locator(':scope > .sd-reading-usage-heading')).toContainText('推理等非正文用量未单列');
   await expect(output.locator('.sd-reading-usage-band')).toHaveCount(0);
   await expect(response.locator('.sd-reading-usage-band')).toHaveCount(1);
   await expect(output).not.toContainText('4,567');
@@ -303,16 +302,72 @@ test('[UI-SD-044] side-specific attribution is linked to the expanded record; to
   const tool = response.locator('.sd-payload-tool-link');
   await expect(tool.locator('strong')).toHaveText('Bash');
   await expect(tool.locator('code')).toHaveText('printf synthetic');
-  await expect(tool.getByRole('button', { name: 'Result', exact: true })).toHaveAttribute('data-payload-id', 'tool:result:tool-b');
-  const result = await openContent(page, tool.getByRole('button', { name: 'Result', exact: true }), 'Result', 'synthetic result for tool-b');
+  await expect(tool.getByRole('button', { name: / · Result$/ })).toHaveAttribute('data-payload-id', 'tool:result:tool-b');
+  await tool.getByRole('button', { name: / · C8 · Result$/ }).click();
+  const result = response;
+  await expect(result.locator('[data-reading-category="result"] pre')).toHaveText('synthetic result for tool-b');
+  await expect(result.locator('[data-result-command] pre')).toHaveText(COMMAND);
   await expect(result.locator('.sd-reading-composition')).toContainText('工具结果不计为独立模型调用');
-  await expect(result.locator('.sd-reading-usage-band')).toHaveCount(0);
-  await expect(result.locator('.sd-reading-composition [data-token-part="result"]')).toContainText('tokens');
+  await expect(result.locator('.sd-reading-usage-band')).toBeVisible();
+  await expect(result.locator('.sd-reading-composition')).toContainText('可读返回正文总量：约 7 tokens');
+  await expect(result.locator('.sd-reading-composition li[data-token-part="result"] strong')).toHaveText('约 7 tokens · 100%');
   await expect(result.locator('[data-payload-attribution]')).toHaveCount(0);
   await result.getByRole('button', { name: /^返回 .+ · C8 · Response$/ }).click();
   await expect(output).toHaveAttribute('data-attribution-call', 'synthetic-call-8');
-  await openContent(page, response.getByRole('button', { name: 'Input', exact: true }), 'Input', INPUTS['tool-b']);
+  await openContent(page, response.getByRole('button', { name: / · Input$/ }), 'Input', INPUTS['tool-b']);
   expect(attributionRequests).toEqual(['synthetic-call-8', 'synthetic-call-8', 'synthetic-call-8']);
+});
+
+test('default composition separates 900 input tokens from cache and preserves an output without text', async ({ page }, testInfo) => {
+  const row = await installTraceFixture(page);
+  let hasResponseText = true;
+  await page.route(`**${API}/payload/*`, route => {
+    const request = decodeURIComponent(route.request().url()).includes(':req:');
+    return fulfillIndexedJson(route, {
+      kind: request ? 'llm_request' : 'llm_response',
+      tokens: request ? { input: 900 } : { output: 100, ...(hasResponseText ? { reasoning: 30 } : {}) },
+      reading: request ? [
+        { kind: 'conversation', label: 'User', source: 'current', text: 'Synthetic user input' },
+        { kind: 'conversation', label: 'Assistant', source: 'reconstructed', text: 'x'.repeat(2140) },
+        { kind: 'tool_result', label: 'Read', source: 'reconstructed', text: 'x'.repeat(360) },
+      ] : hasResponseText ? [{ kind: 'conversation', source: 'current', text: 'x'.repeat(160) }] : [],
+    });
+  });
+  await page.route(`**${API}/attribution/1/1/*`, route => {
+    const url = new URL(route.request().url());
+    return fulfillIndexedJson(route, {
+      kind: 'llm.' + url.pathname.split('/').at(-1) + '_attribution',
+      data: { callId: url.searchParams.get('call_id'), callKey: 'C8', scope: 'main',
+        freshInputTokens: 700, cacheReadTokens: 200, cacheWriteTokens: 0, outputTokens: 100,
+        provenance: { freshInput: 'provider_reported', cacheRead: 'provider_reported',
+          cacheWrite: 'provider_reported', output: 'provider_reported' } },
+    });
+  });
+  await row.locator('[data-action="toggle-round"]').click();
+  const call = page.locator('#round-1-detail [data-call-tools="synthetic-call-8"]');
+  const modal = page.locator('dialog.payload-modal');
+  const composition = modal.locator('.sd-reading-composition');
+  await call.getByRole('button', { name: 'Request', exact: true }).click();
+  await expect(composition.locator('li strong')).toHaveText([
+    '约 5 tokens · 0.6%', '约 535 tokens · 59.4%', '约 90 tokens · 10%', '约 270 tokens · 30%',
+  ]);
+  await expect(composition).toContainText('有依据的分项覆盖约 70%');
+  await expect(composition).toContainText('最大可见项：历史上下文');
+  await expect(modal.locator('.sd-reading-cache-ratio li strong')).toHaveText([
+    '200 tokens · 22.2%', '700 tokens · 77.8%',
+  ]);
+  await modal.locator('.sd-modal-panel').screenshot({ path: testInfo.outputPath('payload-request-default.png') });
+  await modal.getByRole('button', { name: / · C8 · Response$/ }).click();
+  await expect(composition.locator('li strong')).toHaveText(['约 40 tokens · 40%', '30 tokens · 30%', '约 30 tokens · 30%']);
+  await expect(composition).toContainText('有依据的分项覆盖约 70%');
+  await expect(modal.locator('.sd-reading-cache-ratio')).toHaveCount(0);
+  await modal.locator('.sd-modal-panel').screenshot({ path: testInfo.outputPath('payload-response-default.png') });
+  await closeContent(modal);
+  hasResponseText = false;
+  await call.getByRole('button', { name: 'Response', exact: true }).click();
+  await expect(modal.locator('.sd-payload-empty')).toHaveText('Response 正文未记录');
+  await expect(composition.locator('li strong')).toHaveText(['100 tokens · 100%']);
+  await expect(composition.locator('li span')).toHaveText(['未识别']);
 });
 
 test('one Token bar per direction separates visible categories, reported reasoning, and residual', async ({ page }) => {
@@ -355,7 +410,7 @@ test('one Token bar per direction separates visible categories, reported reasoni
   await expect(modal.locator('[data-reading-category="skills"] .sd-reading-block-measure')).toHaveText('400 字符 · 约 100 tokens');
   await expect(legend.locator('small')).toHaveText(['400 字符', '800 字符', '1,200 字符', '1,600 字符', '3,200 字符', '16,000 字符']);
   await expect(legend.last()).toContainText('约 314,200 tokens · 98.2%');
-  await expect(composition.locator('p')).toContainText('可见文本约 5,800 tokens');
+  await expect(composition.locator('p').first()).toContainText('可见文本约 5,800 tokens');
   const reference = modal.locator('details').filter({ hasText: '历史会话配置参考（未计入 Token）' });
   await expect(reference).not.toHaveAttribute('open');
   await reference.locator('summary').click();
@@ -384,7 +439,7 @@ test('one Token bar per direction separates visible categories, reported reasoni
     expect(await raw.evaluate((el, property) => getComputedStyle(el)[property], property)).not.toBe(style);
   }
   await navigation.click();
-  await expect(composition.locator('p')).toContainText('本次Response来源报告总量：8,000 tokens');
+  await expect(composition.locator('p').first()).toContainText('本次Response来源报告总量：8,000 tokens');
   await expect(legend.filter({ hasText: '推理（来源报告）' })).toContainText('50 tokens');
   await expect(legend.last()).toContainText('约 7,850 tokens');
   await expect(bar).toHaveCount(1);
@@ -392,7 +447,7 @@ test('one Token bar per direction separates visible categories, reported reasoni
 
   input = 500;
   await action.click();
-  await expect(composition.locator('p')).toContainText('超过总量，不计算比例或负余量');
+  await expect(composition.locator('p').first()).toContainText('超过总量，不计算比例或负余量');
   await expect(bar).toHaveCount(0);
   await expect(legend.locator('span')).toHaveText(['Skills 列表', 'Instructions', 'AGENTS.md', 'Tools', '历史上下文', '本次内容']);
 });
@@ -667,10 +722,20 @@ test('real Codex import keeps R1/R2 summaries, times and same-name tool payloads
           for (const id of ids) {
             const tool = modal.locator(`[data-reading-category="toolCall"][data-tool-call-id="${id}"]`);
             await expect(tool.locator('.sd-reading-preview')).toContainText(`printf synthetic-${id}`);
-            await expect(tool.getByRole('button', { name: 'Input', exact: true })).toHaveAttribute('data-payload-id', 'tool:input:' + id);
-            const resultAction = tool.getByRole('button', { name: 'Result', exact: true });
-            if (id === 'missing') await expect(resultAction).toHaveCount(0);
-            else await expect(resultAction).toHaveAttribute('data-payload-id', 'tool:result:' + id);
+            await expect(tool.getByRole('button', { name: / · Input$/ })).toHaveAttribute('data-payload-id', 'tool:input:' + id);
+            const resultAction = tool.getByRole('button', { name: / · Result$/ });
+            if (id === 'missing') {
+              await expect(resultAction).toHaveCount(0);
+              await expect(tool).toContainText('结果未记录');
+            } else {
+              await expect(resultAction).toHaveAttribute('data-payload-id', 'tool:result:' + id);
+              await resultAction.click();
+              await expect(modal.locator('[data-result-command] pre')).toHaveText(`printf synthetic-${id}`);
+              await expect(modal.locator('[data-reading-category="result"] pre')).toHaveText(`synthetic result ${id}`);
+              await expect(modal.getByRole('button', { name: /^返回 .+ · Response$/ })).toBeVisible();
+              await modal.getByRole('button', { name: /^返回 .+ · Response$/ }).click();
+              await expect(modal.locator('[data-reading-category="toolCall"]')).toHaveCount(2);
+            }
           }
         }
         await closeContent(modal);
@@ -711,7 +776,7 @@ test('Side Chat bootstrap and post-compaction user text are kept on separate cal
   await expect(members).toHaveCount(2);
   const modal = page.locator('dialog.payload-modal');
   await members.first().click();
-  await expect(modal.locator('li[data-token-part] > span')).toHaveText(['基础指令', 'Side Chat 启动上下文', '未识别']);
+  await expect(modal.locator('.sd-reading-composition li[data-token-part] > span')).toHaveText(['基础指令', 'Side Chat 启动上下文', '未识别']);
   await expect(modal.locator('[data-reading-category="side"] .sd-reading-block-measure')).toHaveText('19 字符 · 约 5 tokens');
   await expect(modal).toContainText('不是用户提问');
   await expect(modal.locator('.sd-reading-compression')).toHaveCount(0);
@@ -720,7 +785,7 @@ test('Side Chat bootstrap and post-compaction user text are kept on separate cal
   await members.last().click();
   await expect(modal.locator('.sd-reading-compression')).toContainText('替换快照未展开');
   await expect(modal.locator('[data-reading-category="current"] .sd-card-title')).toHaveText('用户原话');
-  await expect(modal.locator('li[data-token-part] > span')).toHaveText(['基础指令', '本次内容', '未识别']);
+  await expect(modal.locator('.sd-reading-composition li[data-token-part] > span')).toHaveText(['基础指令', '本次内容', '未识别']);
   await expect(modal).not.toContainText('synthetic bootstrap');
 });
 
@@ -759,12 +824,41 @@ test('observed Side Chat response without assistant text still shows output evid
   await expect(modal.locator('[data-payload-raw]')).toHaveCount(0);
   await expect(modal.locator('.sd-reading-composition li strong')).toHaveText('100 tokens · 100%');
   await expect(modal.locator('li[data-token-part="compaction"]')).toContainText('压缩响应输出');
+  await expect(modal.locator('.sd-reading-composition')).toContainText('推理：来源显式上报为 0 tokens');
   await closeContent(modal);
   await round.getByRole('button', {name:'Request',exact:true}).first().click();
-  await modal.locator('[data-payload-attribution] summary').click();
-  await expect(modal.locator('.sd-reading-cache-ratio')).toHaveText('缓存命中 25% · 未命中 75%');
+  const cache = modal.locator('.sd-reading-cache-ratio');
+  await expect(cache).toBeVisible();
+  await expect(cache.locator('li strong')).toHaveText(['1,000 tokens · 25%', '3,000 tokens · 75%']);
   await expect(modal.locator('.sd-reading-usage-band')).toHaveCount(1);
   await expect(modal.locator('li[data-token-part="fork_tool_result"]')).toContainText('约 2,500 tokens · 62.5%');
   await expect(modal.locator('.sd-reading-panel')).toContainText('不代表实际传输的逐项 Token');
   await expect(modal.locator('[data-reading-category^="fork_"]')).toHaveCount(0);
+});
+
+test('a standalone compression response preserves unknown output shares and measured input without text', async ({ page }) => {
+  const row = await installTraceFixture(page, {
+    callCount: 1, toolCallCount: 0,
+    parity: { summary: '上下文压缩', requestAvailable: true, responseAvailable: true, modelCallEvidence: 'token_usage_record' },
+  });
+  await page.route(`**${API}/payload/*`, route => {
+    const request = decodeURIComponent(route.request().url()).includes(':req:');
+    return fulfillIndexedJson(route, {
+      kind: request ? 'llm_request' : 'llm_response',
+      tokens: { input: 4000, output: 100 },
+      reading: request ? [] : [{kind: 'response_compaction', text: '确认上下文压缩，压缩和推理各自的份额未知。'}],
+    });
+  });
+  await expect(row.locator('.summary-title')).toHaveText('上下文压缩');
+  await expect(row).toHaveAttribute('data-is-user-input', 'false');
+  const modal = page.locator('dialog.payload-modal');
+  await row.getByRole('button', {name:'Response',exact:true}).click();
+  await expect(modal.locator('[data-response-evidence]')).toContainText('份额未知');
+  await expect(modal.locator('.sd-reading-composition li[data-token-part]')).toHaveCount(1);
+  await expect(modal.locator('li[data-token-part="remainder"]')).toContainText('100 tokens · 100%');
+  await expect(modal.locator('.sd-reading-composition')).not.toContainText('显式上报为 0');
+  await closeContent(modal);
+  await row.getByRole('button', {name:'Request',exact:true}).click();
+  await expect(modal).toContainText('Request 正文未记录');
+  await expect(modal.locator('li[data-token-part="remainder"]')).toContainText('4,000 tokens · 100%');
 });

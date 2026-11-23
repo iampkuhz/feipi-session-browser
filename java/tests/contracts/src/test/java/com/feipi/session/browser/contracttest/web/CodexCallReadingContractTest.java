@@ -31,10 +31,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.DriverManager;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class CodexCallReadingContractTest {
   private static final String ID = "11111111-1111-4111-8111-111111111111";
@@ -163,6 +166,65 @@ class CodexCallReadingContractTest {
     }
     verifyScannedHttp(root, codex);
     verifyImported(codex, lines);
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {-1, 0, 30})
+  void exactCompactionDoesNotAttributeUnreportedReasoningAsZero(int reasoning) throws Exception {
+    var file = directory.resolve("synthetic-compaction-split.jsonl");
+    var usage = new HashMap<>(Map.of("input_tokens", 4000, "output_tokens", 100));
+    if (reasoning >= 0) usage.put("reasoning_output_tokens", reasoning);
+    Files.write(
+        file,
+        List.of(
+            event("session_meta", Map.of("id", ID)),
+            event("token_usage_record", Map.of("response_id", "prep", "usage", usage)),
+            event("compacted", Map.of("compaction_response_id", "prep")),
+            message("user", "A user question after compacting"),
+            message("assistant", "The only real answer"),
+            observedResponse("after", 100, 4202)));
+    var adapter = new CodexSourceAdapter();
+    try (var parsed =
+        (SourceResult.Success)
+            adapter.parse(
+                new Candidate(adapter.fingerprint(file), "synthetic", "", Map.of()), null)) {
+      var content =
+          new NormalizationEngine()
+              .normalizeContent(
+                  NormalizedAgent.CODEX, parsed.recordSequence(), List.of(), List.of());
+      var reader = new SessionContentReader(content, 0);
+      var calls = content.toArtifact().calls();
+      assertThat(calls).hasSize(2);
+      var before = calls.getFirst().callId();
+      var after = calls.getLast().callId();
+      var response = view(content, reader, "main:resp:" + before);
+      assertThat(response.tokens()).containsEntry("output", 100L);
+      assertThat(response.blocks())
+          .extracting(CallReadingEvidence.Block::kind)
+          .containsExactly("response_evidence", "response_compaction");
+      if (reasoning < 0) {
+        assertThat(response.tokens()).doesNotContainKeys("reasoning", "compactionOutput");
+        assertThat(response.blocks().getLast().text()).contains("份额未知");
+      } else {
+        assertThat(response.tokens())
+            .containsEntry("reasoning", (long) reasoning)
+            .containsEntry("compactionOutput", 100L - reasoning);
+      }
+      var prepRequest = view(content, reader, "main:req:" + before);
+      assertThat(prepRequest.tokens()).containsEntry("input", 4000L).doesNotContainKey("turnTotal");
+      assertThat(prepRequest.blocks()).isEmpty();
+      var nextRequest = view(content, reader, "main:req:" + after);
+      assertThat(nextRequest.tokens())
+          .containsEntry("input", 100L)
+          .containsEntry("turnTotal", 4202L);
+      assertThat(nextRequest.blocks())
+          .extracting(CallReadingEvidence.Block::text)
+          .anyMatch(text -> text.contains("无法仅凭这个边界解释"))
+          .contains("A user question after compacting");
+      assertThat(view(content, reader, "main:resp:" + after).blocks())
+          .extracting(CallReadingEvidence.Block::text)
+          .containsExactly("The only real answer");
+    }
   }
 
   @Test

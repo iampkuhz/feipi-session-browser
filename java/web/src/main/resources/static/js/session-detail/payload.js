@@ -109,6 +109,7 @@
     if (subtitleEl) subtitleEl.textContent = "";
 
     if (body) {
+      body.scrollTop = 0;
       if (source && !sourceIsIndexOnly) {
         var htmlContent = (source.tagName && source.tagName.toLowerCase() === "template")
           ? source.innerHTML
@@ -140,9 +141,11 @@
               var rendered = payloadNodeFromJson(payload);
               body.replaceChildren(rendered);
               appendPayloadNavigation(rendered, button, override);
-              if (kind === 'tool_result') attachToolResultEvidence(rendered, button, payloadId, override.back);
+              if (kind === 'tool_result' && payload.kind === kind) {
+                attachToolResultEvidence(rendered, button, payload, payloadId, subtitleEl, override.back);
+              }
               var path = button.getAttribute('data-attribution-path');
-              if (path) appendInlineAttribution(rendered, path, payload, button, override);
+              if (path) appendInlineAttribution(rendered, path, payload, button);
               else if (/^round:(?:req|resp):/.test(payloadId)) {
                 rendered.prepend(makeEl('p', 'sd-reading-usage-note', '来源用量：展开轮次后按调用查看。'));
               }
@@ -175,16 +178,16 @@
     else modal.setAttribute("open", "");
   }
 
-  function appendInlineAttribution(parent, path, payload, origin, override) {
+  function appendInlineAttribution(parent, path, payload, origin) {
     var request = path.split('?')[0].endsWith('/request');
-    var details = makeEl('details', 'sd-payload-original sd-payload-reported');
-    details.setAttribute('data-payload-attribution', request ? 'request' : 'response');
+    var section = makeEl('section', 'sd-payload-reported');
+    section.setAttribute('data-payload-attribution', request ? 'request' : 'response');
     var label = request ? '输入用量明细' : '输出用量明细';
-    var summary = makeEl('summary', '', label);
-    details.append(summary);
+    var summary = makeEl('h3', 'sd-reading-usage-heading', label);
+    section.append(summary);
     var state = makeEl('div', 'sd-attribution-summary-grid');
-    details.append(state);
-    parent.querySelector('.sd-reading-panel').append(details);
+    section.append(state);
+    parent.querySelector('.sd-reading-panel').append(section);
     var status = makeEl('p', 'sd-payload-warning', '正在读取' + label + '…');
     status.setAttribute('role', 'status');
     state.append(status);
@@ -200,41 +203,47 @@
         var tokens = Object.assign({total: data.totalTokens, fresh: data.freshInputTokens,
           cacheRead: data.cacheReadTokens, cacheWrite: data.cacheWriteTokens,
           output: data.outputTokens, provenance: data.provenance}, data.tokens);
-        if (!details.isConnected) return;
+        if (!section.isConnected) return;
         renderPayloadMetadata(parent, payload, response.source, data);
         var round = response.roundIndex || attributionRound(path);
-        var callLabel = roundDisplayLabel(round) + ' · ' + (data.callKey || '调用 ' + data.callId);
+        var roundLabel = roundDisplayLabel(round);
+        var callLabel = [roundLabel, data.callKey].filter(Boolean).join(' · ');
         var peer = parent.querySelector('[data-payload-peer]');
         if (peer) peer.textContent = callLabel + (request ? ' · Response' : ' · Request');
         var reasoning = request ? null : (payload.tokens?.reasoning ?? data.reasoningTokens ?? tokens.reasoning);
         if (!isMeasuredToken(reasoning)) reasoning = null;
         var recorded = payload.tokens?.[request ? 'input' : 'output'];
         var total = isMeasuredToken(recorded) ? recorded : directionTokenTotal(request, tokens, data);
+        if (!request && isMeasuredToken(total)) {
+          tokens.output = total;
+          tokens.provenance = Object.assign({}, tokens.provenance, {output: 'provider_reported'});
+        }
         renderReadingComposition(parent, total, reasoning);
-        details.setAttribute('data-attribution-call', data.callId);
-        details.setAttribute('data-attribution-scope', data.scope || '');
+        section.setAttribute('data-attribution-call', data.callId);
+        section.setAttribute('data-attribution-scope', data.scope || '');
         state.replaceChildren();
-        appendKv(state, '调用', (data.callKey || data.callId) + (data.scope === 'subagent' ? ' · 子 agent' : ' · 主会话'));
+        appendKv(state, '调用', (data.callKey || roundLabel) + (data.scope === 'subagent' ? ' · 子 agent' : ' · 主会话'));
         var parts = request ? [['fresh', '新鲜输入'], ['cacheRead', '缓存读取'], ['cacheWrite', '缓存写入']]
           : [['output', '输出']];
-        renderReportedUsage(summary, state, label, tokens, parts, reasoning);
-        if (request) appendCacheReadSplit(state, tokens, total);
+        renderReportedUsage(summary, state, label, tokens, parts, reasoning, total);
+        if (request) appendCacheReadSplit(section, tokens, total);
         var count = request ? data.requestToolResultCount : data.responseToolCallCount;
         if (count != null) appendKv(state, request ? '已记录工具结果' : '已记录工具指令', String(count));
         if (!request && Array.isArray(data.responseTools) && data.responseTools.length) {
           var tools = makeEl('section', 'sd-payload-section');
           tools.append(makeEl('h3', '', '工具指令'));
+          var target = responseDestination(round, data.callId, data.scope, callLabel) || origin;
           data.responseTools.forEach(function (tool) {
             if (!tool.id) return;
             var block = qs(parent, '[data-reading-category="toolCall"][data-tool-call-id="' + cssEscape(tool.id) + '"]');
             var name = tool.name || '工具名称未记录';
             var actions = makeEl('div', 'sd-payload-tool-actions');
-            var target = responseDestination(round, data.callId, data.scope, callLabel);
-            actions.append(makeEl('span', 'sd-reading-usage-note', callLabel),
-              toolPayloadLink(tool.id, 'input', name, target, callLabel));
+            actions.append(toolPayloadLink(tool.id, 'input', name, target, callLabel));
             var observed = tool.resultObserved ?? (toolTracePair(tool.id)?.dataset.resultObserved === 'true');
             if (observed) {
               actions.append(toolPayloadLink(tool.id, 'result', name, target, callLabel));
+            } else {
+              actions.append(makeEl('span', 'sd-reading-usage-note', '结果未记录'));
             }
             if (block) {
               block.append(actions);
@@ -247,7 +256,7 @@
           if (tools.childElementCount === 1) return;
           var empty = parent.querySelector('.sd-payload-empty');
           if (empty && !(payload.reading || []).length) empty.replaceWith(tools);
-          else details.after(tools);
+          else parent.querySelector('.sd-reading-panel').after(tools);
         }
       }).catch(function (error) {
         status.textContent = /refresh/i.test(error.message) ? '索引已变化；刷新页面后重试。' : label + '暂不可用。';
@@ -258,7 +267,6 @@
           else load();
         });
         state.append(retry);
-        details.open = true;
       });
     }
     load();
@@ -286,7 +294,7 @@
     return isMeasuredToken(sum) ? sum : null;
   }
 
-  function renderReportedUsage(summary, state, label, tokens, parts, reasoning) {
+  function renderReportedUsage(summary, state, label, tokens, parts, reasoning, directionTotal) {
     var reported = parts.filter(function (part) {
       return TokenProvenance.state(tokens, part[0]) === 'provider_reported' && isMeasuredToken(tokens[part[0]]);
     });
@@ -294,7 +302,9 @@
     var complete = reported.length === parts.length;
     var formatter = new Intl.NumberFormat();
     summary.textContent = label + ' · ' + (complete ? '来源报告 ' + formatter.format(total) + ' tokens'
-      : reported.length ? '已报告 ' + formatter.format(total) + ' tokens，另有未知分项' : '来源报告总量未知');
+      : reported.length ? '已报告 ' + formatter.format(total) + ' tokens，另有未知分项'
+        : isMeasuredToken(directionTotal) ? '来源报告 ' + formatter.format(directionTotal) + ' tokens，分项未记录'
+          : '来源报告总量未知');
     if (parts.length === 1 && reasoning === null) summary.textContent += ' · 推理等非正文用量未单列';
     var list = makeEl('ul', 'sd-reading-usage-parts');
     parts.forEach(function (part) {
@@ -312,14 +322,17 @@
 
   function appendCacheReadSplit(parent, tokens, input) {
     var read = tokens.cacheRead;
+    var meter = makeEl('div', 'sd-reading-cache-ratio');
+    meter.append(makeEl('h3', 'sd-reading-usage-heading', '输入缓存 · 独立于正文构成'));
+    parent.insertBefore(meter, parent.firstChild);
     if (TokenProvenance.state(tokens, 'cacheRead') !== 'provider_reported' ||
-        !isMeasuredToken(read) || !isMeasuredToken(input) || input === 0 || read > input) return;
-    var ratio = makeEl('div', 'sd-reading-cache-ratio');
-    ratio.append(compositionBand([{key: 'cacheRead', tokens: read}, {key: 'fresh', tokens: input - read}],
-      input, 'sd-reading-cache-band'));
-    ratio.append(makeEl('p', 'sd-reading-token-note',
-      '缓存命中 ' + TokenProvenance.percent(read / input * 100) + ' · 未命中 ' + TokenProvenance.percent((input - read) / input * 100)));
-    parent.append(ratio);
+        !isMeasuredToken(read) || !isMeasuredToken(input) || input === 0 || read > input) {
+      meter.append(makeEl('p', 'sd-reading-token-note', '没有可比较的来源计量；不计算命中比例。'));
+      return;
+    }
+    var entries = [{key: 'cacheRead', label: '缓存命中', tokens: read},
+      {key: 'fresh', label: '未命中', tokens: input - read}];
+    meter.append(compositionBand(entries, input, 'sd-reading-cache-band'), compositionLegend(entries, input));
   }
 
   function appendPayloadNavigation(parent, origin, override) {
@@ -393,7 +406,7 @@
     var ownerRound = owner?.closest('[data-trace-detail]');
     var round = (ownerRound?.id.match(/^round-(\d+)-detail$/) || [])[1];
     return responseDestination(round, callId, owner?.dataset.declaringCallScope,
-      roundDisplayLabel(round) + ' · ' + (owner?.dataset.declaringCallKey || '调用 ' + callId));
+      [roundDisplayLabel(round), owner?.dataset.declaringCallKey].filter(Boolean).join(' · '));
   }
 
   function toolTracePair(id) {
@@ -402,7 +415,8 @@
 
   function toolPayloadLink(id, side, name, origin, callLabel) {
     var label = side === 'input' ? 'Input' : 'Result';
-    var button = makeEl('button', 'sd-btn sd-btn--secondary sd-btn--sm sd-payload-nav-action', label);
+    var button = makeEl('button', 'sd-btn sd-btn--secondary sd-btn--sm sd-payload-nav-action',
+      [callLabel, label].filter(Boolean).join(' · '));
     button.type = 'button';
     button.dataset.action = 'open-payload';
     button.dataset.payloadKind = 'tool_' + side;
@@ -413,32 +427,50 @@
     return button;
   }
 
-  function attachToolResultEvidence(parent, origin, payloadId, response) {
+  function attachToolResultEvidence(parent, origin, payload, payloadId, subtitle, response) {
     if (!payloadId.startsWith('tool:result:')) return;
     var id = payloadId.slice('tool:result:'.length);
-    var selector = '[data-tool-call-id="' + cssEscape(id) + '"]';
-    var matches = qsa(document, selector);
-    var row = origin.closest('.sd-tool-group')?.querySelector(selector) || (matches.length === 1 ? matches[0] : null);
-    var meta = parent.querySelector('.sd-payload-metadata');
-    if (!meta) return;
-    var name = row?.dataset.toolVisibleName || origin.dataset.toolVisibleName;
-    [['工具', name], ['开始时间', row?.dataset.toolObservedTimestamp || '未记录'],
-      ['耗时', row?.dataset.toolObservedTime || '未记录']].forEach(function (entry) {
-      if (!entry[1] || Array.from(meta.querySelectorAll('dt')).some(function (term) { return term.textContent === entry[0]; })) return;
-      var cell = makeEl('div', 'sd-payload-meta-cell');
-      cell.append(makeEl('dt', '', entry[0]), makeEl('dd', '', entry[1]));
-      meta.append(cell);
-    });
-    if (name && (row || response)) {
-      var header = parent.querySelector('.sd-payload-navigation');
-      if (!header) {
-        header = makeEl('nav', 'sd-payload-navigation');
-        header.setAttribute('aria-label', '工具原文');
-        parent.prepend(header);
+    var evidence = payload.toolResult || {};
+    var row = origin.closest('[data-tool-call-id]');
+    var name = evidence.name || origin.dataset.toolVisibleName || row?.dataset.toolVisibleName || '工具名称未记录';
+    var timestamp = localTime(evidence.declaredAt) || row?.dataset.toolObservedTimestamp || '未记录';
+    var duration = observedToolTime({observation: evidence, durationMs: evidence.durationMs});
+    if (subtitle) subtitle.textContent = '发起时间（声明记录） ' + timestamp +
+      ' · 耗时 ' + (duration === '未记录' ? row?.dataset.toolObservedTime || duration : duration);
+    var ui = appendReadingBlock(parent, name + ' · 命令与参数', {text: '正在读取同一调用的参数…'}, 'tool');
+    ui.section.dataset.resultCommand = '';
+    parent.prepend(ui.section);
+    var url = getApiBase().replace(/\/$/, '') + '/payload/' + encodeURIComponent('tool:input:' + id);
+    function show(text) {
+      if (!ui.section.isConnected) return;
+      var command = recordedCommand(text);
+      ui.body.firstChild.textContent = command || text || '参数未记录';
+      if (text) describeReadingBlock(ui, command || text, null);
+      if (command && command !== text) {
+        var callLabel = response ? payloadDestinationLabel(response).replace(/ · Response$/, '') : '';
+        var actions = makeEl('div', 'sd-payload-tool-actions');
+        actions.append(toolPayloadLink(id, 'input', name, origin, callLabel));
+        ui.section.append(actions);
       }
-      var input = toolPayloadLink(id, 'input', name, origin);
-      input.textContent = '查看命令与参数';
-      header.append(input);
+    }
+    readSessionContentPage(url).then(function (input) {
+      show(input.kind === 'tool_input' && (!input.callId || input.callId === id) ? input.text || input.content : '');
+    }).catch(function (error) {
+      show('');
+      if (!ui.section.isConnected) return;
+      ui.body.firstChild.textContent = /refresh/i.test(error.message)
+        ? '索引已变化；刷新页面后重试。' : '参数暂不可用；重新打开此结果可重试。';
+    });
+  }
+
+  function recordedCommand(text) {
+    try {
+      var value = JSON.parse(text);
+      return [value?.command, value?.cmd].find(function (item) {
+        return typeof item === 'string' && item.trim();
+      });
+    } catch (ignored) {
+      return null; // 非 JSON 参数保持已有脱敏文本，不推断其结构。
     }
   }
 
@@ -545,14 +577,14 @@
 
   var readingNumber = new Intl.NumberFormat();
 
-  function describeReadingBlock(ui, text, tokens, source) {
+  function describeReadingBlock(ui, text, tokens, source, characters) {
     ui.body.classList.add('sd-reading-preview');
     ui.body.tabIndex = 0;
     ui.body.setAttribute('role', 'region');
     ui.body.setAttribute('aria-label', ui.head.textContent);
     var details = makeEl('div', 'sd-reading-block-meta');
     if (source) details.append(makeEl('span', 'sd-reading-token-note', source));
-    var chars = text.length - (text.match(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g) || []).length;
+    var chars = characters ?? (text.length - (text.match(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g) || []).length);
     var amount = readingNumber.format(chars) + ' 字符';
     if (tokens != null) amount += ' · 约 ' + readingNumber.format(tokens) + ' tokens';
     details.append(makeEl('span', 'sd-reading-block-measure', amount));
@@ -573,7 +605,7 @@
     skills: 'Skills 列表', loadedSkill: 'Skill 正文', base: '基础指令', side: 'Side Chat 启动上下文',
     instructions: 'Instructions', agents: 'AGENTS.md', tools: 'Tools',
     history: '历史上下文', current: '本次内容', toolCall: '工具调用', toolResult: '工具结果',
-    result: 'Result', other: '其他可见内容',
+    result: '工具返回正文', other: '其他可见内容',
     fork_instructions: '继承 · 指令', fork_user: '继承 · 用户消息',
     fork_assistant: '继承 · 助手消息', fork_tool_input: '继承 · 工具参数',
     fork_tool_result: '继承 · 工具结果', fork_tool_definitions: '继承 · 工具定义'
@@ -625,10 +657,15 @@
     });
     var entries = Array.from(counts.values()).filter(function (entry) { return entry.tokens > 0; });
     var visible = entries.reduce(function (sum, entry) { return sum + entry.tokens; }, 0);
+    var largest = entries.reduce(function (max, entry) {
+      return !max || entry.tokens > max.tokens ? entry : max;
+    }, null);
+    var result = composition.dataset.direction === 'Result';
+    if (result && visible > 0) total = visible;
     if (isMeasuredToken(reasoning) && reasoning > 0) {
       entries.push({key: 'reasoning', label: '推理（来源报告）', tokens: reasoning});
     }
-    var compacted = composition.compactionOutput;
+    var compacted = isMeasuredToken(reasoning) ? composition.compactionOutput : null;
     if (isMeasuredToken(compacted) && compacted > 0) {
       entries.push({key: 'compaction', label: '压缩响应输出', tokens: compacted});
     }
@@ -639,31 +676,42 @@
       entries.push({key: 'remainder', label: '未识别', tokens: total - accounted, estimated: visible > 0});
     }
     var format = readingNumber.format;
-    var caption = composition.dataset.direction === 'Result' ? '工具结果不计为独立模型调用。' :
+    var caption = result
+      ? (visible ? '可读返回正文总量：约 ' + format(visible) + ' tokens。' : '没有可估算的返回正文；总量未知。') +
+        ' 工具结果不计为独立模型调用；命令与参数不计入。' :
       !isMeasuredToken(total) ? '本次' + composition.dataset.direction + '总 Token 未知，比例与余量未计算。' :
         '本次' + composition.dataset.direction + '来源报告总量：' + format(total) + ' tokens。' +
           (valid ? '比例以该方向的总量为分母。' : '可见估算与已报告分项之和超过总量，不计算比例或负余量。');
-    if (isMeasuredToken(total) && total === 0) caption += ' 来源显式上报为零。';
-    var hasFork = entries.some(function (entry) { return entry.key.startsWith('fork_'); });
-    if (visible) caption += (hasFork && valid && total ? ' 已归类约 ' + TokenProvenance.percent(visible / total * 100) + '，共 ' :
-      ' 可见文本约 ') + format(visible) + ' tokens（本地估算，非精确 tokenizer；原始记录与本机参考不计入）。';
+    if (!result && total === 0) caption += ' 来源显式上报为零。';
+    if (reasoning === 0) caption += ' 推理：来源显式上报为 0 tokens。';
+    if (!result && hasDenominator) caption += ' 有依据的分项覆盖' +
+      (visible > 0 ? '约 ' : ' ') + TokenProvenance.percent(accounted / total * 100) + '。';
+    if (valid && total === accounted) caption += ' 未识别 ' + (visible > 0 && !result ? '约 ' : '') + '0 tokens。';
+    if (!result && visible) caption += ' 可见文本约 ' + format(visible) +
+      ' tokens（本地估算；原始记录与本机参考不计入）。';
     note.textContent = caption;
-    composition.replaceChildren(note);
+    composition.replaceChildren(makeEl('h3', 'sd-reading-usage-heading', result ? '返回正文构成' : '正文构成与未识别量'), note);
     if (hasDenominator) composition.append(compositionBand(entries, total));
-    if (entries.length) {
-      var list = makeEl('ul', 'sd-reading-usage-parts');
-      entries.forEach(function (entry) {
-        var item = makeEl('li', 'sd-reading-usage-part sd-reading-usage-part--' + entry.key);
-        item.dataset.tokenPart = entry.key;
-        var value = (entry.estimated ? '约 ' : '') + format(entry.tokens) + ' tokens';
-        if (hasDenominator) value += ' · ' + TokenProvenance.percent(entry.tokens / total * 100);
-        item.append(makeEl('span', '', entry.label));
-        if (entry.chars != null) item.append(makeEl('small', 'sd-reading-usage-chars', format(entry.chars) + ' 字符'));
-        item.append(makeEl('strong', '', value));
-        list.append(item);
-      });
-      composition.append(list);
+    if (entries.length) composition.append(compositionLegend(entries, hasDenominator ? total : null));
+    if (largest && composition.dataset.direction === 'Request') {
+      composition.append(makeEl('p', 'sd-reading-token-note', '最大可见项：' + largest.label + '（约 ' +
+        format(largest.tokens) + ' tokens）。可优先检查是否能精简；不代表可省下等量 Token。'));
     }
+  }
+
+  function compositionLegend(entries, total) {
+    var list = makeEl('ul', 'sd-reading-usage-parts');
+    entries.forEach(function (entry) {
+      var item = makeEl('li', 'sd-reading-usage-part sd-reading-usage-part--' + entry.key);
+      item.dataset.tokenPart = entry.key;
+      var value = (entry.estimated ? '约 ' : '') + readingNumber.format(entry.tokens) + ' tokens';
+      if (total !== null) value += ' · ' + TokenProvenance.percent(entry.tokens / total * 100);
+      item.append(makeEl('span', '', entry.label));
+      if (entry.chars != null) item.append(makeEl('small', 'sd-reading-usage-chars', readingNumber.format(entry.chars) + ' 字符'));
+      item.append(makeEl('strong', '', value));
+      list.append(item);
+    });
+    return list;
   }
 
   function compositionBand(entries, total, className) {
@@ -775,12 +823,10 @@
     var meta = makeEl('dl', 'sd-payload-metadata');
     main.append(meta);
     renderPayloadMetadata(main, payload, null, {});
-    main.appendChild(makeEl("p", "sd-payload-warning", "仅展示本地记录；完整上下文与未公开推理范围未知。"));
-    if (payload.truncated) main.appendChild(makeEl("p", "sd-payload-warning", "内容已截断。"));
-    if (title === 'Result' && payload.tool_command) {
-      var command = appendReadingBlock(main, 'Command', {text: payload.tool_command}, 'tool');
-      describeReadingBlock(command, payload.tool_command, null);
+    if (title !== 'Result') {
+      main.appendChild(makeEl("p", "sd-payload-warning", "仅展示本地记录，不等同于完整发送载荷；未公开推理范围未知。"));
     }
+    if (payload.truncated) main.appendChild(makeEl("p", "sd-payload-warning", "内容已截断。"));
     var composition = makeEl('section', 'sd-reading-composition');
     composition.setAttribute('aria-label', 'Token 构成');
     composition.dataset.direction = title;
@@ -789,7 +835,7 @@
     panel.append(composition);
     main.append(panel);
     var reading = Array.isArray(payload.reading) ? payload.reading : null;
-    if (!reading || (title === 'Result' && !reading.length)) reading = raw ? [{text: raw}] : [];
+    if (title === 'Result' || !reading) reading = raw ? [{text: raw}] : [];
     var configuration = reading.filter(function (block) { return block.kind === 'configuration'; });
     var snapshot = reading.find(function (block) { return block.kind === 'context_snapshot'; });
     var responseEvidence = reading.filter(function (block) {
@@ -807,7 +853,6 @@
       });
       main.append(evidence);
     }
-    var recordSource = qs(document, 'meta[name="session-source"]');
     if (snapshot) {
       var compression = makeEl('aside', 'sd-reading-compression');
       compression.append(makeEl('strong', '', '本次调用前已压缩上下文'),
@@ -843,17 +888,18 @@
       if (title === 'Response' && block.kind === 'tool_call' && block.toolCallId &&
           (block.text?.trim() || ui.body.textContent.trim())) ui.section.dataset.toolCallId = block.toolCallId;
       var source = block.source === 'reconstructed' ? '根据早期本地记录重建' :
-        block.source === 'current' ? '本次记录' : '';
+        block.source === 'current' ? '本次记录' : title === 'Result' ? '该调用的本地返回记录' : '';
       if (source) ui.section.dataset.readingSource = block.source;
       var text = block.text || ui.body.textContent;
-      var tokens = Array.isArray(payload.reading) || title === 'Result' ? estimateVisibleReadingTokens(text) : null;
-      var chars = describeReadingBlock(ui, text, tokens, source);
+      var tokens = block.tokenEstimate ??
+        (Array.isArray(payload.reading) || title === 'Result' ? estimateVisibleReadingTokens(text) : null);
+      var chars = describeReadingBlock(ui, text, tokens, source, block.characters);
       if (tokens != null) composition.readingEntries.push({kind: kind, chars: chars, tokens: tokens});
       if (kind === 'skills' && Array.isArray(payload.skillNames) && payload.skillNames.length) {
         window.feipiSkillLookup?.(ui.section, {kind: 'skills', names: payload.skillNames});
       }
     });
-    if (title === 'Request' && recordSource?.content === 'codex') appendToolsEvidence(main, reading);
+    if (title === 'Request') appendToolsEvidence(main, reading);
     if (configuration.length) {
       var reference = makeEl('details', 'sd-payload-original');
       reference.append(makeEl('summary', '', '历史会话配置参考（未计入 Token）'),

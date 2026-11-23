@@ -223,6 +223,19 @@ class CodexSideConversationTest {
   }
 
   @Test
+  void startupContextAndCompactionBoundaryAloneDoNotCreateModelCallEvidence() throws Exception {
+    var records =
+        parse(
+            List.of(
+                metadata(true),
+                message("user", UNVERIFIED),
+                "{\"type\":\"compacted\",\"payload\":{\"compaction_response_id\":\"unobserved\"}}"));
+    assertThat(records).anyMatch(SourceRecord::metaContext);
+    assertThat(records)
+        .noneMatch(record -> "assistant".equals(record.eventType()) || record.callId().isPresent());
+  }
+
+  @Test
   void sideChatTaskIdentityBindsOnlyObservedCallsAndKeepsDeclaredTaskTiming() throws Exception {
     String prepare =
         usage("prep", 2).replace("\"response_id\"", "\"turn_id\":\"first\",\"response_id\"");

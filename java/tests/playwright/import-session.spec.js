@@ -411,7 +411,6 @@ test('真实上传独立分析，重复同名/同来源 ID 不影响个人或已
     expect(attribution.data.callId).toBe('synthetic-import-assistant');
     const disclosure = opened.modal.locator(`[data-payload-attribution="${sample.side}"]`);
     await expect(disclosure).toHaveAttribute('data-attribution-call', attribution.data.callId);
-    await disclosure.locator('summary').press('Enter');
     await expect(disclosure.locator('.sd-kv').first()).toBeVisible();
     await expect(disclosure).toContainText(sample.side === 'request' ? '新鲜输入' : '输出');
     await closeRealPayload(opened.modal);

@@ -310,6 +310,20 @@ class SessionContentProjectionTest {
   }
 
   @Test
+  void standaloneCompactionUsesItsSourcePhaseAsTheRoundSummary() throws Exception {
+    var content = content(List.of(sideTaskCall(1, "prep", "", false)));
+    var detail = SessionDetailParityAnalyzerTest.healthDetail(false, 0);
+    var row = SessionContentProjection.rounds(detail, content).getFirst();
+    assertThat(row.callCount()).isEqualTo(1);
+    assertThat(row.parity())
+        .containsEntry("summary", "上下文压缩")
+        .containsEntry("summaryRole", "")
+        .containsEntry("isUserInput", false)
+        .containsEntry("requestAvailable", true)
+        .containsEntry("responseAvailable", true);
+  }
+
+  @Test
   void groupedRoundHttpReportsUsageOnlyResponseAndPhases() throws Exception {
     var content =
         content(
@@ -335,7 +349,7 @@ class SessionContentProjectionTest {
           assertThat(calls.size()).isEqualTo(2);
           assertThat(calls.get(0).path("phaseLabel").asText()).isEqualTo("上下文压缩");
           assertThat(calls.get(0).path("responseAvailable").asBoolean()).isTrue();
-          assertThat(calls.get(0).path("requestAvailable").asBoolean(true)).isFalse();
+          assertThat(calls.get(0).path("requestAvailable").asBoolean()).isTrue();
           assertThat(calls.get(1).path("phaseLabel").asText()).isEqualTo("压缩后调用");
           assertThat(calls.get(1).path("requestAvailable").asBoolean()).isTrue();
         });
@@ -348,6 +362,7 @@ class SessionContentProjectionTest {
       units.removeIf(unit -> "assistant".equals(unit.get("role")));
       units.add(
           Map.of("role", "context", "type", "codex_context_response_usage", "text", "observed"));
+      units.add(Map.of("role", "context", "type", "codex_context_input_tokens", "text", "1"));
       units.add(
           Map.of(
               "role", "context", "type", "codex_context_response_compaction", "text", "identity"));

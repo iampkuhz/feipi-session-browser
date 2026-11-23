@@ -117,14 +117,14 @@ Session Detail 先展示会话身份与 Token 用量，再通过唯一的「执�
 
 ### Trace Round Table
 
-- 五列分别展示轮次标识、摘要、Token、原文入口和时间点；已观察到的状态或缺口随摘要显示，不设独立信号列或空占位。
+- 六列分别展示轮次标识、摘要、本行 Token、原文入口、时间与耗时；已观察到的状态或缺口随摘要显示，不设独立信号列。
 - 轮次列展示 `R<round_number>` 或分组标识以及对应的状态。
 - Codex 的 `R<round_number>` 表示第 N 个有效 LLM call round，而不是第 N 个可见 assistant 文本窗口；无可见文本但有 tool_use 或 usage 的 Codex call 也必须保留为 round。
 - 摘要列占剩余主宽，展示当前轮短摘要：优先可见用户输入，其次工具名称/次数与短操作预览，再回退助手文本。必须解析当前调用的 inline/catalog/sequence 引用，过滤系统上下文及工具结果；不得跨轮借文或嵌入长代码/输出。真正缺失显示 `摘要未记录`。
 - 轮次计数要区分本地归一化记录数、已确认模型调用数及新声明的工具执行数；消费历史工具结果不计为新执行。
 - `Token Cell` 的彩色 tokenbar 宽度必须按当前 session 最大 round token total 归一化，最大 round 为满宽，其他 round 按比例缩短；未占用的轨道使用灰色背景显示与最大 round 的差距。
-- 原文入口列展示当前调用可用的 Request 和 Response；多记录分组从展开行按调用查看。
-- 时间列只展示当前调用或其响应来源引用中第一个已记录的时间点（Asia/Shanghai）；无源时间显示 `未记录`，不用 session 更新时间或耗时代替。
+- 1024px 与 1440px 桌面窗口的 Request 和 Response 分别可点击、可用键盘打开，并与相邻时间列留出间隔；没有原文不伪造入口。多记录分组从展开行按调用查看。
+- 时间列展示本轮来源时间，耗时列展示有记录的本轮耗时。缺测显示 `—`（提示为「未记录」）；不借用会话更新时间、工具发起时间或相邻时间之差。
 - 表头的 Token 排序按 total tokens。
 - 当前展开 row 必须有明确背景色和行内状态线；状态线不得超出 row 自身边界或侵入相邻 round。
 
@@ -140,62 +140,23 @@ Session Detail 先展示会话身份与 Token 用量，再通过唯一的「执�
 - `Assistant Text` 行展示对用户可见文本摘要、timestamp 和 payload 入口；必须使用与 `Tool Call` 行同等高度的单行紧凑布局，长文本单行截断。该行 payload 只展示 assistant text / thinking 内容，不重复展示同一 LLM response 中已经在后续 `Tool Call` 行平铺展示的 tool call。
 - Codex 原始 JSONL 中同一 assistant 文案可能同时出现为 `event_msg.agent_message` 和 `response_item.message role=assistant`；Trace 必须把两者关联为同一个 assistant text 事件，优先使用 `response_item.message` 作为 canonical payload source，`event_msg` 只作为 UI/status mirror 或缺省处理，不得重复展示两行相同文本。
 - 单调用行的 Request/Response 不在展开内容中重复；多记录分组在展开后提供各成员的 Request/Response，正文与归因使用同一弹框。
+- 每个工具的命令、发起时间、实测耗时、Input 和 Result 属于同一行组；展开工具原文时，计时和其他入口不横移。工具发起时间指来源声明时间，不冒充执行器启动时间。
 - `Fresh` 表示 tokenbar 和 Total 的互斥新输入分段；request attribution 摘要可单独展示 Provider Request Input / Provider 请求输入，用于解释归因分母。
-- `Tool Call` 行固定展示 tool name、command preview、result preview、timestamp、duration、result token estimate、`Result` action；duration 仅使用来源明确测得的耗时，保留测量口径与精度；零是实测零，正数不足 1ms 也不能显示为零或未知，缺测不补值。不得用 call/output 或相邻 timestamp 差、TTFT、总时长减工具工作量推算模型或工具时间；result token estimate 使用 `~<compact>`，且必须和 Result modal 中的 `result tokens` 数值一致。
-- 点击 `Result` 打开的 tool result payload modal 必须在 metadata rail 和 modal subtitle 展示该 result 文本的估算 token 数，字段名固定为 `result tokens`，数值格式为 `~<compact> tokens`；该值表示该 tool result 大概率进入下一次 LLM request 的输入压力，不得标记为 provider reported。
+- `Tool Call` 行固定展示 tool name、command preview、result preview、timestamp、duration、result token estimate、`Result` action；duration 仅使用来源明确测得的耗时，保留测量口径与精度；零是实测零，正数不足 1ms 也不能显示为零或未知，缺测不补值。不得用 call/output 或相邻 timestamp 差、TTFT、总时长减工具工作量推算模型或工具时间。
 - 同一响应声明多个 tool_use 仅表示来源分组，不表示并行；相邻时间戳不能证明执行区间重叠。
 - 工具组 header 展示本地响应边界和下发工具数；动作聚焦工具类别、状态和已测耗时；摘要不复述命令。模型耗时未知只在组外集中说明，不用墙钟减工具工作量推算。
 - `Subagent Run` 行展示 subagent name、独立上下文 badge、status、sub-round 数、token summary 和局部 `Expand all` / `Collapse all` 控制。
 - `Subagent Run` 内部的 sub-round 按 `SR<sub_round_id>` 展示；每个 sub-round summary 行必须可点击或键盘切换自身展开/折叠，并直接展示 request/response attribution 状态和入口，不再默认展开内部 LLM call card。
 - `System Signal` 行展示 parser 缺省处理、payload missing、round API error、attribution error。
 
-### LLM Call Attribution
+### Request、Response 与 Result 弹框
 
-- `Request` 打开当前调用的正文，弹框内可展开输入归因。
-- Trace round row 和 subround summary 行必须提供 request attribution 入口；通过当前调用的弹框查看归因依据。
-- 单调用行只提供一对 `Request` / `Response` 按钮；多记录分组须展开后按调用查看归因。弹框定位保留调用身份，不以 round-local 序号冒充全局调用编号。
-- request attribution 内容固定包含 topgrid 元信息、用量分布、归因明细、重建上下文预览。
-- request attribution 的 topgrid 固定合并展示调用身份、请求摘要、调用信息/时间线/请求参数与覆盖率；桌面宽度下顶部三个 summary card 必须同一行展示，不得再使用左侧 metadata rail 承载这些信息。
-- 请求摘要字段固定为 agent、model、source、API family、provider、call id、Request 内容分母、Fresh、Cache Read、Cache Write、Provider 请求输入、本地重建、coverage、残差；不得在归因明细底部另起 `覆盖率与不确定性` 表格。
-- request attribution 不展示泛化的残差可能来源尾注；只有存在可验证、结构化来源时才应进入具体 bucket 或诊断说明。
-- request attribution 的Request 内容分母固定为 `Fresh`，用于 request 用量分布、bucket percent、coverage 和 unlocated residual；`Cache Read` 与 `Cache Write` 都是 provider/broker accounting 组件，只在摘要中展示，不作为和对话消息、工具结果并列的 request 内容 bucket。
-- request attribution 候选分类必须使用全局 token 归因分类树，API payload 必须为每个 bucket 输出 `agent_bucket_key`、`canonical_key`、`category_key`、`category_label`、`color_key`、`display_order`，并把 `label` 规范为全局中文 label；前端颜色和排序必须使用 canonical metadata，不得按 agent raw bucket key 自行决定。
-- 全局 request token 归因分类树固定为：`当前用户输入`、`对话消息上下文`、`工具结果上下文`、`工具定义`、`MCP 工具元数据`、`运行上下文片段`、`系统/开发者指令`、`本地指令上下文`、`Agent/Subagent 提示`、`内置系统提示`、`Provider 会话状态`、`推理配置`、`运行时封装开销`、`未定位`。
-- 每个 agent 只能在自己的映射规则文件中维护 raw bucket key 到全局分类的映射；旧 raw 输入键 `tool_schemas` 必须归一化为 canonical key `tool_definitions`，并使用同一个 `color_key=tool_definitions`。
-- Claude Code request attribution 的 `API messages 数组` 必须按当前 LLM call 边界重建：依次使用当前 call 之前的 assistant `request_full`、assistant text/tool_use，以及当前 call 的 `request_full`，匹配到当前 call 后停止；不得把后续 round/subround 的 assistant text、tool result 或 request_full 算入当前 request。
-- Claude Code request attribution 的 `tool_definitions` 表示 request 侧发送给模型的工具定义，不得从 response 侧实际调用过的 tool call 或 `tool_calls_raw` 推断。主 agent 若在 session JSONL 中存在 `agent-setting`，必须优先按 `<cwd>/.claude/agents/{agent}.md`、再按 `~/.claude/agents/{agent}.md` 读取该 agent 的显式 `tools:`；subagent 必须按父 `Agent` tool call 中解析到的 `subagent_type` 读取对应 subagent 自己的 `tools:`。找不到自定义 agent、定义文件或显式 `tools:` 时，必须使用 Claude Code 全量 builtin tool registry。
-- request attribution 的 `API messages 数组` bucket 展开区必须说明它对应发送给模型的 Anthropic API `messages` 字段，并逐条展示 role、content type、tool name、token 估算和内容 preview；bucket 汇总 token 必须使用每条消息的完整 `content_token_estimate` 求和，不得用截断 preview 重新估算；当原始全文在本地日志或重建上下文中可见时，条目必须支持二次展开查看完整内容。
-- request attribution 的 `内置系统提示` bucket 若从本地 transcript 捕获到可见 `<system-reminder>` 内容，必须展示脱敏 preview；若未捕获，必须展示明确的不可见/估算说明，不得空白。
-- Codex request attribution 在没有 raw request body 时，必须从 rollout 开头可见的 `session_meta.base_instructions` 和 `response_item` 中 role 为 `developer` / `system` 的 message 重建 raw `instructions` bucket，序列化后统一显示为 `系统/开发者指令`。
-- Codex parser 必须把 `function_call_output` / `custom_tool_call_output` 作为下一次 assistant request 的 tool output 来源，request attribution 必须将其归入 raw `tool_outputs` bucket，序列化后统一显示为 `工具结果上下文`，不得落入 unknown。
-- Codex provider reported `cached_input_tokens` / Cache Read 必须只作为 request 摘要中的 `Cache Read` 与 `Provider 请求输入` accounting 信息展示；不得生成 raw `provider_cached_context` bucket，不得计入本地重建 coverage，不得和对话消息、工具结果、工具定义等 request 内容来源并列。
-- Codex request attribution 在没有 raw request `tools` 数组时，必须使用 Codex builtin tool catalog 作为工具定义缺省来源，并补充本 session 观测到的额外工具；不得只按 observed tools 数量乘固定常数估算。`tool_definitions` bucket 必须展示 tool count、每个工具的 token estimate、schema/参数 preview 和完整 detail。
-- Qoder request attribution 必须优先使用 call-scoped `full_messages_array` 重建 Claude-like API messages bucket；该 bucket 必须包含当前 call 边界前的 user/assistant/tool_use/tool_result 输入，并使用完整 `content_token_estimate` 求和。
-- Qoder provider reported `cache_read_input_tokens` 必须只作为 request 摘要中的 `Cache Read` 与 `Provider 请求输入` accounting 信息展示；不得生成 raw `provider_cached_context` bucket，不得计入本地重建 coverage；`cache_creation_input_tokens` / Cache Write 同样只在摘要中展示，不进入 request bucket 分母。
-- Qoder 未持久化完整 available tools schema 时，request attribution 必须使用 Claude-Code-like SDK 默认工具定义并补充本 session 观测到的 Qoder-only 工具；不得只按实际调用过的工具数量估算完整工具定义。
-- `Response` 打开当前调用的正文，弹框内可展开输出归因。
-- Trace round row 和 subround summary 行必须提供 response attribution 入口；通过当前调用的弹框查看归因依据。
-- response attribution 内容固定包含 topgrid 元信息、用量分布、归因明细、blocks 明细、可见内容摘要。
-- response attribution 的 topgrid 固定合并展示调用身份、响应摘要、归因备注与参数可得性；不得再使用左侧 metadata rail 承载这些信息。
-- 响应摘要字段固定为 agent、model、source、request_id、call_id、total output、visible text、tool call、metadata、coverage、finish reason。
-- response attribution 的工具 bucket 展开区必须展示 assistant response 中实际产生的 tool call / tool input，不得展示 request 侧工具定义或 input schema。
-- 用量分布和归因明细必须占用 attribution modal 内容区全宽，不得被 side rail 挤压。
-- attribution bucket card header 固定展示 bucket label、precision、tokens、percent、expand chevron。
-- attribution modal 里动态渲染的 bucket card 必须带有与静态 payload 模板一致的可展开语义；点击 bucket header 展开/折叠详情时必须同步 `hidden`、`is-expanded` 和 `aria-expanded`。
-- 打开正文弹框时按调用和方向通过 `/api/sessions/{agent}/{session_id}/attribution/...` 加载，默认折叠，不在初始 HTML 预嵌完整归因。
-- attribution modal 的 bucket detail 必须是两层展开：第一层点击贡献来源 bucket 后，若存在 `details.explanation`，先以一行全宽说明文字直接展示在展开区顶部，不得把说明伪装成子分类 card；随后展示该 bucket 内部的子分类 card，所有子分类 card 必须单列排列且每个独占一行，不得在桌面宽度下排成多列；子分类 card 折叠态只展示精简摘要、来源/role/type/token 等短 meta，折叠态高度一致；第二层点击某个子分类 card 后，在该 card 内展示可得的完整原始内容或完整解释。
-- 当 attribution bucket 没有结构化 `details` 但有 `summary`、`source`、`count_label` 或 `content_preview` 时，modal 必须把这些字段作为 缺省 detail 展示，不得渲染成无法展开的空行。
-- attribution bucket percent 为当前弹框中参与分布 bucket 的显示占比，单个 bucket 不得超过 100%。
-- bucket 展开区必须优先使用结构化 `details.items[*].full_content`、`full_content`、`content` 或 raw JSON 字段展示完整信息；provider cache hit、previous_response_id 等本地不可见正文的来源必须展示完整解释，不得伪造原文。
-
-### Payload Modal
-
-- Trace 内点击 `Request`、`Response` 或 `Result` 时打开 payload modal。
-- modal header 固定展示 payload title、payload id、Close button。
-- modal body 固定为 metadata rail 加 main content 的双栏布局。
-- metadata rail 展示 kind、status、size、result tokens、source、tool、tool status 中可用字段；`result tokens` 只在 `tool.result` / `subagent.tool.result` payload 中展示。
-- main content 根据 payload kind 展示 context、response、tool result、attribution、diagnostic error。
-- payload 内容缺失时 modal 不显示空白，必须展示 requested payload、metadata、possible reasons。
+- 从执行台账按轮次和调用打开原文，在弹框打开时才按方向加载载荷与计量。导航在点击前标明目标轮次/调用和 `Request`、`Response`、`Input` 或 `Result`；不以轮次内序号或工具显示名匹配工具 ID。没有对应结果记录时不提供 `Result` 入口。
+- `Request` 和 `Response` 默认可见当次输入或输出总量、正文分项和未识别量。服务商报告、可见正文估算及重建分开；缺测不填零，缺正文不抹去已报告总量，分项试算超过总量时不显示占比或负余量。缓存命中、未命中用同次输入作分母、独立显示，不与正文分项相加，也不视为可节省的计费量。
+- Side Chat 有来源证据的压缩调用可在没有用户原话时单独阅读；已记录输入用量时照常开放 `Request`。压缩身份已确认但推理未单列时，保留已报告总输出和未识别量，不补算压缩份额。比较压缩前后的当次输入，不使用任务累计，也不把未展开的快照当作已知差额。
+- 记录来源、记录入口类型、客户端标识、CLI 版本、模型和供应商各占独立键值；正文使用整宽内容块，标字符数，长文在块内滚动。标识本次记录或历史重建，保留可访问的原始记录；本机技能仅作参考，不作为历史记录或计入 Token。缺工具定义时明示缺失，不从使用过的工具推断注册清单。
+- `Response` 的每个工具项包含名称和有证据的参数（原文不可用时用已记录的预览），同一项下链接到该 ID 的 `Input`/`Result`。原始机器字段不放在工具项标题里。
+- `Result` 先读该工具的命令或参数，再读返回。标题下展示声明记录的发起时间与测得的耗时；声明不是执行器启动时间，未测则显示「未记录」。返回正文以可读内容的估算总量作分母，不重复计入命令、参数或模型用量。已知所属响应时可返回该 `Response`。
 
 ## 从执行记录查看原文
 

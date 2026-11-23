@@ -121,12 +121,16 @@ public final class SessionApiHandler {
 
           PayloadLookup.PayloadEntry entry = entryOpt.get();
           boolean available = !entry.content().isEmpty();
+          ApiResponses.ToolResultEvidence toolResult = null;
           if (entry.kind() == com.feipi.session.browser.query.api.PayloadSourceKind.TOOL_RESULT) {
-            var previews =
+            var content =
                 sessionCtx.content() != null
-                    ? SessionContentPreviews.read(sessionCtx.content())
-                    : SessionContentPreviews.readArtifact(sessionCtx.artifact());
+                    ? sessionCtx.content()
+                    : com.feipi.session.browser.domain.normalized.NormalizedSessionContent
+                        .fromArtifact(sessionCtx.artifact());
+            var previews = SessionContentPreviews.read(content, entry.callId());
             available = previews.hasToolResult(entry.callId());
+            if (available) toolResult = previews.toolResultEvidence();
           }
           var evidence =
               sessionCtx.content() == null
@@ -134,6 +138,13 @@ public final class SessionApiHandler {
                   : CallReadingEvidence.read(
                       sessionCtx.content(), entry, sessionCtx.detail().visibility());
           var protocol = evidence.map(CallReadingEvidence.View::protocol).orElse(Map.of());
+          var tokens = evidence.map(CallReadingEvidence.View::tokens).orElse(Map.of());
+          available |=
+              switch (entry.kind()) {
+                case LLM_REQUEST, SUBAGENT_REQUEST -> tokens.containsKey("input");
+                case LLM_RESPONSE, SUBAGENT_RESPONSE -> tokens.containsKey("output");
+                default -> false;
+              };
           var blocks =
               evidence
                   .map(CallReadingEvidence.View::blocks)
@@ -167,7 +178,9 @@ public final class SessionApiHandler {
                                 block.label(),
                                 html.isEmpty() ? block.text() : "",
                                 html,
-                                block.toolCallId());
+                                block.toolCallId(),
+                                block.text().codePointCount(0, block.text().length()),
+                                SessionDetailParityAnalyzer.estimateTokens(block.text()));
                           })
                       .toList(),
                   entry.unconfirmedContext(),
@@ -175,8 +188,9 @@ public final class SessionApiHandler {
                   protocol.getOrDefault("source", ""),
                   protocol.getOrDefault("originator", ""),
                   protocol.getOrDefault("cliVersion", ""),
-                  evidence.map(CallReadingEvidence.View::tokens).orElse(Map.of()),
-                  evidence.map(CallReadingEvidence.View::skillNames).orElse(List.of())));
+                  tokens,
+                  evidence.map(CallReadingEvidence.View::skillNames).orElse(List.of()),
+                  toolResult));
         });
   }
 
@@ -678,14 +692,13 @@ public final class SessionApiHandler {
   }
 
   private static String callPhase(NormalizedCall call) {
+    String compaction = RoundContentProjection.compactionSummary(call);
+    if (!compaction.isEmpty()) return compaction;
     if (ContentRoundIndex.sideTask(call).isEmpty()) return "";
-    boolean afterCompaction = false;
-    for (var unit : call.sourceUnits()) {
-      if ("codex_context_response_compaction".equals(unit.get("type"))
-          && "identity".equals(unit.get("text"))) return "上下文压缩";
-      if ("codex_context_boundary".equals(unit.get("type"))) afterCompaction = true;
-    }
-    return afterCompaction ? "压缩后调用" : "";
+    return call.sourceUnits().stream()
+            .anyMatch(unit -> "codex_context_boundary".equals(unit.get("type")))
+        ? "压缩后调用"
+        : "";
   }
 
   /** 构建轮次摘要。 */

@@ -1,5 +1,6 @@
 package com.feipi.session.browser.web.api;
 
+import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
 import com.feipi.session.browser.index.api.query.ContentRoundIndex;
 import com.feipi.session.browser.index.api.query.SessionRecord;
@@ -55,6 +56,7 @@ record RoundContentProjection(String summary, String time, boolean userInput) {
     Set<String> ids = Set.copyOf(projection.callIds());
     var toolPreviews = new HashMap<String, ToolInputPreview.Summary>();
     String assistant = "";
+    String compaction = "";
     String user = "";
     String time = "";
     ContentRoundIndex.SideTask sideTask = null;
@@ -63,6 +65,7 @@ record RoundContentProjection(String summary, String time, boolean userInput) {
       if (time.isEmpty()) time = displayTime(previews.timestamp(call));
       if (sideTask == null) sideTask = ContentRoundIndex.sideTask(call).orElse(null);
       if (assistant.isEmpty()) assistant = previews.text(call, false);
+      if (compaction.isEmpty()) compaction = compactionSummary(call);
       String currentUser = previews.userText(call, round.roundIndex());
       user = preferredUser(user, currentUser, sideTask != null);
       toolPreviews.putAll(previews.toolInputSummaries(call));
@@ -70,12 +73,22 @@ record RoundContentProjection(String summary, String time, boolean userInput) {
     String summary =
         RoundIndexProjection.toolCountSummary(projection.toolCallIds(), artifact, toolPreviews);
     if (summary.isEmpty()) summary = assistant;
+    if (summary.isEmpty()) summary = compaction;
     if (!user.isEmpty()) summary = user;
     summary = SensitiveFieldPolicy.DEFAULT.applyMasking(summary).replaceAll("\\s+", " ").trim();
     if (summary.codePointCount(0, summary.length()) > 240)
       summary = summary.substring(0, summary.offsetByCodePoints(0, 240)) + "…";
     return new RoundContentProjection(
         summary.isBlank() ? "内容未记录" : summary, withTaskTime(time, sideTask), !user.isEmpty());
+  }
+
+  static String compactionSummary(NormalizedCall call) {
+    for (var unit : call.sourceUnits()) {
+      if (!"codex_context_response_compaction".equals(unit.get("type"))) continue;
+      if ("identity".equals(unit.get("text"))) return "上下文压缩";
+      if ("adjacent".equals(unit.get("text"))) return "模型响应 · 相邻压缩事件";
+    }
+    return "";
   }
 
   static String preferredUser(String current, String next, boolean sideTask) {

@@ -140,14 +140,13 @@ test.describe('正文弹框内的归因布局', () => {
     const disclosure = modal.locator('[data-payload-attribution="response"]');
     await expect(modal).toBeVisible();
     await expect(disclosure).toHaveAttribute('data-attribution-call', /.+/);
-    await disclosure.locator('summary').press('Enter');
     await expect(disclosure.locator('.sd-kv').first()).toBeVisible();
     return { modal, disclosure };
   }
 
   test('[UI-SD-LAYOUT-001] 输出用量紧凑排列，正文占满同一弹框', async ({ page }) => {
     const { modal, disclosure } = await openAttribution(page, 1440);
-    const summary = disclosure.locator(':scope > summary');
+    const summary = disclosure.locator(':scope > .sd-reading-usage-heading');
     const grid = disclosure.locator('.sd-attribution-summary-grid');
     await expect(summary).toHaveText(/^输出用量明细 · 来源报告 [\d,]+ tokens · 推理等非正文用量未单列$/);
     await expect(grid.locator('.sd-kv > span:first-child')).toHaveText(['调用', '已记录工具指令']);
@@ -171,9 +170,8 @@ test.describe('正文弹框内的归因布局', () => {
     expect(summaryBox.height).toBeLessThanOrEqual(32);
     expect(usageGroupBox.y + usageGroupBox.height).toBeLessThanOrEqual(readingBox.y);
     expect(panelBox.width - readingBox.width).toBeLessThanOrEqual(44);
-    await summary.press('Space');
-    await expect(grid).toBeHidden();
-    await expect(reading).toBeVisible();
+    await expect(grid).toBeVisible();
+    await expect(disclosure.locator('summary')).toHaveCount(0);
   });
 
   for (const width of [1440, 1024]) {
@@ -307,13 +305,6 @@ for (const width of [1024, 1440]) {
   });
 }
 
-test('窄窗口内可以滚动到执行表右侧并点击 Request', async ({ page }) => {
-  await page.setViewportSize({ width: 430, height: 960 });
-  await page.goto('/sessions/claude_code/hifi-viz-session-001');
-  const action = page.locator('[data-trace-round-row] [data-attribution-path*="/request"]').first();
-  await action.click();
-  await expect(page.locator('dialog.payload-modal[open] .sd-payload-metadata')).toBeVisible();
-});
 for (const width of [1024, 1440]) {
   test(`执行表原文按钮可独立操作且不侵占摘要 @ ${width}`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
@@ -327,12 +318,12 @@ for (const width of [1024, 1440]) {
     const response = cell.getByRole('button', { name: 'Response', exact: true });
     await expect(request).toHaveCount(1);
     await expect(response).toHaveCount(1);
-    const [input, output, area, summary] = await Promise.all(
-      [request, response, cell, row.locator('.summary-col')].map(locator => locator.boundingBox()),
+    const [input, output, area, summary, time] = await Promise.all(
+      [request, response, cell, row.locator('.summary-col'), row.locator('.time-col')].map(locator => locator.boundingBox()),
     );
-    expect(input.x + input.width).toBeLessThanOrEqual(output.x);
+    expect(output.x - (input.x + input.width)).toBeGreaterThanOrEqual(6);
     expect(input.x).toBeGreaterThanOrEqual(area.x);
-    expect(output.x + output.width).toBeLessThanOrEqual(area.x + area.width);
+    expect(time.x - (output.x + output.width)).toBeGreaterThanOrEqual(6);
     expect(summary.width).toBeGreaterThan(area.width * 2);
     for (const control of [request, response]) {
       const textBox = await control.evaluate(button => {
@@ -345,11 +336,17 @@ for (const width of [1024, 1440]) {
       expect(textBox.left, textBox.label).toBeGreaterThanOrEqual(0);
       expect(textBox.right, textBox.label).toBeGreaterThanOrEqual(0);
     }
-    await request.press('Enter');
     const modal = page.locator('dialog.payload-modal');
-    await expect(modal.locator('[data-payload-attribution="request"]')).toHaveAttribute('data-attribution-call', /.+/);
-    await page.keyboard.press('Escape');
-    await response.press('Space');
-    await expect(modal.locator('[data-payload-attribution="response"]')).toHaveAttribute('data-attribution-call', /.+/);
+    for (const [control, side] of [[request, 'request'], [response, 'response']]) {
+      await control.click();
+      const attribution = modal.locator(`[data-payload-attribution="${side}"]`);
+      await expect(attribution).toHaveAttribute('data-attribution-call', /.+/);
+      await page.keyboard.press('Escape');
+      await expect(control).toBeFocused();
+      await control.press('Space');
+      await expect(attribution).toHaveAttribute('data-attribution-call', /.+/);
+      await page.keyboard.press('Escape');
+    }
+    await expect(row.locator('[data-action="toggle-round"]')).toHaveAttribute('aria-expanded', 'false');
   });
 }

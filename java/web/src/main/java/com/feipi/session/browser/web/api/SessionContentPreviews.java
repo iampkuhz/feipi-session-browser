@@ -9,6 +9,7 @@ import com.feipi.session.browser.domain.normalized.NormalizedSequenceChunk;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionContent;
 import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
 import com.feipi.session.browser.domain.normalized.SourceUnitRefRange;
+import com.feipi.session.browser.query.api.SensitiveFieldPolicy;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
@@ -32,6 +33,8 @@ final class SessionContentPreviews {
   private final Set<String> shownUserRefs = new HashSet<>();
   private final Set<String> shownUserRounds = new HashSet<>();
   private final Set<String> resultIds = new HashSet<>();
+  private NormalizedToolExecution resultTool;
+  private boolean ambiguousResultTool;
 
   private SessionContentPreviews(boolean codex) {
     this.codex = codex;
@@ -47,11 +50,24 @@ final class SessionContentPreviews {
   }
 
   static SessionContentPreviews read(NormalizedSessionContent content) throws IOException {
+    return read(content, null);
+  }
+
+  static SessionContentPreviews read(NormalizedSessionContent content, String resultToolId)
+      throws IOException {
     var result = new SessionContentPreviews(content.header().agent() == NormalizedAgent.CODEX);
     var pendingToolDates = new ArrayList<PendingToolDates>();
     try (var cursor = content.openCursor()) {
       while (cursor.hasNext()) {
         var unit = cursor.next();
+        if (resultToolId != null) {
+          for (var tool : unit.toolExecutions()) {
+            if (!resultToolId.equals(tool.toolCallId())) continue;
+            result.ambiguousResultTool |=
+                result.resultTool != null && !result.resultTool.equals(tool);
+            result.resultTool = tool;
+          }
+        }
         for (var call : unit.calls()) {
           result.observeCall(call, pendingToolDates);
         }
@@ -135,7 +151,17 @@ final class SessionContentPreviews {
     return resultIds.contains(id);
   }
 
+  ApiResponses.ToolResultEvidence toolResultEvidence() {
+    if (resultTool == null || ambiguousResultTool) return null;
+    return new ApiResponses.ToolResultEvidence(
+        SensitiveFieldPolicy.DEFAULT.applyMasking(resultTool.name()),
+        toolTimestamp(resultTool),
+        resultTool.durationMs(),
+        resultTool.observation().map(observation -> observation.durationNanos()).orElse(null));
+  }
+
   boolean hasPayload(NormalizedCall call, boolean request) {
+    if (request && codex && CallReadingEvidence.hasObservedInputUsage(call)) return true;
     if (!request
         && (!call.response().toolCallIds().isEmpty()
             || codex && CallReadingEvidence.hasObservedResponse(call))) return true;

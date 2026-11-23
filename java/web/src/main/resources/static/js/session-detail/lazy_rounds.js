@@ -619,10 +619,10 @@
   }
 
   function timeEvidence(value, label, className, note) {
-    var display = value && value !== '未记录' ? value : '—';
+    var recorded = value && value !== '未记录';
     return '<span class="' + className + '" data-clock-label="' + label + '" title="' + label + '：'
-      + escapeRoundHtml(display) + (note ? '（' + note + '）' : '') + '">'
-      + escapeRoundHtml(display) + '</span>';
+      + escapeRoundHtml(recorded ? value : '未记录') + (recorded && note ? '（' + note + '）' : '') + '">'
+      + escapeRoundHtml(recorded ? value : '—') + '</span>';
   }
 
   function durationFromMillis(value) {

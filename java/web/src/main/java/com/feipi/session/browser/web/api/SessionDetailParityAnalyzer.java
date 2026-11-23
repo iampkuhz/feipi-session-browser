@@ -1403,7 +1403,7 @@ final class SessionDetailParityAnalyzer {
     return output != null && EXIT_FAILURE.matcher(output).find();
   }
 
-  private static int estimateTokens(String text) {
+  static int estimateTokens(String text) {
     if (text == null || text.isBlank()) {
       return 0;
     }

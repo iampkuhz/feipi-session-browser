@@ -67,6 +67,8 @@ final class SessionContentProjection {
           }
           if (summary.assistantPreview.isEmpty())
             summary.assistantPreview = previews.text(call, false);
+          if (summary.compactionPreview.isEmpty())
+            summary.compactionPreview = RoundContentProjection.compactionSummary(call);
           ToolInputContents.inline(call)
               .forEach(
                   (id, input) -> {
@@ -134,6 +136,7 @@ final class SessionContentProjection {
           !summary.userPreview.isEmpty()
               ? summary.userPreview
               : !toolSummary.isEmpty() ? toolSummary : summary.assistantPreview;
+      if (preview.isEmpty()) preview = summary.compactionPreview;
       if (preview.codePointCount(0, preview.length()) > 240) {
         preview = preview.substring(0, preview.offsetByCodePoints(0, 240)) + "…";
       }
@@ -206,6 +209,7 @@ final class SessionContentProjection {
     String parent = "";
     String userPreview = "";
     String assistantPreview = "";
+    String compactionPreview = "";
     String time = "";
     final Map<String, Integer> toolCounts = new LinkedHashMap<>();
   }

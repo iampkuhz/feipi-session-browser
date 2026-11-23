@@ -43,6 +43,12 @@ public final class CallReadingEvidence {
         .anyMatch(unit -> (PREFIX + "response_usage").equals(unit.get("type")));
   }
 
+  /** 已确认的当次输入计量可单独阅读，不要求有用户正文。 */
+  public static boolean hasObservedInputUsage(NormalizedCall call) {
+    return call.sourceUnits().stream()
+        .anyMatch(unit -> (PREFIX + "input_tokens").equals(unit.get("type")));
+  }
+
   /**
    * 仅对可确认调用和载荷方向的内容返回阅读证据。
    *
@@ -205,8 +211,7 @@ public final class CallReadingEvidence {
       var declared = Set.copyOf(call.response().toolCallIds());
       for (var input : ToolInputContents.inline(call).values()) {
         if (declared.contains(input.id()) && toolDeclarations.add(input.id())) {
-          String args = input.input().isBlank() ? "参数未记录" : input.input();
-          addTool("tool_call", input.name(), source, args, input.id());
+          addTool("tool_call", input.name(), source, input.input(), input.id());
         }
       }
     }
@@ -273,7 +278,9 @@ public final class CallReadingEvidence {
               "context_snapshot",
               "上下文压缩边界",
               source,
-              "源记录包含 Codex 上下文压缩边界（compacted）。压缩前的对话不再拼接。" + snapshot);
+              "源记录包含 Codex 上下文压缩边界（compacted）。压缩前的对话不再拼接。"
+                  + snapshot
+                  + "请比较两次调用各自的输入总量，不用任务累计；无法仅凭这个边界解释完整差额。");
         }
         return;
       }
@@ -321,19 +328,24 @@ public final class CallReadingEvidence {
       }
       if (!responseCompaction.isEmpty()) {
         boolean identity = "identity".equals(responseCompaction);
-        if (identity
-            && blocks.stream().allMatch(block -> "response_evidence".equals(block.kind()))) {
-          Long output = tokens.get("output");
-          long reasoning = tokens.getOrDefault("reasoning", 0L);
-          if (output != null && output > reasoning)
+        Long output = tokens.get("output");
+        Long reasoning = tokens.get("reasoning");
+        String split = "";
+        if (identity && output != null && output > 0) {
+          if (reasoning == null) {
+            split = "来源未单列推理，压缩和推理各自的份额未知。";
+          } else if (reasoning <= output
+              && blocks.stream().allMatch(block -> "response_evidence".equals(block.kind()))) {
             tokens.put("compactionOutput", output - reasoning);
+            split = "压缩输出按来源报告的总输出减去推理用量计算，不是单独上报的计量。";
+          }
         }
         add(
             "response_compaction",
             identity ? "上下文压缩响应" : "相邻压缩事件",
             "current",
             identity
-                ? "压缩记录与本次模型响应的 ID 完全一致。这次返回的是上下文压缩产物，不是助手对话正文。"
+                ? "压缩记录与本次模型响应的 ID 完全一致。这次返回的是上下文压缩产物，不是助手对话正文。" + split
                 : "此响应的用量记录后，下一个解析到的事件是压缩（compacted）。相邻不等于已确认该快照是模型响应正文。");
       }
     }

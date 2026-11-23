@@ -378,13 +378,19 @@
 }
 .sd-attribution-actions--row {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  justify-content: flex-start;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.23fr);
+  gap: 6px;
 }
 .sd-attribution-actions--row .sd-btn {
   min-width: 0;
   padding-inline: 4px;
   font-size: 11px;
+  border-color: var(--sd-faint);
+}
+.sd-attribution-actions--row .sd-btn:is(:hover, :focus-visible) {
+  border-color: var(--sd-brand);
+  color: var(--sd-brand);
+  background: var(--sd-brand-bg);
 }
 .sd-attribution-actions--row .se-missing {
   font-size: 11px;
@@ -1069,7 +1075,7 @@
   contain: layout style;
 }
 .trace-table col.col-round {
-  width: 60px;
+  width: 56px;
 }
 .trace-table col.col-summary {
   width: auto;
@@ -1137,6 +1143,9 @@
 }
 .round-row td:first-child {
   padding-left: 12px;
+}
+.round-row td.attribution-col {
+  padding-inline: 4px 8px;
 }
 .expanded-row {
   display: none;
@@ -1442,20 +1451,18 @@
   color: var(--sd-muted);
   white-space: nowrap;
 }
-@media (max-width: 1180px) {
+/* 紧凑桌面仍保留两枚独立原文按钮和独立计时列。 */
+@media (min-width: 1024px) and (max-width: 1180px) {
   .trace-table col.col-round { width: 44px; }
-  .trace-table col.col-metrics { width: 92px; }
-  .trace-table col.col-attribution { width: 108px; }
+  .trace-table col.col-metrics { width: 80px; }
+  .trace-table col.col-attribution { width: 120px; }
   .trace-table col.col-time,
   .trace-table col.col-duration { width: 60px; }
   .tokenbar-wrap { width: 16px; }
   .trace-table :is(th, .round-row td, .round-row td:first-child) { padding-inline: 6px; }
-  .trace-table .round-row td:is(.time-col, .duration-col) { padding-inline: 2px; }
-  .trace-table .round-row td.attribution-col { padding-inline: 1px; }
-  .sd-attribution-actions--row {
-    grid-template-columns: minmax(0, .92fr) minmax(0, 1.08fr);
-    gap: 2px;
-  }
+  .trace-table .round-row td:is(.metrics-col, .time-col, .duration-col) { padding-inline: 2px; }
+  .trace-table .round-row td.attribution-col { padding-inline: 1px 6px; }
+  .sd-attribution-actions--row .sd-btn { padding-inline: 2px; }
   .round-time { font-size: 11px; }
   .token-group { gap: 4px; }
   .sd-tool-group--flat {

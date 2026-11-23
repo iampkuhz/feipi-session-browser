@@ -39,6 +39,7 @@ public final class ApiResponses {
    * @param cliVersion 原始客户端版本
    * @param tokens 可证的 total 和 reasoning
    * @param skillNames 当时记录的技能清单名称
+   * @param toolResult 结果对应的工具发起与执行器观测证据
    */
   public record PayloadResponse(
       String payloadId,
@@ -56,7 +57,8 @@ public final class ApiResponses {
       String originator,
       String cliVersion,
       Map<String, Long> tokens,
-      List<String> skillNames) {
+      List<String> skillNames,
+      ToolResultEvidence toolResult) {
 
     /**
      * 紧凑构造器，验证不变量。
@@ -83,9 +85,29 @@ public final class ApiResponses {
    * @param text 无需 Markdown 渲染的纯文本
    * @param html presentation 层生成并净化的结构化内容
    * @param toolCallId 有关联工具时的稳定调用标识
+   * @param characters 脱敏正文渲染前的字符数
+   * @param tokenEstimate 脱敏正文的本地 Token 估算
    */
   public record PayloadReadingBlock(
-      String kind, String source, String label, String text, String html, String toolCallId) {}
+      String kind,
+      String source,
+      String label,
+      String text,
+      String html,
+      String toolCallId,
+      int characters,
+      int tokenEstimate) {}
+
+  /**
+   * 工具结果的同 ID 发起与耗时证据；不把声明时间称为执行器启动时间。
+   *
+   * @param name 工具名称
+   * @param declaredAt 记录的工具声明时间
+   * @param durationMs 来源记录的执行耗时（毫秒）
+   * @param durationNanos 执行器上报的原始执行耗时（纳秒）
+   */
+  public record ToolResultEvidence(
+      String name, String declaredAt, Long durationMs, Long durationNanos) {}
 
   /**
    * round lazy-load API 响应。
