@@ -136,6 +136,7 @@ public final class CallReadingEvidence {
     private final Map<String, Long> tokens = new LinkedHashMap<>();
     private final LinkedHashSet<String> dedup = new LinkedHashSet<>();
     private final LinkedHashSet<Block> stable = new LinkedHashSet<>();
+    private final LinkedHashSet<String> baseInstructions = new LinkedHashSet<>();
     private final LinkedHashSet<String> toolResults = new LinkedHashSet<>();
     private final LinkedHashSet<String> toolDeclarations = new LinkedHashSet<>();
     private boolean currentUserRecorded;
@@ -289,7 +290,10 @@ public final class CallReadingEvidence {
           latestConfiguration = "collaboration_clear".equals(type) ? "" : text;
           configurationSource = source;
         }
-        case "base" -> instructions("Base instructions", text, source, true);
+        case "base" -> {
+          baseInstructions.add(text);
+          instructions("Base instructions", text, source, true);
+        }
         case "session" -> instructions("Session instructions", text, source, true);
         case "developer" -> developerInstructions(text, source);
         case "system" -> instructions("System instructions", text, source, false);
@@ -368,6 +372,7 @@ public final class CallReadingEvidence {
     }
 
     private void developerInstructions(String text, String source) {
+      if (baseInstructions.contains(text)) return;
       var envelope = LOADED_SKILL.matcher(text.strip());
       if (envelope.matches()
           && !envelope.group(2).contains("<skill>")

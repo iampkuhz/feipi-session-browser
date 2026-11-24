@@ -27,6 +27,44 @@ class CodexSourceSpecificContractTest {
   private final CodexSourceAdapter adapter = new CodexSourceAdapter();
 
   @Test
+  void onlyCorroboratedInnerCommandBindsToTheExactResult() throws Exception {
+    String declaration =
+        """
+        {"type":"response_item","payload":{"type":"custom_tool_call","name":"exec","call_id":"tool","input":"run synthetic-cmd-example"}}
+        """;
+    String command =
+        """
+        {"type":"event_msg","payload":{"type":"item_completed","item":{"type":"CommandExecution","source":"unified_exec_startup","command":["shell","-c","synthetic-cmd-example"],"aggregated_output":"unique synthetic stdout","status":"completed","exit_code":0,"duration":{"secs":0,"nanos":6458}}}}
+        """;
+    String result =
+        """
+        {"type":"response_item","payload":{"type":"custom_tool_call_output","call_id":"tool","output":[{"type":"input_text","text":"unique synthetic stdout"}]}}
+        """;
+    try (var parsed = parseContentFixture(declaration + command + result)) {
+      var value = parsed.records().getLast().toolObservation().orElseThrow();
+      assertThat(value.toolCallId()).isEqualTo("tool");
+      assertThat(value.kind()).isEqualTo("inner_command");
+      assertThat(value.source()).isEqualTo("codex:item_completed#event[1]");
+      assertThat(value.durationNanos()).isEqualTo(6458);
+      assertThat(value.exitCode()).isZero();
+      assertThat(value.status()).isEqualTo("completed");
+    }
+    for (String input :
+        List.of(
+            declaration + command + command + result,
+            declaration + command + result.replace("stdout", "different"),
+            declaration + command + result.replace("\"tool\"", "\"other\""),
+            declaration
+                + command.replace("synthetic-cmd-example", "another-synthetic-command")
+                + result,
+            declaration + command + declaration.replace("\"tool\"", "\"other\"") + result)) {
+      try (var parsed = parseContentFixture(input)) {
+        assertThat(parsed.records()).allMatch(record -> record.toolObservation().isEmpty());
+      }
+    }
+  }
+
+  @Test
   void explicitExecutorObservationsPreserveZeroAndRejectCoercionAndOverflow() throws Exception {
     var durations =
         List.of(

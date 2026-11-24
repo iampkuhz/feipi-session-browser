@@ -18,6 +18,36 @@ import org.junit.jupiter.api.Test;
 /** 观测只补充稳定声明，物理顺序和同名进程不能改变归属或计数。 */
 class ToolObservationTest {
   @Test
+  void innerCommandDoesNotPromoteStatusOrTimingToOuterTool() throws Exception {
+    var inner =
+        end("main", "tool", 0L)
+            .withToolObservation(
+                Optional.of(
+                    new SourceToolObservation(
+                        "tool",
+                        6458L,
+                        1,
+                        "failed",
+                        null,
+                        SourceToolObservation.INNER_COMMAND,
+                        "codex:item_completed#event[1]",
+                        null)));
+    var declaration = declaration("main", "a", "tool");
+    var projected = compare(List.of(declaration, inner)).toolExecutions().getFirst();
+    assertThat(projected.durationMs()).isNull();
+    assertThat(projected.exitCode()).isEmpty();
+    assertThat(projected.status()).isEmpty();
+    assertThat(projected.observation().orElseThrow().durationNanos()).isEqualTo(6458L);
+    var outer = end("main", "tool", 2_000_000L);
+    for (var records :
+        List.of(List.of(declaration, inner, outer), List.of(declaration, outer, inner))) {
+      var measured = compare(records).toolExecutions().getFirst();
+      assertThat(measured.durationMs()).isEqualTo(2L);
+      assertThat(measured.observation().orElseThrow().measuresTool()).isTrue();
+    }
+  }
+
+  @Test
   void scopedIdsAndReorderedEndsAgreeForListAndManaged() throws Exception {
     for (boolean early : List.of(false, true)) {
       var records = new ArrayList<SourceRecord>();

@@ -282,6 +282,66 @@ class SessionContentProjectionTest {
   }
 
   @Test
+  void confirmedSideTaskMembersAreCountedIndividuallyOnEveryRoundPage() {
+    var detail = SessionDetailParityAnalyzerTest.healthDetail(false, 0);
+    var content = content(List.of(sideTaskCall(1), sideTaskCall(2), call(3, "unconfirmed")));
+    var annotated =
+        new com.feipi.session.browser.application.SessionDetailUseCase.AnnotatedDetailContext(
+            detail,
+            com.feipi.session.browser.query.api.SessionAnomalySummary.empty(
+                detail.sessionRow().sessionKey()),
+            null,
+            content);
+    var handler =
+        new SessionDetailApiHandler(
+            ctx ->
+                new SessionDetailApiHandler.LoadedDetail(
+                    new SessionDetailApiResponses.SessionDetailFilterEcho(
+                        "codex", "health", "standard", "", ""),
+                    annotated,
+                    "/synthetic",
+                    false));
+    io.javalin.testtools.JavalinTest.test(
+        io.javalin.Javalin.create(config -> config.routes.get("/rounds", handler::handleRounds)),
+        (app, client) -> {
+          var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+          var first = mapper.readTree(client.get("/rounds?limit=1").body().string());
+          var next = first.path("nextCursor").asText();
+          assertThat(next).isNotBlank();
+          var second =
+              mapper.readTree(client.get("/rounds?limit=1&cursor=" + next).body().string());
+          assertThat(first.at("/rounds/0/callCount").asInt()).isEqualTo(2);
+          for (var page : List.of(first, second)) {
+            assertThat(page.path("roundCount").asInt()).isEqualTo(2);
+            assertThat(page.path("modelCallCount").asInt()).isEqualTo(2);
+            assertThat(page.path("recordGroupCount").asInt()).isEqualTo(1);
+          }
+        });
+  }
+
+  private static NormalizedCall sideTaskCall(int index) {
+    return new NormalizedCall(
+        "token_usage_record:synthetic-" + index,
+        index,
+        "C" + index,
+        CallScope.MAIN,
+        Optional.empty(),
+        Optional.empty(),
+        Optional.of("synthetic-side-task"),
+        "synthetic-model",
+        Optional.empty(),
+        NormalizedCallUsage.empty(),
+        NormalizedCallRequest.empty(),
+        NormalizedCallResponse.empty(),
+        List.of(),
+        List.of(Map.of("type", "codex_context_side_task_id", "text", "synthetic-side-task")),
+        Map.of(),
+        Map.of(),
+        Optional.empty(),
+        Optional.empty());
+  }
+
+  @Test
   void sideTaskGroupsCallsWithoutLosingUsageOrMeaningfulUserPreview() throws Exception {
     var calls =
         List.of(

@@ -230,13 +230,7 @@ public final class SessionDetailApiHandler {
         roundRows(loaded, parity).stream()
             .filter(round -> statusMatches(traceStatus, round))
             .toList();
-    long modelCalls =
-        rows.stream()
-            .filter(
-                round ->
-                    round.parity().get("modelCallEvidence") instanceof String evidence
-                        && !evidence.isEmpty())
-            .count();
+    var counts = RoundCounts.from(rows);
     String target = ctx.queryParam("target");
     if (paged(ctx, loaded) || target != null) {
       if (target != null && ctx.queryParam("cursor") != null)
@@ -247,7 +241,7 @@ public final class SessionDetailApiHandler {
           rows,
           "rounds",
           traceStatus,
-          modelCalls,
+          counts,
           target == null ? -1 : RoundTarget.rowOffset(rows, target));
       return;
     }
@@ -256,8 +250,8 @@ public final class SessionDetailApiHandler {
             ApiResponses.SCHEMA_VERSION,
             loaded.echo().withTraceStatus(traceStatus),
             rows.size(),
-            modelCalls,
-            rows.size() - modelCalls,
+            counts.confirmed(),
+            counts.unconfirmedRounds(),
             rows,
             roundState(rows.size(), traceStatus)));
   }
@@ -359,7 +353,7 @@ public final class SessionDetailApiHandler {
       List<T> rows,
       String section,
       String filter,
-      Long modelCalls,
+      RoundCounts roundCounts,
       long targetOffset) {
     int limit = windowLimit(ctx);
     String scope = cursorScope(ctx, loaded, section, filter);
@@ -376,7 +370,7 @@ public final class SessionDetailApiHandler {
             rows.size(),
             offset,
             end < rows.size() ? SessionContentCursor.encode(scope, end) : null,
-            modelCalls));
+            roundCounts));
   }
 
   private static void sendPage(
@@ -392,9 +386,9 @@ public final class SessionDetailApiHandler {
     response.put(rounds ? "roundCount" : "payloadCount", window.total());
     response.put("total", window.total());
     response.put("offset", window.offset());
-    if (window.modelCalls() != null) {
-      response.put("modelCallCount", window.modelCalls());
-      response.put("recordGroupCount", window.total() - window.modelCalls());
+    if (window.roundCounts() != null) {
+      response.put("modelCallCount", window.roundCounts().confirmed());
+      response.put("recordGroupCount", window.roundCounts().unconfirmedRounds());
     }
     response.put(section, window.rows());
     response.put("nextCursor", window.next());
@@ -731,7 +725,34 @@ public final class SessionDetailApiHandler {
    * @param total 筛选后的全量记录数
    * @param offset 当前页在筛选结果中的起始偏移
    * @param next 下一页游标，末页为空
-   * @param modelCalls 有独立边界的调用数，非 Trace 资源为空
+   * @param roundCounts 已确认调用和未确认记录组数量，非 Trace 资源为空
    */
-  private record PageWindow(List<?> rows, long total, long offset, String next, Long modelCalls) {}
+  private record PageWindow(
+      List<?> rows, long total, long offset, String next, RoundCounts roundCounts) {}
+
+  /**
+   * 两种计数单位不可相减：一个任务轮可以包含多个已确认调用。
+   *
+   * @param confirmed 筛选范围内已确认的调用数
+   * @param unconfirmedRounds 筛选范围内没有已确认调用的轮次数
+   */
+  private record RoundCounts(long confirmed, long unconfirmedRounds) {
+    private static RoundCounts from(List<RoundIndexDto> rows) {
+      long calls = 0;
+      long groups = 0;
+      for (var row : rows) {
+        Object count = row.parity().get("confirmedCallCount");
+        long observed =
+            count instanceof Number number
+                ? number.longValue()
+                : row.parity().get("modelCallEvidence") instanceof String evidence
+                        && !evidence.isEmpty()
+                    ? 1
+                    : 0;
+        calls += observed;
+        if (observed == 0) groups++;
+      }
+      return new RoundCounts(calls, groups);
+    }
+  }
 }

@@ -45,6 +45,8 @@ final class SessionContentProjection {
           int round = index.roundIndexForCall(call.callId()).orElseThrow();
           var summary = summaries.get(round - 1);
           summary.calls++;
+          String evidence = ContentRoundIndex.modelCallEvidence(content.header().agent(), call);
+          if (!evidence.isEmpty()) summary.confirmedCalls++;
           if (summary.time.isEmpty()) {
             summary.time = RoundContentProjection.displayTime(previews.timestamp(call));
           }
@@ -52,7 +54,7 @@ final class SessionContentProjection {
             summary.sideTask = ContentRoundIndex.sideTask(call).orElse(null);
           }
           if (summary.calls == 1) {
-            summary.evidence = ContentRoundIndex.modelCallEvidence(content.header().agent(), call);
+            summary.evidence = evidence;
             summary.parent = call.parentCallId().orElse("");
           }
           summary.usage.add(call);
@@ -181,6 +183,7 @@ final class SessionContentProjection {
                       Map.entry("isLowCache", lowCache),
                       Map.entry("isFreshSpike", freshSpike),
                       Map.entry("modelCallEvidence", summary.calls == 1 ? summary.evidence : ""),
+                      Map.entry("confirmedCallCount", summary.confirmedCalls),
                       Map.entry("requestAvailable", summary.requestAvailable),
                       Map.entry("responseAvailable", summary.responseAvailable),
                       Map.entry("agentUsage", summary.agentUsage.snapshot())),
@@ -194,6 +197,7 @@ final class SessionContentProjection {
     final SessionContentUsage usage = new SessionContentUsage();
     final RoundAgentUsage agentUsage = new RoundAgentUsage();
     int calls;
+    int confirmedCalls;
     int tools;
     int failed;
     long fresh;

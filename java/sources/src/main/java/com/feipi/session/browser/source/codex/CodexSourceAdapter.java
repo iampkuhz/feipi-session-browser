@@ -1866,7 +1866,25 @@ public final class CodexSourceAdapter implements SourceAdapter {
 
   /** 只接受结构化非负整数；写出时间和结果正文不参与工具计时。 */
   private static Optional<SourceToolObservation> toolObservation(JsonNode payload, int eventIndex) {
-    JsonNode id = payload.path("call_id");
+    return toolObservation(
+        payload.path("call_id"),
+        payload,
+        "executor_reported",
+        "codex:exec_command_end#event[" + eventIndex + "]");
+  }
+
+  private static Optional<SourceToolObservation> innerCommandObservation(JsonNode payload) {
+    JsonNode projected = payload.path(CodexInnerCommand.PROJECTED);
+    if (!projected.isObject()) return Optional.empty();
+    return toolObservation(
+        payload.path("call_id"),
+        projected,
+        SourceToolObservation.INNER_COMMAND,
+        "codex:item_completed#event[" + projected.path("ordinal").asInt() + "]");
+  }
+
+  private static Optional<SourceToolObservation> toolObservation(
+      JsonNode id, JsonNode payload, String kind, String source) {
     if (!id.isTextual() || id.asText().isBlank()) return Optional.empty();
     Long duration = null;
     String issue = null;
@@ -1904,8 +1922,8 @@ public final class CodexSourceAdapter implements SourceAdapter {
             exitCode,
             status.isTextual() ? status.asText() : null,
             processId,
-            "executor_reported",
-            "codex:exec_command_end#event[" + eventIndex + "]",
+            kind,
+            source,
             issue));
   }
 
@@ -1942,20 +1960,21 @@ public final class CodexSourceAdapter implements SourceAdapter {
     if ("function_call_output".equals(payloadType)
         || "custom_tool_call_output".equals(payloadType)) {
       return new SourceRecord(
-          recordLocator,
-          eventIndex,
-          "tool_result",
-          Optional.empty(),
-          optionalText(currentModel),
-          optionalText(timestamp),
-          Optional.of(payloadType),
-          SourceRecordUsage.empty(),
-          List.of(),
-          optionalText(text(payload, "call_id")),
-          Optional.empty(),
-          extractCodexToolError(payload),
-          SourceRecordRelation.empty(),
-          responseText(payload.get("output")));
+              recordLocator,
+              eventIndex,
+              "tool_result",
+              Optional.empty(),
+              optionalText(currentModel),
+              optionalText(timestamp),
+              Optional.of(payloadType),
+              SourceRecordUsage.empty(),
+              List.of(),
+              optionalText(text(payload, "call_id")),
+              Optional.empty(),
+              extractCodexToolError(payload),
+              SourceRecordRelation.empty(),
+              responseText(payload.get("output")))
+          .withToolObservation(innerCommandObservation(payload));
     }
     if ("message".equals(payloadType)) {
       String role = text(payload, "role");

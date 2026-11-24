@@ -19,6 +19,7 @@ final class ToolObservations {
   }
 
   private static SourceToolObservation merge(SourceToolObservation a, SourceToolObservation b) {
+    if (a.measuresTool() != b.measuresTool()) return a.measuresTool() ? a : b;
     String source = a.source().compareTo(b.source()) <= 0 ? a.source() : b.source();
     if ("conflicting_observations".equals(a.issue())
         || "conflicting_observations".equals(b.issue())

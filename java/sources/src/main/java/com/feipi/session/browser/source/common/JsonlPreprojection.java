@@ -34,8 +34,21 @@ public final class JsonlPreprojection implements AutoCloseable {
    * @param rootType 顶层事件类型
    * @param payloadType payload 类型，空字符串表示不限
    * @param parentTypes 字段直接父对象允许的类型；空集合表示不限
+   * @param retainedObjectType 只有此对象类型可不投影，空字符串表示无例外
+   * @param retainedBytes 例外的最大 UTF-8 字节数
    */
-  public record Rule(String path, String rootType, String payloadType, Set<String> parentTypes) {
+  public record Rule(
+      String path,
+      String rootType,
+      String payloadType,
+      Set<String> parentTypes,
+      String retainedObjectType,
+      int retainedBytes) {
+    /** 不保留例外的字段投影。 */
+    public Rule(String path, String rootType, String payloadType, Set<String> parentTypes) {
+      this(path, rootType, payloadType, parentTypes, "", 0);
+    }
+
     /** 对规则中的父类型集合建立不可变快照。 */
     public Rule {
       parentTypes = Set.copyOf(parentTypes);
@@ -358,11 +371,13 @@ public final class JsonlPreprojection implements AutoCloseable {
         whitespace();
         path.add(key.equals("[]") || key.contains(".") ? "<unmatched-key>" : key);
         long start = offset;
-        String captured = value(depth + 1, key.equals("type"));
+        boolean typeString = key.equals("type") && peek() == '"';
+        String captured = value(depth + 1, typeString);
         String fieldPath = String.join(".", path);
         while (fieldPath.contains(".[].[]")) fieldPath = fieldPath.replace(".[].[]", ".[]");
         for (Rule rule : rules) {
-          if (rule.path().equals(fieldPath)) {
+          if (rule.path().equals(fieldPath)
+              && !(offset - start <= rule.retainedBytes() && peekedObjectType(rule, captured))) {
             if (candidates.size() >= candidateLimit) throw new Invalid();
             Candidate candidate = new Candidate(start, offset, rule);
             candidates.add(candidate);
@@ -370,7 +385,7 @@ public final class JsonlPreprojection implements AutoCloseable {
           }
         }
         path.removeLast();
-        if (key.equals("type")) objectType = captured;
+        if (typeString) objectType = captured;
         whitespace();
         int separator = take();
         if (separator == '}') break;
@@ -379,7 +394,11 @@ public final class JsonlPreprojection implements AutoCloseable {
       if (path.isEmpty()) rootType = objectType;
       else if (path.size() == 1 && path.getFirst().equals("payload")) payloadType = objectType;
       for (Candidate candidate : direct) candidate.parentType = objectType;
-      return "";
+      return objectType;
+    }
+
+    private static boolean peekedObjectType(Rule rule, String captured) {
+      return !rule.retainedObjectType().isEmpty() && rule.retainedObjectType().equals(captured);
     }
   }
 }

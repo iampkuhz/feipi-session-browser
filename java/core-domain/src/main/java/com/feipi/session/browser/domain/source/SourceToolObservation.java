@@ -23,6 +23,14 @@ public record SourceToolObservation(
     String kind,
     String source,
     String issue) {
+  /** 结构化子命令观测，不能当成外层工具的状态或耗时。 */
+  public static final String INNER_COMMAND = "inner_command";
+
+  /** 此观测能否用于外层工具的摘要。 */
+  public boolean measuresTool() {
+    return !INNER_COMMAND.equals(kind);
+  }
+
   /** 校验精确耗时及稳定身份。 */
   public SourceToolObservation {
     if (Objects.requireNonNull(toolCallId).isBlank())

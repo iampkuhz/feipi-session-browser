@@ -199,6 +199,9 @@ public final class CallBuilder {
   static NormalizedToolExecution withObservation(
       NormalizedToolExecution tool, ToolObservations observations) {
     var observation = observations.get(tool.toolCallId());
+    var outer =
+        observation.filter(
+            com.feipi.session.browser.domain.source.SourceToolObservation::measuresTool);
     return new NormalizedToolExecution(
         tool.toolCallId(),
         tool.name(),
@@ -206,8 +209,8 @@ public final class CallBuilder {
         tool.declaredByCallId(),
         tool.resultConsumedByCallId(),
         tool.status(),
-        observation.map(value -> value.exitCode()),
-        observation.map(value -> value.durationMs()).orElse(null),
+        outer.map(value -> value.exitCode()),
+        outer.map(value -> value.durationMs()).orElse(null),
         tool.filesTouched(),
         tool.subagentId(),
         observation);

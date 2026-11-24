@@ -157,7 +157,11 @@ final class SessionContentPreviews {
         SensitiveFieldPolicy.DEFAULT.applyMasking(resultTool.name()),
         toolTimestamp(resultTool),
         resultTool.durationMs(),
-        resultTool.observation().map(observation -> observation.durationNanos()).orElse(null));
+        resultTool
+            .observation()
+            .filter(com.feipi.session.browser.domain.source.SourceToolObservation::measuresTool)
+            .map(observation -> observation.durationNanos())
+            .orElse(null));
   }
 
   boolean hasPayload(NormalizedCall call, boolean request) {

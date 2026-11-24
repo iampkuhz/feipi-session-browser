@@ -543,7 +543,7 @@
     tr.setAttribute('data-detail-loaded', 'false');
     tr.id = 'round-' + round.roundIndex;
     setMarkup(tr, [
-      '<td class="round-col" title="', parity.modelCallEvidence ? '模型调用已确认' : '模型调用未确认', '"><button type="button" class="sd-round-toggle round-id', hasIssues ? ' failed' : '', '" data-action="toggle-round" aria-controls="round-', round.roundIndex, '-detail" aria-expanded="false" aria-label="Toggle round ', round.roundIndex, '">',
+      '<td class="round-col" title="', parity.confirmedCallCount > 0 || parity.modelCallEvidence ? '模型调用已确认' : '模型调用未确认', '"><button type="button" class="sd-round-toggle round-id', hasIssues ? ' failed' : '', '" data-action="toggle-round" aria-controls="round-', round.roundIndex, '-detail" aria-expanded="false" aria-label="Toggle round ', round.roundIndex, '">',
       '<span class="round-chevron" aria-hidden="true">›</span>', label, '</button></td>',
       '<td class="summary-col"><div class="summary-content"><span class="summary-line">', summaryRole ? '<span class="summary-role' + (parity.summaryRole === 'tool' ? ' summary-role--tool' : '') + '">' + summaryRole + '</span>' : '',
       '<span class="summary-title', summary ? '' : ' summary-title--missing', '"', summary ? ' title="' + escapeHtml(summary) + '"' : '',

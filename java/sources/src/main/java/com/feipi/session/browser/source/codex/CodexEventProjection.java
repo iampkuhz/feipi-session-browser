@@ -26,6 +26,8 @@ final class CodexEventProjection implements UnaryOperator<JsonNode> {
 
   private int removedImages;
   private int removedStructures;
+  private int ordinal;
+  private final CodexInnerCommand innerCommand = new CodexInnerCommand();
 
   static JsonlReaderResult read(JsonlReader reader, Path path) throws IOException {
     return readTo(reader, path, null);
@@ -67,7 +69,14 @@ final class CodexEventProjection implements UnaryOperator<JsonNode> {
     var rules = new ArrayList<JsonlPreprojection.Rule>();
     rules.add(
         new JsonlPreprojection.Rule("payload.replacement_history", "compacted", "", Set.of()));
-    rules.add(new JsonlPreprojection.Rule("payload.item", "event_msg", "item_completed", Set.of()));
+    rules.add(
+        new JsonlPreprojection.Rule(
+            "payload.item",
+            "event_msg",
+            "item_completed",
+            Set.of(),
+            "CommandExecution",
+            CodexInnerCommand.MAX_RETAINED_BYTES));
     rules.add(
         new JsonlPreprojection.Rule(
             "payload.encrypted_content", "response_item", "reasoning", Set.of()));
@@ -86,11 +95,13 @@ final class CodexEventProjection implements UnaryOperator<JsonNode> {
 
   @Override
   public JsonNode apply(JsonNode event) {
+    int index = ordinal++;
     if (!(event.path("payload") instanceof ObjectNode payload)) {
       return event;
     }
     String type = event.path("type").asText();
     String subtype = payload.path("type").asText();
+    innerCommand.project(type, subtype, payload, index);
     if ("compacted".equals(type)) {
       payload.remove(PROJECTED_HISTORY_FIELD);
       boolean present = payload.has("replacement_history");

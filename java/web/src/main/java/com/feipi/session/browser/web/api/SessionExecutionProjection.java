@@ -301,11 +301,11 @@ final class SessionExecutionProjection {
   }
 
   static boolean failed(ApiResponses.ToolExecutionSummary tool) {
+    var observed = tool.observation();
+    if (observed != null && !observed.measuresTool()) observed = null;
     Integer exit =
-        tool.observation() != null && tool.observation().exitCode() != null
-            ? tool.observation().exitCode()
-            : tool.exitCode();
-    String explicit = tool.observation() == null ? "" : tool.observation().status();
+        observed != null && observed.exitCode() != null ? observed.exitCode() : tool.exitCode();
+    String explicit = observed == null ? "" : observed.status();
     return (exit != null && exit != 0)
         || "failed".equals(explicit)
         || "error".equals(explicit)

@@ -400,7 +400,7 @@
   }
 
   function observedToolTime(tool) {
-    var nanos = tool.observation?.durationNanos;
+    var nanos = outerToolObservation(tool)?.durationNanos;
     if (Number.isFinite(nanos) && nanos >= 0) return durationLabel(nanos / 1e9);
     return durationLabel(Number.isFinite(tool.durationMs) ? tool.durationMs / 1000 : null);
   }
@@ -411,6 +411,9 @@
       var status = toolStatusLabel(tool);
       var failed = isFailedTool(tool);
       var timeText = observedToolTime(tool);
+      var inner = tool.observation?.kind === 'inner_command' ? tool.observation : null;
+      var showInnerTime = inner && timeText === '未记录' && Number.isFinite(inner.durationNanos);
+      if (!status && inner) status = innerStatus(inner);
       var toolTimestamp = localTime(tool.timestamp);
       var scopeText = isSubagent ? '子 Agent' : '';
       var executionKind = toolCategory(tool);
@@ -431,7 +434,9 @@
         + escapeRoundHtml(kindLabel) + '</strong>' + (action ? ' · ' + escapeRoundHtml(action) : '') + '</span>'
         + '<span class="sd-tool-result' + (failed ? ' sd-tool-result--failed sd-tool-result--fail' : '') + '" title="状态：' + escapeRoundHtml(status) + '">' + escapeRoundHtml(status) + '</span>'
         + timeEvidence(toolTimestamp, '发起时间', 'sd-time-point', '来源记录的工具声明时间，非执行器启动时间')
-        + timeEvidence(timeText, '耗时', 'sd-time-duration')
+        + (showInnerTime
+          ? timeEvidence(formatNumber(inner.durationNanos) + ' ns', '子命令耗时', 'sd-time-duration', '不是外层工具总耗时')
+          : timeEvidence(timeText, '耗时', 'sd-time-duration'))
         + '<span' + (scopeText ? ' class="sd-exit' + (failed ? ' sd-exit--err' : '') + '"' : '') + '>' + escapeRoundHtml(scopeText) + '</span>'
         + '<span class="sd-tool-tokens"></span><span class="sd-tool-actions">'
         + (tool.resultObserved === true && tool.toolCallId
@@ -588,25 +593,36 @@
     return ids.indexOf(tool.toolCallId) !== -1;
   }
 
+  function outerToolObservation(tool) {
+    return tool.observation?.kind === 'inner_command' ? null : tool.observation;
+  }
+
+  function innerStatus(observed) {
+    if (observed.exitCode != null && observed.exitCode !== 0) return '子命令退出码 ' + observed.exitCode;
+    return ({ completed: '子命令完成', failed: '子命令失败' })[observed.status] || '';
+  }
+
   function isFailedTool(tool) {
     if (!tool) return false;
-    var exit = tool.observation?.exitCode ?? tool.exitCode;
+    var observed = outerToolObservation(tool);
+    var exit = observed?.exitCode ?? tool.exitCode;
     var status = String(tool.status || '').trim().toLowerCase();
-    var explicit = String(tool.observation?.status || '').toLowerCase();
+    var explicit = String(observed?.status || '').toLowerCase();
     return (exit != null && Number(exit) !== 0) || ['failed', 'error', 'cancelled'].includes(explicit)
       || (Boolean(status) && !['ok', 'success', 'completed', 'running', 'pending', 'queued'].includes(status));
   }
 
   function toolStatusLabel(tool) {
     if (!tool) return '';
-    var exit = tool.observation?.exitCode ?? tool.exitCode;
+    var observed = outerToolObservation(tool);
+    var exit = observed?.exitCode ?? tool.exitCode;
     if (exit != null && Number(exit) !== 0) return '退出码 ' + exit;
     if (isFailedTool(tool)) return ({
       failed: '失败', error: '失败', cancelled: '已取消',
       text_heuristic_failure: '文本提示失败', tool_error: '工具报错'
     })[tool.status] || ({
       failed: '失败', error: '失败', cancelled: '已取消'
-    })[tool.observation?.status] || '失败信号';
+    })[observed?.status] || '失败信号';
     return '';
   }
 
@@ -614,6 +630,9 @@
     var observed = tool.observation;
     if (!observed) return '';
     var facts = [observed.source, observed.kind, observed.status, observed.issue].filter(Boolean);
+    if (observed.kind === 'inner_command' && Number.isFinite(observed.durationNanos)) {
+      facts.push('子命令耗时 ' + formatNumber(observed.durationNanos) + ' ns（非外层总耗时）');
+    }
     if (observed.exitCode != null) facts.push('退出码 ' + observed.exitCode);
     return facts.length ? '<p class="sd-chart-note">' + escapeRoundHtml(facts.join(' · ')) + '</p>' : '';
   }

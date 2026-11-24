@@ -65,6 +65,7 @@ class CodexCallReadingContractTest {
                 Map.of("text", "Base instruction"),
                 "dynamic_tools",
                 List.of(Map.of("name", "registered")))));
+    lines.add(message("developer", "Base instruction"));
     lines.add(
         message(
             "developer",
@@ -392,6 +393,9 @@ class CodexCallReadingContractTest {
               assertThat(block.text()).isEqualTo("Base instruction");
             });
     assertThat(firstRequest.blocks()).noneMatch(block -> "context_snapshot".equals(block.kind()));
+    assertThat(
+            firstRequest.blocks().stream().filter(block -> "Base instruction".equals(block.text())))
+        .hasSize(1);
     assertThat(view(content, reader, "main:req:" + third).blocks())
         .filteredOn(block -> "context_snapshot".equals(block.kind()))
         .singleElement()

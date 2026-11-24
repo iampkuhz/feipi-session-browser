@@ -110,8 +110,10 @@ public record NormalizedToolExecution(
     if (observation.isPresent()) {
       var value = observation.orElseThrow();
       if (!value.toolCallId().equals(toolCallId)
-          || !Objects.equals(value.durationMs(), durationMs)
-          || !Objects.equals(value.exitCode(), exitCode == null ? null : exitCode.orElse(null))) {
+          || !Objects.equals(value.measuresTool() ? value.durationMs() : null, durationMs)
+          || !Objects.equals(
+              value.measuresTool() ? value.exitCode() : null,
+              exitCode == null ? null : exitCode.orElse(null))) {
         throw new IllegalArgumentException("工具观测与执行摘要不一致");
       }
     }

@@ -109,6 +109,12 @@ final class RoundIndexProjection {
       var usage = new RoundAgentUsage();
       var calls = callsForRound(round, artifact);
       var visible = displayCalls(calls);
+      parityMap.put(
+          "confirmedCallCount",
+          calls.stream()
+              .filter(
+                  call -> !ContentRoundIndex.modelCallEvidence(artifact.agent(), call).isEmpty())
+              .count());
       var task =
           visible.stream()
               .flatMap(call -> ContentRoundIndex.sideTask(call).stream())
