@@ -1,5 +1,6 @@
 package com.feipi.session.browser.web.export;
 
+import com.feipi.session.browser.application.sessiondetail.PayloadLookup;
 import com.feipi.session.browser.application.sessiondetail.SessionContentReader;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionContent;
@@ -103,6 +104,7 @@ public final class ContentExportSnapshot implements AutoCloseable {
                   + " model-call boundary. Record and row totals are not model API call counts.</p>");
           writer.write(
               "<p>需要从工具定位到声明记录的模型输入/输出时，优先使用 HTML。部分浏览器打开 MHTML" + " 时页内跳转可能不可用，可展开对应声明记录查看。</p>");
+          writer.write("<p>本档案仅提供原生折叠和已收录片段，不包含在线 modal 往返或在线协作交互。</p>");
           writer.write("<p>模型耗时未测量。工具时长仅使用来源观测；— 为未知，不是零。工具工作量不能当作墙钟、重叠或关键路径。</p>");
           long tokens = 0;
           var provenance = TokenProvenance.empty();
@@ -160,10 +162,18 @@ public final class ContentExportSnapshot implements AutoCloseable {
                           + (request ? "input-" : "output-")
                           + anchor(call.callId())
                           + "\">");
-                  writer.write(
-                      request ? "模型输入 · Request（本地来源/重建）</h3><pre>" : "模型输出 · Response</h3><pre>");
-                  text(writer, payload.content());
-                  writer.write("</pre>");
+                  writer.write(request ? "模型输入 · Request（本地来源/重建）</h3>" : "模型输出 · Response</h3>");
+                  if (request) {
+                    writer.write("<h4>输入正文</h4>");
+                    if (payload.reading().isEmpty())
+                      writer.write("<p>未单列输入正文；本地工具结果和原始请求仍可审查。</p>");
+                    for (var block : payload.reading()) pre(writer, block.text());
+                    if (payload.unconfirmedContext()) writer.write("<p>原始请求含归属未确认的上下文。</p>");
+                    inputResults(writer, payloads, payload.payloadId(), visibility);
+                    writer.write("<details><summary>原始请求全文</summary>");
+                    pre(writer, payload.content());
+                    writer.write("</details>");
+                  } else pre(writer, payload.content());
                 }
                 writer.write("</details>");
               }
@@ -183,12 +193,16 @@ public final class ContentExportSnapshot implements AutoCloseable {
                 writer.write(" · ");
                 text(writer, tool.exitCode().map(code -> "退出码 " + code).orElse("退出未知"));
                 writer.write("</summary>");
-                writer.write(
-                    "<p>来源：<a href=\"#input-"
-                        + anchor(tool.declaredByCallId())
-                        + "\">模型输入</a> · <a href=\"#output-"
-                        + anchor(tool.declaredByCallId())
-                        + "\">模型输出</a></p>");
+                if (reader.roundIndex().roundIndexForCall(tool.declaredByCallId()).isPresent()) {
+                  writer.write(
+                      "<p>来源：<a href=\"#input-"
+                          + anchor(tool.declaredByCallId())
+                          + "\">模型输入</a> · <a href=\"#output-"
+                          + anchor(tool.declaredByCallId())
+                          + "\">模型输出</a></p>");
+                } else {
+                  writer.write("<p>来源未确认：无法关联到模型输入或模型输出。</p>");
+                }
                 field(writer, "scope", tool.scope().getValue());
                 field(writer, "declaredByCallId", tool.declaredByCallId());
                 field(writer, "resultConsumedByCallId", tool.resultConsumedByCallId().orElse(""));
@@ -205,10 +219,20 @@ public final class ContentExportSnapshot implements AutoCloseable {
                       payloads.payload("tool:" + kind + ":" + tool.toolCallId(), visibility);
                   if (payload.isEmpty()) throw new IOException("Export tool payload unavailable");
                   field(writer, "payloadId", payload.get().payloadId());
-                  writer.write("input".equals(kind) ? "<h3>命令或参数</h3>" : "<h3>执行结果</h3>");
-                  writer.write("<pre>");
-                  text(writer, payload.get().content());
-                  writer.write("</pre>");
+                  if ("result".equals(kind)) {
+                    toolResults(
+                        writer,
+                        payloads,
+                        payload.get().payloadId(),
+                        visibility,
+                        reader.roundIndex());
+                    writer.write("<details><summary>工具结果全文</summary>");
+                    pre(writer, payload.get().content());
+                    writer.write("</details>");
+                  } else {
+                    writer.write("<h3>命令或参数</h3>");
+                    pre(writer, payload.get().content());
+                  }
                 }
                 writer.write("</details>");
               }
@@ -220,6 +244,126 @@ public final class ContentExportSnapshot implements AutoCloseable {
           writer.flush();
         },
         payloads::close);
+  }
+
+  private static void inputResults(
+      Writer writer,
+      SessionContentReader.ExportPayloads payloads,
+      String payloadId,
+      PayloadVisibility visibility)
+      throws IOException {
+    writer.write("<h4>本地记录中的工具结果</h4>");
+    long cursor = 0;
+    do {
+      var page = payloads.localResults(payloadId, cursor, 20, null, visibility);
+      if (cursor == 0) coverage(writer, page.coverage(), page.reason());
+      if (cursor == 0 && page.references().isEmpty())
+        writer.write(
+            "complete".equals(page.coverage())
+                ? "<p>当前未记录工具结果引用。</p>"
+                : "<p>尚未能单列工具结果引用；不能据此确认没有引用。</p>");
+      for (var reference : page.references()) {
+        writer.write(
+            "<details id=\"reference-" + anchor(reference.referenceId()) + "\"><summary>本地工具结果 · ");
+        text(writer, reference.toolName());
+        writer.write("</summary>");
+        identity(writer, reference.identity());
+        resultText(writer, reference.content());
+        writer.write("</details>");
+      }
+      if (page.nextCursor() == null) break;
+      cursor = page.nextCursor();
+    } while (true);
+  }
+
+  private static void toolResults(
+      Writer writer,
+      SessionContentReader.ExportPayloads payloads,
+      String payloadId,
+      PayloadVisibility visibility,
+      ContentRoundIndex index)
+      throws IOException {
+    writer.write("<h3>执行结果</h3>");
+    long cursor = 0;
+    do {
+      var page = payloads.localResults(payloadId, cursor, 20, null, visibility);
+      if (cursor == 0) coverage(writer, page.coverage(), page.reason());
+      if (cursor == 0 && page.occurrences().isEmpty())
+        writer.write(
+            "complete".equals(page.coverage())
+                ? "<p>当前未记录结果分项，工具结果全文仍可审查。</p>"
+                : "<p>尚未能单列结果分项，工具结果全文仍可审查。</p>");
+      for (var occurrence : page.occurrences()) {
+        writer.write("<details><summary>Result · ");
+        text(writer, occurrence.toolName());
+        writer.write(" · " + (occurrence.order() + 1) + "</summary>");
+        identity(writer, occurrence.identity());
+        resultText(writer, occurrence.content());
+        writer.write("<h4>包含此结果的本地输入</h4><p>仅证明本地记录包含，不代表 provider 采用或任务成功。</p>");
+        long relationCursor = 0;
+        do {
+          var relations =
+              payloads.localResultRelations(occurrence.occurrenceId(), relationCursor, 20, null);
+          if (relationCursor == 0) coverage(writer, relations.coverage(), relations.reason());
+          if (relationCursor == 0 && relations.targets().isEmpty()) {
+            writer.write(
+                "complete".equals(relations.coverage()) && "confirmed".equals(relations.identity())
+                    ? "<p>本地未记录包含此结果的输入。</p>"
+                    : "<p>尚不能确认包含此结果的输入；不是已确认零目标。</p>");
+          }
+          for (var target : relations.targets()) {
+            boolean captured =
+                "confirmed".equals(relations.identity())
+                    && index.roundIndexForCall(target.callId()).isPresent();
+            writer.write("<p>");
+            if (captured)
+              writer.write("<a href=\"#reference-" + anchor(target.referenceId()) + "\">");
+            text(
+                writer,
+                "本地记录#"
+                    + (target.recordIndex() == null ? "未知" : target.recordIndex())
+                    + " · "
+                    + ("subagent".equals(target.scope()) ? "子上下文" : "主上下文"));
+            writer.write(captured ? "</a>" : " · 未收录或身份未确认，不能离线到达");
+            writer.write("</p>");
+          }
+          if (relations.nextCursor() == null) break;
+          relationCursor = relations.nextCursor();
+        } while (true);
+        writer.write("</details>");
+      }
+      if (page.nextCursor() == null) break;
+      cursor = page.nextCursor();
+    } while (true);
+  }
+
+  private static void coverage(Writer writer, String coverage, String reason) throws IOException {
+    if ("partial".equals(coverage)) writer.write("<p>当前已确认的输入不代表完整集合，仍有记录无法核对。</p>");
+    else if (!"complete".equals(coverage)) writer.write("<p>尚不能确认记录是否完整，不能据此判断全部包含关系。</p>");
+    if (!reason.isEmpty()) {
+      writer.write("<details><summary>关系范围说明</summary><p>以下为审查用的内部原因标记，不代表任务执行结果。</p><pre>");
+      text(writer, reason);
+      writer.write("</pre></details>");
+    }
+  }
+
+  private static void identity(Writer writer, String identity) throws IOException {
+    if ("ambiguous".equals(identity)) writer.write("<p>来源记录存在冲突，无法唯一确认结果身份。</p>");
+    else if (!"confirmed".equals(identity)) writer.write("<p>结果的来源身份尚未确认，不能据此建立准确的包含关系。</p>");
+  }
+
+  private static void resultText(Writer writer, PayloadLookup.ResultContent content)
+      throws IOException {
+    if ("missing".equals(content.state())) writer.write("<p>结果正文缺失。</p>");
+    else if (content.text().isEmpty()) writer.write("<p>显式空结果。</p>");
+    else pre(writer, content.text());
+    if (content.truncated()) writer.write("<p>此结果正文已裁剪；工具结果全文仍可审查。</p>");
+  }
+
+  private static void pre(Writer writer, String value) throws IOException {
+    writer.write("<pre>");
+    text(writer, value);
+    writer.write("</pre>");
   }
 
   private static String anchor(String id) {

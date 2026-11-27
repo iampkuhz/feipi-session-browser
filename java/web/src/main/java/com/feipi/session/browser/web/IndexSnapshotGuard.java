@@ -11,7 +11,7 @@ public final class IndexSnapshotGuard {
   /** 客户端批次和服务端响应共用的索引发布代号头。 */
   public static final String HEADER = "X-Session-Index-Generation";
 
-  /** 非流式个人页面传给模板的请求内发布代号。 */
+  /** 非流式个人页面与 JSON handler 共用的请求内冻结发布代号。 */
   public static final String PAGE_GENERATION = "index_generation";
 
   private final Supplier<String> generation;
@@ -40,6 +40,7 @@ public final class IndexSnapshotGuard {
         changed(context, before);
         return;
       }
+      context.attribute(PAGE_GENERATION, before);
       handler.handle(context);
       String after = generation.get();
       if (!before.equals(after)) {

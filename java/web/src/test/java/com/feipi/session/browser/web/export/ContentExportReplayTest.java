@@ -80,10 +80,32 @@ class ContentExportReplayTest {
     assertThat(tools)
         .containsExactlyElementsOf(
             java.util.stream.IntStream.range(0, 100).mapToObj(i -> "tool-" + i).toList());
+    var expectedResults =
+        java.util.stream.IntStream.range(0, 100).mapToObj(i -> "RESULT-" + i + "-END").toList();
+    var rawResults =
+        Pattern.compile(
+                "<details><summary>工具结果全文</summary><pre>(.*?)</pre></details>", Pattern.DOTALL)
+            .matcher(html)
+            .results()
+            .map(match -> match.group(1))
+            .toList();
+    var typedResults =
+        Pattern.compile(
+                "<details><summary>Result ·[^<]*</summary>.*?<pre>(.*?)</pre>", Pattern.DOTALL)
+            .matcher(html)
+            .results()
+            .map(match -> match.group(1))
+            .toList();
+    assertThat(rawResults)
+        .as("complete tool audit text in source order")
+        .containsExactlyElementsOf(expectedResults);
+    assertThat(typedResults)
+        .as("one typed occurrence per source result in source order")
+        .containsExactlyElementsOf(expectedResults);
     for (int i = 0; i < 100; i++) {
       assertThat(Pattern.compile("RESULT-" + i + "-END").matcher(html).results().count())
-          .as("tool result occurrence %s", i)
-          .isEqualTo(1);
+          .as("one typed result and one full audit result %s", i)
+          .isEqualTo(2);
       assertThat(Pattern.compile("INPUT-" + i + "-END").matcher(html).results().count())
           .as("call response and tool input occurrence %s", i)
           .isEqualTo(2);

@@ -111,6 +111,15 @@ public final class NormalizationEngine {
       List<SourceRecord> records,
       List<SourceDiagnostic> diagnostics,
       List<NormalizedSourceFile> sourceFiles) {
+    return normalizeContent(agent, records, diagnostics, sourceFiles, null);
+  }
+
+  private com.feipi.session.browser.domain.normalized.NormalizedSessionContent normalizeContent(
+      NormalizedAgent agent,
+      List<SourceRecord> records,
+      List<SourceDiagnostic> diagnostics,
+      List<NormalizedSourceFile> sourceFiles,
+      List<ToolBinding> bindings) {
     Objects.requireNonNull(agent, "agent 不得为 null");
     Objects.requireNonNull(records, "records 不得为 null");
     Objects.requireNonNull(diagnostics, "diagnostics 不得为 null");
@@ -138,7 +147,9 @@ public final class NormalizationEngine {
     EventClassifier.ClassifiedEvents classified = EventClassifier.classify(records);
 
     // 2. 构建调用列表
-    List<NormalizedCall> calls = CallBuilder.buildCalls(records, classified);
+    var independent = new ArrayList<CallSourceUnitBuilder.Occurrence>();
+    List<NormalizedCall> calls =
+        CallBuilder.buildCalls(records, classified, originalRecords, bindings, independent);
 
     // 3. 构建工具执行边列表
     List<NormalizedToolExecution> toolExecutions =
@@ -192,6 +203,12 @@ public final class NormalizationEngine {
         sourceUnitCatalog.put(entry.unitKey(), entry);
       }
     }
+    for (var occurrence : independent) {
+      var entry =
+          ToolInputSourceContents.entry(
+              occurrence.record(), occurrence.ordinal(), occurrence.slot());
+      sourceUnitCatalog.put(entry.unitKey(), entry);
+    }
     if (calls.isEmpty()) {
       for (var record : records) {
         if (!ObservedInputContents.isUser(record)) continue;
@@ -224,6 +241,70 @@ public final class NormalizationEngine {
                 0L));
     return com.feipi.session.browser.domain.normalized.NormalizedSessionContent.fromLists(
         header, sourceFiles, calls, toolExecutions, typedDiagnostics, sourceUnitCatalog, Map.of());
+  }
+
+  /**
+   * 单次归一化的短暂结果；不写入持久 schema。
+   *
+   * @param artifact 原有归一化制品
+   * @param bindings 实际分配的有界来源绑定
+   */
+  public record BoundNormalization(
+      NormalizedSessionArtifact artifact, List<ToolBinding> bindings) {}
+
+  /**
+   * 实际分配位置及其完整规范化单元；原 ID 只用于固定源位置校验。
+   *
+   * @param recordOrdinal 归一化前记录顺序
+   * @param locator 原记录定位符
+   * @param eventIndex 来源对象坐标
+   * @param toolSlot 记录内工具槽位
+   * @param rawId 投影前工具标识
+   * @param rawName 原工具名
+   * @param rawInput 现有来源序列化的完整参数
+   * @param callId 实际所属调用
+   * @param scope 实际所属作用域
+   * @param subagentId 实际所属子代理
+   * @param unit 本次分配的完整规范化单元
+   */
+  public record ToolBinding(
+      int recordOrdinal,
+      String locator,
+      int eventIndex,
+      int toolSlot,
+      String rawId,
+      String rawName,
+      String rawInput,
+      String callId,
+      com.feipi.session.browser.domain.enums.CallScope scope,
+      Optional<String> subagentId,
+      Map<String, Object> unit) {}
+
+  /**
+   * 为单文件导入保留实际分配关系，不改变普通归一化的引用。
+   *
+   * @param agent 来源平台，仅支持 Codex
+   * @param records 来源记录
+   * @param diagnostics 来源诊断
+   * @param sourceFiles 来源文件
+   * @return 制品与请求内短暂绑定
+   */
+  public BoundNormalization normalizeWithBindings(
+      NormalizedAgent agent,
+      List<SourceRecord> records,
+      List<SourceDiagnostic> diagnostics,
+      List<NormalizedSourceFile> sourceFiles) {
+    if (agent != NormalizedAgent.CODEX) {
+      throw new IllegalArgumentException("occurrence bindings support CODEX only");
+    }
+    var bindings = new ArrayList<ToolBinding>();
+    try {
+      var artifact =
+          normalizeContent(agent, records, diagnostics, sourceFiles, bindings).toArtifact();
+      return new BoundNormalization(artifact, List.copyOf(bindings));
+    } catch (java.io.IOException exception) {
+      throw new java.io.UncheckedIOException(exception);
+    }
   }
 
   static Map<String, Object> toMap(SourceDiagnostic diag) {

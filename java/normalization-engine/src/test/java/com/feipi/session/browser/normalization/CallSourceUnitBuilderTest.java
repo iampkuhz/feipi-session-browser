@@ -14,6 +14,42 @@ import org.junit.jupiter.api.Test;
 
 class CallSourceUnitBuilderTest {
   @Test
+  void deferredResultDoesNotMoveLateResponseToFollowingCall() {
+    var calls =
+        CallSourceUnitBuilder.build(
+            List.of(
+                standaloneTool("main", "T", "input T"),
+                record("main", "tool_result", "R", "T"),
+                closingAssistant("main", "token_usage_record:F1"),
+                record("main", "response_item", "A1", ""),
+                record("main", "user", "U2", ""),
+                closingAssistant("main", "token_usage_record:F2")),
+            SourceRecord::locator);
+    assertThat(calls).hasSize(2);
+    assertThat(texts(calls.getFirst())).contains("A1").doesNotContain("R", "U2");
+    assertThat(texts(calls.getLast())).containsSubsequence("R", "U2").doesNotContain("A1");
+    assertThat(toolUnits(calls.getFirst()))
+        .singleElement()
+        .satisfies(unit -> assertThat(unit).containsEntry("input", "input T"));
+  }
+
+  @Test
+  void closingFrameDoesNotConsumeOwnToolResult() {
+    var calls =
+        CallSourceUnitBuilder.build(
+            List.of(
+                standaloneTool("main", "self-tool", "synthetic input"),
+                record("main", "tool_result", "synthetic own result", "self-tool"),
+                closingAssistant("main", "token_usage_record:self-response")),
+            SourceRecord::locator);
+    assertThat(calls).hasSize(1);
+    assertThat(toolUnits(calls.getFirst()))
+        .singleElement()
+        .satisfies(unit -> assertThat(unit).containsEntry("input", "synthetic input"));
+    assertThat(calls.getFirst()).noneMatch(unit -> "tool_result".equals(unit.get("type")));
+  }
+
+  @Test
   void metaUserUnitsKeepRoleWhitespaceOrderAndScopeEvidence() {
     var calls =
         CallSourceUnitBuilder.build(
@@ -36,6 +72,36 @@ class CallSourceUnitBuilderTest {
         .containsEntry("role", "user")
         .containsEntry("isMeta", true);
     assertThat(calls.get(1).get(0)).doesNotContainKey("isMeta");
+  }
+
+  @Test
+  void assignedOccurrencesKeepOrdinalsEvenWhenEventsAndIdsRepeat() {
+    var records =
+        List.of(
+            standaloneTool("main", "same", "pending"),
+            closingAssistant("main", "token_usage_record:first"),
+            standaloneTool("main", "same", "next pending"),
+            closingAssistant("main", "token_usage_record:second"),
+            assistantWithTools(
+                "child",
+                "",
+                List.of(
+                    new SourceToolCall("same", "Read", "slot zero"),
+                    new SourceToolCall("same", "Read", "slot one"))),
+            standaloneTool("child", "same", "current"));
+    var assigned = CallSourceUnitBuilder.buildAssigned(records, SourceRecord::locator);
+    var first = toolUnits(assigned.calls().get(0)).getFirst();
+    var second = toolUnits(assigned.calls().get(1)).getFirst();
+    assertThat(assigned.occurrences().get(first).ordinal()).isZero();
+    assertThat(assigned.occurrences().get(second).ordinal()).isEqualTo(2);
+    var child = toolUnits(assigned.calls().get(2));
+    assertThat(child).hasSize(3);
+    assertThat(child.stream().map(unit -> assigned.occurrences().get(unit).ordinal()).toList())
+        .containsExactly(4, 4, 5);
+    assertThat(child.stream().map(unit -> assigned.occurrences().get(unit).slot()).toList())
+        .containsExactly(0, 1, 0);
+    assertThat(assigned.occurrences().values())
+        .allSatisfy(o -> assertThat(o.record()).isSameAs(records.get(o.ordinal())));
   }
 
   private static SourceRecord metaUser(String scope, String text) {

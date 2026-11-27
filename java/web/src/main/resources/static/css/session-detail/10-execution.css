@@ -2,6 +2,7 @@
 .se-judgment { margin-block: var(--sd-card-gap); padding: 8px var(--sd-card-inset); border: 1px solid var(--sd-line); border-radius: var(--sd-radius-card); background: var(--sd-panel); }
 .se-failure { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 4px 12px; }
 .se-failure__actions {
+  grid-column: 3;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -34,3 +35,30 @@
   font-size: 14px;
   color: var(--sd-text-2);
 }
+
+.sc-panel { margin-block: 20px; padding-block: 12px; border-block: 1px solid var(--sd-line); }
+.sc-panel h2 { margin: 0 0 8px; font-size: 18px; }
+.sc-panel h3 { margin: 0; font-size: 14px; }
+.sc-panel p { margin-block: 6px; font-size: 12px; line-height: 1.7; }
+.sc-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.sc-relation { margin-block: 8px; padding: 12px; border: 1px solid var(--sd-line); border-radius: 8px; overflow-wrap: anywhere; }
+.sc-task { color: var(--sd-text); }
+.sc-origin .sd-btn, .sc-report .sd-btn { margin: 3px; }
+.sc-report { display: block; font-size: 12px; }
+.sc-breadcrumb, .sc-participant { overflow-wrap: anywhere; }
+.sc-relation:focus, [data-execution-agent-context]:focus, .sc-breadcrumb:focus { outline: 2px solid var(--sd-brand); outline-offset: 2px; }
+
+.sc-response-group { margin-block: 16px; border-block-start: 1px solid var(--sd-line); overflow-wrap: anywhere; }
+.sc-response-group > h3 { margin-block: 8px; }
+.sc-response-group > .sc-relation { margin-block: 0; padding: 10px 0; border: 0; border-block-end: 1px solid var(--sd-line); border-radius: 0; }
+.sc-response-group > .sc-relation > h4 { margin: 0; font-size: 14px; font-weight: 600; }
+.sc-attention { margin-block-end: 12px; padding-block-end: 12px; border-block-end: 1px solid var(--sd-line); overflow-wrap: anywhere; }
+.sc-attention p { margin: 0 0 6px; font-size: 12px; line-height: 1.7; }
+
+.sc-disclosure { margin-block: var(--sd-card-gap); padding: 8px var(--sd-card-inset); border: 1px solid var(--sd-line); border-radius: var(--sd-radius-card); }
+.sc-disclosure > summary { cursor: pointer; color: var(--sd-brand); font-size: 13px; }
+.se-failure__basis { grid-column: 1 / -1; margin: 0; color: var(--sd-muted); font-size: 12px; }
+
+.sd-trace-panel > [data-execution-collaboration-return][hidden] { display: none; }
+
+.se-long-operation { border-block-end: 1px solid var(--sd-line); overflow-wrap: anywhere; }

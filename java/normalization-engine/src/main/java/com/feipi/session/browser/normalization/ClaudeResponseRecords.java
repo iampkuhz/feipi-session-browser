@@ -95,7 +95,14 @@ final class ClaudeResponseRecords {
         stopReason,
         first.timing(),
         first.metaContext(),
-        first.messageRole());
+        first.messageRole(),
+        first.toolObservation(),
+        first.readingEvidence(),
+        group.stream()
+            .flatMap(record -> record.collaboration().stream())
+            .distinct()
+            .limit(128)
+            .toList());
   }
 
   /**

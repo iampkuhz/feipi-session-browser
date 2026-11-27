@@ -18,6 +18,7 @@ import org.slf4j.LoggerFactory;
  * <ul>
  *   <li>{@code /api/sessions/{agent}/{session_id}/payload/{payload_id}}
  *   <li>{@code /api/sessions/{agent}/{session_id}/round/{round_index}}
+ *   <li>{@code /api/sessions/{agent}/{session_id}/attribution/call/{call_id}/{kind}}
  *   <li>{@code /api/sessions/{agent}/{session_id}/attribution/{round}/{call}/{kind}}
  *   <li>{@code /api/sessions/{agent}/{session_id}/attribution/subagent/{sa_id}/{call_idx}/{kind}}
  *   <li>{@code /api/sessions/{agent}/{session_id}/bucket-detail/{round_index}/{bucket_key}}
@@ -152,7 +153,7 @@ public final class SessionApiRouter {
   /**
    * 路由 attribution 请求。
    *
-   * <p>支持两种模式：
+   * <p>支持完整调用身份及原有两种位置模式：
    *
    * <ul>
    *   <li>Main: {@code /api/sessions/{agent}/{session_id}/attribution/{round}/{call}/{kind}}
@@ -161,6 +162,16 @@ public final class SessionApiRouter {
    * </ul>
    */
   private void routeAttribution(Context ctx, String[] parts, String agent, String sessionId) {
+    if (parts.length == ATTRIBUTION_MAIN_PARTS && "call".equals(parts[6])) {
+      handler.handleCallAttribution(
+          ctx,
+          agent,
+          sessionId,
+          ApiResponses.decodePathParam(parts[7]),
+          ApiResponses.decodePathParam(parts[8]));
+      return;
+    }
+
     // 检测 subagent 模式
     if (parts.length == ATTRIBUTION_SUBAGENT_PARTS && "subagent".equals(parts[6])) {
       String subagentId = ApiResponses.decodePathParam(parts[7]);

@@ -2,6 +2,10 @@ const { test, expect } = require('@playwright/test');
 
 const SESSION = '/sessions/claude_code/hifi-viz-session-001';
 
+function typedRequest(payload) {
+  return { payload, localResults: { items: [], offset: 0, nextCursor: null, coverage: 'complete', reason: '', targetReferenceId: null }, relations: null };
+}
+
 // Synthetic pages keep the real fixture's generation header, except the explicit stale-page case.
 async function pagedRounds(page, stale = false) {
   const requests = [];
@@ -119,7 +123,7 @@ test('paginated round members are the sole route to identity-bound original bodi
     bodyReads++;
     const response = await route.fetch();
     const side = decodeURIComponent(new URL(route.request().url()).pathname).includes(':req:') ? 'request' : 'response';
-    await route.fulfill({ response, status: 200, json: { kind: 'llm_' + side, text: 'Synthetic tail ' + side } });
+    await route.fulfill({ response, status: 200, json: side === 'request' ? typedRequest({ kind: 'llm_request', text: 'Synthetic tail request' }) : { kind: 'llm_response', text: 'Synthetic tail response' } });
   });
   await page.goto(SESSION);
   await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
@@ -244,9 +248,9 @@ test('paged child Request uses stable call identity and retains child scope', as
 });
 
 async function stubMemberRequest(page, id) {
-  await page.route(`**/payload/${encodeURIComponent(id)}`, async (route) => {
+  await page.route(`**/payload/${encodeURIComponent(id)}?view=local_results`, async (route) => {
     const url = route.request().url().split('/payload/')[0] + '/payload/' + encodeURIComponent('round:req:1');
     const response = await route.fetch({ url });
-    await route.fulfill({ response, status: 200, json: { kind: id.startsWith('sa:') ? 'subagent_request' : 'llm_request', text: 'Synthetic member request' } });
+    await route.fulfill({ response, status: 200, json: typedRequest({ kind: id.startsWith('sa:') ? 'subagent_request' : 'llm_request', text: 'Synthetic member request' }) });
   });
 }

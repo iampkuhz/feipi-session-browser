@@ -1,4 +1,5 @@
 const { test: base, expect } = require('@playwright/test');
+const { captureDiagnosticScreenshot } = require('./start-java-fixture-server');
 
 const { executionSourceRecords } = require('../fixtures/generate-session-fixtures');
 const { createHash } = require('crypto');
@@ -274,4 +275,331 @@ test('three tools declared by the same response remain together without reads of
   for (const id of [1, 2, 3]) await expect(group.locator(`[data-tool-call-id="synthetic-action-${id}"]`)).toBeVisible();
   await expect(group.locator('[data-tool-payload-pair][open]')).toHaveCount(0);
   expect(reads).toHaveLength(0);
+});
+
+async function localResultFixture(page, api, setup) {
+  await page.locator('[data-trace-round-row]').first().locator('[data-action="toggle-round"]').click();
+  const trigger = page.locator('[data-tool-call-id="synthetic-action-1"] [data-payload-kind="tool_result"]');
+  await expect(trigger).toBeVisible();
+  const id = await trigger.getAttribute('data-payload-id');
+  const rootPath = api + '/payload/' + encodeURIComponent(id);
+  const targetPath = api + '/payload/' + encodeURIComponent('main:req:synthetic-exact-input');
+  const target = (n = 0) => ({ callId: 'synthetic-input', requestPayloadId: 'main:req:synthetic-exact-input', referenceId: 'synthetic-ref-' + n,
+    target: 'synthetic-target-' + n, apiUrl: targetPath, recordIndex: 42, scope: 'subagent' });
+  const relation = (targets = [], extra = {}) => ({ targets, offset: 0, nextCursor: null, coverage: 'complete', identity: 'confirmed', reason: null, ...extra });
+  const item = (text, extra = {}) => ({ referenceId: null, occurrence: 'synthetic-occurrence', toolName: 'exec_command', position: 0, identity: 'confirmed',
+    content: { state: 'available', text, truncated: false }, targetPreview: relation([target()]), ...extra });
+  const result = (items, extra = {}) => ({ payload: { kind: 'tool_result', status: 'available', content: 'SYNTHETIC_FULL_RESULT_TAIL' },
+    localResults: { items, offset: 0, nextCursor: null, coverage: 'complete', targetReferenceId: null, ...extra }, relations: null });
+  const input = n => ({ payload: { payloadId: 'main:req:synthetic-exact-input', kind: 'llm_request', status: 'missing', content: '', reading: [] },
+    localResults: { items: [item('SYNTHETIC_EXACT_REFERENCE_' + n, { referenceId: 'synthetic-ref-' + n, targetPreview: null })], offset: 40, nextCursor: null, coverage: 'complete', targetReferenceId: 'synthetic-ref-' + n }, relations: null });
+  await setup({ trigger, rootPath, targetPath, target, relation, item, result, input });
+}
+
+test('local result inclusion manual bounded references and exact late window', async ({ page, executionImport: { api, detail } }) => {
+  await page.goto(detail); await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+  await localResultFixture(page, api, async ({ trigger, rootPath, targetPath, target, relation, item, result, input }) => {
+    const requests = [];
+    await page.route('**' + api + '/payload/**', async route => {
+      const url = new URL(route.request().url());
+      requests.push(url);
+      if (url.pathname === rootPath) {
+        const data = url.searchParams.has('occurrence') ? { payload: null, localResults: null, relations: relation(Array.from({ length: 44 }, (_, i) => target(i + 1)), { offset: 1 }) }
+          : result([item('SYNTHETIC_SAME_TEXT', { targetPreview: relation([target()], { nextCursor: 'synthetic-offset-one' }) })]);
+        await route.fulfill({ json: data });
+      } else { expect(url.pathname).toBe(targetPath); await route.fulfill({ json: input(44) }); }
+    });
+    await trigger.click(); const modal = page.locator('dialog.payload-modal[open]');
+    await expect(modal).toContainText('本地记录#42 · 子上下文'); expect(requests).toHaveLength(1);
+    await modal.getByRole('button', { name: '其他已确认输入', exact: true }).click();
+    await expect(modal.locator('[data-local-target]')).toHaveCount(45);
+    expect(requests[1].searchParams.get('cursor')).toBe('synthetic-offset-one');
+    expect(requests[1].searchParams.get('occurrence')).toBe('synthetic-occurrence');
+    await expect(modal.locator('.sd-local-target')).toHaveCount(1);
+    const last = modal.getByRole('button', { name: '查看已载入引用 45', exact: true });
+    await modal.locator('[data-tool-result-original] > summary').first().click();
+    await last.focus();
+    const savedScroll = await modal.locator('[data-payload-body]').evaluate(node => node.scrollTop);
+    await page.keyboard.press('Enter'); await expect(modal.locator('[data-local-reference]')).toHaveText(/SYNTHETIC_EXACT_REFERENCE_44/);
+    expect(requests).toHaveLength(3); expect(requests[2].searchParams.get('target')).toBe('synthetic-target-44'); expect(requests[2].searchParams.has('cursor')).toBe(false);
+    await modal.getByRole('button', { name: '返回结果', exact: true }).click();
+    await expect(last).toBeFocused(); await expect(modal.locator('[data-local-target]')).toHaveCount(45);
+    await expect(modal.locator('[data-tool-result-original]').first()).toHaveAttribute('open');
+    expect(await modal.locator('[data-payload-body]').evaluate(node => node.scrollTop)).toBe(savedScroll);
+  });
+});
+
+test('local result inclusion null empty unknown ambiguous partial and safe complete raw', async ({ page, executionImport: { api, detail } }) => {
+  await page.goto(detail); await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+  await localResultFixture(page, api, async ({ trigger, rootPath, relation, item, result }) => {
+    await page.route('**' + rootPath + '?**', route => route.fulfill({ json: result([
+      item('', { targetPreview: null }), item('', { targetPreview: relation() }),
+      item('SYNTHETIC_UNKNOWN', { targetPreview: relation([], { coverage: 'unknown' }) }),
+      item('SYNTHETIC_AMBIGUOUS', { targetPreview: relation([], { identity: 'ambiguous' }) }),
+      item('<script>synthetic_not_executed()</script> [REDACTED]', { targetPreview: relation([], { coverage: 'partial' }), content: { state: 'available', text: '<script>synthetic_not_executed()</script> [REDACTED]', truncated: true } }),
+      item('', { targetPreview: relation(), content: { state: 'missing', text: null, truncated: false } }),
+    ]) }));
+    await trigger.click(); const modal = page.locator('dialog.payload-modal[open]'), rows = modal.locator('[data-local-result]');
+    await expect(rows).toHaveCount(6);
+    await expect(rows.nth(0)).toContainText('目标预览未载入'); await expect(rows.nth(0)).toContainText('已记录空结果（不是缺失）');
+    await expect(rows.nth(1)).toContainText('本地未记录包含此结果的输入');
+    await expect(rows.nth(2)).toContainText('尚不能确认包含关系'); await expect(rows.nth(3)).toContainText('来源记录有冲突');
+    await expect(rows.nth(4)).toContainText('记录可能不完整'); await expect(rows.nth(4)).toContainText('此结果正文已截断');
+    await expect(rows.nth(4).locator('script')).toHaveCount(0); await expect(rows.nth(5)).toContainText('此结果正文未记录');
+    await modal.locator('[data-tool-result-original] > summary').first().click(); await expect(modal).toContainText('SYNTHETIC_FULL_RESULT_TAIL');
+  });
+});
+
+for (const status of [500, 400, 409]) test(`local result inclusion target HTTP ${status} preserves scoped recovery`, async ({ page, executionImport: { api, detail } }) => {
+  await page.goto(detail); await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+  await localResultFixture(page, api, async ({ trigger, rootPath, targetPath, item, result, input }) => {
+    const requests = []; let targetReads = 0;
+    await page.route('**' + api + '/payload/**', async route => {
+      const url = new URL(route.request().url());
+      requests.push(url);
+      if (url.pathname === rootPath) await route.fulfill({ json: result([item('SYNTHETIC_RECOVERABLE_RESULT')]) });
+      else {
+        expect(url.pathname).toBe(targetPath); targetReads++;
+        if (targetReads === 1) await route.fulfill({ status, json: { message: 'Synthetic scoped failure' } });
+        else await route.fulfill({ json: input(0) });
+      }
+    });
+    await trigger.click(); const modal = page.locator('dialog.payload-modal[open]');
+    await modal.getByRole('button', { name: '查看准确引用', exact: true }).click();
+    if (status === 500) {
+      await modal.getByRole('button', { name: 'Retry', exact: true }).click();
+      await expect(modal.locator('[data-local-reference]')).toContainText('SYNTHETIC_EXACT_REFERENCE_0');
+      expect(requests[1].href).toBe(requests[2].href);
+      await modal.getByRole('button', { name: '返回结果', exact: true }).click();
+      await expect(modal).toContainText('SYNTHETIC_RECOVERABLE_RESULT');
+    } else if (status === 400) {
+      await expect(modal.getByRole('button', { name: 'Retry', exact: true })).toHaveCount(0);
+      await modal.getByRole('button', { name: '重新读取原结果', exact: true }).click();
+      await expect(modal).toContainText('SYNTHETIC_RECOVERABLE_RESULT');
+      expect(requests[2].pathname).toBe(rootPath); expect(requests[2].searchParams.has('target')).toBe(false);
+    } else {
+      await expect(modal).toContainText('索引已变化');
+      await expect(modal.locator('[data-local-result-return], [data-local-target]')).toHaveCount(0);
+      expect(requests).toHaveLength(2);
+    }
+    expect(requests.every(u => u.pathname.startsWith(api + '/payload/'))).toBe(true);
+  });
+});
+
+test('local result inclusion same ID reopening rejects late payload', async ({ page, executionImport: { api, detail } }) => {
+  await page.goto(detail); await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+  await localResultFixture(page, api, async ({ trigger, rootPath, item, result }) => {
+    let release, arrived; const gate = new Promise(r => { release = r; }), waiting = new Promise(r => { arrived = r; }); let reads = 0;
+    await page.route('**' + rootPath + '?**', async route => {
+      reads++; const first = reads === 1;
+      if (first) { arrived(); await gate; }
+      await route.fulfill({ json: result([item(first ? 'SYNTHETIC_OLD_INTENT' : 'SYNTHETIC_NEW_INTENT')]) });
+    });
+    try {
+      await trigger.click(); await waiting; await page.keyboard.press('Escape');
+      await trigger.click(); const modal = page.locator('dialog.payload-modal[open]'); await expect(modal).toContainText('SYNTHETIC_NEW_INTENT');
+      const completed = page.waitForResponse(r => r.url().includes(rootPath)); release(); await completed;
+      await expect(modal).not.toContainText('SYNTHETIC_OLD_INTENT'); await expect(modal).toContainText('SYNTHETIC_NEW_INTENT');
+    } finally { release(); }
+  });
+});
+
+for (const action of ['focus', 'return', 'close']) test(`local result inclusion delayed target respects later ${action}`, async ({ page, executionImport: { api, detail } }) => {
+  await page.goto(detail); await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+  await localResultFixture(page, api, async ({ trigger, rootPath, item, result, input }) => {
+    let release, arrived; const gate = new Promise(r => { release = r; }), waiting = new Promise(r => { arrived = r; });
+    await page.route('**' + api + '/payload/**', async route => {
+      if (new URL(route.request().url()).pathname === rootPath) await route.fulfill({ json: result([item('SYNTHETIC_RETURN_POSITION')]) });
+      else { arrived(); await gate; await route.fulfill({ json: input(0) }); }
+    });
+    try {
+      await trigger.click(); const modal = page.locator('dialog.payload-modal[open]'); const target = modal.locator('[data-local-target]');
+      await target.click(); await waiting;
+      if (action === 'focus') await modal.getByRole('button', { name: 'Close', exact: true }).focus();
+      if (action === 'return') await modal.getByRole('button', { name: '返回结果', exact: true }).click();
+      if (action === 'close') await page.keyboard.press('Escape');
+      const completed = page.waitForResponse(r => new URL(r.url()).searchParams.has('target')); release(); await completed;
+      if (action === 'focus') { await expect(modal.locator('[data-local-reference]')).toHaveCount(1); await expect(modal.getByRole('button', { name: 'Close', exact: true })).toBeFocused(); }
+      if (action === 'return') { await expect(target).toBeFocused(); await expect(modal).toContainText('SYNTHETIC_RETURN_POSITION'); await expect(modal.locator('[data-local-reference]')).toHaveCount(0); }
+      if (action === 'close') { await expect(page.locator('dialog.payload-modal')).not.toHaveAttribute('open'); await expect(trigger).toBeFocused(); }
+    } finally { release(); }
+  });
+});
+
+test('local result inclusion typed empty input survives missing legacy status and copies safe original', async ({ page, executionImport: { api, detail } }) => {
+  await page.goto(detail); await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+  await page.evaluate(() => { window.syntheticResultCopies = []; Object.defineProperty(navigator, 'clipboard', { configurable: true,
+    value: { writeText: async text => window.syntheticResultCopies.push(text) } }); });
+  await localResultFixture(page, api, async ({ trigger, rootPath, item, result, input }) => {
+    let reads = 0;
+    await page.route('**' + rootPath + '?**', route => {
+      reads++;
+      if (reads === 1) {
+        const body = input(0); body.localResults.items[0].content.text = '';
+        return route.fulfill({ json: body });
+      }
+      return route.fulfill({ json: result([item('{"output":"[REDACTED] SYNTHETIC_SAFE_OUTPUT"}')]) });
+    });
+    await trigger.click(); const modal = page.locator('dialog.payload-modal[open]');
+    await expect(modal).toContainText('未单列输入正文；本条包含以下本地工具结果');
+    await expect(modal.locator('[data-local-result]')).toContainText('已记录空结果（不是缺失）');
+    await expect(modal).not.toContainText('Request 正文未记录');
+    await page.keyboard.press('Escape'); await trigger.click();
+    await modal.getByRole('button', { name: '复制此结果原文', exact: true }).click();
+    await modal.locator('[data-tool-result-original] > summary').first().click();
+    await modal.getByRole('button', { name: 'Copy', exact: true }).click();
+    expect(await page.evaluate(() => window.syntheticResultCopies)).toEqual(['{"output":"[REDACTED] SYNTHETIC_SAFE_OUTPUT"}', 'SYNTHETIC_FULL_RESULT_TAIL']);
+    await expect(modal).not.toContainText('内容已截断');
+  });
+});
+
+test('local result inclusion late relationship page cannot revive closed source', async ({ page, executionImport: { api, detail } }) => {
+  await page.goto(detail); await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+  await localResultFixture(page, api, async ({ trigger, rootPath, relation, target, item, result }) => {
+    let release, arrived; const gate = new Promise(r => { release = r; }), waiting = new Promise(r => { arrived = r; }); let reads = 0;
+    await page.route('**' + rootPath + '?**', async route => {
+      const url = new URL(route.request().url());
+      if (url.searchParams.has('occurrence')) { arrived(); await gate; await route.fulfill({ json: { payload: null, localResults: null, relations: relation([target(1)]) } }); }
+      else { reads++; await route.fulfill({ json: result([item(reads === 1 ? 'SYNTHETIC_OLD_PAGE' : 'SYNTHETIC_NEW_PAGE', { targetPreview: relation([target()], { nextCursor: 'synthetic-next' }) })]) }); }
+    });
+    try {
+      await trigger.click(); const modal = page.locator('dialog.payload-modal[open]');
+      await modal.getByRole('button', { name: '其他已确认输入', exact: true }).click(); await waiting;
+      await page.keyboard.press('Escape'); await trigger.click(); await expect(modal).toContainText('SYNTHETIC_NEW_PAGE');
+      const completed = page.waitForResponse(r => new URL(r.url()).searchParams.has('occurrence')); release(); await completed;
+      await expect(modal.locator('[data-local-target]')).toHaveCount(1); await expect(modal).not.toContainText('SYNTHETIC_OLD_PAGE');
+    } finally { release(); }
+  });
+});
+
+test('local result inclusion rejects a target from another API scope without fallback', async ({ page, executionImport: { api, detail } }) => {
+  await page.goto(detail); await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+  await localResultFixture(page, api, async ({ trigger, rootPath, target, relation, item, result }) => {
+    const requests = [];
+    page.on('request', r => {
+      const url = new URL(r.url());
+      if (url.pathname.includes('/payload/')) requests.push(url);
+    });
+    await page.route('**' + rootPath + '?**', route => route.fulfill({ json: result([item('SYNTHETIC_SCOPED_RESULT', {
+      targetPreview: relation([{ ...target(), apiUrl: '/api/imports/synthetic-other-scope/payload/synthetic-input' }]),
+    })]) }));
+    await trigger.click(); const modal = page.locator('dialog.payload-modal[open]');
+    await modal.getByRole('button', { name: '查看准确引用', exact: true }).click();
+    await expect(modal).toContainText('此入口不属于当前范围'); expect(requests).toHaveLength(1);
+    await expect(modal).toContainText('SYNTHETIC_SCOPED_RESULT');
+  });
+});
+
+for (const status of [500, 409]) test(`local result inclusion delayed attribution ${status} respects newer focus`, async ({ page, executionImport: { api, detail } }) => {
+  await page.goto(detail); await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+  await localResultFixture(page, api, async ({ trigger, rootPath, target, relation, item, result, input }) => {
+    let release, arrived; const gate = new Promise(r => { release = r; }), waiting = new Promise(r => { arrived = r; });
+    const attributionPath = '/attribution/call/synthetic-exact-input/request';
+    await page.route('**' + api + '/payload/**', route => route.fulfill({ json: new URL(route.request().url()).pathname === rootPath
+      ? result([item('SYNTHETIC_ATTRIBUTION_SOURCE', { targetPreview: relation([{ ...target(), attributionPath }]) })]) : input(0) }));
+    await page.route('**' + api + attributionPath, async route => { arrived(); await gate; await route.fulfill({ status, json: { message: 'Synthetic attribution failure' } }); });
+    try {
+      await trigger.click(); const modal = page.locator('dialog.payload-modal[open]');
+      await modal.getByRole('button', { name: '查看准确引用', exact: true }).click(); await waiting;
+      const close = modal.getByRole('button', { name: 'Close', exact: true }); await close.focus();
+      const completed = page.waitForResponse(r => r.url().endsWith(attributionPath)); release(); await completed;
+      await expect(close).toBeFocused();
+      await expect(modal.locator('[data-payload-attribution="request"]')).toContainText(status === 409 ? '索引已变化' : '输入用量明细暂不可用。');
+      if (status === 409) await expect(modal.locator('[data-local-result-return]')).toHaveCount(0);
+      else await expect(modal.locator('[data-local-result-return]')).toHaveCount(1);
+    } finally { release(); }
+  });
+});
+
+test('local result inclusion input pagination keeps pending attribution and its Retry alive', async ({ page, executionImport: { api, detail } }) => {
+  await page.goto(detail); await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+  await localResultFixture(page, api, async ({ trigger, rootPath, target, relation, item, result, input }) => {
+    let release, arrived; const gate = new Promise(r => { release = r; }), waiting = new Promise(r => { arrived = r; }); let reads = 0;
+    const attributionPath = '/attribution/call/synthetic-exact-input/request';
+    await page.route('**' + api + '/payload/**', route => {
+      const url = new URL(route.request().url());
+      if (url.pathname === rootPath) return route.fulfill({ json: result([item('SYNTHETIC_SOURCE_WITH_PAGING', { targetPreview: relation([{ ...target(), attributionPath }]) })]) });
+      const body = input(url.searchParams.has('cursor') ? 1 : 0);
+      if (!url.searchParams.has('cursor')) body.localResults.nextCursor = 'synthetic-input-next';
+      return route.fulfill({ json: body });
+    });
+    await page.route('**' + api + attributionPath, async route => {
+      reads++;
+      if (reads === 1) { arrived(); await gate; await route.fulfill({ status: 500, json: { message: 'Synthetic transient attribution failure' } }); }
+      else await route.fulfill({ json: { kind: 'llm.request_attribution', data: { callId: 'synthetic-input', scope: 'subagent', requestToolResultCount: 2 } } });
+    });
+    try {
+      await trigger.click(); const modal = page.locator('dialog.payload-modal[open]');
+      await modal.getByRole('button', { name: '查看准确引用', exact: true }).click(); await waiting;
+      await modal.getByRole('button', { name: '继续读取结果记录', exact: true }).click();
+      await expect(modal.locator('[data-local-reference]')).toHaveCount(2);
+      const close = modal.getByRole('button', { name: 'Close', exact: true }); await close.focus();
+      const completed = page.waitForResponse(r => r.url().endsWith(attributionPath)); release(); await completed;
+      const attribution = modal.locator('[data-payload-attribution="request"]');
+      await expect(attribution).toContainText('输入用量明细暂不可用。'); await expect(close).toBeFocused();
+      await attribution.getByRole('button', { name: 'Retry', exact: true }).click();
+      await expect(attribution).toHaveAttribute('data-attribution-call', 'synthetic-input'); await expect(attribution).toHaveAttribute('data-attribution-scope', 'subagent');
+      await modal.getByRole('button', { name: '返回结果', exact: true }).click(); await expect(modal).toContainText('SYNTHETIC_SOURCE_WITH_PAGING');
+    } finally { release(); }
+  });
+});
+
+test('local result inclusion result page Retry retains current rows and original cursor', async ({ page, executionImport: { api, detail } }) => {
+  await page.goto(detail); await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+  await localResultFixture(page, api, async ({ trigger, rootPath, relation, item, result }) => {
+    const pages = []; let reads = 0;
+    await page.route('**' + rootPath + '?**', async route => {
+      const url = new URL(route.request().url());
+      if (!url.searchParams.has('cursor')) return route.fulfill({ json: result([item('SYNTHETIC_PAGE_ONE', { targetPreview: relation() })], { nextCursor: 'synthetic-results-next' }) });
+      pages.push(url.href); reads++;
+      if (reads === 1) await route.fulfill({ status: 500, json: { message: 'Synthetic page read failure' } });
+      else await route.fulfill({ json: result([item('SYNTHETIC_PAGE_TWO', { targetPreview: relation() })], { offset: 20 }) });
+    });
+    await trigger.click(); const modal = page.locator('dialog.payload-modal[open]');
+    await modal.getByRole('button', { name: '继续读取结果记录', exact: true }).click();
+    await expect(modal.locator('[data-local-result]')).toHaveCount(1);
+    await modal.getByRole('button', { name: 'Retry', exact: true }).click();
+    await expect(modal.locator('[data-local-result]')).toHaveCount(2);
+    await expect(modal).toContainText('SYNTHETIC_PAGE_ONE'); await expect(modal).toContainText('SYNTHETIC_PAGE_TWO'); expect(pages[0]).toBe(pages[1]);
+  });
+});
+
+
+test('local result inclusion tool-level truncation stays explicit without changing Copy', async ({ page, executionImport: { api, detail } }, testInfo) => {
+  await page.setViewportSize({ width: 1024, height: 900 });
+  await page.goto(detail); await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+  await page.evaluate(() => { window.syntheticResultCopies = []; Object.defineProperty(navigator, 'clipboard', { configurable: true,
+    value: { writeText: async text => window.syntheticResultCopies.push(text) } }); });
+  await localResultFixture(page, api, async ({ trigger, rootPath, item, result }) => {
+    const body = result([item('SYNTHETIC_COMPLETE_ITEM')]);
+    body.payload.truncated = true; body.payload.content = 'SYNTHETIC_RECORDED_RAW_PREFIX';
+    await page.route('**' + rootPath + '?**', route => route.fulfill({ json: body }));
+    await trigger.click(); const modal = page.locator('dialog.payload-modal[open]');
+    await expect(modal.getByText('工具级全文已截断；各结果正文状态见下方分项。', { exact: true })).toBeVisible();
+    await captureDiagnosticScreenshot(modal, { path: testInfo.outputPath('local-result-truncated-first-1024.png') });
+    await expect(modal.locator('[data-local-result]')).not.toContainText('正文已截断');
+    const original = modal.locator('[data-tool-result-original]').first();
+    await expect(original.locator('summary').first()).toHaveText('工具级全文、包装说明与原始载荷（已截断）');
+    await original.locator('summary').first().click(); await modal.getByRole('button', { name: 'Copy', exact: true }).click();
+    expect(await page.evaluate(() => window.syntheticResultCopies)).toEqual(['SYNTHETIC_RECORDED_RAW_PREFIX']);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await captureDiagnosticScreenshot(modal, { path: testInfo.outputPath('local-result-truncated-1024.png') });
+  });
+});
+
+test('local result inclusion expired target recovery cannot reopen an old ID in a new API scope', async ({ page, executionImport: { api, detail } }) => {
+  await page.goto(detail); await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true');
+  await localResultFixture(page, api, async ({ trigger, rootPath, item, result }) => {
+    const otherApi = api + '-synthetic-other-scope', crossed = [];
+    await page.route('**' + api + '/payload/**', route => new URL(route.request().url()).pathname === rootPath
+      ? route.fulfill({ json: result([item('SYNTHETIC_ORIGINAL_SCOPE')]) }) : route.fulfill({ status: 400, json: { message: 'Synthetic expired target' } }));
+    await page.route('**' + otherApi + '/payload/**', route => { crossed.push(route.request().url()); return route.fulfill({ json: result([item('SYNTHETIC_WRONG_SCOPE')]) }); });
+    await trigger.click(); const modal = page.locator('dialog.payload-modal[open]');
+    await modal.getByRole('button', { name: '查看准确引用', exact: true }).click();
+    const recovery = modal.getByRole('button', { name: '重新读取原结果', exact: true }); await expect(recovery).toBeVisible();
+    await page.locator('meta[name="payload-api-base"]').evaluate((meta, value) => meta.setAttribute('content', value), otherApi);
+    await recovery.click();
+    await expect(modal).toContainText('当前范围已变化，请关闭并重新打开原文');
+    expect(crossed).toEqual([]); await expect(modal).not.toContainText('SYNTHETIC_WRONG_SCOPE');
+  });
 });

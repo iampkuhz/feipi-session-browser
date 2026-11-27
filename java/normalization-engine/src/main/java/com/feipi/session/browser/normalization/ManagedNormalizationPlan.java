@@ -32,11 +32,15 @@ final class ManagedNormalizationPlan {
   final List<Frame> frames = new ArrayList<>();
   final List<Fact> facts = new ArrayList<>();
   final Map<String, String> consumers = new LinkedHashMap<>();
+  private final Map<Long, String> resultConsumers = new LinkedHashMap<>();
   final Map<String, String> declarations = new LinkedHashMap<>();
   final Map<String, Long> errors = new LinkedHashMap<>();
+  final Map<String, Optional<String>> actors = new HashMap<>();
+  final CollaborationActions collaboration = new CollaborationActions();
   final ToolObservations observations = new ToolObservations();
   final List<ToolRef> tools = new ArrayList<>();
   final List<Long> observedInputs = new ArrayList<>();
+  final List<UnitRef> independentInputs = new ArrayList<>();
   final List<Long> resultOrdinals = new ArrayList<>();
   List<NormalizedSourceFile> sourceFiles;
   Map<String, SourceUnitCatalogEntry> catalog;
@@ -75,6 +79,7 @@ final class ManagedNormalizationPlan {
         }
       }
     }
+    plan.frames.forEach(frame -> plan.actors.put(frame.id, frame.subagent));
     plan.relations();
     plan.units();
     plan.metadata();
@@ -96,12 +101,16 @@ final class ManagedNormalizationPlan {
   private void scan(List<SourceDiagnostic> inputDiagnostics) throws IOException {
     var identities = new ToolIdentityPlan(sourceFiles);
     Map<Long, SourceToolObservation> pendingObservations = new LinkedHashMap<>();
+    Map<Long, List<com.feipi.session.browser.domain.source.SourceCollaborationEvidence>>
+        pendingCollaboration = new LinkedHashMap<>();
     Map<String, Integer> rounds = new HashMap<>();
     try (var cursor = records.openCursor()) {
       long ordinal = 0;
       while (cursor.hasNext()) {
         SourceRecord record = cursor.next();
         identities.accept(ordinal, record);
+        if (!record.collaboration().isEmpty())
+          pendingCollaboration.put(ordinal, record.collaboration());
         long observationOrdinal = ordinal;
         record
             .toolObservation()
@@ -153,6 +162,15 @@ final class ManagedNormalizationPlan {
                 .observation(ordinal, Optional.of(value))
                 .ifPresent(planValue -> observations.accept(planValue)));
     records = identities.borrow(records);
+    pendingCollaboration.forEach(
+        (ordinal, values) -> {
+          String type = facts.get(Math.toIntExact(ordinal)).type();
+          for (var fact : values)
+            collaboration.accept(
+                fact.withToolCallId(
+                    identities.id(ordinal, "tool_use".equals(type) ? -1 : -2, fact.toolCallId())),
+                fact.sourceLocator());
+        });
     sourceFiles = identities.sourceFiles();
     catalog = NormalizationEngine.buildSourceUnitCatalog(sourceFiles);
     for (int i = 0; i < facts.size(); i++) {
@@ -291,8 +309,15 @@ final class ManagedNormalizationPlan {
         latest.put(fact.scope(), frame);
         for (ToolIdentity tool : fact.tools()) declarations.put(tool.id(), frame.id);
       } else if ("tool_result".equals(fact.type()) && position < scopeFrames.size()) {
-        String consumer = scopeFrames.get(position).id;
-        fact.toolUseId().ifPresent(id -> consumers.put(id, consumer));
+        fact.toolUseId()
+            .ifPresent(
+                id -> {
+                  int consumer =
+                      CallBuilder.resultConsumerIndex(
+                          position, scopeFrames.get(position).id, declarations.get(id));
+                  if (consumer < scopeFrames.size())
+                    resultConsumers.put(fact.ordinal(), scopeFrames.get(consumer).id);
+                });
       } else if ("tool_use".equals(fact.type())) {
         Frame current = latest.get(fact.scope());
         Frame owner =
@@ -306,6 +331,15 @@ final class ManagedNormalizationPlan {
     }
     if (!pendingOwners.isEmpty()) {
       throw new IllegalArgumentException("TOOL_OWNER_UNAVAILABLE");
+    }
+    var conflicts = new HashSet<String>();
+    for (Fact fact : facts) {
+      if ("tool_result".equals(fact.type()))
+        fact.toolUseId()
+            .ifPresent(
+                id ->
+                    CallBuilder.mergeResultConsumer(
+                        consumers, conflicts, id, resultConsumers.get(fact.ordinal())));
     }
     Map<String, List<Frame>> byId = new HashMap<>();
     Map<String, String> fallbackCalls = new HashMap<>();
@@ -328,7 +362,8 @@ final class ManagedNormalizationPlan {
         fact.toolUseId()
             .ifPresent(
                 id -> {
-                  for (Frame frame : byId.getOrDefault(consumers.get(id), List.of()))
+                  for (Frame frame :
+                      byId.getOrDefault(resultConsumers.get(fact.ordinal()), List.of()))
                     frame.results.add(id);
                 });
       if ("tool_use".equals(fact.type())
@@ -350,6 +385,7 @@ final class ManagedNormalizationPlan {
   private void units() {
     Map<String, List<UnitRef>> pending = new LinkedHashMap<>();
     Map<String, List<UnitRef>> pendingTools = new HashMap<>();
+    Map<String, List<UnitRef>> deferredResults = new HashMap<>();
     Map<String, Frame> latest = new HashMap<>();
     int frameIndex = 0;
     for (Fact fact : facts) {
@@ -359,6 +395,21 @@ final class ManagedNormalizationPlan {
       switch (fact.type()) {
         case "assistant" -> {
           Frame frame = frames.get(frameIndex++);
+          // 待消费结果不能参与待归回响应的边界判定。
+          units.addAll(0, deferredResults.getOrDefault(fact.scope(), List.of()));
+          deferredResults.remove(fact.scope());
+          var deferred = new ArrayList<UnitRef>();
+          units.removeIf(
+              unit -> {
+                Fact source = facts.get(Math.toIntExact(unit.ordinal()));
+                if ("user".equals(unit.role())
+                    && "tool_result".equals(source.type())
+                    && !frame.id.equals(resultConsumers.get(source.ordinal()))) {
+                  deferred.add(unit);
+                  return true;
+                }
+                return false;
+              });
           units.add(new UnitRef(fact.ordinal(), -1, "assistant"));
           appendTools(units, fact);
           units.addAll(pendingTools.getOrDefault(fact.scope(), List.of()));
@@ -366,6 +417,7 @@ final class ManagedNormalizationPlan {
           frame.units = units;
           latest.put(fact.scope(), frame);
           pending.remove(fact.scope());
+          if (!deferred.isEmpty()) deferredResults.put(fact.scope(), deferred);
         }
         case "tool_use" -> {
           boolean newInput = units.stream().anyMatch(u -> "user".equals(u.role()));
@@ -375,7 +427,8 @@ final class ManagedNormalizationPlan {
         }
         case "user", "tool_result" -> {
           flush(units, current);
-          units.add(new UnitRef(fact.ordinal(), -1, "user"));
+          if (!"tool_result".equals(fact.type()) || resultConsumers.containsKey(fact.ordinal()))
+            units.add(new UnitRef(fact.ordinal(), -1, "user"));
         }
         case "response_item" -> {
           if (fact.hasContent()) units.add(new UnitRef(fact.ordinal(), -1, "assistant"));
@@ -384,6 +437,12 @@ final class ManagedNormalizationPlan {
       }
     }
     pending.forEach((scope, units) -> flush(units, latest.get(scope)));
+    pendingTools.forEach(
+        (scope, values) -> {
+          if (!latest.containsKey(scope)) independentInputs.addAll(values);
+        });
+    independentInputs.sort(
+        java.util.Comparator.comparingLong(UnitRef::ordinal).thenComparingInt(UnitRef::toolIndex));
   }
 
   private static void appendTools(List<UnitRef> units, Fact fact) {
@@ -501,7 +560,10 @@ final class ManagedNormalizationPlan {
                 "sourceFiles",
                 (long) sourceFiles.size(),
                 "sourceUnitCatalog",
-                (long) catalog.size() + observedInputs.size() + resultOrdinals.size(),
+                (long) catalog.size()
+                    + observedInputs.size()
+                    + resultOrdinals.size()
+                    + independentInputs.size(),
                 "sourceUnitSequenceEntries",
                 0L));
   }

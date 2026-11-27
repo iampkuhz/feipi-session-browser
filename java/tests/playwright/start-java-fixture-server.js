@@ -220,10 +220,13 @@ function copyFixtures(runtimeDir) {
 }
 
 function copyDistribution(runtimeDir, source = path.join(ROOT, 'java', 'app-cli', 'build', 'install', 'app-cli')) {
-  const distribution = path.resolve(runtimeDir, 'app-cli');
-  fs.mkdirSync(distribution, { recursive: true });
-  // Materialize symlink targets in the snapshot and preserve launcher permissions.
-  runChecked('/bin/cp', ['-RLp', `${path.resolve(source)}/`, distribution], 'fixture distribution copy');
+  const distribution = path.join(runtimeDir, 'app-cli');
+  fs.cpSync(source, distribution, {
+    recursive: true,
+    dereference: true,
+    // Enforce per-entry traversal: the macOS native fast path may retain symlinks.
+    filter: () => true,
+  });
   return path.join(distribution, 'bin', 'app-cli');
 }
 
@@ -276,6 +279,26 @@ async function fetchFixtureJson(baseURL, pathname) {
   return response.json();
 }
 
+async function waitForPublishedScan(baseURL, timeoutMs = 20_000) {
+  const deadline = performance.now() + timeoutMs;
+  do {
+    const scan = await fetchFixtureJson(baseURL, '/api/scan-status');
+    if (scan.status === 'failure' || scan.errorCount > 0) {
+      throw new Error('fixture scan publication failed');
+    }
+    if (scan.status === 'success' && scan.publishedDataAvailable) return;
+    await new Promise(resolve => setTimeout(resolve, 250));
+  } while (performance.now() < deadline);
+  throw new Error('fixture scan publication did not become ready');
+}
+
+async function captureDiagnosticScreenshot(target, options) {
+  // 这些成功截图供本地阅读，不参与断言。托管 CI 的失败截图和 trace 由 Playwright 配置保留。
+  if (process.env.GITHUB_ACTIONS === 'true') return false;
+  await target.screenshot(options);
+  return true;
+}
+
 async function validateFixtureIsolation(baseURL) {
   const { SPEC } = require('../fixtures/generate-session-fixtures');
   const expectedSessionCount = SPEC.mockCount + 2;
@@ -305,6 +328,43 @@ async function validateFixtureIsolation(baseURL) {
         + `distinctProjects=${distinctProjects.size}`,
     );
   }
+}
+
+async function validateImportReadiness(baseURL) {
+  const rows = [
+    { type: 'session_meta', payload: { id: 'synthetic-fixture-preflight', cwd: '/synthetic/preflight' } },
+    { type: 'response_item', payload: { type: 'message', role: 'user',
+      content: [{ type: 'input_text', text: 'Synthetic readiness only' }] } },
+  ];
+  const upload = new FormData();
+  upload.set('source', 'codex');
+  upload.set('file', new Blob([rows.map(row => JSON.stringify(row)).join('\n') + '\n'],
+    { type: 'application/x-ndjson' }), 'synthetic-readiness.jsonl');
+  const headers = { Origin: new URL(baseURL).origin };
+  const response = await fetch(baseURL + '/api/imports',
+    { method: 'POST', body: upload, headers, signal: AbortSignal.timeout(5_000) });
+  if (response.status !== 201) throw new Error(`fixture import readiness: POST returned HTTP ${response.status}`);
+  const { import_id: id } = await response.json();
+  if (!/^[0-9a-f-]{36}$/i.test(id)) throw new Error('fixture import readiness: invalid import ID');
+  const deleted = await fetch(baseURL + '/api/imports/' + id,
+    { method: 'DELETE', headers, signal: AbortSignal.timeout(5_000) });
+  if (deleted.status !== 204) throw new Error(`fixture import readiness: DELETE returned HTTP ${deleted.status}`);
+}
+
+async function checkBrowserRuntime() {
+  const { chromium } = require('playwright');
+  fs.mkdirSync(runTmpRoot, { recursive: true });
+  const probe = fs.mkdtempSync(path.join(runTmpRoot, 'runtime-check-'));
+  try {
+    const volume = fs.statfsSync(probe);
+    const freeMiB = Math.floor(volume.bavail * volume.bsize / 1024 / 1024);
+    // 完整运行的临时产物曾达到 1.4 GiB；保留失败证据所需余量。
+    if (freeMiB < 2048) throw new Error(`fixture temporary space: ${freeMiB} MiB available; need 2048 MiB`);
+  } finally {
+    fs.rmdirSync(probe);
+  }
+  const browser = await chromium.launch({ headless: true, timeout: 10_000 });
+  await browser.close();
 }
 
 async function waitUntilReady(baseURL, server) {
@@ -440,6 +500,7 @@ async function startServer(claimToken) {
       throw new Error(`readiness timeout for synthetic Java server on ${innerURL}`);
     }
     await validateFixtureIsolation(innerURL);
+    await validateImportReadiness(innerURL);
   } catch (error) {
     console.error(`[playwright-fixture] ${error.message}`);
     if (diagnostics.trim()) console.error(diagnostics);
@@ -461,10 +522,15 @@ function argumentValue(name) {
   return index >= 0 ? process.argv[index + 1] : '';
 }
 
-module.exports = { copyDistribution, resolveJavaEnvironment, validateStaticResources, waitUntilReady };
+module.exports = { captureDiagnosticScreenshot, copyDistribution, resolveJavaEnvironment, validateImportReadiness, validateStaticResources, waitForPublishedScan, waitUntilReady };
 
 if (require.main === module) {
-  if (process.argv.includes('--reserve-port')) {
+  if (process.argv.includes('--check-runtime')) {
+    checkBrowserRuntime().catch((error) => {
+      console.error(`[playwright-fixture] runtime preflight: ${error.message}`);
+      process.exitCode = 1;
+    });
+  } else if (process.argv.includes('--reserve-port')) {
     reservePortClaim().then((claim) => console.log(JSON.stringify(claim))).catch((error) => {
       console.error(`[playwright-fixture] port claim failed: ${error.stack || error.message}`);
       process.exit(1);

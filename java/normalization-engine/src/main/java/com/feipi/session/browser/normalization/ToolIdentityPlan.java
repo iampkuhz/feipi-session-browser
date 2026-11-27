@@ -82,7 +82,7 @@ final class ToolIdentityPlan {
           scope,
           record.callId().get(),
           record.toolName().get(),
-          record.relation());
+          declarationRelation(record));
       if (roots.contains(origin)
           && CallBuilder.callScope(record) == CallScope.MAIN
           && "spawn_agent".equals(record.toolName().get())
@@ -107,6 +107,23 @@ final class ToolIdentityPlan {
       relationOrigins.put(ordinal, origin);
       reserved.add(record.relation().parentToolCallId().get());
     }
+  }
+
+  private static SourceRecordRelation declarationRelation(SourceRecord record) {
+    var targets =
+        record.collaboration().stream()
+            .filter(fact -> "delegate".equals(fact.kind()) && "declaration".equals(fact.phase()))
+            .flatMap(fact -> fact.targetId().stream())
+            .distinct()
+            .toList();
+    if (targets.size() != 1) return record.relation();
+    var relation = record.relation();
+    return new SourceRecordRelation(
+        Optional.of(targets.getFirst()),
+        relation.parentThreadId(),
+        relation.parentToolCallId(),
+        relation.parentCallId(),
+        relation.parentToolName());
   }
 
   private void declare(
@@ -410,7 +427,44 @@ final class ToolIdentityPlan {
         record.metaContext(),
         record.messageRole(),
         observation(ordinal, record.toolObservation()),
-        record.readingEvidence());
+        record.readingEvidence(),
+        record.collaboration().stream()
+            .flatMap(fact -> collaboration(ordinal, record, fact).stream())
+            .distinct()
+            .toList());
+  }
+
+  /** 协作事实使用和声明列表相同的 occurrence 槽位；同帧重复裸 ID 保留冲突而不选一项。 */
+  private List<com.feipi.session.browser.domain.source.SourceCollaborationEvidence> collaboration(
+      long ordinal,
+      SourceRecord record,
+      com.feipi.session.browser.domain.source.SourceCollaborationEvidence fact) {
+    if (!"assistant".equals(record.eventType())) {
+      return List.of(
+          fact.withToolCallId(
+              id(ordinal, "tool_use".equals(record.eventType()) ? -1 : -2, fact.toolCallId())));
+    }
+    var slots =
+        java.util.stream.IntStream.range(0, record.toolCalls().size())
+            .filter(index -> record.toolCalls().get(index).toolCallId().equals(fact.toolCallId()))
+            .boxed()
+            .toList();
+    return slots.stream()
+        .map(
+            index -> {
+              String canonical = id(ordinal, index, fact.toolCallId());
+              return slots.size() == 1
+                  ? fact.withToolCallId(canonical)
+                  : new com.feipi.session.browser.domain.source.SourceCollaborationEvidence(
+                      canonical,
+                      fact.kind(),
+                      fact.phase(),
+                      Optional.empty(),
+                      Optional.empty(),
+                      "conflicting_tool_identity",
+                      fact.sourceLocator());
+            })
+        .toList();
   }
 
   /** 只透传已唯一归属的观测，不制造声明或结果边。 */

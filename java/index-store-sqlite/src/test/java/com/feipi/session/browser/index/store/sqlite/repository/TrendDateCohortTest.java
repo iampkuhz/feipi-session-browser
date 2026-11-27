@@ -211,8 +211,8 @@ class TrendDateCohortTest {
     }
     insert(
         NormalizedAgent.CLAUDE_CODE,
-        today + "T01:00:00Z",
-        today + "T02:00:00Z",
+        today + "T00:00:00Z",
+        today + "T00:00:00Z",
         usage(7, 0, 0, 0),
         3,
         2,

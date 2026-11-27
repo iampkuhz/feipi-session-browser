@@ -183,6 +183,12 @@ def adapt_recipe_step(
     if command and gate.name == 'gateFrameworkTests' and mode == ExecutionMode.INCREMENTAL:
         if paths := _framework_test_paths(root, changed_files):
             command = (*command[:-1], *paths)
+    if command and gate.name == 'webResourceContracts' and mode == ExecutionMode.INCREMENTAL:
+        assets = [path for path in changed_files if path.startswith('java/web/src/main/resources/')]
+        if assets and all(
+            path.startswith('java/web/src/main/resources/static/') for path in assets
+        ):
+            command = (*command, '-PfeipiWebStaticOnly=true')
     if not command:
         return ()
     return (

@@ -36,6 +36,7 @@ import java.util.Optional;
  * @param metaContext provider 显式声明的 meta 上下文，不作为人类 prompt 计数
  * @param toolObservation 工具执行器显式观测，缺失时为空
  * @param readingEvidence 该物理事件附带的阅读证据，不改变正文或事件类型
+ * @param collaboration 明确协议的紧凑协作事实
  * @param messageRole 原始消息的显式 user/assistant 角色；usage、推理和派生表示默认无角色
  */
 @DomainModel
@@ -97,7 +98,111 @@ public record SourceRecord(
     /* 仅原始消息的显式角色；不得从 usage 或调用边界推断。 */
     @NotNull Optional<String> messageRole,
     @NotNull Optional<SourceToolObservation> toolObservation,
-    @NotNull List<SourceReadingEvidence> readingEvidence) {
+    @NotNull List<SourceReadingEvidence> readingEvidence,
+    @NotNull List<SourceCollaborationEvidence> collaboration) {
+
+  /** 未提供阅读或协作证据的源码便利入口。 */
+  public SourceRecord(
+      String locator,
+      int eventIndex,
+      String eventType,
+      Optional<String> callId,
+      Optional<String> model,
+      Optional<String> timestamp,
+      Optional<String> turnId,
+      SourceRecordUsage usage,
+      List<SourceToolCall> toolCalls,
+      Optional<String> toolUseId,
+      Optional<String> toolName,
+      Optional<String> toolError,
+      SourceRecordRelation relation,
+      String content,
+      Optional<String> responseMessageId,
+      Optional<String> responseStopReason,
+      SourceTiming timing,
+      boolean metaContext,
+      Optional<String> messageRole,
+      Optional<SourceToolObservation> toolObservation) {
+    this(
+        locator,
+        eventIndex,
+        eventType,
+        callId,
+        model,
+        timestamp,
+        turnId,
+        usage,
+        toolCalls,
+        toolUseId,
+        toolName,
+        toolError,
+        relation,
+        content,
+        responseMessageId,
+        responseStopReason,
+        timing,
+        metaContext,
+        messageRole,
+        toolObservation,
+        List.of(),
+        List.of());
+  }
+
+  /** 仅替换明确来源关系，保留其余证据。 */
+  public SourceRecord withRelation(SourceRecordRelation value) {
+    return new SourceRecord(
+        locator,
+        eventIndex,
+        eventType,
+        callId,
+        model,
+        timestamp,
+        turnId,
+        usage,
+        toolCalls,
+        toolUseId,
+        toolName,
+        toolError,
+        value,
+        content,
+        responseMessageId,
+        responseStopReason,
+        timing,
+        metaContext,
+        messageRole,
+        toolObservation,
+        readingEvidence,
+        collaboration);
+  }
+
+  /** 仅替换紧凑协作事实。 */
+  public SourceRecord withCollaboration(List<SourceCollaborationEvidence> facts) {
+    return new SourceRecord(
+        locator,
+        eventIndex,
+        eventType,
+        callId,
+        model,
+        timestamp,
+        turnId,
+        usage,
+        toolCalls,
+        toolUseId,
+        toolName,
+        toolError,
+        relation,
+        content,
+        responseMessageId,
+        responseStopReason,
+        timing,
+        metaContext,
+        messageRole,
+        toolObservation,
+        readingEvidence,
+        facts.stream()
+            .map(fact -> fact.sourceLocator().isEmpty() ? fact.withSourceLocator(locator) : fact)
+            .toList());
+  }
 
   /** 未提供执行器观测时保持未知。 */
   public SourceRecord(
@@ -140,8 +245,7 @@ public record SourceRecord(
         timing,
         metaContext,
         messageRole,
-        Optional.empty(),
-        List.of());
+        Optional.empty());
   }
 
   /** 兼容未携带原始消息角色证据的旧构造器，不从事件类型猜角色。 */
@@ -389,7 +493,8 @@ public record SourceRecord(
         metaContext,
         messageRole,
         toolObservation,
-        readingEvidence);
+        readingEvidence,
+        collaboration);
   }
 
   /** 返回仅替换文本内容的不可变副本，保留全部元数据。 */
@@ -415,7 +520,8 @@ public record SourceRecord(
         metaContext,
         messageRole,
         toolObservation,
-        readingEvidence);
+        readingEvidence,
+        collaboration);
   }
 
   /** 仅标注源明确提供的消息角色，不改变调用、内容或身份。 */
@@ -441,7 +547,8 @@ public record SourceRecord(
         metaContext,
         role,
         toolObservation,
-        readingEvidence);
+        readingEvidence,
+        collaboration);
   }
 
   /** 仅替换执行器观测，不更改事件分类、结果或计数。 */
@@ -467,7 +574,8 @@ public record SourceRecord(
         metaContext,
         messageRole,
         observation,
-        readingEvidence);
+        readingEvidence,
+        collaboration);
   }
 
   /** 返回绑定所选阅读证据的记录副本，保留全部事件字段。 */
@@ -494,7 +602,8 @@ public record SourceRecord(
         metaContext,
         messageRole,
         toolObservation,
-        evidence);
+        evidence,
+        collaboration);
   }
 
   /** 日志摘要不包含文本或其他 provider 原始字段。 */
@@ -509,6 +618,8 @@ public record SourceRecord(
    * <p>当 {@code eventType} 为空时默认为 {@code "unknown"}。新元数据规范化为 Optional.empty()。
    */
   public SourceRecord {
+    collaboration = List.copyOf(collaboration == null ? List.of() : collaboration);
+    if (collaboration.size() > 128) throw new IllegalArgumentException("协作事实超限");
     toolObservation = toolObservation == null ? Optional.empty() : toolObservation;
     readingEvidence = readingEvidence == null ? List.of() : List.copyOf(readingEvidence);
     // eventType 默认值处理
@@ -550,7 +661,8 @@ public record SourceRecord(
           metaContext,
           messageRole,
           toolObservation,
-          readingEvidence);
+          readingEvidence,
+          collaboration);
     } catch (ConstraintViolationException e) {
       translateValidation(e);
     }

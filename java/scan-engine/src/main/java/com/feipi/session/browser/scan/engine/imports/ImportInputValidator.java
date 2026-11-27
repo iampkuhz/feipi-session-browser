@@ -29,8 +29,9 @@ final class ImportInputValidator {
    *
    * @param sessionId 原始会话标识；未提供时为空字符串
    * @param analysisFile 用于分析的私有文件路径，不包含需忽略的元数据
+   * @param objectCount 分析文件中实际非空对象数
    */
-  record ValidatedInput(String sessionId, Path analysisFile) {}
+  record ValidatedInput(String sessionId, Path analysisFile, int objectCount) {}
 
   static ValidatedInput validate(Path file, SourceAdapter adapter, ImportLimits limits)
       throws IOException {
@@ -89,7 +90,8 @@ final class ImportInputValidator {
     }
     return new ValidatedInput(
         sessionIds.stream().findFirst().orElse(""),
-        ignoredLines.isEmpty() ? file : filterMetadata(file, limits, ignoredLines));
+        ignoredLines.isEmpty() ? file : filterMetadata(file, limits, ignoredLines),
+        count - ignoredLines.size());
   }
 
   private static PushbackReader openReader(Path file) throws IOException {

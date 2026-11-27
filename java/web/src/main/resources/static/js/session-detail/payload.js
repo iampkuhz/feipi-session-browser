@@ -85,12 +85,50 @@
     return modal;
   }
 
+  var payloadIntent = 0;
+  var payloadViewIntent = 0;
+  var payloadNavigation = null;
+
+  function invalidatePayloadNavigation() {
+    payloadIntent += 1;
+    payloadViewIntent += 1;
+    payloadNavigation = null;
+    var modal = document.getElementById('sd-payload-modal') || document.getElementById('payload-modal');
+    if (modal) {
+      modal.removeAttribute('data-loading-payload-id');
+      modal.querySelectorAll('[data-local-target], [data-local-result-return], [data-local-results-more], [data-local-relations-more]').forEach(function (node) { node.remove(); });
+    }
+  }
+
+  function localPayloadKind(kind, payloadId) {
+    return /^(?:llm_request|subagent_request)$/.test(kind) && /^(?:main|sa):req:.+/.test(payloadId)
+      || /^(?:tool_result|tool\.result)$/.test(kind) && /^tool:result:.+/.test(payloadId);
+  }
+
+  function payloadUrl(url, parameters) {
+    var parsed = new URL(url, location.href);
+    Object.keys(parameters).forEach(function (key) {
+      if (parameters[key] == null) parsed.searchParams.delete(key);
+      else parsed.searchParams.set(key, parameters[key]);
+    });
+    return parsed.pathname + parsed.search;
+  }
+
+  function payloadContext() {
+    return getApiBase() + '|' + (document.body.getAttribute('data-index-generation') || '');
+  }
+
   function openPayloadContent(button, override) {
     override = override || {back: button.payloadBack};
+    invalidatePayloadNavigation();
+    var intent = payloadIntent;
+    var context = payloadContext();
     var modal = ensurePayloadModal();
-    var ticket = {};
-    modal.payloadReadTicket = ticket;
-    modal.removeAttribute('data-loading-payload-id');
+    if (!modal.hasAttribute('data-payload-lifecycle')) {
+      modal.setAttribute('data-payload-lifecycle', '');
+      modal.addEventListener('cancel', invalidatePayloadNavigation);
+      modal.addEventListener('close', function () { if (!modal.open) invalidatePayloadNavigation(); });
+    }
     var payloadId = override.payloadId || button.getAttribute("data-payload-id") || "";
     var title = override.title || button.getAttribute("data-payload-title") || button.textContent.trim() || "Payload";
     var kind = override.kind || button.getAttribute("data-payload-kind") || "";
@@ -118,30 +156,35 @@
       } else if (payloadId && window.fetch) {
         // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`No template found (slim mode) — fetch from payload API`
         setHtml(body, '<div class="sd-payload-loading"><p>Loading payload...</p></div>');
+        var loading = body.firstElementChild;
         var apiBase = getApiBase();
         var fetchUrl = apiBase.replace(/\/$/, '') + '/payload/' + encodeURIComponent(payloadId);
+        var local = localPayloadKind(kind, payloadId);
+        if (local) fetchUrl = payloadUrl(fetchUrl, { view: 'local_results' });
         modal.setAttribute('data-loading-payload-id', payloadId);
-        var intent;
+        var recoveryIntent;
         // A nested Input button is replaced by this same dialog's loading state.
-        function isCurrent() { return modal.open && modal.payloadReadTicket === ticket; }
+        function isCurrent() { return modal.open && intent === payloadIntent && context === payloadContext() && loading.parentNode === body; }
         function canRestore() { return isCurrent() && button.isConnected; }
         if (button.closest('[data-session-first-question]')) {
-          intent = { kind: 'first-question', valid: canRestore };
+          recoveryIntent = { kind: 'first-question', valid: canRestore };
         } else if (kind === 'tool_result') {
           var pair = button.closest('[data-tool-payload-pair]') ||
             toolTracePair(payloadId.slice('tool:result:'.length));
           var detail = pair && pair.closest('[data-trace-detail]');
           var round = detail && (detail.id.match(/^round-(\d+)-detail$/) || [])[1];
-          if (round) intent = { kind: 'tool-result', tool: pair.dataset.toolId, round: round, valid: canRestore };
+          if (round) recoveryIntent = { kind: 'tool-result', tool: pair.dataset.toolId, round: round, valid: canRestore };
         }
-        readSessionContentPage(fetchUrl, intent)
+        readSessionContentPage(fetchUrl, recoveryIntent)
           .then(function (payload) {
             if (!isCurrent()) return;
+            var response = payload;
+            if (local && response.localResults) payload = response.payload;
             if (body) {
-              var rendered = payloadNodeFromJson(payload);
+              var rendered = local && response.localResults ? localPayloadNode(response, fetchUrl, button, modal) : payloadNodeFromJson(payload);
               body.replaceChildren(rendered);
               appendPayloadNavigation(rendered, button, override);
-              if (kind === 'tool_result' && payload.kind === kind) {
+              if (kind === 'tool_result' && /^(?:tool_result|tool\.result)$/.test(payload.kind)) {
                 attachToolResultEvidence(rendered, button, payload, payloadId, subtitleEl, override.back);
               }
               var path = button.getAttribute('data-attribution-path');
@@ -154,6 +197,11 @@
           .catch(function (err) {
             if (!isCurrent()) return;
             if (body) {
+              if (local) {
+                var reload = function () { openPayloadContent(button, override); };
+                localPayloadFailure(body, err, reload, reload);
+                return;
+              }
               body.replaceChildren();
               var message = document.createElement('p');
               message.textContent = 'Unable to load payload: ' + err.message;
@@ -178,7 +226,301 @@
     else modal.setAttribute("open", "");
   }
 
+
+  function localRelationNotice(page) {
+    if (!page) return '目标预览未载入。';
+    if (page.identity === 'ambiguous') return '来源记录有冲突，无法确认准确输入。';
+    if (page.coverage === 'unknown' || page.identity === 'unconfirmed') return '本地记录不足，尚不能确认包含关系。';
+    if (page.coverage === 'partial') return '仅展示当前已确认的输入，记录可能不完整。';
+    if (!(page.targets || []).length && !page.nextCursor) return '本地未记录包含此结果的输入。';
+    return page.nextCursor ? '当前仅展示已载入的引用；还有其他已确认输入。' : '已确认本地包含；不代表模型实际采用。';
+  }
+
+  function localPayloadFailure(host, error, retry, reopen) {
+    host.replaceChildren();
+    var expired = error.httpStatus === 400 || error.httpStatus === 404;
+    var changed = error.httpStatus === 409 || /refresh/i.test(error.message);
+    if (changed) invalidatePayloadNavigation();
+    host.append(makeEl('p', 'sd-payload-warning', changed ? '索引已变化，请刷新页面后重新读取结果。'
+      : expired ? '此引用已失效或不属于当前范围，请重新读取原结果。' : '读取暂时失败，可以重试。'));
+    var action = makeEl('button', 'sd-btn sd-btn--secondary sd-btn--sm', changed ? 'Refresh page' : expired ? '重新读取原结果' : 'Retry');
+    action.type = 'button';
+    var context = payloadContext();
+    var modal = host.closest('dialog');
+    var recover = changed ? function () { location.reload(); } : expired ? reopen : retry;
+    action.addEventListener('click', function () {
+      if (!host.isConnected || !action.isConnected || !modal || !modal.open) return;
+      if (context !== payloadContext()) {
+        action.disabled = true;
+        host.append(makeEl('p', 'sd-payload-warning', '当前范围已变化，请关闭并重新打开原文。'));
+        return;
+      }
+      recover();
+    });
+    host.append(action);
+  }
+
+  // 保留一个返回视图的 DOM，而不是缓存正文或建立无限导航历史。
+  function navigateLocalTarget(target, sourceButton, url, origin, modal) {
+    var targetUrl = new URL(target.apiUrl, location.href);
+    var base = new URL(getApiBase().replace(/\/$/, '') + '/', location.href);
+    if (targetUrl.origin !== base.origin || !targetUrl.pathname.startsWith(base.pathname + 'payload/')) {
+      sourceButton.disabled = true;
+      sourceButton.after(makeEl('p', 'sd-payload-warning', '此入口不属于当前范围，请重新打开原结果。'));
+      return;
+    }
+    var sourceUrl = new URL(url, location.href);
+    var fetchUrl = payloadUrl(targetUrl.href, { view: 'local_results', target: target.target,
+      limit: sourceUrl.searchParams.get('limit'), visibility: sourceUrl.searchParams.get('visibility'), cursor: null, occurrence: null });
+    var body = qs(modal, '[data-payload-body]') || qs(modal, '.sd-modal-body');
+    var title = qs(modal, '[data-payload-title]');
+    var subtitle = qs(modal, '[data-payload-subtitle]');
+    var saved = { nodes: Array.from(body.childNodes), scroll: body.scrollTop, focus: sourceButton, title: title.textContent, subtitle: subtitle?.textContent };
+    var context = payloadContext();
+    var intent = ++payloadIntent;
+    payloadViewIntent += 1;
+    payloadNavigation = saved;
+    var touched = false;
+    function touchedByUser(event) { if (event.isTrusted) touched = true; }
+    modal.addEventListener('focusin', touchedByUser);
+    var startingScroll = 0;
+    function scrolledByUser() { if (body.scrollTop !== startingScroll) touched = true; }
+    body.addEventListener('scroll', scrolledByUser);
+    function active() { return intent === payloadIntent && context === payloadContext() && modal.open && payloadNavigation === saved && view.isConnected; }
+    var view = makeEl('div', 'sd-conversation-payload');
+    var back = makeEl('button', 'sd-btn sd-btn--secondary sd-btn--sm', '返回结果');
+    back.type = 'button';
+    back.setAttribute('data-local-result-return', '');
+    back.addEventListener('click', function () {
+      if (context !== payloadContext() || !modal.open || payloadNavigation !== saved || !view.isConnected) return;
+      ++payloadIntent;
+      payloadViewIntent += 1;
+      payloadNavigation = null;
+      body.replaceChildren.apply(body, saved.nodes);
+      title.textContent = saved.title;
+      if (subtitle) subtitle.textContent = saved.subtitle;
+      body.scrollTop = saved.scroll;
+      if (saved.focus.isConnected) saved.focus.focus({ preventScroll: true });
+    });
+    var content = makeEl('div', '');
+    content.append(makeEl('p', 'sd-payload-loading', '正在读取准确引用…'));
+    view.append(back, content);
+    body.replaceChildren(view);
+    startingScroll = body.scrollTop;
+    title.textContent = '包含此结果的本地输入';
+    if (subtitle) subtitle.textContent = '';
+    function load() {
+      intent = ++payloadIntent;
+      readSessionContentPage(fetchUrl).then(function (response) {
+        if (!active()) return;
+        if (response.payload?.payloadId !== target.requestPayloadId
+            || response.localResults?.targetReferenceId !== target.referenceId) {
+          throw new Error('无法确认当前输入引用');
+        }
+        var rendered = localPayloadNode(response, fetchUrl, origin, modal);
+        var targetNode = Array.from(rendered.querySelectorAll('[data-local-reference]')).find(function (node) {
+          return node.getAttribute('data-local-reference') === target.referenceId;
+        });
+        if (!targetNode) throw new Error('未找到当前输入引用');
+        content.replaceChildren(rendered);
+        targetNode.classList.add('sd-local-result--target');
+        if (!touched) {
+          targetNode.scrollIntoView({ block: 'nearest' });
+          targetNode.focus({ preventScroll: true });
+        }
+        if (target.attributionPath) appendInlineAttribution(rendered, target.attributionPath, response.payload);
+      }).catch(function (error) {
+        if (active()) localPayloadFailure(content, error, load, function () { openPayloadContent(origin); });
+      }).finally(function () {
+        modal.removeEventListener('focusin', touchedByUser);
+        body.removeEventListener('scroll', scrolledByUser);
+      });
+    }
+    load();
+  }
+
+  function appendLocalRelations(host, item, page, url, origin, modal) {
+    var targets = [];
+    function render(next, append) {
+      if (!append) targets = [];
+      targets = targets.concat(next ? next.targets || [] : []);
+      host.replaceChildren(makeEl('h4', '', '包含此结果的本地输入'));
+      var groups = new Map();
+      targets.forEach(function (target) {
+        var key = target.requestPayloadId;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(target);
+      });
+      groups.forEach(function (references) {
+        var first = references[0];
+        var group = makeEl('div', 'sd-local-target');
+        var label = '本地记录' + (first.recordIndex == null ? '（编号未记录）' : '#' + first.recordIndex)
+          + (first.scope === 'main' ? ' · 主会话' : first.scope === 'subagent' ? ' · 子上下文' : ' · 上下文未确认');
+        group.append(makeEl('p', '', label));
+        references.forEach(function (target, index) {
+          var button = makeEl('button', 'sd-btn sd-btn--secondary sd-btn--sm', references.length === 1 ? '查看准确引用' : '查看已载入引用 ' + (index + 1));
+          button.type = 'button';
+          button.setAttribute('data-local-target', '');
+          button.addEventListener('click', function () { navigateLocalTarget(target, button, url, origin, modal); });
+          group.append(button);
+        });
+        host.append(group);
+      });
+      host.append(makeEl('p', 'sd-payload-warning', localRelationNotice(next)));
+      if (item.occurrence && (!next || next.nextCursor)) {
+        var more = makeEl('button', 'sd-btn sd-btn--secondary sd-btn--sm', next ? '其他已确认输入' : '读取目标预览');
+        more.type = 'button';
+        more.setAttribute('data-local-relations-more', '');
+        more.addEventListener('click', function () {
+          var intent = payloadIntent, context = payloadContext();
+          var relationUrl = payloadUrl(url, { target: null, occurrence: item.occurrence, cursor: next && next.nextCursor });
+          function load() {
+            intent = ++payloadIntent;
+            more.disabled = true;
+            readSessionContentPage(relationUrl).then(function (response) {
+              if (intent !== payloadIntent || context !== payloadContext() || !host.isConnected || !modal.open) return;
+              render(response.relations, !!next);
+            }).catch(function (error) {
+              if (intent !== payloadIntent || !host.isConnected || !modal.open) return;
+              localPayloadFailure(host, error, load, function () { openPayloadContent(origin); });
+            }).finally(function () { more.disabled = false; });
+          }
+          load();
+        });
+        host.append(more);
+      }
+    }
+    render(page, false);
+  }
+
+  function localPayloadNode(response, url, origin, modal) {
+    var payload = response.payload;
+    var page = response.localResults;
+    var request = /request$/.test(payload.kind);
+    var root;
+    if (request) {
+      root = conversationPayload(payload, 'Request', payload.text || payload.content || '');
+      if (!(page.items || []).length && !page.nextCursor && page.coverage === 'complete') return root;
+      if ((page.items || []).length) {
+        var empty = root.querySelector('.sd-payload-empty');
+        if (empty) empty.textContent = '未单列输入正文；本条包含以下本地工具结果。';
+      }
+    } else {
+      root = conversationPayload(payload, 'Result', '');
+      root.querySelector('.sd-payload-empty')?.remove();
+      root.append(makeEl('p', 'sd-payload-warning', '按本地记录中的结果分别展示；本地记录编号不是 provider 调用次数。'));
+      if (payload.truncated) root.append(makeEl('p', 'sd-payload-warning', '工具级全文已截断；各结果正文状态见下方分项。'));
+    }
+    var section = makeEl('section', 'sd-local-results');
+    section.append(makeEl('h3', '', request ? '本地记录中的工具结果' : '本次工具的结果记录'));
+    var items = makeEl('div', 'sd-local-results-items');
+    section.append(items);
+    var composition = !request && root.querySelector('.sd-reading-composition');
+    function appendVisibleResult(parent, title, text, source) {
+      var ui = appendReadingBlock(parent, title, {text: text}, 'text');
+      var tokens = estimateVisibleReadingTokens(text);
+      var chars = describeReadingBlock(ui, text, tokens, source);
+      ui.section.dataset.readingCategory = request ? 'toolResult' : 'result';
+      if (request) ui.section.classList.replace('sd-content-block', 'sd-local-reference-body');
+      if (composition && tokens != null) composition.readingEntries.push({kind: 'result', chars: chars, tokens: tokens});
+    }
+    function appendPage(current) {
+      (current.items || []).forEach(function (item) {
+        var article = makeEl('section', 'sd-local-result');
+        article.tabIndex = -1;
+        if (item.referenceId) article.setAttribute('data-local-reference', item.referenceId);
+        article.setAttribute('data-local-result', '');
+        article.append(makeEl('h4', '', (item.toolName || '工具') + ' · 结果记录'));
+        var content = item.content || {};
+        if (content.state === 'missing') article.append(makeEl('p', 'sd-payload-empty', '此结果正文未记录。'));
+        else if (!content.text) article.append(makeEl('p', 'sd-payload-empty', '已记录空结果（不是缺失）。'));
+        else {
+          var output = content.truncated ? null : recordedToolOutput(content.text);
+          if (output && !output.text) article.append(makeEl('p', 'sd-payload-empty', '已记录空输出（不是缺失）。'));
+          else appendVisibleResult(article, output ? '工具输出' : '结果正文', output ? output.text : content.text, '本地结果记录');
+          if (output?.text) payloadCopyButton(article, output.text, '复制输出');
+          payloadCopyButton(article, content.text, '复制此结果原文');
+          if (output) {
+            article.setAttribute('data-tool-output', '');
+            var raw = makeEl('details', 'sd-payload-original');
+            raw.append(makeEl('summary', '', '包装说明与原始结果'));
+            raw.append(makeEl('pre', '', content.text));
+            article.append(raw);
+          }
+        }
+        if (content.truncated) article.append(makeEl('p', 'sd-payload-warning', '此结果正文已截断。'));
+        if (!request) {
+          var relations = makeEl('div', 'sd-local-relations');
+          appendLocalRelations(relations, item, item.targetPreview, url, origin, modal);
+          article.append(relations);
+        } else if (item.identity !== 'confirmed') article.append(makeEl('p', 'sd-payload-warning', '此本地结果的来源尚未确认。'));
+        items.append(article);
+      });
+      if (composition) renderReadingComposition(root, null, null);
+      var previous = section.querySelector('[data-local-results-more]');
+      if (previous) previous.remove();
+      if (current.nextCursor) {
+        var more = makeEl('button', 'sd-btn sd-btn--secondary sd-btn--sm', '继续读取结果记录');
+        more.type = 'button';
+        more.setAttribute('data-local-results-more', '');
+        var pageError = makeEl('div', '');
+        more.addEventListener('click', function () {
+          var intent = payloadIntent, context = payloadContext();
+          var nextUrl = payloadUrl(url, { target: null, occurrence: null, cursor: current.nextCursor });
+          function load() {
+            pageError.replaceChildren();
+            intent = ++payloadIntent;
+            more.disabled = true;
+            readSessionContentPage(nextUrl).then(function (next) {
+              if (intent === payloadIntent && context === payloadContext() && section.isConnected && modal.open) { pageError.remove(); appendPage(next.localResults); }
+            }).catch(function (error) {
+              if (intent === payloadIntent && section.isConnected && modal.open) localPayloadFailure(pageError, error, load, function () { openPayloadContent(origin); });
+            }).finally(function () { more.disabled = false; });
+          }
+          load();
+        });
+        section.append(more, pageError);
+      }
+    }
+    appendPage(page);
+    if (!(page.items || []).length) {
+      var unitemizedText = payload.text || payload.content || '';
+      if (!request && payload.status === 'available' && unitemizedText) {
+        var unitemized = makeEl('section', 'sd-content-block');
+        unitemized.setAttribute('data-unitemized-tool-output', '');
+        var unitemizedOutput = payload.truncated ? null : recordedToolOutput(unitemizedText);
+        unitemized.append(makeEl('h4', '', payload.truncated ? '未分项工具记录（已截断；包含关系未确认）' : '未分项的工具输出（包含关系未确认）'));
+        if (unitemizedOutput && !unitemizedOutput.text) unitemized.append(makeEl('p', 'sd-payload-empty', '已记录空输出（不是缺失）。'));
+        else appendVisibleResult(unitemized, payload.truncated ? '已记录正文（已截断）' : unitemizedOutput ? '工具输出' : 'Result',
+          unitemizedOutput ? unitemizedOutput.text : unitemizedText, '已记录正文');
+        if (unitemizedOutput?.text) payloadCopyButton(unitemized, unitemizedOutput.text, '复制输出');
+        renderReadingComposition(root, null, null);
+        section.append(unitemized);
+      } else if (!request) {
+        var notice = payload.status === 'available' && !payload.truncated ? '已记录空结果（不是缺失）。' : '工具结果正文未记录。';
+        section.append(makeEl('p', 'sd-payload-empty', notice));
+      }
+    }
+    if (page.coverage !== 'complete') section.append(makeEl('p', 'sd-payload-warning', '当前结果记录可能不完整，不能据此判断全部输入。'));
+    root.append(section);
+    var requestRaw = request && root.querySelector('[data-payload-raw]');
+    if (requestRaw) root.append(requestRaw);
+    if (!request) {
+      var original = makeEl('details', 'sd-payload-original');
+      original.setAttribute('data-tool-result-original', '');
+      original.append(makeEl('summary', '', payload.truncated ? '工具级全文、包装说明与原始载荷（已截断）' : '工具级全文、包装说明与原始载荷（完整记录）'));
+      original.append(makeEl('pre', '', payload.text || payload.content || ''));
+      if (payload.text || payload.content) payloadCopyButton(original, payload.text || payload.content, 'Copy');
+      root.append(original);
+    }
+    return root;
+  }
+
   function appendInlineAttribution(parent, path, payload, origin) {
+    var viewIntent = payloadViewIntent;
+    var attributionIntent = 0;
+    var context = payloadContext();
+    var modal = parent.closest('dialog');
     var request = path.split('?')[0].endsWith('/request');
     var section = makeEl('section', 'sd-payload-reported');
     section.setAttribute('data-payload-attribution', request ? 'request' : 'response');
@@ -192,10 +534,16 @@
     status.setAttribute('role', 'status');
     state.append(status);
     var url = getApiBase().replace(/\/$/, '') + path;
+    function current(intent) {
+      return intent === attributionIntent && viewIntent === payloadViewIntent && context === payloadContext() && parent.isConnected && modal && modal.open;
+    }
     function load() {
+      if (!current(attributionIntent)) return;
+      var intent = ++attributionIntent;
       status.textContent = '正在读取' + label + '…';
       state.replaceChildren(status);
       return readSessionContentPage(url).then(function (response) {
+        if (!current(intent)) return;
         var data = response.data || {};
         if (response.kind !== 'llm.' + (request ? 'request' : 'response') + '_attribution' || !data.callId) {
           throw new Error('归因未记录');
@@ -241,7 +589,9 @@
             actions.append(toolPayloadLink(tool.id, 'input', name, target, callLabel));
             var observed = tool.resultObserved ?? (toolTracePair(tool.id)?.dataset.resultObserved === 'true');
             if (observed) {
-              actions.append(toolPayloadLink(tool.id, 'result', name, target, callLabel));
+              var result = toolPayloadLink(tool.id, 'result', name, target, callLabel);
+              if (tool.preview) result.dataset.toolInputPreview = tool.preview;
+              actions.append(result);
             } else {
               actions.append(makeEl('span', 'sd-reading-usage-note', '结果未记录'));
             }
@@ -259,6 +609,8 @@
           else parent.querySelector('.sd-reading-panel').after(tools);
         }
       }).catch(function (error) {
+        if (!current(intent)) return;
+        if (error.httpStatus === 409 || /refresh/i.test(error.message)) invalidatePayloadNavigation();
         status.textContent = /refresh/i.test(error.message) ? '索引已变化；刷新页面后重试。' : label + '暂不可用。';
         var retry = makeEl('button', 'sd-btn sd-btn--secondary sd-btn--sm', 'Retry');
         retry.type = 'button';
@@ -347,7 +699,7 @@
       return button;
     }
     if (override.back) add('返回 ' + payloadDestinationLabel(override.back), override.back);
-    var path = origin.dataset.attributionPath;
+    var path = origin?.dataset.attributionPath;
     if (path) {
       var peerPath = path.replace(/\/(request|response)(?=\?|$)/, function (_, side) {
         return side === 'request' ? '/response' : '/request';
@@ -432,35 +784,48 @@
     var id = payloadId.slice('tool:result:'.length);
     var evidence = payload.toolResult || {};
     var row = origin.closest('[data-tool-call-id]');
+    if (row?.dataset.toolCallId !== id) row = toolTracePair(id)?.previousElementSibling;
     var name = evidence.name || origin.dataset.toolVisibleName || row?.dataset.toolVisibleName || '工具名称未记录';
     var timestamp = localTime(evidence.declaredAt) || row?.dataset.toolObservedTimestamp || '未记录';
     var duration = observedToolTime({observation: evidence, durationMs: evidence.durationMs});
     if (subtitle) subtitle.textContent = '发起时间（声明记录） ' + timestamp +
       ' · 耗时 ' + (duration === '未记录' ? row?.dataset.toolObservedTime || duration : duration);
-    var ui = appendReadingBlock(parent, name + ' · 命令与参数', {text: '正在读取同一调用的参数…'}, 'tool');
+    var preview = origin.dataset.toolInputPreview || row?.querySelector('.sd-tool-cmd')?.title || '';
+    var ui = appendReadingBlock(parent, name + ' · 命令与参数',
+      {text: preview || '尚未读取同一工具的参数。'}, 'tool');
     ui.section.dataset.resultCommand = '';
     parent.prepend(ui.section);
+    if (preview) describeReadingBlock(ui, preview, null, '已记录的参数预览');
+    var read = makeEl('button', 'sd-btn sd-btn--secondary sd-btn--sm', '读取完整参数');
+    read.type = 'button';
+    ui.section.append(read);
     var url = getApiBase().replace(/\/$/, '') + '/payload/' + encodeURIComponent('tool:input:' + id);
-    function show(text) {
-      if (!ui.section.isConnected) return;
-      var command = recordedCommand(text);
-      ui.body.firstChild.textContent = command || text || '参数未记录';
-      if (text) describeReadingBlock(ui, command || text, null);
-      if (command && command !== text) {
-        var callLabel = response ? payloadDestinationLabel(response).replace(/ · Response$/, '') : '';
-        var actions = makeEl('div', 'sd-payload-tool-actions');
-        actions.append(toolPayloadLink(id, 'input', name, origin, callLabel));
-        ui.section.append(actions);
-      }
-    }
-    readSessionContentPage(url).then(function (input) {
-      show(input.kind === 'tool_input' && (!input.callId || input.callId === id) ? input.text || input.content : '');
-    }).catch(function (error) {
-      show('');
-      if (!ui.section.isConnected) return;
-      ui.body.firstChild.textContent = /refresh/i.test(error.message)
-        ? '索引已变化；刷新页面后重试。' : '参数暂不可用；重新打开此结果可重试。';
-    });
+    var view = payloadViewIntent;
+    var context = payloadContext();
+    function current() { return view === payloadViewIntent && context === payloadContext() && ui.section.isConnected; }
+    read.onclick = function () {
+      if (read.disabled || !current()) return;
+      read.disabled = true;
+      readSessionContentPage(url).then(function (input) {
+        if (!current()) return;
+        var text = input.kind === 'tool_input' && (!input.callId || input.callId === id) ? input.text || input.content : '';
+        var command = input.truncated ? null : recordedCommand(text);
+        ui.body.firstChild.textContent = command || text || '参数未记录';
+        ui.head.querySelector('.sd-reading-block-meta')?.remove();
+        if (text) describeReadingBlock(ui, command || text, null, input.truncated ? '已记录参数（已截断）' : '已记录参数');
+        if (command && command !== text) {
+          var callLabel = response ? payloadDestinationLabel(response).replace(/ · Response$/, '') : '';
+          ui.section.append(toolPayloadLink(id, 'input', name, origin, callLabel));
+        }
+        read.remove();
+      }).catch(function (error) {
+        if (!current()) return;
+        var refresh = /refresh/i.test(error.message);
+        ui.body.firstChild.textContent = refresh ? '索引已变化；刷新页面后重试。' : preview || '参数暂不可用。';
+        read.textContent = refresh ? 'Refresh page' : 'Retry';
+        if (refresh) read.onclick = function () { location.reload(); };
+      }).finally(function () { if (current()) read.disabled = false; });
+    };
   }
 
   function recordedCommand(text) {
@@ -478,8 +843,10 @@
     // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Attribution buttons should open the analysis modal directly; only`
     // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`ordinary payload buttons fall back to raw request/response/result data.`
     if (typeof openAttributionModal === "function") {
+      invalidatePayloadNavigation();
+      var intent = payloadIntent;
       openAttributionModal(button).then(function(handled) {
-        if (!handled) openPayloadContent(button);
+        if (!handled && intent === payloadIntent) openPayloadContent(button);
       });
       return;
     }
@@ -487,6 +854,7 @@
   }
 
   function closePayload() {
+    invalidatePayloadNavigation();
     var modal = document.getElementById("sd-payload-modal") || document.getElementById("payload-modal");
     if (!modal) return;
     if (typeof modal.close === "function" && modal.open) modal.close();
@@ -760,6 +1128,47 @@
     }[kind];
   }
 
+  // 有界、只读地解开明确的 output/result 包装；不执行脚本，不从说明文字猜输出。
+  function recordedToolOutput(raw) {
+    if (raw.length > 1024 * 1024) return null;
+    var current = raw;
+    var envelope = /^Script completed\r?\nWall time [\d.]+ seconds\r?\nOutput:\r?\n([\s\S]*)$/.exec(current);
+    if (envelope) current = envelope[1];
+    var fields = envelope ? ['Output'] : [];
+    for (var depth = 0; depth < 4; depth += 1) {
+      var value;
+      try { value = JSON.parse(current); } catch (ignored) { break; }
+      if (!value || Array.isArray(value) || typeof value !== 'object') break;
+      var keys = ['output', 'result'].filter(function (key) { return Object.prototype.hasOwnProperty.call(value, key); });
+      if (keys.length !== 1 || typeof value[keys[0]] !== 'string') break;
+      current = value[keys[0]];
+      fields.push(keys[0]);
+    }
+    if (!fields.length) return null;
+    return { text: current, field: fields.join(' → ') };
+  }
+
+  // Only a complete, bounded, single literal field; matching the entire object rejects duplicate/escaped keys and wrappers.
+  function recordedMultilineToolInput(text) {
+    if (text.length > 65536) return null;
+    var match = /^[ \t\r\n]*\{[ \t\r\n]*"(?:cmd|command|script)"[ \t\r\n]*:[ \t\r\n]*("(?:[^"\\\u0000-\u001f]|\\(?:["\\/bfnrt]|u[0-9a-fA-F]{4}))*")[ \t\r\n]*\}[ \t\r\n]*$/.exec(text);
+    if (!match) return null;
+    var command;
+    try { command = JSON.parse(match[1]); } catch (ignored) { return null; }
+    return /[\r\n]/.test(command) ? command : null;
+  }
+
+  function payloadCopyButton(parent, text, label) {
+    if (!navigator.clipboard) return;
+    var copy = makeEl('button', 'sd-btn sd-btn--secondary sd-btn--sm', label);
+    copy.type = 'button';
+    copy.addEventListener('click', function () {
+      navigator.clipboard.writeText(text).then(function () { copy.textContent = 'Copied'; })
+        .catch(function () { copy.textContent = 'Copy unavailable'; });
+    });
+    parent.append(copy);
+  }
+
   function payloadNodeFromJson(payload) {
     payload = payload || {};
     var kind = payload.kind || "unknown";
@@ -772,35 +1181,67 @@
     var tokenSummary = formatPayloadTokenEstimate(payload.token_estimate);
     var conversationTitle = conversationPayloadTitle(kind);
     if (conversationTitle) return conversationPayload(payload, conversationTitle, text);
+    if (kind === 'tool_result' && status === 'available' && !payload.truncated && !recordedToolOutput(text)) {
+      return conversationPayload(payload, 'Result', text);
+    }
     var shell = makeEl("div", "sd-payload-shell payload-shell");
+    if (kind === 'tool_result') shell.classList.add('sd-payload-shell--tool-result');
     var meta = makeEl("aside", "sd-payload-meta payload-meta");
     meta.appendChild(makeEl("h3", "", "Metadata"));
     appendKv(meta, "kind", kind);
-    appendKv(meta, "status", status);
+    appendKv(meta, "内容状态", status);
     if (size) appendKv(meta, "size", size);
     if (tokenSummary) appendKv(meta, "tokens", tokenSummary);
     if (toolName) appendKv(meta, "tool", toolName);
     if (toolStatus) appendKv(meta, "tool status", toolStatus);
 
     var main = makeEl("main", "sd-payload-main payload-main");
-    if (toolCommand) appendPreBlock(main, "Command", toolCommand, "tool");
+    if (toolCommand && kind === 'tool_result') {
+      var declaration = makeEl('details', 'sd-payload-original');
+      declaration.append(makeEl('summary', '', '声明命令与参数（非执行结果）'));
+      appendPreBlock(declaration, 'Command', toolCommand, 'tool');
+      main.append(declaration);
+    } else if (toolCommand) appendPreBlock(main, 'Command', toolCommand, 'tool');
     var contentTitle = {
       tool_input: "Input", tool_result: "Result"
     }[kind] || "Content";
     if (payload.truncated) main.appendChild(makeEl("p", "sd-payload-warning", "内容已截断。"));
     if (text) {
-      appendPreBlock(main, contentTitle, text, "text");
-      if (navigator.clipboard && (kind === 'tool_input' || kind === 'tool_result')) {
-        var copy = makeEl('button', 'sd-btn sd-btn--secondary sd-btn--sm', 'Copy');
-        copy.type = 'button';
-        copy.addEventListener('click', function () {
-          navigator.clipboard.writeText(text).then(function () { copy.textContent = 'Copied'; })
-            .catch(function () { copy.textContent = 'Copy unavailable'; });
-        });
-        main.append(copy);
+      var command = kind === 'tool_input' && status === 'available' && !payload.truncated ? recordedMultilineToolInput(text) : null;
+      var output = kind === 'tool_result' && !payload.truncated ? recordedToolOutput(text) : null;
+      if (command !== null) {
+        var input = makeEl('div', '');
+        input.setAttribute('data-tool-input-command', '');
+        appendPreBlock(input, '命令文本（本次工具参数，不拆分调用）', command, 'text');
+        payloadCopyButton(input, command, '复制命令文本');
+        main.append(input);
+        var parameters = makeEl('details', 'sd-payload-original');
+        parameters.setAttribute('data-tool-input-original', '');
+        parameters.append(makeEl('summary', '', '完整原始参数（JSON）'));
+        parameters.append(makeEl('pre', '', text));
+        payloadCopyButton(parameters, text, '复制原始参数');
+        main.append(parameters);
+      } else if (output) {
+        appendKv(meta, '展示', '提取 ' + output.field + ' 正文；其余字段见原始载荷');
+        var result = makeEl('div', 'sd-tool-output');
+        result.setAttribute('data-tool-output', '');
+        if (output.text) appendPreBlock(result, '工具输出', output.text, 'text');
+        else result.append(makeEl('p', 'sd-payload-empty', '已记录空输出（不是缺失）'));
+        payloadCopyButton(result, output.text, '复制输出');
+        main.append(result);
+        var original = makeEl('details', 'sd-payload-original');
+        original.setAttribute('data-tool-result-original', '');
+       original.append(makeEl('summary', '', '包装说明与原始载荷（完整记录）'));
+       original.append(makeEl('pre', '', text));
+       payloadCopyButton(original, text, '复制原始载荷');
+        main.append(original);
+      } else {
+        if (kind === 'tool_result') appendKv(meta, '展示', '按记录原文展示；未拆分 output/result 字段');
+        appendPreBlock(main, contentTitle, text, "text");
+        if (kind === 'tool_input' || kind === 'tool_result') payloadCopyButton(main, text, 'Copy');
       }
     }
-    else main.appendChild(makeEl("div", "sd-payload-empty", contentTitle + " 内容未记录"));
+    else main.appendChild(makeEl("div", "sd-payload-empty", kind === "tool_result" && status === "available" ? "已记录工具返回，暂无可展示的非空正文" : contentTitle + " 内容未记录"));
 
     shell.appendChild(meta);
     shell.appendChild(main);

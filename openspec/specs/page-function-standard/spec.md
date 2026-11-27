@@ -52,16 +52,15 @@ Dashboard SHALL be the target page for both all-agent overview and single-agent 
 - **Then** Dashboard SHALL show KPI, trend, token composition, cache health, model mix, tool distribution, failure signals, model efficiency detail, and agent sessions for the selected agent
 - **And** Dashboard SHALL NOT require a separate Agent Detail page for those fields
 
-### Requirement: Session Detail has Trace and Payload main tabs only
+### Requirement: Session Detail uses one execution workspace
 
-Session Detail SHALL explain a single session's trace, payload, and attribution with exactly two main tabs: Trace and Payload.
+Session Detail SHALL explain a single session's trace, payload, and attribution within one round-based execution workspace.
 
-#### Scenario: Define Session Detail tabs
+#### Scenario: Open a source record from Session Detail
 
 - **Given** 开发者修改 Session Detail
-- **When** 调整主 tab
-- **Then** 页面 SHALL expose Trace and Payload as the only main tabs
-- **And** request/response attribution SHALL be accessible from Trace round/subround rows and remain part of Payload call detail
+- **When** 用户查看模型或工具的原文与归因
+- **Then** 页面 SHALL 从对应轮次、调用或工具查看原文及归因，不使用平行主 tab 或独立执行表
 
 ### Requirement: List pages preserve complete user operations
 

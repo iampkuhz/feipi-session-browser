@@ -175,13 +175,20 @@ async function openRealPayload(page, button, importId, title, heading = new RegE
   await button.click();
   const response = await responsePromise;
   expect(response.ok(), endpoint).toBe(true);
-  const payload = await response.json();
+  const data = await response.json();
+  const explicit = new URL(response.url()).searchParams.get('view') === 'local_results';
+  const payload = explicit ? data.payload : data;
+  if (explicit) {
+    expect(data.localResults).toBeTruthy();
+    expect(data.relations).toBeNull();
+  }
   const modal = page.locator('dialog.payload-modal');
   await expect(modal).toBeVisible();
   const conversation = title === 'Request' || title === 'Response';
   const block = conversation
     ? modal.locator('[data-reading-category="current"][data-reading-source="current"]')
-    : modal.locator('.sd-content-block').filter({ has: page.getByText(title, { exact: true }) });
+    : title === 'Result' ? modal.locator('[data-reading-category="result"]')
+      : modal.locator('.sd-content-block').filter({ has: page.getByText(title, { exact: true }) });
   if (conversation) {
     await expect(block.locator('.sd-card-title')).toHaveText(heading);
   }

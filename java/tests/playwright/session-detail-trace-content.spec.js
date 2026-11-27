@@ -1,4 +1,5 @@
 const { test, expect } = require('@playwright/test');
+const { captureDiagnosticScreenshot } = require('./start-java-fixture-server');
 const path = require('path');
 const { runPlaywrightRoot } = require('./runtime-paths');
 
@@ -73,7 +74,11 @@ test('long trace expands all 100 loaded rows without fetching individual payload
 // Keep the real fixture snapshot identity when replacing only synthetic content.
 async function fulfillIndexedJson(route, json) {
   const response = await route.fetch();
-  await route.fulfill({ response, status: 200, json });
+  const requestUrl = new URL(route.request().url());
+  const body = requestUrl.pathname.includes('/payload/') && requestUrl.searchParams.get('view') === 'local_results'
+    ? { payload: json, localResults: { items: [], offset: 0, nextCursor: null, coverage: 'complete', reason: '', targetReferenceId: null }, relations: null }
+    : json;
+  await route.fulfill({ response, status: 200, json: body });
 }
 
 async function installTraceFixture(page, roundInfo) {
@@ -100,7 +105,7 @@ async function installTraceFixture(page, roundInfo) {
     } });
   });
   await page.route(`**${API}/payload/*`, (route) => {
-    const id = decodeURIComponent(route.request().url().split('/payload/')[1]);
+    const id = decodeURIComponent(new URL(route.request().url()).pathname.split('/payload/')[1]);
     let kind;
     let content;
     if (id.startsWith('tool:')) {
@@ -190,7 +195,7 @@ for (const scenario of [
 test('Request and Response visible estimates exclude raw and do not invent shares without a measured total', async ({ page }) => {
   const row = await installTraceFixture(page, { callCount: 1 });
   await page.route(`**${API}/payload/*`, route => {
-    const id = decodeURIComponent(route.request().url().split('/payload/')[1]);
+    const id = decodeURIComponent(new URL(route.request().url()).pathname.split('/payload/')[1]);
     return fulfillIndexedJson(route, {
       kind: id.includes(':req:') ? 'llm_request' : 'llm_response',
       content: 'Repeated raw body that is not part of the denominator.',
@@ -306,6 +311,7 @@ test('[UI-SD-044] side-specific attribution is linked to the expanded record; to
   await tool.getByRole('button', { name: / · C8 · Result$/ }).click();
   const result = response;
   await expect(result.locator('[data-reading-category="result"] pre')).toHaveText('synthetic result for tool-b');
+  await result.getByRole('button', { name: '读取完整参数', exact: true }).click();
   await expect(result.locator('[data-result-command] pre')).toHaveText(COMMAND);
   await expect(result.locator('.sd-reading-composition')).toContainText('工具结果不计为独立模型调用');
   await expect(result.locator('.sd-reading-usage-band')).toBeVisible();
@@ -356,12 +362,12 @@ test('default composition separates 900 input tokens from cache and preserves an
   await expect(modal.locator('.sd-reading-cache-ratio li strong')).toHaveText([
     '200 tokens · 22.2%', '700 tokens · 77.8%',
   ]);
-  await modal.locator('.sd-modal-panel').screenshot({ path: testInfo.outputPath('payload-request-default.png') });
+  await captureDiagnosticScreenshot(modal.locator('.sd-modal-panel'), { path: testInfo.outputPath('payload-request-default.png') });
   await modal.getByRole('button', { name: / · C8 · Response$/ }).click();
   await expect(composition.locator('li strong')).toHaveText(['约 40 tokens · 40%', '30 tokens · 30%', '约 30 tokens · 30%']);
   await expect(composition).toContainText('有依据的分项覆盖约 70%');
   await expect(modal.locator('.sd-reading-cache-ratio')).toHaveCount(0);
-  await modal.locator('.sd-modal-panel').screenshot({ path: testInfo.outputPath('payload-response-default.png') });
+  await captureDiagnosticScreenshot(modal.locator('.sd-modal-panel'), { path: testInfo.outputPath('payload-response-default.png') });
   await closeContent(modal);
   hasResponseText = false;
   await call.getByRole('button', { name: 'Response', exact: true }).click();
@@ -546,7 +552,7 @@ test('tool-only member uses one timeline operation and lazily loads paired bodie
   await pair.locator('summary').click();
   await expect(pair.locator('pre').first()).toHaveText(INPUTS['tool-b']);
   await expect(pair.locator('pre').last()).toHaveText('synthetic result for tool-b');
-  await detail.screenshot({ path: path.join(runPlaywrightRoot, 'task56-trace-pair-desktop.png') });
+  await captureDiagnosticScreenshot(detail, { path: path.join(runPlaywrightRoot, 'task56-trace-pair-desktop.png') });
   const boxes = await pair.locator('.sd-tool-payload-grid > section').evaluateAll(nodes => nodes.map(node => {
     const b = node.getBoundingClientRect(); return { top: b.top, left: b.left, right: b.right, bottom: b.bottom };
   }));
@@ -699,7 +705,13 @@ test('real Codex import keeps R1/R2 summaries, times and same-name tool payloads
         await row.getByRole('button', { name: title, exact: true }).click();
         const response = await pending;
         expect(response.status()).toBe(200);
-        const payload = await response.json();
+        const data = await response.json();
+        const explicit = new URL(response.url()).searchParams.get('view') === 'local_results';
+        if (explicit) {
+          expect(data.localResults).not.toBeNull();
+          expect(data.relations).toBeNull();
+        }
+        const payload = explicit ? data.payload : data;
         expect(payload.content).toContain(title === 'Request' ? `检查合成 ${marker}` : `synthetic-${ids[0]}`);
         if (title === 'Response') {
           for (const id of ids) expect(payload.content).toContain(`synthetic-${id}`);
@@ -730,6 +742,7 @@ test('real Codex import keeps R1/R2 summaries, times and same-name tool payloads
             } else {
               await expect(resultAction).toHaveAttribute('data-payload-id', 'tool:result:' + id);
               await resultAction.click();
+              await modal.getByRole('button', { name: '读取完整参数', exact: true }).click();
               await expect(modal.locator('[data-result-command] pre')).toHaveText(`printf synthetic-${id}`);
               await expect(modal.locator('[data-reading-category="result"] pre')).toHaveText(`synthetic result ${id}`);
               await expect(modal.getByRole('button', { name: /^返回 .+ · Response$/ })).toBeVisible();
@@ -751,7 +764,7 @@ test('real Codex import keeps R1/R2 summaries, times and same-name tool payloads
         }
       }
     }
-    await page.locator('#round-1-detail').screenshot({ path: path.join(runPlaywrightRoot, 'task56-real-trace-desktop.png') });
+    await captureDiagnosticScreenshot(page.locator('#round-1-detail'), { path: path.join(runPlaywrightRoot, 'task56-real-trace-desktop.png') });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   } finally {
     expect((await request.delete(api, { headers })).status()).toBe(204);
@@ -761,7 +774,7 @@ test('real Codex import keeps R1/R2 summaries, times and same-name tool payloads
 test('Side Chat bootstrap and post-compaction user text are kept on separate calls', async ({ page }) => {
   const row = await installTraceFixture(page);
   await page.route(`**${API}/payload/*`, route => {
-    const first = decodeURIComponent(route.request().url()).endsWith('synthetic-call-7');
+    const first = decodeURIComponent(new URL(route.request().url()).pathname).endsWith('synthetic-call-7');
     const base = { kind: 'base_instructions', label: 'Base instructions', source: first ? 'current' : 'reconstructed', text: 'synthetic instructions' };
     const context = first ? [
       { kind: 'side_context', label: 'Side Chat 启动上下文', source: 'current', text: 'synthetic bootstrap' },
@@ -861,4 +874,47 @@ test('a standalone compression response preserves unknown output shares and meas
   await row.getByRole('button', {name:'Request',exact:true}).click();
   await expect(modal).toContainText('Request 正文未记录');
   await expect(modal.locator('li[data-token-part="remainder"]')).toContainText('4,000 tokens · 100%');
+});
+
+test('local result inclusion opts in only exact supported identities and keeps round request attribution', async ({ page }) => {
+  const seen = []; page.on('request', request => { if (request.url().includes(API + '/payload/')) seen.push(new URL(request.url())); });
+  await installTraceFixture(page);
+  expect(seen).toHaveLength(0);
+  const cases = [
+    ['main:req:synthetic-call-7', 'llm_request', true],
+    ['sa:req:synthetic-call-7', 'subagent_request', true],
+    ['tool:result:tool-a', 'tool_result', true],
+    ['round:req:1', 'llm_request', false],
+  ];
+  for (const [id, kind, explicit] of cases) {
+    await page.evaluate(({ id, kind }) => {
+      const button = document.createElement('button'); button.textContent = 'Synthetic scope probe';
+      button.id = 'synthetic-scope-probe'; button.setAttribute('data-action', 'open-payload');
+      button.setAttribute('data-payload-id', id); button.setAttribute('data-payload-kind', kind);
+      if (id.startsWith('round:')) button.setAttribute('data-attribution-path', '/attribution/1/1/request?call_id=synthetic-call-7');
+      document.body.append(button);
+    }, { id, kind });
+    await page.locator('#synthetic-scope-probe').click();
+    const modal = page.locator('dialog.payload-modal[open]');
+    await expect(modal.locator('.sd-payload-loading')).toHaveCount(0);
+    const requests = seen.filter(url => decodeURIComponent(url.pathname.split('/payload/')[1]) === id);
+    expect(requests).toHaveLength(1);
+    expect(requests[0].searchParams.get('view')).toBe(explicit ? 'local_results' : null);
+    if (id.startsWith('round:')) {
+      await expect(modal.locator('[data-reading-category="current"] .sd-card-title')).toHaveText('Request');
+      await expect(modal.locator('[data-reading-category="current"] pre')).toHaveText(REQUEST);
+      await expect(modal.locator('[data-payload-attribution="request"]')).toHaveAttribute('data-attribution-call', 'synthetic-call-7');
+      await expect(modal.locator('.sd-local-results')).toHaveCount(0);
+    } else if (kind === 'tool_result') {
+      await expect(modal.locator('.sd-local-results')).toHaveCount(1);
+    } else {
+      // A complete empty result page must not add an empty-reading section to a typed Request.
+      await expect(modal.locator('[data-reading-category="current"] pre')).toHaveText(REQUEST);
+      await expect(modal.locator('.sd-local-results, .sd-payload-empty')).toHaveCount(0);
+    }
+    await closeContent(modal); await page.locator('#synthetic-scope-probe').evaluate(button => button.remove());
+  }
+  expect(seen.map(url => decodeURIComponent(url.pathname.split('/payload/')[1])).sort()).toEqual([
+    'main:req:synthetic-call-7', 'round:req:1', 'sa:req:synthetic-call-7', 'tool:result:tool-a',
+  ]);
 });

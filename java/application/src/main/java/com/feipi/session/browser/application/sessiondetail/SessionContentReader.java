@@ -14,6 +14,7 @@ import java.util.function.Function;
 public final class SessionContentReader {
   private final NormalizedSessionContent content;
   private final ContentRoundIndex index;
+  private LocalToolResultProjection localResults;
 
   /** 为一个不可变内容快照创建读取器。 */
   public SessionContentReader(NormalizedSessionContent content, long observedUserMessages)
@@ -145,6 +146,36 @@ public final class SessionContentReader {
     return new ContentPayloadReader(content, this).read(call, request, visibility);
   }
 
+  /** 显式读取有界工具结果或单个请求引用；默认每页二十项。 */
+  public PayloadLookup.LocalResults localResults(String payloadId, PayloadVisibility visibility)
+      throws IOException {
+    return localResults(payloadId, 0, 20, null, visibility);
+  }
+
+  /** 精确 target 直接返回所在窗口；句柄绑定完整来源身份，同冻结内容可跨读取器重建；HTTP 换代由调用方绑定。 */
+  public PayloadLookup.LocalResults localResults(
+      String payloadId, long cursor, int limit, String target, PayloadVisibility visibility)
+      throws IOException {
+    return localProjection().read(payloadId, cursor, limit, target, visibility);
+  }
+
+  /** 仅核验当前元数据中的结果载荷归属，不读取结果正文，也不代替身份及覆盖资格检查。 */
+  public boolean localResultBelongsToPayload(String payloadId, String occurrenceId)
+      throws IOException {
+    return localProjection().belongsToPayload(payloadId, occurrenceId);
+  }
+
+  /** 返回一个结果的全部已确认目标的有界窗口，不按单值 consumer 摘要造边。 */
+  public PayloadLookup.LocalResultRelations localResultRelations(
+      String occurrenceId, long cursor, int limit, String target) throws IOException {
+    return localProjection().relations(occurrenceId, cursor, limit, target);
+  }
+
+  private synchronized LocalToolResultProjection localProjection() throws IOException {
+    if (localResults == null) localResults = LocalToolResultProjection.build(content);
+    return localResults;
+  }
+
   /** 为一次完整导出建立固定一次重放的私有磁盘载荷索引；调用方必须关闭。 */
   public ExportPayloads exportPayloads() throws IOException {
     return new ExportPayloads(ExportPayloadLookup.build(content));
@@ -172,6 +203,19 @@ public final class SessionContentReader {
       if (!id.startsWith("tool:"))
         throw new IllegalArgumentException("Export tool identity required");
       return payloadReader.read(id, visibility);
+    }
+
+    /** 共享同一惰性身份投影，正文复用本次导出的私有文件偏移。 */
+    public PayloadLookup.LocalResults localResults(
+        String payloadId, long cursor, int limit, String target, PayloadVisibility visibility)
+        throws IOException {
+      return localProjection().read(payloadId, cursor, limit, target, visibility, lookup);
+    }
+
+    /** 与单项读取使用同一准确目标合同。 */
+    public PayloadLookup.LocalResultRelations localResultRelations(
+        String occurrenceId, long cursor, int limit, String target) throws IOException {
+      return localProjection().relations(occurrenceId, cursor, limit, target);
     }
 
     /** 删除本次导出的全部临时正文。 */

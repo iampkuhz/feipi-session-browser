@@ -262,9 +262,30 @@ public final class NormalizedArtifactLoader {
               durationMs,
               asStringList(em, "files_touched"),
               subagentId,
-              parseObservation(em.get("observation"))));
+              parseObservation(em.get("observation")),
+              parseCollaboration(em.get("collaboration"))));
     }
     return result;
+  }
+
+  /** 还原紧凑协作事实，不读取任务或结果正文。 */
+  private static List<com.feipi.session.browser.domain.normalized.NormalizedCollaborationAction>
+      parseCollaboration(Object value) {
+    return NormalizedContentCodec.list(value).stream()
+        .map(
+            item -> {
+              var m = NormalizedContentCodec.map(item);
+              return new com.feipi.session.browser.domain.normalized.NormalizedCollaborationAction(
+                  NormalizedContentCodec.str(m, "kind"),
+                  NormalizedContentCodec.str(m, "phase"),
+                  NormalizedContentCodec.optional(m, "actorId"),
+                  NormalizedContentCodec.optional(m, "targetId"),
+                  NormalizedContentCodec.str(m, "sourceLocator"),
+                  NormalizedContentCodec.optional(m, "reportedStatus"),
+                  NormalizedContentCodec.str(m, "reason"),
+                  NormalizedContentCodec.str(m, "actorIdentityReason"));
+            })
+        .toList();
   }
 
   /** 还原当前内容格式的显式观测；不存在即未知，不读取或迁移旧索引。 */

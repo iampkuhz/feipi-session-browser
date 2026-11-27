@@ -56,9 +56,33 @@ def test_gradle_and_java_rule_are_plain_console_invocations(tmp_path: Path, monk
     gradle = _adapt('webResourceContracts', tmp_path, monkeypatch)[0]
     java_rule = _adapt('webStaticRules', tmp_path, monkeypatch)[0]
     assert gradle.kind == 'gradle-task'
-    assert gradle.argv[-2:] == (':java:web:test', '--console=plain')
+    assert gradle.argv[-2:] == (':java:web:webResourceContractTest', '--console=plain')
     assert java_rule.kind == 'java-rule'
     assert any(value.startswith('-PfeipiJavaQualityRules=') for value in java_rule.argv)
+
+
+@pytest.mark.parametrize(
+    ('mode', 'paths', 'static_only'),
+    [
+        ('incremental', ('static/js/page.js',), True),
+        ('incremental', ('templates/session.html',), False),
+        ('incremental', ('static/css/style.css', 'templates/session.html'), False),
+        ('full', (), False),
+    ],
+)
+def test_web_resources_add_ssr_only_for_template_or_unbounded_scope(
+    tmp_path: Path, mode: str, paths: tuple[str, ...], static_only: bool
+) -> None:
+    _write_wrapper(tmp_path)
+    gate = gate_by_name('webResourceContracts')
+    (invocation,) = command_adapter.adapt_recipe_step(
+        gate,
+        gate.recipe.steps[0],
+        tmp_path,
+        mode=mode,
+        changed_files=tuple('java/web/src/main/resources/' + p for p in paths),
+    )
+    assert ('-PfeipiWebStaticOnly=true' in invocation.argv) is static_only
 
 
 def test_sanitized_environment_removes_provider_private_values() -> None:

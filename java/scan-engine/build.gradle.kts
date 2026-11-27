@@ -16,6 +16,7 @@ dependencies {
     testImplementation(libs.assertj.core)
     testImplementation(libs.logback.classic)
     testImplementation(project(":java:tests:support"))
+    testImplementation(project(":java:sources"))
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 

@@ -10,7 +10,15 @@ import java.util.List;
 /** 保存候选输入摘要而非最终解析值，避免 parsed 优先字段导致反复重算。 */
 final class CandidateMetadataFingerprint {
   private static final List<String> FIELDS =
-      List.of("title", "model", "git_branch", "source", "cwd", "started_at", "ended_at");
+      List.of(
+          "title",
+          "model",
+          "git_branch",
+          "source",
+          "cwd",
+          "started_at",
+          "ended_at",
+          "collaborationSourceFingerprint");
 
   private CandidateMetadataFingerprint() {}
 

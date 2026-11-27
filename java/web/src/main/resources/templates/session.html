@@ -44,6 +44,7 @@
 <script src="/static/js/session-detail/skill-reference.js"></script>
 <script src="/static/js/session-detail/events.js"></script>
 <script src="/static/js/session-detail/execution.js"></script>
+<script src="/static/js/session-detail/collaboration.js"></script>
 <script src="/static/js/session-detail/init.js"></script>
 {% endblock %}
 
@@ -140,14 +141,14 @@
                 <span>工具失败 <b>Loading…</b></span>
             </div>
         </div>
-        <div class="sd-kpi sd-kpi--stack" aria-label="Source Task Active" data-session-timing title="主任务活动时间按来源记录；包括任务内工具和等待，不等于模型执行时间">
+        <div class="sd-kpi sd-kpi--stack" aria-label="Source Task Active" data-session-timing tabindex="-1" title="主任务活动时间按来源记录；包括任务内工具和等待，不等于模型执行时间">
             <div class="sd-kpi__value" data-session-timing-value>Loading…</div>
             <div class="sd-kpi__label">任务活动时长</div>
             <div class="sd-kpi__subgrid">
-                <span>会话总历时 <b>Loading…</b></span>
-                <span>Agent 累计耗时 <b>Loading…</b></span>
-                <span>模型执行 <b>Loading…</b></span>
-                <span>工具执行 <b>Loading…</b></span>
+                <span>来源记录时间跨度 <b>Loading…</b></span>
+                <span>主会话轮次累计 <b>Loading…</b></span>
+                <span>来源模型计时 <b>Loading…</b></span>
+                <span>来源工具计时 <b>Loading…</b></span>
             </div>
         </div>
     </div>
@@ -172,7 +173,17 @@
 
 <section class="sd-trace-panel" data-trace-panel aria-labelledby="sd-execution-title">
     <h2 id="sd-execution-title" class="sd-trace-title">执行过程</h2>
-    <div class="se-judgment" data-execution-judgment hidden></div>
+    <div data-session-timing-explanation></div>
+    <div class="se-judgment" data-execution-judgment hidden>
+        <div data-collaboration-attention hidden></div>
+        <div data-execution-evidence></div>
+    </div>
+    <button type="button" class="sd-btn sd-btn--secondary sd-btn--sm" data-execution-collaboration-return hidden>返回协作位置</button>
+    <details class="sc-disclosure" data-collaboration-disclosure>
+        <summary>Agent 协作</summary>
+        <div data-collaboration><p>正在读取有界协作事实…</p></div>
+        <p data-collaboration-status role="status" aria-live="polite"></p>
+    </details>
     <div class="sd-record-card">
     <div class="sd-trace-head" id="session-records" tabindex="-1">
         <div>

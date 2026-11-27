@@ -12,9 +12,11 @@ import com.feipi.session.browser.domain.normalized.NormalizedConstants;
 import com.feipi.session.browser.domain.normalized.NormalizedContentHeader;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionContent;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionMetadata;
+import com.feipi.session.browser.web.IndexSnapshotGuard;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 
@@ -125,6 +127,8 @@ class SessionContentProjectionTest {
                     new com.feipi.session.browser.application.SessionDetailUseCase.DetailContext(
                         detail, null, content)));
     var members = new SessionApiHandler(service);
+    var generation = new AtomicReference<>("synthetic-first");
+    var snapshot = new IndexSnapshotGuard(generation::get);
     io.javalin.testtools.JavalinTest.test(
         io.javalin.Javalin.create(
             config -> {
@@ -132,8 +136,9 @@ class SessionContentProjectionTest {
               config.routes.get("/payloads", handler::handlePayloads);
               config.routes.get("/metrics", handler::handleMetrics);
               config.routes.get("/diagnostics", handler::handleDiagnostics);
-              config.routes.get("/execution", handler::handleExecution);
-              config.routes.get("/round/1", ctx -> members.handleRound(ctx, "codex", "health", 1));
+              config.routes.get("/execution", snapshot.wrap(handler::handleExecution));
+              config.routes.get(
+                  "/round/1", snapshot.wrap(ctx -> members.handleRound(ctx, "codex", "health", 1)));
               config.routes.get(
                   "/tail",
                   ctx ->
@@ -225,6 +230,11 @@ class SessionContentProjectionTest {
             next = page.path("nextCursor").isNull() ? null : page.path("nextCursor").asText();
           } while (next != null);
           assertThat(calls).isEqualTo(10234);
+          generation.set("synthetic-second");
+          // 续页不传旧代次请求头；游标仍不得跨代使用。
+          assertThat(client.get("/execution?cursor=" + executionCursor).code()).isEqualTo(400);
+          assertThat(client.get("/round/1?cursor=" + focused.path("nextCursor").asText()).code())
+              .isEqualTo(400);
         });
   }
 

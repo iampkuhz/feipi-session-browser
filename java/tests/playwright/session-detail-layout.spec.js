@@ -216,6 +216,13 @@ test('常驻摘要和首问在 1024px 可用，详细分析不吸顶', async ({ 
   await expect(head.locator('.sd-kpi__value').first()).not.toHaveText('Loading…');
   const stickyHeight = await head.evaluate(el => el.getBoundingClientRect().height);
   expect(stickyHeight).toBeLessThan(185);
+  await expect(head.locator('[data-session-timing-note]')).toHaveCount(0);
+  const timing = page.locator('[data-session-timing-explanation] [data-session-timing-note]');
+  await timing.getByText('计时口径与来源', { exact: true }).press('Enter');
+  await expect(timing).toHaveAttribute('open');
+  await expect(timing).toContainText('不是模型推理耗时');
+  expect(await head.evaluate(el => el.getBoundingClientRect().height)).toBe(stickyHeight);
+  await timing.getByText('计时口径与来源', { exact: true }).press('Enter');
   const kpiBounds = await head.locator('.sd-kpi').evaluateAll(cards => cards.map(card => {
     const { x, y, width } = card.getBoundingClientRect();
     return { x, y, width };

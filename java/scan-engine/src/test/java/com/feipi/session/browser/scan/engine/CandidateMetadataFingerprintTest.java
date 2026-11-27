@@ -33,6 +33,21 @@ class CandidateMetadataFingerprintTest {
   }
 
   @Test
+  void changedExplicitChildDigestTriggersRescanWithUnchangedParentFile() {
+    var original = candidate(Map.of("collaborationSourceFingerprint", "synthetic-child-before"));
+    var current = candidate(Map.of("collaborationSourceFingerprint", "synthetic-child-after"));
+    assertThat(current.fingerprint()).isEqualTo(original.fingerprint());
+    var previous = stored(CandidateMetadataFingerprint.from(original));
+    assertThat(FingerprintComparator.compare(original, previous))
+        .isEqualTo(CandidateState.UNCHANGED);
+    assertThat(FingerprintComparator.compare(current, previous)).isEqualTo(CandidateState.CHANGED);
+    assertThat(
+            FingerprintComparator.compare(
+                current, stored(CandidateMetadataFingerprint.from(current))))
+        .isEqualTo(CandidateState.UNCHANGED);
+  }
+
+  @Test
   void boundariesAndInputOrderAreStableAndPlaintextIsNotStored() {
     var first = candidate(Map.of("title", "a;model=b", "model", "c"));
     var second = candidate(Map.of("model", "c", "title", "a;model=b"));

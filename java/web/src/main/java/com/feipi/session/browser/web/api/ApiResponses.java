@@ -19,6 +19,96 @@ public final class ApiResponses {
   private ApiResponses() {}
 
   /**
+   * 显式本地结果视图；关系页不重复读取原始载荷。
+   *
+   * @param payload 原载荷全文与阅读合同，关系页为空
+   * @param localResults 有界结果或引用窗口，关系页为空
+   * @param relations 有界包含关系，正文页为空
+   */
+  public record LocalResultPayloadResponse(
+      PayloadResponse payload, LocalResultPage localResults, LocalRelationsPage relations) {}
+
+  /**
+   * 单个安全结果或输入引用，不暴露内部执行上下文。
+   *
+   * @param referenceId 输入中的不透明引用标识，结果项为空
+   * @param occurrence 服务端签名的结果关系入口
+   * @param toolId 安全工具标识
+   * @param toolName 安全工具显示名
+   * @param position 来源或引用位置
+   * @param identity 来源资格
+   * @param content 当前策略下的正文与真实裁剪状态
+   * @param targetPreview 最多一个准确目标及手动续页；为空表示本次未加载，不表示没有目标
+   */
+  public record LocalResultItem(
+      String referenceId,
+      String occurrence,
+      String toolId,
+      String toolName,
+      long position,
+      String identity,
+      com.feipi.session.browser.application.sessiondetail.PayloadLookup.ResultContent content,
+      LocalRelationsPage targetPreview) {}
+
+  /**
+   * 显式手动正文窗口。
+   *
+   * @param items 本页结果或引用
+   * @param offset 当前起点
+   * @param nextCursor 手动续页句柄，结束时为空
+   * @param coverage 元数据覆盖资格，不代表本页含全集
+   * @param reason 覆盖限制原因
+   * @param targetReferenceId 本次精确定位的输入引用，非目标请求为空
+   */
+  public record LocalResultPage(
+      List<LocalResultItem> items,
+      long offset,
+      String nextCursor,
+      String coverage,
+      String reason,
+      String targetReferenceId) {}
+
+  /**
+   * 已核验的准确输入目标，不代表 provider 采用。
+   *
+   * @param callId 安全调用标识
+   * @param requestPayloadId 准确请求载荷标识
+   * @param referenceId 准确引用标识
+   * @param target 服务端签名的精确窗口句柄
+   * @param apiUrl 当前 normal 或 import 范围的载荷 URL
+   * @param recordIndex 本地模型记录编号，未知为空，不是 provider 调用次数
+   * @param scope 真实调用作用域，仅 main 或 subagent
+   * @param attributionPath 相对当前 API 基址的完整调用身份归因路径
+   */
+  public record LocalRelationTarget(
+      String callId,
+      String requestPayloadId,
+      String referenceId,
+      String target,
+      String apiUrl,
+      Integer recordIndex,
+      String scope,
+      String attributionPath) {}
+
+  /**
+   * 手动有界的已确认包含关系。
+   *
+   * @param targets 当前页的准确目标
+   * @param offset 当前页起点
+   * @param nextCursor 手动续页句柄，结束时为空
+   * @param coverage 全集覆盖资格
+   * @param reason 覆盖限制原因
+   * @param identity 结果来源资格
+   */
+  public record LocalRelationsPage(
+      List<LocalRelationTarget> targets,
+      long offset,
+      String nextCursor,
+      String coverage,
+      String reason,
+      String identity) {}
+
+  /**
    * payload API 响应。
    *
    * <p>返回指定 payload_id 的内容元信息。
@@ -305,7 +395,7 @@ public final class ApiResponses {
    * @param source 源 agent 标识
    * @param sessionId 会话标识
    * @param roundIndex 轮次序号（1-based）
-   * @param callIndex 调用序号（1-based）
+   * @param callIndex 旧位置路由为调用位置；完整身份路由为真实本地模型记录号，均从一开始
    * @param data 归因数据
    */
   public record AttributionResponse(

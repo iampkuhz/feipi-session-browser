@@ -29,6 +29,36 @@ class CallBuilderTest {
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
+  @Test
+  void closingFrameDoesNotConsumeOwnToolResult() {
+    var declaration = createAssistantWithToolUse("self-tool", "self-tool", "exec_command");
+    declaration.put("type", "tool_use").put("name", "exec_command");
+    var result =
+        MAPPER
+            .createObjectNode()
+            .put("type", "tool_result")
+            .put("tool_use_id", "self-tool")
+            .put("content", "synthetic own result");
+    var closing = assistantEvent("token_usage_record:self-response", "synthetic-model");
+    closing.putObject("usage").put("input_tokens", 1).put("output_tokens", 1);
+    var records = TestSourceRecords.records(declaration, result, closing);
+    var classified = EventClassifier.classify(records);
+    var calls = CallBuilder.buildCalls(records, classified);
+    var tools = CallBuilder.buildToolExecutions(records, classified, calls);
+    assertThat(calls).hasSize(1);
+    assertThat(calls.getFirst().usage().fresh()).isEqualTo(1);
+    assertThat(calls.getFirst().usage().output()).isEqualTo(1);
+    assertThat(calls.getFirst().response().toolCallIds()).containsExactly("self-tool");
+    assertThat(tools)
+        .singleElement()
+        .satisfies(
+            tool -> {
+              assertThat(tool.declaredByCallId()).isEqualTo(calls.getFirst().callId());
+              assertThat(tool.resultConsumedByCallId()).isEmpty();
+            });
+    assertThat(calls.getFirst().request().toolResultIds()).isEmpty();
+  }
+
   @Nested
   @DisplayName("buildCalls")
   class BuildCallsTests {
@@ -110,15 +140,16 @@ class CallBuilderTest {
 
       assertThat(calls.get(1).parentCallId()).hasValue("token_usage_record:next");
       assertThat(calls.get(1).sourceUnits().toString()).doesNotContain("synthetic spawn output");
-      assertThat(calls.get(2).request().toolResultIds()).containsExactly("spawn-edge");
-      assertThat(calls.get(2).sourceUnits().toString()).contains("synthetic spawn output");
+      assertThat(calls.get(2).request().toolResultIds()).isEmpty();
+      assertThat(calls.get(2).sourceUnits().toString()).doesNotContain("synthetic spawn output");
+      assertThat(output.content()).isEqualTo("synthetic spawn output");
       assertThat(tools)
           .singleElement()
           .satisfies(
               tool -> {
                 assertThat(tool.scope()).isEqualTo(CallScope.MAIN);
                 assertThat(tool.declaredByCallId()).isEqualTo("token_usage_record:next");
-                assertThat(tool.resultConsumedByCallId()).hasValue("token_usage_record:next");
+                assertThat(tool.resultConsumedByCallId()).isEmpty();
               });
     }
 

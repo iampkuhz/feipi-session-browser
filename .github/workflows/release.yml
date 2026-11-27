@@ -73,34 +73,14 @@ jobs:
           echo "发布版本: $version, 正式发布: $publish"
 
   distribution:
+    name: Prepare release
     needs: validate
     uses: ./.github/workflows/quality.yml
-
-  release-candidate:
-    needs: [validate, distribution]
-    runs-on: macos-15
-    environment:
-      name: release-candidate
-      url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-    permissions:
-      contents: read
-      deployments: write
-    steps:
-      - name: Record the sealed artifact from this distribution invocation
-        shell: bash
-        env:
-          CANDIDATE_ID: ${{ needs.distribution.outputs.candidate-id }}
-          CANDIDATE_KEY: ${{ needs.distribution.outputs.candidate-key }}
-        run: |
-          set -euo pipefail
-          if [[ ! "$CANDIDATE_ID" =~ ^[1-9][0-9]*$ || "$CANDIDATE_KEY" != "$GITHUB_SHA:$GITHUB_RUN_ID:$GITHUB_RUN_ATTEMPT" ]]; then
-            echo "::error::候选缺失或不属于当前源码、运行与尝试。" >&2
-            exit 1
-          fi
-          printf 'Verified candidate artifact ID: %s\n' "$CANDIDATE_ID"
+    with:
+      release-mode: ${{ needs.validate.outputs.publish == 'true' && 'publish' || 'candidate' }}
 
   publish-release:
-    needs: [validate, distribution, release-candidate]
+    needs: [validate, distribution]
     if: needs.validate.outputs.publish == 'true'
     runs-on: macos-15
     concurrency:
@@ -134,7 +114,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Download only the verified candidate from this run and attempt
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           artifact-ids: ${{ needs.distribution.outputs.candidate-id }}
           merge-multiple: true

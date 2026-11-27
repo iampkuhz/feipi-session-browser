@@ -101,10 +101,10 @@ for (const [label, sample, active] of [
     await expect(card.locator('.sd-kpi__label')).toHaveText('任务活动时长');
     await expect(card.locator('[data-session-timing-value]')).toHaveText(active);
     await expect(card.locator('.sd-kpi__subgrid > span')).toHaveText([
-      '会话总历时 ' + (sample ? '1500 分 0 秒' : '未记录'),
-      'Agent 累计耗时 ' + (sample ? '45 秒' : '未记录'),
-      '模型执行 未记录',
-      '工具执行 未记录',
+      '来源记录时间跨度 ' + (sample ? '1500 分 0 秒' : '未记录'),
+      '主会话轮次累计 ' + (sample ? '45 秒' : '未记录'),
+      '来源模型计时 未记录',
+      '来源工具计时 未记录',
     ]);
     await expect(card).toHaveAttribute('title', /包括任务内工具和等待，不等于模型执行时间/);
     const trace = page.locator('[data-trace-list]');
@@ -113,10 +113,12 @@ for (const [label, sample, active] of [
     await expect(trace.locator('td.time-col .sd-time-point')).toHaveText(['23:59:58', '—']);
     await expect(trace.locator('td.duration-col .sd-time-duration')).toHaveText(['—', '—']);
     await expect(page.locator('.sd-kpi[aria-label="Cache Health"]')).toContainText('低缓存记录 N/A');
-    await page.setViewportSize({ width: 1440, height: 1100 });
-    const overflow = await card.evaluate(element => [...element.querySelectorAll('.sd-kpi__value, .sd-kpi__subgrid > span')]
-      .some(part => part.scrollWidth > part.clientWidth + 1));
-    expect(overflow).toBe(false);
+    for (const width of [1440, 1024]) {
+      await page.setViewportSize({ width, height: 1100 });
+      const overflow = await card.evaluate(element => [...element.querySelectorAll('.sd-kpi__value, .sd-kpi__subgrid > span')]
+        .some(part => part.scrollWidth > part.clientWidth + 1));
+      expect(overflow).toBe(false);
+    }
   });
 }
 

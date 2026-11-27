@@ -191,6 +191,10 @@
   var tokenPopover;
   var tokenTrigger;
   var closeTimer;
+  var focusDismissal = 0;
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') focusDismissal++;
+  }, true);
   function positionBar() {
     if (!tokenTrigger || !tokenPopover.matches(':popover-open')) return;
     var anchor = tokenTrigger.getBoundingClientRect();
@@ -251,8 +255,9 @@
     trigger.addEventListener('mouseleave', scheduleClose);
     trigger.addEventListener('focus', function () {
       // Native keyboard focus may scroll the table; open after that scroll closes any stale panel.
+      var dismissal = focusDismissal;
       requestAnimationFrame(function () {
-        if (document.activeElement === trigger && trigger.matches(':focus-visible')) open();
+        if (dismissal === focusDismissal && document.activeElement === trigger && trigger.matches(':focus-visible')) open();
       });
     });
     trigger.addEventListener('blur', scheduleClose);

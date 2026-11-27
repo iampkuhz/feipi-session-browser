@@ -27,7 +27,10 @@ def test_full_and_selectors_preserve_catalog_order_and_single_recipe() -> None:
     target = compile_gate_plan(_snapshot(source='full'), mode='full', target='java-build')
     gate = compile_gate_plan(_snapshot(source='full'), mode='full', gate='browserTests')
 
-    assert full.gates == GATES
+    assert full.gates == tuple(item for item in GATES if item.name != 'webResourceContracts')
+    assert ('webResourceContracts', 'covered-by-javaBuildVerification') in {
+        (item.gate_name, item.reason) for item in full.not_triggered
+    }
     assert tuple(item.name for item in target.gates) == (
         'javaBuildVerification',
         'javaDuplicationAudit',
@@ -36,6 +39,21 @@ def test_full_and_selectors_preserve_catalog_order_and_single_recipe() -> None:
     assert target.selector_kind == 'target'
     assert target.selector_value == 'java-build'
     assert gate.selector_kind == 'gate'
+
+
+def test_web_resource_plan_keeps_browser_and_uses_one_java_owner() -> None:
+    asset = 'java/web/src/main/resources/static/js/page.js'
+    source = 'java/web/src/main/java/example/WebPage.java'
+    pure = compile_gate_plan(_snapshot(asset))
+    mixed = compile_gate_plan(_snapshot(asset, source))
+    direct = compile_gate_plan(_snapshot(asset, source), gate='webResourceContracts')
+    assert {'webResourceContracts', 'browserTests'} <= {item.name for item in pure.gates}
+    assert 'javaBuildVerification' not in {item.name for item in pure.gates}
+    assert {'javaBuildVerification', 'browserTests'} <= {item.name for item in mixed.gates}
+    assert ('webResourceContracts', 'covered-by-javaBuildVerification') in {
+        (item.gate_name, item.reason) for item in mixed.not_triggered
+    }
+    assert direct.gates == (gate_by_name('webResourceContracts'),)
 
 
 def test_empty_incremental_plan_is_representable_but_selector_requires_full() -> None:

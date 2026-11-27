@@ -65,6 +65,395 @@ class CodexSourceSpecificContractTest {
   }
 
   @Test
+  void qualifiedInputPreservesMessageItemsAndQueueReceiptsWithoutLifecycle() throws Exception {
+    String target = "11111111-1111-4111-8111-111111111111";
+    String message =
+        inputEvent(
+            "message",
+            "multi_agent_v1",
+            "function_call",
+            "{\"target\":\"" + target + "\",\"message\":\"synthetic followup\"}");
+    String items =
+        inputEvent(
+            "items",
+            "multi_agent_v1",
+            "function_call",
+            "{\"target\":\""
+                + target
+                + "\",\"interrupt\":true,\"items\":[{\"type\":\"mention\",\"name\":\"drive\",\"path\":\"app://google_drive\"},{\"type\":\"text\",\"text\":\"synthetic"
+                + " items\"}]}");
+    try (var parsed =
+        parseContentFixture(
+            message + items + inputResult("message", "one") + inputResult("items", "two"))) {
+      var facts =
+          parsed.records().stream().flatMap(record -> record.collaboration().stream()).toList();
+      assertThat(facts)
+          .hasSize(4)
+          .allSatisfy(
+              fact -> {
+                assertThat(fact.kind()).isEqualTo("input");
+                assertThat(fact.targetId()).contains(target);
+                assertThat(fact.sourceLocator()).contains("#event[");
+              });
+      assertThat(facts)
+          .filteredOn(fact -> fact.phase().equals("result_report"))
+          .allSatisfy(fact -> assertThat(fact.reportedStatus()).contains("queued"));
+      assertThat(facts.toString()).doesNotContain("synthetic followup", "synthetic items");
+    }
+  }
+
+  @Test
+  void inputQualificationAndConflictingReceiptsRemainConservative() throws Exception {
+    String args = "{\"target\":\"11111111-1111-4111-8111-111111111111\",\"message\":\"synthetic\"}";
+    String source =
+        inputEvent("bare", "", "function_call", args)
+            + inputEvent("wrong", "other", "function_call", args)
+            + inputEvent("custom", "multi_agent_v1", "custom_tool_call", args)
+            + inputEvent("conflict", "multi_agent_v1", "function_call", args)
+            + inputResult("conflict", "one")
+            + inputResult("conflict", "two")
+            + inputEvent("duplicate", "multi_agent_v1", "function_call", args)
+            + inputEvent("duplicate", "other", "function_call", args)
+            + inputEvent(
+                "bad",
+                "multi_agent_v1",
+                "function_call",
+                "{\"target\":\"not-a-thread\",\"message\":\"synthetic\"}")
+            + inputEvent("missing", "multi_agent_v1", "function_call", args)
+            + inputEvent("namespace", "multi_agent_v1", "function_call", args)
+            + "{\"type\":\"response_item\",\"payload\":{\"type\":\"function_call_output\",\"namespace\":\"other\",\"call_id\":\"namespace\",\"output\":{\"submission_id\":\"one\"}}}\n"
+            + inputEvent("error", "multi_agent_v1", "function_call", args)
+            + "{\"type\":\"response_item\",\"payload\":{\"type\":\"function_call_output\",\"call_id\":\"error\",\"is_error\":true,\"output\":{\"submission_id\":\"one\"}}}\n";
+    try (var parsed = parseContentFixture(source)) {
+      var facts =
+          parsed.records().stream().flatMap(record -> record.collaboration().stream()).toList();
+      assertThat(facts)
+          .noneMatch(
+              fact -> java.util.Set.of("bare", "wrong", "custom").contains(fact.toolCallId()));
+      assertThat(facts)
+          .filteredOn(
+              fact -> fact.toolCallId().equals("conflict") && fact.phase().equals("result_report"))
+          .hasSize(2)
+          .allSatisfy(
+              fact -> {
+                assertThat(fact.reason()).isEqualTo("conflicting_report");
+                assertThat(fact.reportedStatus()).isEmpty();
+              });
+      assertThat(facts)
+          .filteredOn(fact -> fact.toolCallId().equals("duplicate"))
+          .hasSize(2)
+          .allSatisfy(fact -> assertThat(fact.reason()).isEqualTo("conflicting_tool_identity"));
+      assertThat(facts)
+          .filteredOn(fact -> fact.toolCallId().equals("bad"))
+          .singleElement()
+          .satisfies(
+              fact -> {
+                assertThat(fact.reason()).isEqualTo("invalid_target");
+                assertThat(fact.targetId()).isEmpty();
+              });
+      assertThat(facts)
+          .filteredOn(fact -> fact.toolCallId().equals("missing"))
+          .singleElement()
+          .satisfies(fact -> assertThat(fact.phase()).isEqualTo("declaration"));
+      assertThat(facts)
+          .filteredOn(
+              fact -> fact.toolCallId().equals("namespace") && fact.phase().equals("result_report"))
+          .singleElement()
+          .satisfies(fact -> assertThat(fact.reason()).isEqualTo("conflicting_report"));
+      assertThat(facts)
+          .filteredOn(
+              fact -> fact.toolCallId().equals("error") && fact.phase().equals("result_report"))
+          .singleElement()
+          .satisfies(
+              fact -> {
+                assertThat(fact.reason()).isEqualTo("explicit_error");
+                assertThat(fact.reportedStatus()).isEmpty();
+              });
+    }
+  }
+
+  @Test
+  void nonTextInputItemsKeepFactsAndTextErrorsDoNotInventAnErrorReport() throws Exception {
+    String args =
+        """
+        {"target":"11111111-1111-4111-8111-111111111111","items":[
+          {"type":"image","image_url":"synthetic://image"},
+          {"type":"audio","audio_url":"synthetic://audio"},
+          {"type":"local_image","path":"synthetic/image.png"},
+          {"type":"local_audio","path":"synthetic/audio.wav"},
+          {"type":"skill","name":"synthetic","path":"synthetic/SKILL.md"},
+          {"type":"mention","name":"synthetic","path":"app://synthetic"}]}
+        """;
+    String result =
+        """
+        {"type":"response_item","payload":{"type":"function_call_output","call_id":"non-text","output":"Error: synthetic unstructured text, not a structured error receipt"}}
+        """;
+    try (var parsed =
+        parseContentFixture(
+            inputEvent("non-text", "multi_agent_v1", "function_call", args) + result)) {
+      assertThat(parsed.records())
+          .flatExtracting(record -> record.collaboration())
+          .hasSize(2)
+          .allSatisfy(
+              fact -> assertThat(fact.targetId()).contains("11111111-1111-4111-8111-111111111111"))
+          .filteredOn(fact -> fact.phase().equals("result_report"))
+          .singleElement()
+          .satisfies(
+              fact -> {
+                assertThat(fact.reason()).isEqualTo("report_status_unknown");
+                assertThat(fact.reportedStatus()).isEmpty();
+              });
+    }
+  }
+
+  @Test
+  void inputInvalidBodiesAndResourceLimitsNeverBecomeQueueSuccess() throws Exception {
+    String target = "11111111-1111-4111-8111-111111111111";
+    var bodies =
+        List.of(
+            "{}",
+            "{\"target\":\"" + target + "\"}",
+            "{\"target\":\"" + target + "\",\"message\":\" \"}",
+            "{\"target\":\"" + target + "\",\"items\":[]}",
+            "{\"target\":\"" + target + "\",\"items\":[{\"type\":\"unknown\"}]}",
+            "{\"target\":\"" + target + "\",\"items\":[{\"type\":\"text\",\"text\":1}]}",
+            "{\"target\":\""
+                + target
+                + "\",\"message\":\"x\",\"items\":[{\"type\":\"text\",\"text\":\"x\"}]}",
+            "{\"target\":\"" + target + "\",\"message\":\"x\",\"interrupt\":\"yes\"}",
+            "{\"target\":\"" + target + "\",\"message\":\"" + "x".repeat(1024 * 1024 + 1) + "\"}");
+    for (int i = 0; i < bodies.size(); i++) {
+      try (var parsed =
+          parseContentFixture(
+              inputEvent("invalid", "multi_agent_v1", "function_call", bodies.get(i))
+                  + inputResult("invalid", "receipt"))) {
+        var records = new java.util.ArrayList<SourceRecord>();
+        try (var cursor = parsed.recordSequence().openCursor()) {
+          while (cursor.hasNext()) records.add(cursor.next());
+        }
+        assertThat(records)
+            .flatExtracting(record -> record.collaboration())
+            .hasSize(2)
+            .allSatisfy(
+                fact -> {
+                  assertThat(fact.reason())
+                      .isIn("invalid_target", "invalid_input", "protocol_payload_resource_limit");
+                  assertThat(fact.reportedStatus()).isEmpty();
+                });
+      }
+    }
+  }
+
+  @Test
+  void inputResultShapeAndIdentityLimitsKeepUnknownRatherThanAcceptingText() throws Exception {
+    var json = new com.fasterxml.jackson.databind.ObjectMapper();
+    String args = "{\"target\":\"11111111-1111-4111-8111-111111111111\",\"message\":\"synthetic\"}";
+    var outputs =
+        List.of(
+            "{}",
+            "{\"submission_id\":1}",
+            "{\"submission_id\":\" \"}",
+            "{\"submission_id\":\"" + "x".repeat(4097) + "\"}",
+            json.writeValueAsString("x".repeat(1024 * 1024 + 1)));
+    for (String output : outputs) {
+      String result =
+          "{\"type\":\"response_item\",\"payload\":{\"type\":\"function_call_output\",\"call_id\":\"shape\",\"output\":"
+              + output
+              + "}}\n";
+      try (var parsed =
+              parseContentFixture(
+                  inputEvent("shape", "multi_agent_v1", "function_call", args) + result);
+          var cursor = parsed.recordSequence().openCursor()) {
+        var facts =
+            new java.util.ArrayList<
+                com.feipi.session.browser.domain.source.SourceCollaborationEvidence>();
+        while (cursor.hasNext()) facts.addAll(cursor.next().collaboration());
+        assertThat(facts)
+            .filteredOn(fact -> fact.phase().equals("result_report"))
+            .singleElement()
+            .satisfies(
+                fact -> {
+                  assertThat(fact.reportedStatus()).isEmpty();
+                  assertThat(fact.reason())
+                      .isIn(
+                          "report_status_unknown",
+                          "identity_resource_limit",
+                          "protocol_payload_resource_limit");
+                });
+      }
+    }
+    try (var parsed =
+        parseContentFixture(
+            inputEvent("x".repeat(4097), "multi_agent_v1", "function_call", args))) {
+      assertThat(parsed.records())
+          .flatExtracting(record -> record.collaboration())
+          .singleElement()
+          .satisfies(fact -> assertThat(fact.reason()).isEqualTo("identity_resource_limit"));
+    }
+  }
+
+  private static String inputEvent(String id, String namespace, String type, String arguments)
+      throws Exception {
+    var json = new com.fasterxml.jackson.databind.ObjectMapper();
+    return json.writeValueAsString(
+            java.util.Map.of(
+                "type",
+                "response_item",
+                "payload",
+                java.util.Map.of(
+                    "type",
+                    type,
+                    "call_id",
+                    id,
+                    "name",
+                    "send_input",
+                    "namespace",
+                    namespace,
+                    "arguments",
+                    json.writeValueAsString(json.readTree(arguments)))))
+        + "\n";
+  }
+
+  private static String inputResult(String id, String receipt) {
+    return "{\"type\":\"response_item\",\"payload\":{\"type\":\"function_call_output\",\"call_id\":\""
+        + id
+        + "\",\"output\":{\"submission_id\":\""
+        + receipt
+        + "\"}}}\n";
+  }
+
+  @Test
+  void structuredToolResultsKeepFullValuesWithoutChangingMessageExtraction() throws Exception {
+    List<String> outputs =
+        List.of(
+            "{\"agent_id\":\"worker\"}",
+            "{\"status\":{\"worker\":{\"completed\":\"tail report\"}}}",
+            "[{\"type\":\"text\",\"text\":\"report\"},{\"opaque\":true}]",
+            "{}",
+            "[]",
+            "42",
+            "true",
+            "\"already text\"",
+            "\"\"",
+            "null");
+    StringBuilder source = new StringBuilder();
+    for (int i = 0; i < outputs.size(); i++) {
+      source
+          .append(
+              "{\"type\":\"response_item\",\"payload\":{\"type\":\"function_call_output\",\"call_id\":\"")
+          .append(i)
+          .append("\",\"output\":")
+          .append(outputs.get(i))
+          .append("}}\n");
+    }
+    source.append(
+        "{\"type\":\"response_item\",\"payload\":{\"type\":\"custom_tool_call_output\",\"call_id\":\"custom\",\"output\":{\"opaque\":true}}}\n");
+    source.append(
+        "{\"type\":\"response_item\",\"payload\":{\"type\":\"function_call_output\",\"call_id\":\"missing\"}}\n");
+    try (var parsed = parseContentFixture(source.toString())) {
+      assertThat(parsed.records())
+          .extracting(SourceRecord::content)
+          .containsExactly(
+              outputs.get(0),
+              outputs.get(1),
+              outputs.get(2),
+              "{}",
+              "[]",
+              "42",
+              "true",
+              "already text",
+              "",
+              "",
+              "{\"opaque\":true}",
+              "");
+    }
+  }
+
+  @Test
+  void nestedSourceChangesInvalidateCandidateMetadataWithoutChangingParentFile() throws Exception {
+    Files.writeString(
+        tempDir.resolve(CodexConstants.SESSION_INDEX_FILE),
+        "{\"id\":\"thread-main\",\"thread_name\":\"synthetic\"}\n");
+    Path day = Files.createDirectories(tempDir.resolve("sessions/2026/11/13"));
+    Path parent = day.resolve("rollout-100-thread-main.jsonl");
+    Path child = day.resolve("rollout-101-thread-child.jsonl");
+    Path grandchild = day.resolve("rollout-102-thread-grandchild.jsonl");
+    Files.writeString(
+        parent,
+        """
+        {"type":"session_meta","payload":{"id":"thread-main","source":"synthetic"}}
+        {"type":"response_item","payload":{"type":"function_call","call_id":"spawn-parent","name":"spawn_agent"}}
+        {"type":"response_item","payload":{"type":"function_call_output","call_id":"spawn-parent","output":{"agent_id":"thread-child"}}}
+        """);
+    Files.writeString(
+        child,
+        """
+        {"type":"session_meta","payload":{"id":"thread-child","source":{"subagent":{"thread_spawn":{"parent_thread_id":"thread-main"}}}}}
+        {"type":"response_item","payload":{"type":"function_call","call_id":"spawn-child","name":"spawn_agent"}}
+        {"type":"response_item","payload":{"type":"function_call_output","call_id":"spawn-child","output":{"agent_id":"thread-grandchild"}}}
+        """);
+    Files.writeString(
+        grandchild,
+        """
+        {"type":"session_meta","payload":{"id":"thread-grandchild","source":{"subagent":{"thread_spawn":{"parent_thread_id":"thread-child"}}}}}
+        """);
+    Path deepest = day.resolve("rollout-103-thread-deepest.jsonl");
+    Files.writeString(
+        deepest,
+        """
+        {"type":"session_meta","payload":{"id":"thread-deepest","source":{"subagent":{"thread_spawn":{"parent_thread_id":"thread-grandchild"}}}}}
+        """);
+    for (int i = 0; i < 127; i++)
+      Files.writeString(
+          day.resolve("rollout-orphan-" + i + ".jsonl"),
+          "{\"type\":\"session_meta\",\"payload\":{\"id\":\"orphan-"
+              + i
+              + "\",\"parent_thread_id\":\"thread-main\"}}\n");
+    var before = adapter.discover(tempDir).orderedItems().getFirst();
+    Files.writeString(
+        deepest,
+        Files.readString(deepest)
+            + "{\"type\":\"event_msg\",\"payload\":{\"type\":\"synthetic\"}}\n");
+    var after = adapter.discover(tempDir).orderedItems().getFirst();
+    assertThat(after.fingerprint()).isEqualTo(before.fingerprint());
+    assertThat(after.metadata().get("collaborationSourceFingerprint"))
+        .isNotEqualTo(before.metadata().get("collaborationSourceFingerprint"));
+    assertPrecision(after, "unknown", "unknown", "unknown", "unknown");
+    Files.writeString(grandchild, Files.readString(grandchild) + reportedZeroUsage());
+    var reported = adapter.discover(tempDir).orderedItems().getFirst();
+    assertPrecision(reported, "mixed", "mixed", "mixed", "mixed");
+  }
+
+  @Test
+  void explicitNestedDelegationIncludesGrandchildWithoutMergingSharedPrefixes() throws Exception {
+    writeChildRollout("worker-shared-002", "worker-shared-001", "/root/a/b", true);
+    writeChildRollout("worker-shared-001", "parent", "/root/a", true);
+    Path child = tempDir.resolve("rollout-worker-shared-001.jsonl");
+    Files.writeString(
+        child,
+        Files.readString(child)
+            + """
+            {"type":"response_item","payload":{"type":"function_call","call_id":"nested-spawn","name":"spawn_agent"}}
+            {"type":"response_item","payload":{"type":"function_call_output","call_id":"nested-spawn","output":{"agent_id":"worker-shared-002"}}}
+            """);
+    try (var parsed =
+        parseContentFixture(
+            """
+            {"type":"session_meta","payload":{"id":"parent"}}
+            {"type":"response_item","payload":{"type":"function_call","call_id":"root-spawn","name":"spawn_agent"}}
+            {"type":"response_item","payload":{"type":"function_call_output","call_id":"root-spawn","output":{"agent_id":"worker-shared-001"}}}
+            """)) {
+      assertThat(parsed.records().stream().filter(r -> "assistant".equals(r.eventType())))
+          .anySatisfy(
+              r -> {
+                assertThat(r.relation().subagentId()).contains("worker-shared-002");
+                assertThat(r.relation().parentThreadId()).contains("worker-shared-001");
+                assertThat(r.relation().parentToolCallId()).contains("nested-spawn");
+              });
+    }
+  }
+
+  @Test
   void explicitExecutorObservationsPreserveZeroAndRejectCoercionAndOverflow() throws Exception {
     var durations =
         List.of(
@@ -81,8 +470,8 @@ class CodexSourceSpecificContractTest {
       try (var parsed =
           parseContentFixture(
               """
-          {"timestamp":"2026-01-01T00:00:00Z","type":"event_msg","payload":{"type":"exec_command_end","call_id":"tool","duration":%s,"exit_code":0,"status":"completed","process_id":"123","stdout":"Wall time: 99 seconds"}}
-          """
+              {"timestamp":"2026-01-01T00:00:00Z","type":"event_msg","payload":{"type":"exec_command_end","call_id":"tool","duration":%s,"exit_code":0,"status":"completed","process_id":"123","stdout":"Wall time: 99 seconds"}}
+              """
                   .formatted(durations.get(index)))) {
         var record = parsed.records().getFirst();
         var value = record.toolObservation().orElseThrow();
@@ -158,10 +547,10 @@ class CodexSourceSpecificContractTest {
     SourceResult.Success success =
         parseContentFixture(
             """
-        {"type":"event_msg","payload":{"type":"user_message","message":"p"}}
-        {"type":"event_msg","payload":{"type":"agent_message","message":"valid answer"}}
-        {"type":"response_item","payload":{"type":"message","role":"assistant","content":[]}}
-        """);
+            {"type":"event_msg","payload":{"type":"user_message","message":"p"}}
+            {"type":"event_msg","payload":{"type":"agent_message","message":"valid answer"}}
+            {"type":"response_item","payload":{"type":"message","role":"assistant","content":[]}}
+            """);
     assertBodyRecords(success, "p", "valid answer");
     assertUsageFrames(success, 1, 0, 0, 0);
   }
@@ -171,12 +560,12 @@ class CodexSourceSpecificContractTest {
     SourceResult.Success success =
         parseContentFixture(
             """
-        {"type":"response_item","payload":{"type":"message","role":"user","content":"p1"}}
-        {"type":"response_item","payload":{"type":"message","role":"assistant","content":"a1"}}
-        {"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":10,"output_tokens":2}}}}
-        {"type":"response_item","payload":{"type":"message","role":"user","content":"p2"}}
-        {"type":"event_msg","payload":{"type":"agent_message","message":"a2"}}
-        """);
+            {"type":"response_item","payload":{"type":"message","role":"user","content":"p1"}}
+            {"type":"response_item","payload":{"type":"message","role":"assistant","content":"a1"}}
+            {"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":10,"output_tokens":2}}}}
+            {"type":"response_item","payload":{"type":"message","role":"user","content":"p2"}}
+            {"type":"event_msg","payload":{"type":"agent_message","message":"a2"}}
+            """);
     assertBodyRecords(success, "p1", "a1", "p2", "a2");
     assertUsageFrames(success, 2, 10, 0, 2);
   }
@@ -186,11 +575,11 @@ class CodexSourceSpecificContractTest {
     SourceResult.Success success =
         parseContentFixture(
             """
-        {"type":"response_item","payload":{"type":"message","role":"user","content":"p1"}}
-        {"type":"response_item","payload":{"type":"message","role":"assistant","content":"a1"}}
-        {"type":"response_item","payload":{"type":"message","role":"user","content":"p2"}}
-        {"type":"event_msg","payload":{"type":"agent_message","message":"a2"}}
-        """);
+            {"type":"response_item","payload":{"type":"message","role":"user","content":"p1"}}
+            {"type":"response_item","payload":{"type":"message","role":"assistant","content":"a1"}}
+            {"type":"response_item","payload":{"type":"message","role":"user","content":"p2"}}
+            {"type":"event_msg","payload":{"type":"agent_message","message":"a2"}}
+            """);
     assertBodyRecords(success, "p1", "a1", "p2", "a2");
     assertThat(success.records().stream().filter(record -> "assistant".equals(record.eventType())))
         .hasSize(2);
@@ -201,10 +590,10 @@ class CodexSourceSpecificContractTest {
     SourceResult.Success success =
         parseContentFixture(
             """
-        {"type":"response_item","payload":{"type":"message","role":"user","content":"p1"}}
-        {"type":"event_msg","payload":{"type":"user_message","message":"p1"}}
-        {"type":"response_item","payload":{"type":"message","role":"assistant","content":"a1"}}
-        """);
+            {"type":"response_item","payload":{"type":"message","role":"user","content":"p1"}}
+            {"type":"event_msg","payload":{"type":"user_message","message":"p1"}}
+            {"type":"response_item","payload":{"type":"message","role":"assistant","content":"a1"}}
+            """);
     assertBodyRecords(success, "p1", "a1");
     assertThat(success.records().stream().filter(record -> "user".equals(record.eventType())))
         .hasSize(1);
@@ -216,10 +605,10 @@ class CodexSourceSpecificContractTest {
       SourceResult.Success success =
           parseContentFixture(
               """
-          {"type":"event_msg","payload":{"type":"user_message","message":"p"}}
-          {"type":"response_item","payload":{"type":"message","role":"assistant","content":%s}}
-          {"type":"event_msg","payload":{"type":"agent_message","message":"final answer"}}
-          """
+              {"type":"event_msg","payload":{"type":"user_message","message":"p"}}
+              {"type":"response_item","payload":{"type":"message","role":"assistant","content":%s}}
+              {"type":"event_msg","payload":{"type":"agent_message","message":"final answer"}}
+              """
                   .formatted(response));
       assertThat(
               success.records().stream()
@@ -237,11 +626,11 @@ class CodexSourceSpecificContractTest {
     SourceResult.Success success =
         parseContentFixture(
             """
-        {"type":"response_item","payload":{"type":"message","role":"user","content":"same prompt"}}
-        {"type":"response_item","payload":{"type":"message","role":"assistant","content":"same answer"}}
-        {"type":"response_item","payload":{"type":"message","role":"user","content":"same prompt"}}
-        {"type":"event_msg","payload":{"type":"agent_message","message":"same answer"}}
-        """);
+            {"type":"response_item","payload":{"type":"message","role":"user","content":"same prompt"}}
+            {"type":"response_item","payload":{"type":"message","role":"assistant","content":"same answer"}}
+            {"type":"response_item","payload":{"type":"message","role":"user","content":"same prompt"}}
+            {"type":"event_msg","payload":{"type":"agent_message","message":"same answer"}}
+            """);
     assertBodyRecords(success, "same prompt", "same answer", "same prompt", "same answer");
   }
 
@@ -259,13 +648,13 @@ class CodexSourceSpecificContractTest {
     SourceResult.Success success =
         parseContentFixture(
             """
-        {"type":"event_msg","payload":{"type":"user_message","message":"first prompt"}}
-        {"type":"response_item","payload":{"type":"message","role":"user","content":"first prompt"}}
-        {"type":"event_msg","payload":{"type":"agent_message","message":"first answer"}}
-        {"type":"response_item","payload":{"type":"message","role":"assistant","content":"first answer"}}
-        {"type":"event_msg","payload":{"type":"user_message","message":"second prompt"}}
-        {"type":"event_msg","payload":{"type":"agent_message","message":"second answer"}}
-        """);
+            {"type":"event_msg","payload":{"type":"user_message","message":"first prompt"}}
+            {"type":"response_item","payload":{"type":"message","role":"user","content":"first prompt"}}
+            {"type":"event_msg","payload":{"type":"agent_message","message":"first answer"}}
+            {"type":"response_item","payload":{"type":"message","role":"assistant","content":"first answer"}}
+            {"type":"event_msg","payload":{"type":"user_message","message":"second prompt"}}
+            {"type":"event_msg","payload":{"type":"agent_message","message":"second answer"}}
+            """);
     assertThat(
             success.records().stream()
                 .filter(record -> !"event_msg".equals(record.eventType()))
@@ -279,11 +668,11 @@ class CodexSourceSpecificContractTest {
     SourceResult.Success success =
         parseContentFixture(
             """
-        {"type":"response_item","payload":{"type":"message","role":"user","content":"first"}}
-        {"type":"response_item","payload":{"type":"message","role":"assistant","content":"answer one"}}
-        {"type":"response_item","payload":{"type":"message","role":"user","content":"second"}}
-        {"type":"response_item","payload":{"type":"message","role":"assistant","content":"answer two"}}
-        """);
+            {"type":"response_item","payload":{"type":"message","role":"user","content":"first"}}
+            {"type":"response_item","payload":{"type":"message","role":"assistant","content":"answer one"}}
+            {"type":"response_item","payload":{"type":"message","role":"user","content":"second"}}
+            {"type":"response_item","payload":{"type":"message","role":"assistant","content":"answer two"}}
+            """);
     assertThat(success.records()).allSatisfy(record -> assertThat(record.turnId()).isEmpty());
   }
 

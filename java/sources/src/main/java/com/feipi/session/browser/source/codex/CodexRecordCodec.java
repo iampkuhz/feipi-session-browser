@@ -1,5 +1,6 @@
 package com.feipi.session.browser.source.codex;
 
+import com.feipi.session.browser.domain.source.SourceCollaborationEvidence;
 import com.feipi.session.browser.domain.source.SourceReadingEvidence;
 import com.feipi.session.browser.domain.source.SourceRecord;
 import com.feipi.session.browser.domain.source.SourceRecordRelation;
@@ -60,6 +61,16 @@ final class CodexRecordCodec {
     w.optional(relation.parentToolCallId());
     w.optional(relation.parentCallId());
     w.optional(relation.parentToolName());
+    out.writeInt(r.collaboration().size());
+    for (var fact : r.collaboration()) {
+      w.string(fact.toolCallId());
+      w.string(fact.kind());
+      w.string(fact.phase());
+      w.optional(fact.targetId());
+      w.optional(fact.reportedStatus());
+      w.string(fact.reason());
+      w.string(fact.sourceLocator());
+    }
     w.string(r.content());
     w.optional(r.responseMessageId());
     w.optional(r.responseStopReason());
@@ -236,6 +247,13 @@ final class CodexRecordCodec {
       var error = optional();
       var relation =
           new SourceRecordRelation(optional(), optional(), optional(), optional(), optional());
+      int collaborationCount = count(16);
+      if (collaborationCount > 128) throw new IOException("协作事实超限");
+      var collaboration = new ArrayList<SourceCollaborationEvidence>();
+      for (int i = 0; i < collaborationCount; i++)
+        collaboration.add(
+            new SourceCollaborationEvidence(
+                string(), string(), string(), optional(), optional(), string(), string()));
       String content = string();
       var message = optional();
       var stop = optional();
@@ -278,7 +296,8 @@ final class CodexRecordCodec {
           meta,
           role,
           observation,
-          evidence);
+          evidence,
+          collaboration);
     }
   }
 }

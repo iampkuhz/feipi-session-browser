@@ -1,4 +1,5 @@
 const { test, expect } = require('@playwright/test');
+const { captureDiagnosticScreenshot } = require('./start-java-fixture-server');
 
 const detail = '/sessions/claude_code/hifi-viz-session-001';
 const all = state => ({ freshInput: state, cacheRead: state, cacheWrite: state, output: state });
@@ -46,8 +47,9 @@ test('Token 构成常显，桌面 Agent 对照保持左表右图', async ({ page
   expect(Math.abs(tableBounds.y - plotBounds.y)).toBeLessThanOrEqual(1);
   await page.evaluate(() => scrollTo(0, 0));
   const overview = test.info().outputPath('task57-overview-1440.png');
-  await page.screenshot({ path: overview, mask: [page.locator('[data-session-file-text]')] });
-  await test.info().attach('overview-synthetic-http', { path: overview, contentType: 'image/png' });
+  if (await captureDiagnosticScreenshot(page, { path: overview, mask: [page.locator('[data-session-file-text]')] })) {
+    await test.info().attach('overview-synthetic-http', { path: overview, contentType: 'image/png' });
+  }
   const context = page.locator('.sd-token-composition');
   await expect(context.getByRole('heading', { name: 'Token 构成' })).toBeVisible();
   await expect(context.getByLabel('Token 构成用量')).toBeVisible();
@@ -67,8 +69,9 @@ test('Token 构成常显，桌面 Agent 对照保持左表右图', async ({ page
     expect(layout.pageOverflow).toBe(false);
     expect(layout.clipped).toBe(false);
     const shot = test.info().outputPath(`task57-context-${width}.png`);
-    await page.screenshot({ path: shot, mask: [page.locator('[data-session-file-text]')] });
-    await test.info().attach(`context-${width}-synthetic-http`, { path: shot, contentType: 'image/png' });
+    if (await captureDiagnosticScreenshot(page, { path: shot, mask: [page.locator('[data-session-file-text]')] })) {
+      await test.info().attach(`context-${width}-synthetic-http`, { path: shot, contentType: 'image/png' });
+    }
   }
   expect(errors).toEqual([]);
 });
@@ -89,8 +92,9 @@ test('shared popover covers Agent, Round and Trace without stealing desktop navi
     await assertPanel(page);
     if (selector === '.sd-token-round') {
       const shot = test.info().outputPath('task57-round-tooltip.png');
-      await page.locator('#token-bar-popover').screenshot({ path: shot });
-      await test.info().attach('round-tooltip-synthetic-http', { path: shot, contentType: 'image/png' });
+      if (await captureDiagnosticScreenshot(page.locator('#token-bar-popover'), { path: shot })) {
+        await test.info().attach('round-tooltip-synthetic-http', { path: shot, contentType: 'image/png' });
+      }
     }
     await page.keyboard.press('Escape');
     await expect(trigger).toHaveAttribute('aria-expanded', 'false');

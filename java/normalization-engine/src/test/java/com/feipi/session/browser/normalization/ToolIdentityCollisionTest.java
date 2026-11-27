@@ -32,6 +32,8 @@ class ToolIdentityCollisionTest {
             managed ->
                 Stream.of(
                     test(managed, "independent-tail-results", () -> tailResults(managed)),
+                    test(
+                        managed, "independent-input-occurrences", () -> independentInputs(managed)),
                     test(managed, "main-and-two-children", () -> acrossScopes(managed)),
                     test(managed, "same-scope-distinct-origins", () -> acrossOrigins(managed)),
                     test(
@@ -61,6 +63,7 @@ class ToolIdentityCollisionTest {
                         "parent-cache-keeps-incoming-origin",
                         () -> originAwareParentCache(managed)),
                     test(managed, "standalone-declarations", () -> standalone(managed)),
+                    test(managed, "owned-closing-tail", () -> ownedClosingTail(managed)),
                     test(managed, "unchanged-provider-id", () -> unchanged(managed)),
                     test(
                         managed,
@@ -70,6 +73,48 @@ class ToolIdentityCollisionTest {
 
   private static DynamicTest test(boolean managed, String name, Checked action) {
     return DynamicTest.dynamicTest((managed ? "managed/" : "list/") + name, action::run);
+  }
+
+  private static void independentInputs(boolean managed) throws Exception {
+    var records = new ArrayList<SourceRecord>();
+    records.add(assistant("root", 0, "parent", null, SourceRecordRelation.empty()));
+    for (String origin : List.of("child-a", "child-b", "child-a")) {
+      int index = records.size();
+      records.add(
+          record(
+              origin,
+              index,
+              "tool_use",
+              "shared",
+              null,
+              "Read",
+              null,
+              List.of(new SourceToolCall("shared", "Read", "synthetic-input-" + index)),
+              child(origin, "spawn")));
+    }
+    var artifact = normalize(managed, records, List.of());
+    assertThat(artifact.calls()).hasSize(1);
+    assertThat(artifact.toolExecutions())
+        .hasSize(3)
+        .extracting(NormalizedToolExecution::toolCallId)
+        .doesNotHaveDuplicates();
+    for (var tool : artifact.toolExecutions()) {
+      assertThat(tool.declaredByCallId()).isEqualTo("unknown");
+      assertThat(artifact.sourceUnitCatalog().values())
+          .filteredOn(entry -> entry.label().filter(tool.toolCallId()::equals).isPresent())
+          .singleElement()
+          .satisfies(
+              entry -> {
+                assertThat(entry.candidate()).isEqualTo("independent_tool_input.v1");
+                var payload = (java.util.Map<?, ?>) entry.payload();
+                assertThat(payload.get("id")).isEqualTo(tool.toolCallId());
+                assertThat(payload.get("name")).isEqualTo(tool.name());
+                var proof = (java.util.Map<?, ?>) payload.get("independent");
+                assertThat(proof.get("subagent")).isEqualTo(tool.subagentId().orElseThrow());
+                assertThat(payload.get("input"))
+                    .isEqualTo("synthetic-input-" + proof.get("ordinal"));
+              });
+    }
   }
 
   private static void tailResults(boolean managed) throws Exception {
@@ -202,13 +247,21 @@ class ToolIdentityCollisionTest {
     var inherited = edge(artifact, "child-call");
     assertThat(root.scope()).isEqualTo(CallScope.MAIN);
     assertThat(inherited.scope()).isEqualTo(CallScope.SUBAGENT);
-    assertThat(inherited.resultConsumedByCallId()).contains(call(artifact, "child-call").callId());
+    assertThat(inherited.resultConsumedByCallId()).isEmpty();
+    assertThat(call(artifact, "child-call").sourceUnits())
+        .noneMatch(unit -> "tool_result".equals(unit.get("type")));
+    assertThat(artifact.sourceUnitCatalog().values())
+        .anySatisfy(
+            entry -> {
+              assertThat(entry.unitType()).isEqualTo("tool_result");
+              assertThat(entry.label()).contains(inherited.toolCallId());
+              assertThat(entry.text()).contains("child-result");
+            });
     assertThat(inherited.status()).contains("child-error");
     assertThat(call(artifact, "child-call").parentCallId())
         .contains(call(artifact, "parent").callId());
     assertThat(call(artifact, "child-call").parentToolCallId()).contains(root.toolCallId());
-    assertThat(call(artifact, "child-call").request().toolResultIds())
-        .contains(inherited.toolCallId());
+    assertThat(call(artifact, "child-call").request().toolResultIds()).isEmpty();
   }
 
   private static void ambiguousParent(boolean managed) throws Exception {
@@ -366,6 +419,31 @@ class ToolIdentityCollisionTest {
     assertThat(artifact.toolExecutions()).hasSize(2);
     assertEdge(artifact, "one-declare", "one-consume", "one-error", false);
     assertEdge(artifact, "two-declare", "two-consume", "two-error", false);
+    assertThat(artifact.sourceUnitCatalog().values())
+        .noneMatch(entry -> entry.candidate().equals("independent_tool_input.v1"));
+  }
+
+  private static void ownedClosingTail(boolean managed) throws Exception {
+    var relation = SourceRecordRelation.empty();
+    var records =
+        List.of(
+            assistant("root", 0, "token_count:close", null, relation),
+            record(
+                "root",
+                1,
+                "tool_use",
+                "shared",
+                null,
+                "Read",
+                null,
+                List.of(new SourceToolCall("shared", "Read", "synthetic-tail")),
+                relation));
+    var artifact = normalize(managed, records, List.of());
+    assertThat(artifact.toolExecutions())
+        .singleElement()
+        .satisfies(tool -> assertThat(tool.declaredByCallId()).isNotEqualTo("unknown"));
+    assertThat(artifact.sourceUnitCatalog().values())
+        .noneMatch(entry -> entry.candidate().equals("independent_tool_input.v1"));
   }
 
   private static void unchanged(boolean managed) throws Exception {

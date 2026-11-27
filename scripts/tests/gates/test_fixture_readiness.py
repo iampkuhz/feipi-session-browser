@@ -131,6 +131,91 @@ try {
     )
 
 
+@pytest.mark.parametrize('status', (201, 409))
+def test_import_readiness_reports_capacity_without_retry_and_cleans_success(status: int) -> None:
+    run_node(
+        r"""
+const assert = require('node:assert/strict');
+const http = require('node:http');
+const id = '11111111-1111-4111-8111-111111111111';
+const requests = [];
+const server = http.createServer((request, response) => {
+  requests.push(request.method + ' ' + request.url);
+  assert.equal(request.headers.origin, 'http://' + request.headers.host);
+  if (request.method === 'POST') {
+    request.resume();
+    response.writeHead(STATUS, { 'content-type': 'application/json' });
+    response.end(JSON.stringify({ import_id: id }));
+  } else {
+    response.writeHead(204);
+    response.end();
+  }
+});
+(async () => {
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const ready = fixture.validateImportReadiness('http://127.0.0.1:' + server.address().port);
+    if (STATUS === 201) {
+      await ready;
+      assert.deepEqual(requests, ['POST /api/imports', 'DELETE /api/imports/' + id]);
+    } else {
+      await assert.rejects(ready, /fixture import readiness: POST returned HTTP 409/);
+      assert.deepEqual(requests, ['POST /api/imports']);
+    }
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+  }
+})().catch(error => { console.error(error); process.exitCode = 1; });
+""".replace('STATUS', str(status))
+    )
+
+
+def test_scan_wait_checks_the_publication_boundary_and_not_the_first_listen() -> None:
+    run_node(
+        r"""
+const assert = require('node:assert/strict');
+const http = require('node:http');
+let reads = 0;
+const server = http.createServer((req, res) => {
+  assert.equal(req.url, '/api/scan-status');
+  res.setHeader('content-type', 'application/json');
+  const status = ++reads === 1 ? 'running' : reads === 2 ? 'success' :
+    reads === 3 ? 'success' : 'failure';
+  res.end(JSON.stringify({status, publishedDataAvailable: reads === 3, errorCount: 0}));
+});
+(async () => {
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const base = 'http://127.0.0.1:' + server.address().port;
+  try {
+    await fixture.waitForPublishedScan(base);
+    assert.equal(reads, 3);
+    await assert.rejects(fixture.waitForPublishedScan(base), /scan publication failed/);
+    assert.equal(reads, 4);
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+  }
+})().catch(error => { console.error(error); process.exitCode = 1; });
+"""
+    )
+
+
+def test_hosted_ci_does_not_take_success_evidence_screenshots() -> None:
+    run_node(
+        r"""
+const assert = require('node:assert/strict');
+let captures = 0;
+const target = { screenshot: () => captures++ };
+(async () => {
+  delete process.env.GITHUB_ACTIONS;
+  assert.equal(await fixture.captureDiagnosticScreenshot(target), true);
+  process.env.GITHUB_ACTIONS = 'true';
+  assert.equal(await fixture.captureDiagnosticScreenshot(target), false);
+  assert.equal(captures, 1);
+})().catch(error => { console.error(error); process.exitCode = 1; });
+"""
+    )
+
+
 def test_fixture_freezes_shared_jdk_before_home_isolation() -> None:
     run_node(
         r"""

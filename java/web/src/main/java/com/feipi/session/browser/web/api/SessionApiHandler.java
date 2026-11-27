@@ -14,6 +14,7 @@ import com.feipi.session.browser.index.api.query.ContentRoundIndex;
 import com.feipi.session.browser.query.api.CallRound;
 import com.feipi.session.browser.query.api.PayloadVisibility;
 import com.feipi.session.browser.query.api.SensitiveFieldPolicy;
+import com.feipi.session.browser.web.IndexSnapshotGuard;
 import com.feipi.session.browser.web.api.ApiResponses.AttributionData;
 import com.feipi.session.browser.web.api.ApiResponses.AttributionResponse;
 import com.feipi.session.browser.web.api.ApiResponses.BucketDetailResponse;
@@ -97,6 +98,18 @@ public final class SessionApiHandler {
         sessionId,
         "payload",
         () -> {
+          if ("local_results".equals(ctx.queryParam("view"))) {
+            var context =
+                apiService.getContext(
+                    agent + ":" + sessionId, ApiQueryParams.payloadVisibility(ctx));
+            if (context.isEmpty()) {
+              ApiSessionDetails.sendError(
+                  ctx, HttpStatus.NOT_FOUND, ERROR_NOT_FOUND, MESSAGE_SESSION_NOT_FOUND);
+              return;
+            }
+            SessionLocalResultPayload.send(ctx, context.get(), payloadId);
+            return;
+          }
           Optional<SessionApiContext> ctxOpt = loadContextOrSend(ctx, agent, sessionId);
           if (ctxOpt.isEmpty()) {
             return;
@@ -119,79 +132,83 @@ public final class SessionApiHandler {
             return;
           }
 
-          PayloadLookup.PayloadEntry entry = entryOpt.get();
-          boolean available = !entry.content().isEmpty();
-          ApiResponses.ToolResultEvidence toolResult = null;
-          if (entry.kind() == com.feipi.session.browser.query.api.PayloadSourceKind.TOOL_RESULT) {
-            var content =
-                sessionCtx.content() != null
-                    ? sessionCtx.content()
-                    : com.feipi.session.browser.domain.normalized.NormalizedSessionContent
-                        .fromArtifact(sessionCtx.artifact());
-            var previews = SessionContentPreviews.read(content, entry.callId());
-            available = previews.hasToolResult(entry.callId());
-            if (available) toolResult = previews.toolResultEvidence();
-          }
-          var evidence =
-              sessionCtx.content() == null
-                  ? Optional.<CallReadingEvidence.View>empty()
-                  : CallReadingEvidence.read(
-                      sessionCtx.content(), entry, sessionCtx.detail().visibility());
-          var protocol = evidence.map(CallReadingEvidence.View::protocol).orElse(Map.of());
-          var tokens = evidence.map(CallReadingEvidence.View::tokens).orElse(Map.of());
-          available |=
-              switch (entry.kind()) {
-                case LLM_REQUEST, SUBAGENT_REQUEST -> tokens.containsKey("input");
-                case LLM_RESPONSE, SUBAGENT_RESPONSE -> tokens.containsKey("output");
-                default -> false;
-              };
-          var blocks =
-              evidence
-                  .map(CallReadingEvidence.View::blocks)
-                  .orElseGet(
-                      () ->
-                          entry.reading().stream()
-                              .map(
-                                  block ->
-                                      new CallReadingEvidence.Block(
-                                          "conversation", block.label(), "current", block.text()))
-                              .toList());
-          ctx.json(
-              new PayloadResponse(
-                  entry.payloadId(),
-                  entry.kind().name().toLowerCase(),
-                  entry.callId(),
-                  entry.content(),
-                  entry.truncated(),
-                  ApiResponses.SCHEMA_VERSION,
-                  entry.content(),
-                  available || !blocks.isEmpty() ? "available" : "missing",
-                  blocks.stream()
-                      .map(
-                          block -> {
-                            String html =
-                                com.feipi.session.browser.web.template.SafeMarkdownRenderer
-                                    .readingHtml(block.text());
-                            return new ApiResponses.PayloadReadingBlock(
-                                block.kind(),
-                                block.source(),
-                                block.label(),
-                                html.isEmpty() ? block.text() : "",
-                                html,
-                                block.toolCallId(),
-                                block.text().codePointCount(0, block.text().length()),
-                                SessionDetailParityAnalyzer.estimateTokens(block.text()));
-                          })
-                      .toList(),
-                  entry.unconfirmedContext(),
-                  protocol.getOrDefault("modelProvider", ""),
-                  protocol.getOrDefault("source", ""),
-                  protocol.getOrDefault("originator", ""),
-                  protocol.getOrDefault("cliVersion", ""),
-                  tokens,
-                  evidence.map(CallReadingEvidence.View::skillNames).orElse(List.of()),
-                  toolResult));
+          ctx.json(payloadResponse(sessionCtx, entryOpt.get()));
         });
+  }
+
+  /** 保持非 opt-in 与显式结果视图的原文、Copy 和安全阅读合同一致。 */
+  static PayloadResponse payloadResponse(
+      SessionApiContext sessionCtx, PayloadLookup.PayloadEntry entry) throws IOException {
+    boolean available = !entry.content().isEmpty();
+    ApiResponses.ToolResultEvidence toolResult = null;
+    if (entry.kind() == com.feipi.session.browser.query.api.PayloadSourceKind.TOOL_RESULT) {
+      var content =
+          sessionCtx.content() != null
+              ? sessionCtx.content()
+              : com.feipi.session.browser.domain.normalized.NormalizedSessionContent.fromArtifact(
+                  sessionCtx.artifact());
+      var previews = SessionContentPreviews.read(content, entry.callId());
+      available = previews.hasToolResult(entry.callId());
+      if (available) toolResult = previews.toolResultEvidence();
+    }
+    var evidence =
+        sessionCtx.content() == null
+            ? Optional.<CallReadingEvidence.View>empty()
+            : CallReadingEvidence.read(
+                sessionCtx.content(), entry, sessionCtx.detail().visibility());
+    var protocol = evidence.map(CallReadingEvidence.View::protocol).orElse(Map.of());
+    var tokens = evidence.map(CallReadingEvidence.View::tokens).orElse(Map.of());
+    available |=
+        switch (entry.kind()) {
+          case LLM_REQUEST, SUBAGENT_REQUEST -> tokens.containsKey("input");
+          case LLM_RESPONSE, SUBAGENT_RESPONSE -> tokens.containsKey("output");
+          default -> false;
+        };
+    var blocks =
+        evidence
+            .map(CallReadingEvidence.View::blocks)
+            .orElseGet(
+                () ->
+                    entry.reading().stream()
+                        .map(
+                            block ->
+                                new CallReadingEvidence.Block(
+                                    "conversation", block.label(), "current", block.text()))
+                        .toList());
+    return new PayloadResponse(
+        entry.payloadId(),
+        entry.kind().name().toLowerCase(),
+        entry.callId(),
+        entry.content(),
+        entry.truncated(),
+        ApiResponses.SCHEMA_VERSION,
+        entry.content(),
+        available || !blocks.isEmpty() ? "available" : "missing",
+        blocks.stream()
+            .map(
+                block -> {
+                  String html =
+                      com.feipi.session.browser.web.template.SafeMarkdownRenderer.readingHtml(
+                          block.text());
+                  return new ApiResponses.PayloadReadingBlock(
+                      block.kind(),
+                      block.source(),
+                      block.label(),
+                      html.isEmpty() ? block.text() : "",
+                      html,
+                      block.toolCallId(),
+                      block.text().codePointCount(0, block.text().length()),
+                      SessionDetailParityAnalyzer.estimateTokens(block.text()));
+                })
+            .toList(),
+        entry.unconfirmedContext(),
+        protocol.getOrDefault("modelProvider", ""),
+        protocol.getOrDefault("source", ""),
+        protocol.getOrDefault("originator", ""),
+        protocol.getOrDefault("cliVersion", ""),
+        tokens,
+        evidence.map(CallReadingEvidence.View::skillNames).orElse(List.of()),
+        toolResult);
   }
 
   /**
@@ -255,10 +272,11 @@ public final class SessionApiHandler {
                 new io.javalin.http.BadRequestResponse("limit must be within 1..500")
                     .initCause(exception);
           }
+          String generation = ctx.attribute(IndexSnapshotGuard.PAGE_GENERATION);
           String scope =
               session.detail().cacheKey()
                   + "|"
-                  + ctx.res().getHeader("X-Session-Index-Generation")
+                  + generation
                   + "|"
                   + agent
                   + ":"
@@ -466,6 +484,32 @@ public final class SessionApiHandler {
         });
   }
 
+  /**
+   * 直接按完整调用身份读取归因，不要求调用方猜测轮次或轮内位置。
+   *
+   * <p>响应 roundIndex 是真实轮次；callIndex 是 call.callIndex 本地模型记录号，而非轮内序号。
+   *
+   * @param ctx 请求上下文
+   * @param agent 当前来源
+   * @param sessionId 当前 normal 或 import 会话范围
+   * @param callId 完整调用身份
+   * @param kind request 或 response
+   */
+  public void handleCallAttribution(
+      Context ctx, String agent, String sessionId, String callId, String kind) {
+    if (!isAttributionKind(kind)) {
+      sendInvalidAttributionKind(ctx, kind);
+      return;
+    }
+    if (callId.isBlank()) {
+      ApiSessionDetails.sendError(
+          ctx, HttpStatus.BAD_REQUEST, ERROR_BAD_REQUEST, "call_id must not be blank");
+      return;
+    }
+    executeCallIdentity(
+        ctx, agent, sessionId, new IdentityAttribution(callId, null, null, null, kind));
+  }
+
   private boolean handleCallIdentity(
       Context ctx,
       String agent,
@@ -481,6 +525,16 @@ public final class SessionApiHandler {
           ctx, HttpStatus.BAD_REQUEST, ERROR_BAD_REQUEST, "call_id must not be blank");
       return true;
     }
+    executeCallIdentity(
+        ctx,
+        agent,
+        sessionId,
+        new IdentityAttribution(callId, requestedRound, subagentId, callIndex, kind));
+    return true;
+  }
+
+  private void executeCallIdentity(
+      Context ctx, String agent, String sessionId, IdentityAttribution request) {
     executeWithExceptionHandling(
         ctx,
         agent,
@@ -494,19 +548,20 @@ public final class SessionApiHandler {
           int actualRound;
           if (session.content() != null) {
             var reader = session.contentReader();
-            call = reader.findCall(callId);
-            actualRound = reader.roundIndex().roundIndexForCall(callId).orElse(0);
+            call = reader.findCall(request.callId());
+            actualRound = reader.roundIndex().roundIndexForCall(request.callId()).orElse(0);
           } else {
-            call = session.findCall(callId);
+            call = session.findCall(request.callId());
             actualRound = call.map(value -> findRoundIndexForCall(session, value)).orElse(0);
           }
-          boolean roundMatches = requestedRound == null || requestedRound == actualRound;
+          boolean roundMatches =
+              request.requestedRound() == null || request.requestedRound() == actualRound;
           boolean childMatches =
-              subagentId == null
+              request.subagentId() == null
                   || call.filter(
                           value ->
                               value.scope() == CallScope.SUBAGENT
-                                  && matchesSubagent(value, subagentId))
+                                  && matchesSubagent(value, request.subagentId()))
                       .isPresent();
           if (call.isEmpty() || !roundMatches || !childMatches || actualRound < 1) {
             ApiSessionDetails.sendError(
@@ -515,12 +570,28 @@ public final class SessionApiHandler {
           }
           ctx.json(
               buildAttributionResponse(
-                  new AttributionRequest(agent, sessionId, actualRound, callIndex, kind),
+                  new AttributionRequest(
+                      agent,
+                      sessionId,
+                      actualRound,
+                      request.ordinal() == null ? call.get().callIndex() : request.ordinal(),
+                      request.kind()),
                   call.get(),
                   session));
         });
-    return true;
   }
+
+  /**
+   * 完整身份及可选旧位置约束；新路由不伪造 ordinal。
+   *
+   * @param callId 完整调用身份
+   * @param requestedRound 旧位置路由要求的真实轮次，新路由为空
+   * @param subagentId 旧子调用路由要求的子上下文，新路由为空
+   * @param ordinal 旧路由的轮内或子调用位置，新路由为空并使用真实本地记录号
+   * @param kind 归因种类
+   */
+  private record IdentityAttribution(
+      String callId, Integer requestedRound, String subagentId, Integer ordinal, String kind) {}
 
   /**
    * 处理 subagent attribution API。

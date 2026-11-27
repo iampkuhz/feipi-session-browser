@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import json
 import os
+import re
 import subprocess
 import textwrap
 import urllib.error
@@ -192,6 +193,8 @@ def test_full_gate_receipt_rejects_incomplete_evidence(tmp_path, monkeypatch, ca
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv('GITHUB_SHA', SHA)
     monkeypatch.setenv('GATE_MODE', 'full')
+    output = tmp_path / 'output'
+    monkeypatch.setenv('GITHUB_OUTPUT', str(output))
     plan = {
         'planFingerprint': 'test',
         'mode': 'full',
@@ -248,9 +251,11 @@ def test_full_gate_receipt_rejects_incomplete_evidence(tmp_path, monkeypatch, ca
     code = compile(_inline('quality.yml', '- name: Require a complete'), '<receipt>', 'exec')
     if case == 'valid':
         exec(code, {})
+        assert output.read_text() == 'gate-run-id=r\n'
     else:
         with pytest.raises(AssertionError):
             exec(code, {})
+        assert not output.exists()
 
 
 def test_release_requires_remote_main_before_and_after_approval(tmp_path):
@@ -345,10 +350,13 @@ def test_shared_workflow_permissions_and_fresh_checkout_prerequisites():
         for name, job in release.items()
         if job.get('permissions', {}).get('contents') == 'write'
     ] == ['publish-release']
+    assert set(release) == {'validate', 'distribution', 'publish-release'}
     assert release['publish-release']['environment']['name'] == 'github-release'
-    assert release['release-candidate']['environment']['name'] == 'release-candidate'
     assert release['distribution']['uses'] == './.github/workflows/quality.yml'
     assert release['distribution']['needs'] == 'validate'
+    assert release['distribution']['with']['release-mode'] == (
+        "${{ needs.validate.outputs.publish == 'true' && 'publish' || 'candidate' }}"
+    )
     triggers = workflows['quality'][True]
     assert 'tags' not in triggers['push']
     steps = workflows['quality']['jobs']['quality']['steps']
@@ -380,6 +388,10 @@ def test_quality_prepares_clean_runner_without_weakening_gate_isolation():
     gate = next(i for i, step in enumerate(steps) if step['name'] == 'Unified quality gates')
     java = next(i for i, step in enumerate(steps) if step['name'] == 'Set up JDK 25')
     assert steps[java]['with']['architecture'] == 'arm64'
+    node = next(i for i, step in enumerate(steps) if 'actions/setup-node@' in step.get('uses', ''))
+    assert steps[node]['with']['node-version'] == '24'
+    assert steps[node]['with']['architecture'] == 'arm64'
+    assert node < next(i for i, step in enumerate(steps) if 'npm ci' in step.get('run', ''))
     host = next(
         i for i, step in enumerate(steps) if step['name'] == 'Check native macOS arm64 host'
     )
@@ -477,20 +489,21 @@ def test_rc_attests_to_sealed_artifact_without_downloading_another_copy():
     build = distribution['jobs']['quality']
     assert entry['outputs']['candidate-id']['value'] == '${{ jobs.quality.outputs.candidate-id }}'
     assert build['outputs']['candidate-id'] == '${{ steps.seal.outputs.artifact-id }}'
-    upload = build['steps'][-1]
-    assert upload['id'] == 'seal'
+    upload = next(step for step in build['steps'] if step.get('id') == 'seal')
     assert (
         upload['with']['name']
         == 'verified-candidate-${{ github.run_id }}-${{ github.run_attempt }}'
     )
     assert upload['with']['compression-level'] == 0
 
-    rc = release['release-candidate']
-    assert 'distribution' in rc['needs']
-    assert all('download-artifact' not in step.get('uses', '') for step in rc['steps'])
-    assert rc['steps'][0]['env']['CANDIDATE_ID'] == '${{ needs.distribution.outputs.candidate-id }}'
+    review = next(step for step in build['steps'] if step.get('id') == 'review')
+    assert build['steps'].index(upload) < build['steps'].index(review)
+    assert review['env']['CANDIDATE_ID'] == '${{ steps.seal.outputs.artifact-id }}'
+    assert review['env']['GATE_RECEIPT'] == '${{ steps.receipt.outputs.gate-run-id }}'
+    assert review['if'] == "steps.scope.outputs.mode == 'full' && inputs.release-mode != ''"
     publisher = release['publish-release']
-    assert 'release-candidate' in publisher['needs']
+    assert publisher['needs'] == ['validate', 'distribution']
+    assert publisher['if'] == "needs.validate.outputs.publish == 'true'"
     steps = publisher['steps']
     download = next(step for step in steps if 'download-artifact' in step.get('uses', ''))
     assert download['with'] == {
@@ -507,22 +520,115 @@ def test_rc_attests_to_sealed_artifact_without_downloading_another_copy():
     assert steps.index(preflight) < steps.index(download) < steps.index(verify_candidate)
     assert steps.index(verify_candidate) < steps.index(remote_tag)
     assert entry['outputs']['candidate-key']['value'] == '${{ jobs.quality.outputs.candidate-key }}'
-    assert build['outputs']['candidate-key'] == (
-        "${{ steps.seal.outputs.artifact-id && format('{0}:{1}:{2}', github.sha, github.run_id, github.run_attempt) }}"
+    assert build['outputs']['candidate-key'] == '${{ steps.review.outputs.candidate-key }}'
+    assert preflight['env']['CANDIDATE_KEY'] == '${{ needs.distribution.outputs.candidate-key }}'
+    env = {'GITHUB_SHA': SHA, 'GITHUB_RUN_ID': '42', 'GITHUB_RUN_ATTEMPT': '2'}
+    for candidate_id, key, expected in [
+        ('17', f'{SHA}:42:2', 0),
+        ('17', f'{SHA}:42:1', 1),
+        ('', f'{SHA}:42:2', 1),
+        ('17,18', f'{SHA}:42:2', 1),
+    ]:
+        result = subprocess.run(
+            ['/bin/bash', '-c', preflight['run']],
+            env={**env, 'CANDIDATE_ID': candidate_id, 'CANDIDATE_KEY': key},
+            capture_output=True,
+            check=False,
+        )
+        assert result.returncode == expected
+
+
+@pytest.mark.parametrize(
+    'case', ['publish', 'candidate', 'mode', 'id', 'receipt', 'digest', 'name']
+)
+def test_candidate_review_only_reports_verified_release_evidence(tmp_path, case):
+    quality = yaml.safe_load((ROOT / '.github/workflows/quality.yml').read_text())
+    review = next(
+        step for step in quality['jobs']['quality']['steps'] if step.get('id') == 'review'
     )
-    for check in (rc['steps'][0], preflight):
-        assert check['env']['CANDIDATE_KEY'] == '${{ needs.distribution.outputs.candidate-key }}'
-        env = {'GITHUB_SHA': SHA, 'GITHUB_RUN_ID': '42', 'GITHUB_RUN_ATTEMPT': '2'}
-        for candidate_id, key, expected in [
-            ('17', f'{SHA}:42:2', 0),
-            ('17', f'{SHA}:42:1', 1),
-            ('', f'{SHA}:42:2', 1),
-            ('17,18', f'{SHA}:42:2', 1),
-        ]:
-            result = subprocess.run(
-                ['/bin/bash', '-c', check['run']],
-                env={**env, 'CANDIDATE_ID': candidate_id, 'CANDIDATE_KEY': key},
-                capture_output=True,
-                check=False,
-            )
-            assert result.returncode == expected
+    version = tmp_path / 'java/gradle/VERSION'
+    version.parent.mkdir(parents=True)
+    version.write_text('1.2.3\n')
+    manifest = tmp_path / 'verified-candidate/MANIFEST.SHA256'
+    manifest.parent.mkdir()
+    archive = 'app-cli-1.2.3-runtime-macos-arm64.tar.gz'
+    digest = 'b' * 64
+    review_path, output = tmp_path / 'review', tmp_path / 'outputs'
+    env = os.environ | {
+        'GITHUB_SHA': SHA,
+        'GITHUB_RUN_ID': '42',
+        'GITHUB_RUN_ATTEMPT': '2',
+        'GITHUB_STEP_SUMMARY': str(review_path),
+        'GITHUB_OUTPUT': str(output),
+        'RELEASE_MODE': 'publish',
+        'CANDIDATE_ID': '17',
+        'GATE_RECEIPT': 'r-1',
+    }
+    if case in {'publish', 'candidate', 'mode'}:
+        env['RELEASE_MODE'] = case
+    if case == 'id':
+        env['CANDIDATE_ID'] = '17,18'
+    if case == 'receipt':
+        env['GATE_RECEIPT'] = ''
+    name = 'wrong.tar.gz' if case == 'name' else archive
+    sha256 = 'bad' if case == 'digest' else digest
+    manifest.write_text(f'{sha256}  12  {name}\n')
+    result = subprocess.run(
+        ['/bin/bash', '-c', review['run']],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if case not in {'publish', 'candidate'}:
+        assert result.returncode != 0
+        assert not review_path.exists()
+        assert not output.exists()
+        return
+    assert result.returncode == 0, result.stderr
+    assert output.read_text() == f'candidate-key={SHA}:42:2\n'
+    summary = review_path.read_text()
+    assert all(
+        item in summary
+        for item in (
+            'v1.2.3',
+            SHA,
+            'Full Gate: passed',
+            'r-1',
+            'bundled Java',
+            archive,
+            digest,
+            '17',
+        )
+    )
+    assert ('Approve the protected' in summary) == (case == 'publish')
+    assert ('This run will not publish.' in summary) == (case == 'candidate')
+
+
+def test_release_summary_and_artifact_policy_does_not_change_standalone_quality():
+    workflow = yaml.safe_load((ROOT / '.github/workflows/quality.yml').read_text())
+    steps = {step['name']: step for step in workflow['jobs']['quality']['steps']}
+    assert workflow[True]['workflow_call']['inputs']['release-mode']['default'] == ''
+    assert steps['Setup Gradle']['with']['add-job-summary'] == (
+        "${{ inputs.release-mode && 'never' || 'always' }}"
+    )
+    receipt = steps['Retain the Gate receipt for standalone Quality or release failure']
+    assert receipt['if'] == "${{ !cancelled() && (failure() || inputs.release-mode == '') }}"
+    assert steps['Retain failed synthetic browser traces']['if'] == 'failure()'
+
+
+def test_workflows_share_commit_pinned_action_versions():
+    pins = {}
+    for path in (ROOT / '.github/workflows').glob('*.yml'):
+        source = path.read_text()
+        assert 'FORCE_JAVASCRIPT_ACTIONS_TO_NODE24' not in source
+        assert 'ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION' not in source
+        for job in yaml.safe_load(source)['jobs'].values():
+            for step in job.get('steps', []):
+                if 'uses' not in step:
+                    continue
+                action, pin = step['uses'].split('@')
+                assert re.fullmatch('[0-9a-f]{40}', pin), (path.name, action)
+                assert pins.setdefault(action, pin) == pin
+    assert pins['gradle/actions/setup-gradle'] == pins['gradle/actions/wrapper-validation']

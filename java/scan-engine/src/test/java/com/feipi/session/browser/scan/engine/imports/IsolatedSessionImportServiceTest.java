@@ -14,6 +14,7 @@ import com.feipi.session.browser.domain.source.SourceToolObservation;
 import com.feipi.session.browser.index.api.imports.ImportLimits;
 import com.feipi.session.browser.index.api.imports.SessionImportException;
 import com.feipi.session.browser.scan.artifact.CanonicalJsonWriter;
+import com.feipi.session.browser.source.codex.CodexSourceAdapter;
 import com.feipi.session.browser.source.spi.BoundedStream;
 import com.feipi.session.browser.source.spi.Candidate;
 import com.feipi.session.browser.source.spi.ParseIssueType;
@@ -44,6 +45,76 @@ import org.junit.jupiter.api.Test;
 class IsolatedSessionImportServiceTest {
   private static final String TRANSCRIPT =
       "{\"type\":\"assistant\",\"sessionId\":\"shared\",\"message\":{\"content\":\"synthetic\"}}";
+
+  @Test
+  void exactOrphanFragmentsKeepDistinctIsolationRejections(
+      @org.junit.jupiter.api.io.TempDir Path directory) throws Exception {
+    String v52 =
+        """
+        {"type":"session_meta","payload":{"id":"synthetic-orphan-child-v52","source":{"subagent":{"thread_spawn":{"parent_thread_id":"synthetic-orphan-parent-v52"}}}}}
+        {"type":"response_item","payload":{"type":"function_call","call_id":"orphan-command-v52","name":"exec_command","arguments":"{\\"cmd\\":\\"node synthetic-orphan-check.js --case no-owner\\"}"}}
+        {"type":"response_item","payload":{"type":"function_call_output","call_id":"orphan-command-v52","output":"Synthetic recorded error, command not executed"}}
+        {"type":"event_msg","payload":{"type":"exec_command_end","call_id":"orphan-command-v52","duration":{"secs":0,"nanos":500000000},"exit_code":7,"status":"completed"}}
+        """;
+    assertThat(
+            java.util.HexFormat.of()
+                .formatHex(
+                    java.security.MessageDigest.getInstance("SHA-256")
+                        .digest(v52.getBytes(StandardCharsets.UTF_8))))
+        .isEqualTo("61349a6822530652ff636826a8b579d84a2fa27774291bf59867e45255cc969e");
+    String v53 =
+        """
+        {"type":"session_meta","payload":{"id":"synthetic-orphan-child-v53","source":{"subagent":{"thread_spawn":{"parent_thread_id":"synthetic-orphan-parent-v53"}}}}}
+        {"type":"event_msg","payload":{"type":"user_message","message":"Synthetic isolated child task: inspect the recorded command failure; do not execute a real script."}}
+        {"type":"response_item","payload":{"type":"function_call","call_id":"orphan-command-v53","name":"exec_command","arguments":"{\\"cmd\\":\\"node synthetic-orphan-check.js --case no-owner-with-user\\"}"}}
+        {"type":"response_item","payload":{"type":"function_call_output","call_id":"orphan-command-v53","output":"Synthetic recorded error, command not executed"}}
+        {"type":"event_msg","payload":{"type":"exec_command_end","call_id":"orphan-command-v53","duration":{"secs":0,"nanos":500000000},"exit_code":7,"status":"completed"}}
+        """;
+    assertThat(
+            java.util.HexFormat.of()
+                .formatHex(
+                    java.security.MessageDigest.getInstance("SHA-256")
+                        .digest(v53.getBytes(StandardCharsets.UTF_8))))
+        .isEqualTo("b8bea647a3719123c38e8c926d3932cec390c3e5abcfe8382ffeaf7f965eea2c");
+    Path source = directory.resolve("synthetic-orphan-child-v53.jsonl");
+    Files.writeString(source, v53);
+    var adapter = new CodexSourceAdapter();
+    try (var parsed =
+        (SourceResult.Success)
+            adapter.parse(
+                new Candidate(
+                    adapter.fingerprint(source),
+                    "codex:synthetic-orphan-child-v53",
+                    "",
+                    adapter.singleFileMetadata(source)),
+                null)) {
+      assertThatThrownBy(
+              () ->
+                  new com.feipi.session.browser.normalization.NormalizationEngine()
+                      .normalizeWithBindings(
+                          NormalizedAgent.CODEX, parsed.records(), parsed.diagnostics(), List.of()))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("TOOL_OWNER_UNAVAILABLE");
+    }
+    try (var service = new IsolatedSessionImportService(ignored -> new CodexSourceAdapter())) {
+      assertCode(
+          () ->
+              service.create(input(v52), "synthetic-orphan-child-v52.jsonl", NormalizedAgent.CODEX),
+          "empty_input");
+      var failure =
+          org.junit.jupiter.api.Assertions.assertThrows(
+              SessionImportException.class,
+              () ->
+                  service.create(
+                      input(v53), "synthetic-orphan-child-v53.jsonl", NormalizedAgent.CODEX));
+      assertThat(failure.code()).isEqualTo("parse_failed");
+      assertThat(failure).hasMessage("独立 JSONL 分析失败（parse_failed）").hasNoCause();
+      // 安全边界删除异常正文和因果链，但保留 TOOL_OWNER_UNAVAILABLE 的原失败位置。
+      assertThat(failure.getStackTrace()[0].getClassName())
+          .isEqualTo("com.feipi.session.browser.normalization.CallBuilder");
+      assertThat(failure.getStackTrace()[0].getMethodName()).isEqualTo("mapToolDeclarations");
+    }
+  }
 
   @Test
   void relocationRetainsExplicitObservationsWithoutInventingMissingMeasurements() throws Exception {

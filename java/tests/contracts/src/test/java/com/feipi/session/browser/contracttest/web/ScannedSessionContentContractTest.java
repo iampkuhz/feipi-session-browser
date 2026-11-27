@@ -3,10 +3,16 @@ package com.feipi.session.browser.contracttest.web;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.feipi.session.browser.application.sessiondetail.SessionContentReader;
 import com.feipi.session.browser.contracttest.support.ContractTestComposition;
+import com.feipi.session.browser.domain.normalized.NormalizedCall;
+import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
+import com.feipi.session.browser.domain.normalized.SourceUnitCatalogEntry;
 import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
 import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
+import com.feipi.session.browser.index.store.sqlite.loader.NormalizedArtifactLoader;
 import com.feipi.session.browser.index.store.sqlite.schema.SchemaVersion;
+import com.feipi.session.browser.query.api.PayloadVisibility;
 import com.feipi.session.browser.scan.engine.FullScanEngine;
 import com.feipi.session.browser.scan.engine.ScanConfig;
 import com.feipi.session.browser.source.claude.ClaudeSourceAdapter;
@@ -24,7 +30,10 @@ import java.net.http.HttpClient;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.DriverManager;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -196,6 +205,167 @@ class ScannedSessionContentContractTest {
     }
   }
 
+  @Test
+  void resultSourceAnchorsSurviveFreshScanAndReopen() throws Exception {
+    Path sourceRoot = tempDir.resolve("anchor-source");
+    write(
+        sourceRoot.resolve("session_index.jsonl"),
+        "{\"id\":\"" + SESSION_ID + "\",\"thread_name\":\"Synthetic anchors\"}\n");
+    write(
+        sourceRoot.resolve("sessions/2026/09/06/rollout-100-" + SESSION_ID + ".jsonl"),
+        """
+        {"type":"session_meta","payload":{"id":"%s","cwd":"/synthetic"}}
+        {"type":"turn_context","payload":{"model":"synthetic-model"}}
+        {"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"Synthetic anchors"}]}}
+        {"type":"response_item","payload":{"type":"function_call","call_id":"T","name":"exec_command","arguments":"synthetic input"}}
+        {"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}}}
+        {"type":"response_item","payload":{"type":"function_call_output","call_id":"T","output":"same result"}}
+        {"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":2,"output_tokens":2,"total_tokens":4}}}}
+        {"type":"response_item","payload":{"type":"function_call_output","call_id":"T","output":"same result"}}
+        {"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":3,"output_tokens":3,"total_tokens":6}}}}
+        {"type":"response_item","payload":{"type":"function_call_output","call_id":"T","output":""}}
+        """
+            .formatted(SESSION_ID));
+    Path artifacts = tempDir.resolve("anchor-artifacts");
+    String jdbcUrl = "jdbc:sqlite:" + tempDir.resolve("anchor-index.db").toAbsolutePath();
+    try (var writer = DriverManager.getConnection(jdbcUrl)) {
+      SqliteTestHelper.configureConnection(writer);
+      var summary =
+          new FullScanEngine()
+              .scan(
+                  SqliteTestHelper.createIndexWriter(writer),
+                  ScanConfig.defaults(
+                      List.of(new ScanConfig.SourceEntry(new CodexSourceAdapter(), sourceRoot)),
+                      artifacts));
+      assertThat(summary.errorCount()).as("scan issues: %s", summary.issues()).isZero();
+      assertThat(summary.totalCandidates()).isEqualTo(1);
+      assertThat(summary.successCount()).isEqualTo(1);
+    }
+    // writer 已关闭；由新连接定位发布制品，再从磁盘游标重读，不复用 normalization 对象。
+    try (var index =
+            IndexConnection.create(
+                DriverManager.getConnection(jdbcUrl), PragmaConfig.DEFAULTS, jdbcUrl);
+        var statement = index.writerConnection().createStatement();
+        var rows =
+            statement.executeQuery(
+                "SELECT path FROM session_artifacts WHERE artifact_type = 'normalized'")) {
+      assertThat(rows.next()).isTrue();
+      Path artifact = Path.of(rows.getString("path"));
+      assertThat(artifact).isRegularFile();
+      assertThat(artifact.toAbsolutePath()).startsWith(artifacts.toAbsolutePath());
+      assertThat(rows.next()).isFalse();
+      var calls = new ArrayList<NormalizedCall>();
+      var tools = new ArrayList<NormalizedToolExecution>();
+      var catalog = new LinkedHashMap<String, SourceUnitCatalogEntry>();
+      try (var cursor = NormalizedArtifactLoader.open(artifact).openCursor()) {
+        while (cursor.hasNext()) {
+          var unit = cursor.next();
+          calls.addAll(unit.calls());
+          tools.addAll(unit.toolExecutions());
+          unit.sourceUnitCatalog()
+              .forEach((key, value) -> assertThat(catalog.putIfAbsent(key, value)).isNull());
+        }
+      }
+      assertThat(calls).hasSize(3);
+      assertThat(tools)
+          .singleElement()
+          .satisfies(
+              tool -> {
+                assertThat(tool.declaredByCallId()).isEqualTo(calls.getFirst().callId());
+                assertThat(tool.resultConsumedByCallId()).isEmpty();
+              });
+      var results =
+          catalog.values().stream()
+              .filter(entry -> "tool_result".equals(entry.unitType()))
+              .sorted(java.util.Comparator.comparingLong(SourceUnitCatalogEntry::eventOrder))
+              .toList();
+      assertThat(results).extracting(SourceUnitCatalogEntry::eventOrder).containsExactly(5, 7, 9);
+      assertThat(results).extracting(SourceUnitCatalogEntry::unitKey).doesNotHaveDuplicates();
+      assertThat(results)
+          .extracting(entry -> entry.text().orElseThrow())
+          .containsExactly("same result", "same result", "");
+      assertThat(calls.getFirst().sourceUnits())
+          .noneMatch(unit -> unit.containsKey("result_source_unit_key"));
+      assertThat(calls.getFirst().request().toolResultIds()).isEmpty();
+      for (var call : calls.subList(1, 3)) {
+        long expectedEvent = call.callIndex() == 2 ? 5 : 7;
+        var expected =
+            results.stream()
+                .filter(entry -> entry.eventOrder() == expectedEvent)
+                .findFirst()
+                .orElseThrow();
+        assertThat(call.sourceUnits())
+            .filteredOn(unit -> "tool_result".equals(unit.get("type")))
+            .singleElement()
+            .satisfies(
+                unit ->
+                    assertThat(unit).containsEntry("result_source_unit_key", expected.unitKey()));
+        assertThat(call.request().toolResultIds()).containsExactly(tools.getFirst().toolCallId());
+      }
+      String tailKey =
+          results.stream()
+              .filter(entry -> entry.eventOrder() == 9)
+              .findFirst()
+              .orElseThrow()
+              .unitKey();
+      assertThat(calls.stream().flatMap(call -> call.sourceUnits().stream()))
+          .noneMatch(unit -> tailKey.equals(unit.get("result_source_unit_key")));
+      assertThat(calls)
+          .allSatisfy(
+              call -> {
+                assertThat(call.usage().fresh()).isEqualTo(1);
+                assertThat(call.usage().output()).isEqualTo(1);
+              });
+      assertLocalResultTargetsSurviveReopen(artifact, calls, tools.getFirst().toolCallId());
+    }
+  }
+
+  private static void assertLocalResultTargetsSurviveReopen(
+      Path artifact, List<NormalizedCall> calls, String toolId) throws Exception {
+    var results =
+        new SessionContentReader(NormalizedArtifactLoader.open(artifact), 1)
+            .localResults("tool:result:" + toolId, PayloadVisibility.FULL);
+    assertThat(results.coverage()).isEqualTo("complete");
+    assertThat(results.nextCursor()).isNull();
+    assertThat(results.occurrences())
+        .hasSize(3)
+        .allSatisfy(item -> assertThat(item.identity()).isEqualTo("confirmed"));
+    assertThat(results.occurrences())
+        .extracting(item -> item.content().text())
+        .containsExactly("same result", "same result", "");
+    assertThat(results.occurrences()).extracting(item -> item.order()).isSorted();
+    assertThat(results.occurrences())
+        .extracting(item -> item.occurrenceId())
+        .doesNotHaveDuplicates();
+    for (int index = 0; index < results.occurrences().size(); index++) {
+      var occurrence = results.occurrences().get(index);
+      // 每一步均从磁盘制品创建独立 reader，不依赖前一次投影对象保存随机句柄。
+      var relations =
+          new SessionContentReader(NormalizedArtifactLoader.open(artifact), 1)
+              .localResultRelations(occurrence.occurrenceId(), 0, 20, null);
+      assertThat(relations.coverage()).isEqualTo("complete");
+      if (index == 2) {
+        assertThat(relations.targets()).isEmpty();
+      } else {
+        assertThat(relations.targets()).hasSize(1);
+        var target = relations.targets().getFirst();
+        assertThat(target.callId()).isEqualTo(calls.get(index + 1).callId());
+        var input =
+            new SessionContentReader(NormalizedArtifactLoader.open(artifact), 1)
+                .localResults(
+                    target.requestPayloadId(), 0, 20, target.target(), PayloadVisibility.FULL);
+        assertThat(input.references())
+            .singleElement()
+            .satisfies(
+                reference -> {
+                  assertThat(reference.referenceId()).isEqualTo(target.referenceId());
+                  assertThat(reference.occurrenceId()).isEqualTo(occurrence.occurrenceId());
+                  assertThat(reference.content()).isEqualTo(occurrence.content());
+                });
+      }
+    }
+  }
+
   static SourceAdapter writeSource(String agent, Path root) throws Exception {
     return switch (agent) {
       case "claude_code" -> {
@@ -234,11 +404,11 @@ class ScannedSessionContentContractTest {
             root.resolve("sessions/2026/09/06/rollout-100-" + SESSION_ID + ".jsonl"),
             agent.equals("codex")
                 ? """
-            {"type":"session_meta","timestamp":"2026-09-06T10:00:00Z","payload":{"id":"%s","cwd":"/synthetic"}}
-            {"type":"response_item","timestamp":"2026-09-06T10:00:00Z","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"%s"}]}}
-            {"type":"response_item","timestamp":"2026-09-06T10:00:01Z","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"%s"}]}}
-            {"type":"event_msg","timestamp":"2026-09-06T10:00:02Z","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":10,"output_tokens":5,"total_tokens":15},"last_token_usage":{"input_tokens":10,"output_tokens":5,"total_tokens":15}}}}
-            """
+                {"type":"session_meta","timestamp":"2026-09-06T10:00:00Z","payload":{"id":"%s","cwd":"/synthetic"}}
+                {"type":"response_item","timestamp":"2026-09-06T10:00:00Z","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"%s"}]}}
+                {"type":"response_item","timestamp":"2026-09-06T10:00:01Z","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"%s"}]}}
+                {"type":"event_msg","timestamp":"2026-09-06T10:00:02Z","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":10,"output_tokens":5,"total_tokens":15},"last_token_usage":{"input_tokens":10,"output_tokens":5,"total_tokens":15}}}}
+                """
                     .formatted(SESSION_ID, PROMPT, ANSWER)
                 : codexEventTranscript(agent));
         yield new CodexSourceAdapter();
@@ -260,24 +430,24 @@ class ScannedSessionContentContractTest {
   private static String codexEventTranscript(String scenario) {
     if (scenario.equals("codex_tools")) {
       return """
-          {"type":"session_meta","timestamp":"2026-11-05T10:00:00Z","payload":{"id":"%s","cwd":"/synthetic"}}
-          {"type":"turn_context","payload":{"model":"synthetic-model"}}
-          {"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"%s"}]}}
-          {"type":"response_item","payload":{"type":"function_call","id":"item-a","call_id":"tool-a","name":"Read","arguments":{"file_path":"/synthetic/alpha.txt"}}}
-          {"type":"response_item","payload":{"type":"function_call","id":"item-b","call_id":"tool-b","name":"Read","arguments":"{\\\"file_path\\\":\\\"/synthetic/beta.txt\\\"}"}}
-          {"type":"response_item","payload":{"type":"function_call_output","call_id":"tool-b","output":"synthetic beta result"}}
-          {"type":"response_item","payload":{"type":"function_call_output","call_id":"tool-a","output":"synthetic alpha result"}}
-          {"type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"%s"}]}}
-          {"type":"event_msg","timestamp":"2026-11-05T10:00:09Z","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":10,"cached_input_tokens":0,"cache_creation_input_tokens":0,"output_tokens":5,"total_tokens":15}}}}
-          """
+      {"type":"session_meta","timestamp":"2026-11-05T10:00:00Z","payload":{"id":"%s","cwd":"/synthetic"}}
+      {"type":"turn_context","payload":{"model":"synthetic-model"}}
+      {"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"%s"}]}}
+      {"type":"response_item","payload":{"type":"function_call","id":"item-a","call_id":"tool-a","name":"Read","arguments":{"file_path":"/synthetic/alpha.txt"}}}
+      {"type":"response_item","payload":{"type":"function_call","id":"item-b","call_id":"tool-b","name":"Read","arguments":"{\\\"file_path\\\":\\\"/synthetic/beta.txt\\\"}"}}
+      {"type":"response_item","payload":{"type":"function_call_output","call_id":"tool-b","output":"synthetic beta result"}}
+      {"type":"response_item","payload":{"type":"function_call_output","call_id":"tool-a","output":"synthetic alpha result"}}
+      {"type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"%s"}]}}
+      {"type":"event_msg","timestamp":"2026-11-05T10:00:09Z","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":10,"cached_input_tokens":0,"cache_creation_input_tokens":0,"output_tokens":5,"total_tokens":15}}}}
+      """
           .formatted(SESSION_ID, PROMPT, ANSWER);
     }
     if (scenario.equals("codex_response_only")) {
       return """
-          {"type":"session_meta","timestamp":"2026-11-05T10:00:00Z","payload":{"id":"%s","cwd":"/synthetic"}}
-          {"type":"response_item","timestamp":"2026-11-05T10:00:01Z","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"%s"}]}}
-          {"type":"response_item","timestamp":"2026-11-05T10:00:02Z","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"%s"}]}}
-          """
+      {"type":"session_meta","timestamp":"2026-11-05T10:00:00Z","payload":{"id":"%s","cwd":"/synthetic"}}
+      {"type":"response_item","timestamp":"2026-11-05T10:00:01Z","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"%s"}]}}
+      {"type":"response_item","timestamp":"2026-11-05T10:00:02Z","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"%s"}]}}
+      """
           .formatted(SESSION_ID, PROMPT, ANSWER);
     }
     String events =
@@ -291,22 +461,22 @@ class ScannedSessionContentContractTest {
     String tail =
         scenario.equals("codex_multiturn")
             ? """
-        {"type":"event_msg","timestamp":"2026-11-05T10:00:04Z","payload":{"type":"user_message","message":"%s second"}}
-        {"type":"event_msg","timestamp":"2026-11-05T10:00:05Z","payload":{"type":"agent_message","message":"%s second"}}
-        """
+            {"type":"event_msg","timestamp":"2026-11-05T10:00:04Z","payload":{"type":"user_message","message":"%s second"}}
+            {"type":"event_msg","timestamp":"2026-11-05T10:00:05Z","payload":{"type":"agent_message","message":"%s second"}}
+            """
                 .formatted(PROMPT, ANSWER)
             : "";
     return events
         + switch (scenario) {
           case "codex_event_usage", "codex_multiturn" ->
               """
-          {"type":"event_msg","timestamp":"2026-11-05T10:00:03Z","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":10,"output_tokens":5,"total_tokens":15}}}}
-          """;
+              {"type":"event_msg","timestamp":"2026-11-05T10:00:03Z","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":10,"output_tokens":5,"total_tokens":15}}}}
+              """;
           case "codex_dual" ->
               """
-          {"type":"response_item","timestamp":"2026-11-05T10:00:01Z","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"%s"}]}}
-          {"type":"response_item","timestamp":"2026-11-05T10:00:02Z","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"%s"}]}}
-          """
+              {"type":"response_item","timestamp":"2026-11-05T10:00:01Z","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"%s"}]}}
+              {"type":"response_item","timestamp":"2026-11-05T10:00:02Z","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"%s"}]}}
+              """
                   .formatted(PROMPT, ANSWER);
           default -> "";
         }

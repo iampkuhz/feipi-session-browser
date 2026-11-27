@@ -52,7 +52,39 @@
         });
       });
     }
-    window.addEventListener('index-snapshot-restored', applyPublishedDeepLink);
+    var collaborationGeneration = null;
+    function refreshCollaborationSnapshot() {
+      if (typeof loadCollaborationPage !== 'function'
+          || document.body.getAttribute('data-session-api-hydrated') !== 'true'
+          || !document.body.hasAttribute('data-index-generation')
+          || document.querySelector('[data-snapshot-batch-error]')) return;
+      var generation = document.body.getAttribute('data-index-generation');
+      if (generation === collaborationGeneration) return;
+      if (collaborationGeneration !== null) invalidatePayloadNavigation();
+      collaborationView.epoch++;
+      invalidateCollaborationAttention();
+      collaborationView.returnFocus = null;
+      collaborationView.page = null;
+      collaborationView.labels.clear();
+      collaborationGeneration = generation;
+      collaborationView.selection = '';
+      collaborationView.view = 'delegations';
+      document.querySelector('[data-execution-collaboration-return]').hidden = true;
+      document.querySelector('[data-collaboration]').textContent = '正在读取当前快照的协作事实…';
+      document.querySelector('[data-collaboration-status]').textContent = '';
+      var retryCollaboration = function () {
+        var pending = loadCollaborationPage();
+        var epoch = collaborationView.epoch;
+        return pending.then(function () {
+          if (epoch === collaborationView.epoch) document.querySelector('[data-collaboration-status]').textContent = '';
+        }).catch(function (error) { if (epoch === collaborationView.epoch) showCollaborationError(error, retryCollaboration); });
+      };
+      retryCollaboration();
+    }
+    window.addEventListener('index-snapshot-restored', function () {
+      applyPublishedDeepLink();
+      refreshCollaborationSnapshot();
+    });
     hydrateSessionDetailApis.ready = snapshot.load(Object.keys(resources).map(function (name) {
       return {
         key: name,
@@ -82,7 +114,10 @@
           document.body.setAttribute('data-session-api-' + name + '-state', 'false');
           updateHydrated();
           showSessionResourceError(name, err, function () {
-            return Promise.resolve(retry()).then(applyPublishedDeepLink);
+            return Promise.resolve(retry()).then(function () {
+              applyPublishedDeepLink();
+              refreshCollaborationSnapshot();
+            });
           });
         }
       };
@@ -91,6 +126,7 @@
       if (document.querySelector('[data-snapshot-batch-error]')) return;
       openReadingDetails(new URLSearchParams(location.search));
       applyPublishedDeepLink();
+      refreshCollaborationSnapshot();
       if (recovery?.kind === 'first-question') {
         var first = qs(document, '[data-session-first-question] [data-action="open-payload"]');
         if (first && first.getClientRects().length) first.click();
@@ -126,7 +162,9 @@
         window.history.replaceState({ ...window.history.state, sessionSnapshotRecovery: state }, '', target);
         window.location.reload();
       }
-      return new Error('Index changed; refresh the page before continuing');
+      var error = new Error('Index changed; refresh the page before continuing');
+      error.httpStatus = 409;
+      return error;
     }
     function generation() { return document.body.getAttribute('data-index-generation'); }
     // A first click (or an initial deep link) can happen before the coordinator is started.
@@ -146,7 +184,9 @@
         // An unheaded HTTP error is not evidence of a new index.
         if (!response.ok) {
           return response.json().catch(function () { return {}; }).then(function (data) {
-            throw new Error('HTTP ' + response.status + (data.message ? ': ' + data.message : ''));
+            var error = new Error('HTTP ' + response.status + (data.message ? ': ' + data.message : ''));
+            error.httpStatus = response.status;
+            throw error;
           });
         }
         if (stamped && !actual) throw new Error('索引校验信息缺失，请重试；持续失败时刷新页面');
@@ -380,7 +420,10 @@
   }
 
   function applySessionMetrics(metrics) {
-    if (!metrics || !metrics.tokens) return;
+    if (!metrics || !metrics.tokens) {
+      sessionDetailState.metrics = null;
+      return;
+    }
     sessionDetailState.metrics = metrics;
     var parity = metrics.parity || {};
     var hasContent = hasSessionContent();
@@ -406,11 +449,12 @@
       subline('工具失败', observed(parity.failedToolsAvailable === false ? null : parity.failedTools ?? metrics.failedTools))
     ]);
     setKpi('Source Task Active', detailDuration(metrics.timing, 'activeTaskSeconds'), [
-      subline('会话总历时', detailDuration(metrics.timing, 'wallSeconds')),
-      subline('Agent 累计耗时', detailDuration(metrics.timing, 'agentTurnSeconds')),
-      subline('模型执行', detailDuration(metrics.timing, 'modelExecutionSeconds')),
-      subline('工具执行', detailDuration(metrics.timing, 'toolExecutionSeconds'))
+      subline('来源记录时间跨度', detailDuration(metrics.timing, 'wallSeconds')),
+      subline('主会话轮次累计', detailDuration(metrics.timing, 'agentTurnSeconds')),
+      subline('来源模型计时', detailDuration(metrics.timing, 'modelExecutionSeconds')),
+      subline('来源工具计时', detailDuration(metrics.timing, 'toolExecutionSeconds'))
     ]);
+    SessionTiming.applyDetail(qs(document, '[data-session-timing]'), metrics.timing);
     document.body.setAttribute('data-session-api-total-tokens', String(metrics.tokens.total || 0));
     document.body.setAttribute('data-session-api-failed-tools', String(metrics.failedTools || 0));
     if (sessionDetailState.diagnostics) applySessionDiagnostics(sessionDetailState.diagnostics);
