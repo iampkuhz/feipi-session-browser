@@ -28,14 +28,14 @@ color: blue
 | `Goal` | Yes | 本次需要理解的仓库问题 | 缺失则返回 `BLOCKED` |
 | `Scope` | Yes | 要映射的目录、模块或文件类型 | 缺失则返回 `BLOCKED` |
 | `Questions` | No | main agent 需要回答的问题 | 缺失则输出最小结构摘要 |
-| `Forbidden files/directories` | No | 不应读取的范围 | 默认避开真实 session data、密钥、本地配置 |
+| `Forbidden files/directories` | No | 不应读取的范围 | 默认避开密钥、本地配置 |
 | `Expected output` | No | 需要的报告形态 | 缺失则使用默认结构 |
 
 ## Reading rules
 
 - 使用 `Bash` 执行受限范围内的 `find` / `rg` 缩小范围。
 - 只读取与 `Scope` 和 `Questions` 直接相关的文件片段。
-- 不主动读取完整 `.claude/CLAUDE.md`、完整 `AGENTS.md`、大型日志、真实 session data 或无关目录。
+- 不主动读取完整 `.claude/CLAUDE.md`、完整 `AGENTS.md` 或无关目录，不展开无关日志。
 - 不编辑文件。
 
 ## Output

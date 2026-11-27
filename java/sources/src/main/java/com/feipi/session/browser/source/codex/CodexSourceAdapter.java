@@ -274,7 +274,7 @@ public final class CodexSourceAdapter implements SourceAdapter {
     try {
       var result = CodexMetadataProjection.read(new JsonlReader(), disc.rolloutPath());
       var range = CodexActivityRange.create(result.events(), result.diagnostics());
-      appendTokenProvenance(range, provenance);
+      appendTokenProvenance(disc.rolloutPath(), range, provenance);
       Map<String, String> parentMeta = readFirstSessionMeta(disc.rolloutPath());
       List<Path> children =
           childRolloutFiles(
@@ -288,6 +288,7 @@ public final class CodexSourceAdapter implements SourceAdapter {
           var childResult = CodexMetadataProjection.read(new JsonlReader(), child);
           try {
             appendTokenProvenance(
+                child,
                 CodexActivityRange.create(childResult.events(), childResult.diagnostics()),
                 provenance);
           } catch (CodexActivityRange.InvalidHistoryException e) {
@@ -304,9 +305,9 @@ public final class CodexSourceAdapter implements SourceAdapter {
   }
 
   private static void appendTokenProvenance(
-      CodexActivityRange range, CodexTokenProvenance provenance) {
+      Path path, CodexActivityRange range, CodexTokenProvenance provenance) {
     List<JsonNode> events = range.events();
-    CodexUsageSelection selection = new CodexUsageSelection(range);
+    CodexUsageSelection selection = new CodexUsageSelection(range, path, null);
     selection.usageIndices.forEach(
         index ->
             provenance.addProvenance(
@@ -325,7 +326,9 @@ public final class CodexSourceAdapter implements SourceAdapter {
     CodexTokenProvenance provenance = new CodexTokenProvenance();
     try (var batch = CodexEventBatch.read(new JsonlReader(), filePath)) {
       appendTokenProvenance(
-          CodexActivityRange.create(batch.events(), batch.result().diagnostics()), provenance);
+          filePath,
+          CodexActivityRange.create(batch.events(), batch.result().diagnostics()),
+          provenance);
     }
     return provenance.metadata();
   }
@@ -347,6 +350,7 @@ public final class CodexSourceAdapter implements SourceAdapter {
     private final Map<TokenTotals, Set<String>> mirrorTurns = new LinkedHashMap<>();
     private TokenTotals baseline = TokenTotals.zero();
     private boolean anchored;
+    private boolean forkCountersVerified;
     private boolean completeCounterCoverage = true;
     private TokenTotals legacyBaseline;
     private boolean legacyCovered;
@@ -354,7 +358,8 @@ public final class CodexSourceAdapter implements SourceAdapter {
     private int latestModernIndex = -1;
     private TokenTotals latestModernUsage = TokenTotals.zero();
 
-    private CodexUsageSelection(CodexActivityRange range) {
+    private CodexUsageSelection(
+        CodexActivityRange range, Path path, CancellationSignal cancellation) {
       List<JsonNode> events = range.events();
       Set<String> responseIds = new HashSet<>();
       for (int index = range.start(); index < events.size(); index++) {
@@ -381,6 +386,7 @@ public final class CodexSourceAdapter implements SourceAdapter {
       // 继承区有计量证据时，不知道新旧累计计数器是否相接；只保留新活动的显式响应 usage。
       if (range.inheritedUsage()) return;
       if (!modernEvents.isEmpty()) {
+        seedForkCounters(range, path, cancellation);
         selectLegacyEvents(events);
       } else {
         selectLegacyOnly(events);
@@ -388,6 +394,29 @@ public final class CodexSourceAdapter implements SourceAdapter {
     }
 
     private Map<String, String> baselineProvenance = CodexTokenProvenance.reportedZero();
+
+    /** 只在子首响应的累计差量精确吻合父级截止点时，采用父计数作为不计入子会话的基线。 */
+    private void seedForkCounters(
+        CodexActivityRange range, Path path, CancellationSignal cancellation) {
+      var first = modernEvents.entrySet().iterator().next();
+      var anchor = anchors.get(first.getKey());
+      if (anchor == null || anchor.sameComponents(first.getValue())) return;
+      var counters = CodexForkReadingEvidence.counters(path, range.ownSessionMeta(), cancellation);
+      if (counters.isEmpty()) return;
+      var modern = counters.getFirst();
+      var legacy = counters.getLast();
+      if (!CodexTokenProvenance.hasCompleteUsage(modern, true)) return;
+      var parent = usageTotals(modern, true);
+      if (!anchor.minus(first.getValue()).sameComponents(parent)
+          || !CodexTokenProvenance.hasLegacyMirrorUsage(
+              legacy, legacyIncludesCache(legacy), parent.cacheWrite() == 0)
+          || !parent.covers(legacyTotals(legacy))) return;
+      baseline = parent;
+      baselineProvenance = CodexTokenProvenance.forUsage(modern, true);
+      legacyBaseline = legacyTotals(legacy);
+      legacyCovered = true;
+      forkCountersVerified = true;
+    }
 
     private void selectLegacyOnly(List<JsonNode> events) {
       TokenTotals previous = TokenTotals.zero();
@@ -520,7 +549,10 @@ public final class CodexSourceAdapter implements SourceAdapter {
           && baseline.covers(total)
           && total.covers(legacyBaseline)
           && last != null
-          && CodexTokenProvenance.hasCompleteUsage(last, legacyIncludesCache(last))
+          && CodexTokenProvenance.hasLegacyMirrorUsage(
+              last,
+              legacyIncludesCache(last),
+              forkCountersVerified && latestModernUsage.cacheWrite() == 0)
           && legacyTotals(last).sameComponents(latestModernUsage)
           && total.minus(legacyBaseline).sameComponents(latestModernUsage);
     }
@@ -748,6 +780,9 @@ public final class CodexSourceAdapter implements SourceAdapter {
         String initialModel = metaModel == null || metaModel.isBlank() ? "" : metaModel;
         diagnostics.addAll(result.diagnostics());
         var range = CodexActivityRange.create(batch.events(), result.diagnostics());
+        if (CodexEmptySideChat.matches(batch)) {
+          return new SourceResult.Skipped(List.of(), "CODEX_EMPTY_SIDE_CHAT");
+        }
         List<JsonNode> events = range.events();
         Map<String, String> parentMeta = readFirstSessionMeta(filePath);
         List<Path> childRollouts =
@@ -923,7 +958,8 @@ public final class CodexSourceAdapter implements SourceAdapter {
       var sideTasks = new CodexSideTaskEvidence(range.verifiedSideChat());
       String locator = state.locator;
       CancellationSignal cancellation = state.cancellation;
-      CodexUsageSelection selection = new CodexUsageSelection(range);
+      CodexUsageSelection selection =
+          new CodexUsageSelection(range, Path.of(locator), cancellation);
       boolean hasResponseUsage = !selection.modernEvents.isEmpty();
       boolean hasTokenUsage =
           hasResponseUsage || events.stream().anyMatch(CodexSourceAdapter::hasCumulativeUsage);

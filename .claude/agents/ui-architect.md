@@ -37,7 +37,7 @@ color: cyan
 - 只读取 `UI scope` 与 `Allowed files/directories` 内的必要文件。
 - 输出实现约束，不改文件。
 - 不做 OpenSpec planning、QA-only verification 或代码实现。
-- 不主动读取真实 session logs、无关 harness 或无关 prompts。
+- 不主动读取无关 harness、prompts 或日志。
 
 ## Output
 

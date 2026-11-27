@@ -142,6 +142,7 @@ for (const [name, url, selector] of [
   test(`${name} uses the same synthetic estimated/partial semantics`, async ({ page }) => {
     const errors = [];
     page.on('pageerror', (error) => errors.push(error.message));
+    if (name === 'Dashboard') await page.clock.setFixedTime(new Date('2026-01-01T12:00:00Z'));
     await syntheticApis(page);
     await page.goto(url);
     const measurement = page.locator(selector).filter({ has: page.locator('[data-token-provenance]') }).first();
@@ -167,9 +168,9 @@ for (const [name, url, selector] of [
       await expect(cache.locator('.metric-card__secondary-value')).toHaveText(['N/A', 'N/A', 'N/A']);
       const tokenCard = page.locator('.metric-card--kpi').filter({ has: page.locator('.metric-card__label', { hasText: 'Total Tokens' }) });
       await expect(tokenCard.locator('.metric-card__secondary-value')).toHaveText(['≈9.0M', 'N/A', 'N/A', '≈500.0K']);
-      const paths = page.locator('#cache-health-chart path.line-series');
-      await expect(paths).toHaveCount(4);
-      expect(await paths.evaluateAll((lines) => lines.every((line) => line.getAttribute('d') === ''))).toBe(true);
+      const cacheChart = page.locator('#cache-health-chart');
+      await expect(cacheChart.getByRole('status')).toHaveText('该时间窗口内的记录缺少可用计量。');
+      await expect(cacheChart.locator('.x-axis, .y-axis, path.line-series')).toHaveCount(0);
     }
     if (name === 'Sessions' || name === 'Projects' || name === 'Project Detail') {
       await expect(page.locator('td.token-cell').first()).toContainText('≈9.5M');

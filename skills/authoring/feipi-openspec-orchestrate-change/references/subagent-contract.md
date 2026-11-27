@@ -19,3 +19,4 @@
 10. 重要实现、复杂分析和独立验证用 `gpt-6.2-sol`，轻量定位用 `gpt-6-luna`；遵守宿主 API 模型/上下文限制，
     模型覆盖要求 `fork_turns="none"` 时显式提供必要上下文。保持当前环境权限，受限时如实报告，由 main 接管或调整范围。
 11. 旧 Qoder PASS 不可作为原生验收证据；旧 callback 仅识别为已退役，不重新执行旧链。产品 Qoder session 和安全保护保留。
+12. 委派本机真实 session 复核时，在 allowed scope 只授予必要的只读范围，提供安全样例引用；证据输出遵守[原文核对规则](../../feipi-privacy-redaction-dev/references/redaction-policy.md#本机原文核对)。

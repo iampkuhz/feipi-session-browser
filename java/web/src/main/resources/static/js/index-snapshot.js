@@ -12,6 +12,13 @@
       var currentJobs = [];
       var hiddenRegions = null;
       var batchAlert = null;
+      var retryTail = Promise.resolve();
+      function enqueueRetry(retry) {
+        // 一个快照只允许一个在途重试；否则后一次的 ticket 会丢弃前一次的有效响应。
+        var pending = retryTail.then(retry);
+        retryTail = pending.catch(function () {});
+        return pending;
+      }
       function quarantine(error, reloadDocument) {
         documentRecovery = documentRecovery || !!reloadDocument;
         if (!hiddenRegions) {
@@ -53,7 +60,8 @@
         var previous = Array.from(document.querySelectorAll('[data-snapshot-error]')).find(function (node) { return node.getAttribute('data-snapshot-error') === key; });
         if (previous) previous.remove();
         if (!error) return;
-        if (job.error) { job.error(error, retry); return; }
+        var retryJob = function () { return enqueueRetry(retry); };
+        if (job.error) { job.error(error, retryJob); return; }
         var node = document.createElement('div');
         node.setAttribute('data-snapshot-error', key);
         node.setAttribute('role', 'alert');
@@ -62,7 +70,7 @@
         button.type = 'button';
         button.className = 'btn';
         button.textContent = 'Retry';
-        button.addEventListener('click', function () { button.disabled = true; Promise.resolve(retry()).finally(function () { button.disabled = false; }); });
+        button.addEventListener('click', function () { button.disabled = true; retryJob().finally(function () { button.disabled = false; }); });
         node.appendChild(button);
         (document.querySelector('main') || document.body).prepend(node);
       }
@@ -74,7 +82,10 @@
           if (response.status === 409 || (expected && stamp && expected !== stamp)) return { changed: true, generation: stamp };
           if (!response.ok) return { error: new Error('HTTP ' + response.status), generation: stamp };
           if (expected && !stamp) return { changed: true, generation: '' };
-          return response.json().then(function (data) { return { data: data, generation: stamp }; })
+          return response.json().then(function (data) {
+            if (job.validate) job.validate(data);
+            return { data: data, generation: stamp };
+          })
             .catch(function (error) { return { error: error, generation: stamp }; });
         }).catch(function (error) { return { error: error, generation: '' }; });
       }

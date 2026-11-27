@@ -49,17 +49,25 @@ class CodexMetadataProjectionTest {
       var actual = new CodexTokenProvenance();
       var usage =
           CodexSourceAdapter.class.getDeclaredMethod(
-              "appendTokenProvenance", CodexActivityRange.class, CodexTokenProvenance.class);
+              "appendTokenProvenance",
+              Path.class,
+              CodexActivityRange.class,
+              CodexTokenProvenance.class);
       usage.setAccessible(true);
-      usage.invoke(null, rawRange, expected);
-      usage.invoke(null, projectedRange, actual);
+      Path path = directory.resolve("synthetic-projection.jsonl");
+      usage.invoke(null, path, rawRange, expected);
+      usage.invoke(null, path, projectedRange, actual);
       assertThat(actual.metadata()).isEqualTo(expected.metadata());
       Class<?> selection =
           Class.forName(CodexSourceAdapter.class.getName() + "$CodexUsageSelection");
-      var constructor = selection.getDeclaredConstructor(CodexActivityRange.class);
+      var constructor =
+          selection.getDeclaredConstructor(
+              CodexActivityRange.class,
+              Path.class,
+              com.feipi.session.browser.source.spi.SourceAdapter.CancellationSignal.class);
       constructor.setAccessible(true);
-      Object rawSelection = constructor.newInstance(rawRange);
-      Object projectedSelection = constructor.newInstance(projectedRange);
+      Object rawSelection = constructor.newInstance(rawRange, path, null);
+      Object projectedSelection = constructor.newInstance(projectedRange, path, null);
       for (String name :
           List.of("usageIndices", "resetEvents", "ambiguousEvents", "legacyDeltas")) {
         var field = selection.getDeclaredField(name);

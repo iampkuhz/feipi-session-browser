@@ -36,17 +36,20 @@
 
     /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Agent scope selector → URL reload ─────────────────────` */
 
-    function handleAgentScope(scope) {
+    function agentScopeUrl(scope) {
         var params = new URLSearchParams(window.location.search);
         if (scope === 'all') {
             params.delete('agent');
-            params.delete('page');
         } else {
             params.set('agent', scope);
-            params.delete('page');
         }
-        var url = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
-        window.location.href = url;
+        params.delete('page');
+        var query = params.toString();
+        return window.location.pathname + (query ? '?' + query : '');
+    }
+
+    function dashboardScope(agent) {
+        return agent === 'claude_code' ? 'claude-code' : agent;
     }
 
     /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Time grain control → URL reload ───────────────────────` */
@@ -62,6 +65,17 @@
 
     document.addEventListener('click', function (event) {
         var target = event.target;
+        if (target.closest && !event.defaultPrevented && event.button === 0
+            && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey
+            && !target.closest('a, button, details, input, select, textarea, label')
+            && !window.getSelection().toString()) {
+            var row = target.closest('tr[data-drilldown]');
+            var link = row && row.querySelector('a[data-drilldown-link]');
+            if (link) {
+                window.location.assign(link.href);
+                return;
+            }
+        }
         var button = target.closest ? target.closest('button, a[data-action]') : null;
         if (!button) {
             var el = target;
@@ -80,24 +94,12 @@
 
         if (action === 'agent-scope' && hasScope) {
             event.preventDefault();
-            handleAgentScope(button.getAttribute('data-scope'));
+            window.location.href = agentScopeUrl(button.getAttribute('data-scope'));
             return;
         }
         if (action === 'grain' && hasGrain) {
             event.preventDefault();
             handleGrain(button.getAttribute('data-grain'));
-            return;
-        }
-        if (action === 'switch-agent-scope' && hasScope) {
-            event.preventDefault();
-            handleAgentScope(button.getAttribute('data-scope'));
-            return;
-        }
-        if (action === 'go-sessions-agent-model') {
-            var agent = button.getAttribute('data-agent') || '';
-            var model = button.getAttribute('data-model') || '';
-            var url = '/sessions?agent=' + encodeURIComponent(agent) + '&model=' + encodeURIComponent(model);
-            window.location.href = url;
             return;
         }
         if (action === 'go-session') {
@@ -143,23 +145,20 @@
     /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Init ──────────────────────────────────────────────────` */
 
     _cacheElements();
-})();
 
-
-/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`* * dashboard-charts.js - Chart rendering for Dashboard. * Business data is hydrated from Dashboard resource APIs.` */
-(function() {
-    'use strict';
-
+    // Dashboard 图表与表格由同一批资源 API 填充。
     document.addEventListener('DOMContentLoaded', function() {
-        var rawData = [];
-        var promptRawData = [];
-        var cacheRawData = [];
-        var apiLoaded = false;
+        var trends = {
+            sessions: { rows: sessionTrendRows },
+            tokens: { rows: tokenTrendRows },
+            prompts: { rows: promptTrendRows },
+            'cache-health': { rows: cacheHealthRows }
+        };
 
         var AGENTS = [
-            { key: 'claude_code', scope: 'claude-code', label: 'Claude Code', countKey: 'claude_count', promptKey: 'claude_prompts', tokenKey: 'claude_tokens', dot: 'claude' },
-            { key: 'qoder', scope: 'qoder', label: 'Qoder', countKey: 'qoder_count', promptKey: 'qoder_prompts', tokenKey: 'qoder_tokens', dot: 'qoder' },
-            { key: 'codex', scope: 'codex', label: 'Codex', countKey: 'codex_count', promptKey: 'codex_prompts', tokenKey: 'codex_tokens', dot: 'codex' }
+            { key: 'claude_code', scope: 'claude-code', label: 'Claude Code', countKey: 'claude_count', promptKey: 'claude_prompts', dot: 'claude' },
+            { key: 'qoder', scope: 'qoder', label: 'Qoder', countKey: 'qoder_count', promptKey: 'qoder_prompts', dot: 'qoder' },
+            { key: 'codex', scope: 'codex', label: 'Codex', countKey: 'codex_count', promptKey: 'codex_prompts', dot: 'codex' }
         ];
         var TOKEN_LAYERS = [
             { key: 'fresh_input_tokens', token: 'fresh', cls: 'fresh', label: 'Fresh' },
@@ -206,8 +205,9 @@
                     map[key] = { date: dateFn ? dateFn(key) : key };
                     order.push(key);
                 }
+                if (d.observed) map[key].observed = true;
                 fields.forEach(function(f) {
-                    map[key][f] = (map[key][f] || 0) + (d[f] || 0);
+                    if (knownNumber(d[f])) map[key][f] = (map[key][f] || 0) + d[f];
                 });
                 Object.keys(d).forEach(function(f) {
                     if (f === 'provenance' || /_provenance$/.test(f)) {
@@ -217,7 +217,11 @@
                     }
                 });
             });
-            return order.sort().map(function(k) { return map[k]; });
+            return order.sort().map(function(k) {
+                var point = map[k];
+                if (!point.observed) fields.forEach(function(f) { point[f] = 0; });
+                return point;
+            });
         }
 
         function getGrain() {
@@ -253,21 +257,21 @@
             return { start: start.toISOString().substring(0, 10), end: today };
         }
 
-        function applyScope(data, fields) {
-            if (!apiLoaded && !data.length) return [];
+        function windowCohorts(data, fields) {
             var grain = getGrain();
             var window = calendarWindow();
             var now = Date.now();
             var dated = data.map(function(point) {
-                if (point.date && point.date.length > 10) {
+                if (typeof point.date === 'string' && point.date.length > 10) {
                     var instant = point.date;
                     if (!/(?:Z|[+-]\d{2}:\d{2})$/i.test(instant)) instant += 'Z';
                     if (Date.parse(instant) > now) return null;
                 }
                 var date = utcDateKey(point.date);
                 return date && date >= window.start && date <= window.end
-                    ? Object.assign({}, point, { date: date }) : null;
+                    ? Object.assign({}, point, { date: date, observed: true }) : null;
             }).filter(function(point) { return point !== null; });
+            if (!dated.length) return [];
             // 空日期只表示该日没有开始会话；不伪造 token/cache 测量来源。
             var present = {};
             dated.forEach(function(point) { present[point.date] = true; });
@@ -282,13 +286,18 @@
             return aggregateByKey(dated, fields, utcDateKey);
         }
 
-        function getTrendFields() {
+        function getSessionFields() {
+            return ['claude_count', 'codex_count', 'qoder_count', 'total_count', 'failed_tools'];
+        }
+
+        function getTokenFields() {
             return [
-                'claude_count', 'codex_count', 'qoder_count', 'total_count',
-                'claude_tokens', 'codex_tokens', 'qoder_tokens', 'total_tokens',
-                'fresh_input_tokens', 'cache_read_tokens', 'cache_write_tokens',
-                'output_tokens', 'tool_calls', 'failed_tools'
+                'total_tokens', 'fresh_input_tokens', 'cache_read_tokens', 'cache_write_tokens', 'output_tokens'
             ];
+        }
+
+        function knownNumber(value) {
+            return typeof value === 'number' && Number.isFinite(value) && value >= 0;
         }
 
         function getPromptFields() {
@@ -347,6 +356,10 @@
             return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
         }
 
+        function formatCount(n) {
+            return knownNumber(n) ? formatNumber(n) : 'N/A';
+        }
+
         function formatDuration(seconds) {
             var n = Math.max(0, Math.round(Number(seconds || 0)));
             if (n >= 3600) return Math.floor(n / 3600) + 'h ' + Math.floor((n % 3600) / 60) + 'm';
@@ -357,6 +370,10 @@
         function formatPct(n) {
             if (n == null || !isFinite(n)) return '';
             return n.toFixed(1) + '%';
+        }
+
+        function formatCacheRatio(value) {
+            return TokenProvenance.percent(value).replace(/^(\d+)%$/, '$1.0%');
         }
 
         function escapeHtml(value) {
@@ -456,9 +473,10 @@
         }
 
         function totalTokens(d) {
-            return (d.total_tokens || 0) || TOKEN_LAYERS.reduce(function(sum, layer) {
-                return sum + (d[layer.key] || 0);
-            }, 0);
+            if (knownNumber(d.total_tokens)) return d.total_tokens;
+            var values = TOKEN_LAYERS.map(function(layer) { return d[layer.key]; });
+            var total = values.filter(knownNumber).reduce(function(sum, value) { return sum + value; }, 0);
+            return total > 0 || values.every(knownNumber) ? total : null;
         }
 
         function inputSide(d, prefix) {
@@ -468,7 +486,7 @@
         }
 
         function cacheMetricKnown(d, prefix) {
-            return d[prefix + '_cache_metric_known'] === true
+            return d && d[prefix + '_cache_metric_known'] === true
                 && TokenProvenance.measuredInput({ provenance: d[prefix + '_provenance'] });
         }
 
@@ -477,23 +495,6 @@
             var input = inputSide(d, prefix);
             if (!input) return null;
             return (d[prefix + '_cache_read_tokens'] || 0) / input * 100;
-        }
-
-        function cacheCohorts() {
-            var sessions = new Map(rawData.map(function (d) { return [d.date, d]; }));
-            var series = { average: 'total_count', claude_code: 'claude_count', qoder: 'qoder_count', codex: 'codex_count' };
-            return applyScope(cacheRawData.map(function (point) {
-                var session = sessions.get(point.date);
-                if (!session || session.total_count == null) return point;
-                var result = Object.assign({}, point);
-                Object.keys(series).forEach(function (key) {
-                    // An absent agent has no cohort that can poison a measured weekly/monthly denominator.
-                    if (session[series[key]] !== 0 || inputSide(point, key) !== 0) return;
-                    delete result[key + '_provenance'];
-                    delete result[key + '_cache_metric_known'];
-                });
-                return result;
-            }), getCacheFields());
         }
 
         function linePath(data, maxVal, valueFn, xFn, yFn) {
@@ -539,13 +540,14 @@
         function buildSessionTooltip(label, d, rangeTotal, previous, activeScope) {
             var rows = [];
             AGENTS.forEach(function(agent) {
-                var value = d[agent.countKey] || 0;
+                var value = d[agent.countKey];
                 if (activeScope !== 'all' && !value) return;
-                rows.push(tooltipRow(agent.dot, agent.label, formatNumber(value), share(value, d.total_count || 0)));
+                rows.push(tooltipRow(agent.dot, agent.label, formatCount(value),
+                    knownNumber(value) ? share(value, d.total_count || 0) : ''));
             });
-            rows.push(tooltipRow('total', 'Total', formatNumber(d.total_count || 0), share(d.total_count || 0, rangeTotal), 'tooltip-row--total'));
-            var prevTotal = previous ? (previous.total_count || 0) : null;
-            var delta = prevTotal == null ? 'N/A' : ((d.total_count || 0) - prevTotal > 0 ? '+' : '') + formatNumber((d.total_count || 0) - prevTotal);
+            rows.push(tooltipRow('total', 'Total', formatCount(d.total_count), share(d.total_count || 0, rangeTotal), 'tooltip-row--total'));
+            var delta = previous && knownNumber(previous.total_count) && knownNumber(d.total_count)
+                ? (d.total_count > previous.total_count ? '+' : '') + formatNumber(d.total_count - previous.total_count) : 'N/A';
             rows.push(tooltipRow('total', 'Delta', delta, ''));
             return tooltipShell(label, rows);
         }
@@ -565,13 +567,14 @@
 
         function plottableTokenTotal(d) {
             var total = totalTokens(d);
-            return total > 0 || TokenProvenance.state(trendMeasurement(d)) === 'provider_reported'
-                || TokenProvenance.state(trendMeasurement(d)) === 'estimated' ? total : null;
+            var precision = TokenProvenance.state(trendMeasurement(d));
+            return total > 0 || (total === 0 && (precision === 'provider_reported' || precision === 'estimated')) ? total : null;
         }
 
-        function promptTotal(point, sessionCount) {
-            return point.total_prompts > 0 || point.user_message_sample_count > 0 || sessionCount === 0
-                ? point.total_prompts || 0 : null;
+        function promptTotal(point) {
+            if (!point.observed) return 0;
+            return knownNumber(point.total_prompts)
+                && (point.total_prompts > 0 || point.user_message_sample_count > 0) ? point.total_prompts : null;
         }
 
         function buildPromptTooltip(label, d, trendPoint) {
@@ -586,49 +589,43 @@
             var totalPrompts = activeScope === 'all'
                 ? (d.total_prompts || 0)
                 : (d[primaryAgent.promptKey] || d.total_prompts || 0);
-            var totalSessions = activeScope === 'all'
-                ? (trendPoint ? (trendPoint.total_count || 0) : 0)
-                : (trendPoint ? (trendPoint[primaryAgent.countKey] || trendPoint.total_count || 0) : 0);
+            var totalSessions = trendPoint && trendPoint.total_count;
             var average = measuredPromptAverage(d);
             var totalAverage = average === null ? 'N/A' : average.toFixed(1);
 
             rows.push(tooltipSection('User Prompts (bars)'));
             scopedAgents.forEach(function(agent) {
-                var prompts = d[agent.promptKey] || 0;
-                if (!prompts && activeScope !== 'all') return;
+                var prompts = d[agent.promptKey];
                 var samples = d[agent.key + '_user_message_sample_count'];
-                var starts = trendPoint && trendPoint[agent.countKey] || 0;
-                rows.push(tooltipRow(agent.dot, agent.label, !prompts && !samples && starts > 0 ? 'N/A' : formatNumber(prompts), share(prompts, totalPrompts)));
+                var starts = trendPoint && trendPoint[agent.countKey];
+                var measured = knownNumber(prompts) && (prompts > 0 || samples > 0 || starts === 0 || !d.observed);
+                rows.push(tooltipRow(agent.dot, agent.label, measured ? formatNumber(prompts) : 'N/A',
+                    measured ? share(prompts, totalPrompts) : ''));
             });
             rows.push(tooltipRow('total', 'Total User Prompts',
-                promptTotal(d, totalSessions) == null ? 'N/A' : formatNumber(totalPrompts), '', 'tooltip-row--total'));
+                promptTotal(d) == null ? 'N/A' : formatNumber(totalPrompts), '', 'tooltip-row--total'));
 
             rows.push(tooltipSection('Avg Prompts / Session (line)'));
             rows.push(tooltipLineRow('prompt-average', 'Overall', totalAverage,
-                '/ measured session · samples ' + formatNumber(d.user_message_sample_count) + ' / ' + formatNumber(totalSessions) + ' cohort'));
+                '/ measured session · samples ' + formatNumber(d.user_message_sample_count) + ' / ' + formatCount(totalSessions) + ' cohort'));
             if (activeScope === 'all') {
                 scopedAgents.forEach(function(agent) {
-                    var sessions = trendPoint ? (trendPoint[agent.countKey] || 0) : 0;
+                    var sessions = trendPoint && trendPoint[agent.countKey];
                     var agentAverage = measuredPromptAverage(d, agent.key + '_');
                     var perSession = agentAverage === null ? 'N/A' : agentAverage.toFixed(1);
                     rows.push(tooltipLineRow(agent.dot, agent.label, perSession,
                         '/ measured session · samples ' + formatNumber(d[agent.key + '_user_message_sample_count'])
-                        + ' / ' + formatNumber(sessions) + ' cohort'));
+                        + ' / ' + formatCount(sessions) + ' cohort'));
                 });
             }
 
             rows.push(tooltipSection('Auxiliary'));
-            rows.push(tooltipRow('total', 'Assistant Messages', formatNumber(d.assistant_turns || 0), ''));
-            rows.push(tooltipRow('total', 'Tool Calls', formatNumber(d.tool_calls || 0), ''));
+            rows.push(tooltipRow('total', 'Assistant Messages', formatCount(d.assistant_turns), ''));
+            rows.push(tooltipRow('total', 'Tool Calls', formatCount(d.tool_calls), ''));
             return tooltipShell(label, rows);
         }
 
-        function renderSessionChart() {
-            var container = document.getElementById('trend-chart');
-            if (!container) return;
-            var data = applyScope(rawData, getTrendFields());
-            if (!data.length) { setChartMarkup(container, '<p class="chart-empty">该时间窗口无数据。</p>'); return; }
-
+        function renderSessionChart(container, data) {
             var maxVal = Math.max.apply(null, data.map(function(d) { return d.total_count || 0; })) || 1;
             var rangeTotal = data.reduce(function(sum, d) { return sum + (d.total_count || 0); }, 0);
             var yHtml = yAxisHtml([maxVal, Math.round(2 / 3 * maxVal), Math.round(1 / 3 * maxVal), 0], formatNumber);
@@ -637,7 +634,7 @@
             var activeScope = getActiveScope();
             data.forEach(function(d, i) {
                 var dateStr = formatDisplayDate(d.date);
-                var pctH = (d.total_count / maxVal) * 100;
+                var pctH = ((d.total_count || 0) / maxVal) * 100;
                 var total = d.total_count || 1;
                 var tip = buildSessionTooltip(dateStr, d, rangeTotal, i > 0 ? data[i - 1] : null, activeScope);
                 var edge = edgeClass(i, data.length, 'bar');
@@ -653,14 +650,8 @@
                 xAxisHtml(data) + '</div>');
         }
 
-        function renderTokenChart() {
-            var container = document.getElementById('token-trend-chart');
-            if (!container) return;
-            var data = applyScope(rawData, getTrendFields());
-            if (!data.length) { setChartMarkup(container, '<p class="chart-empty">该时间窗口无数据。</p>'); return; }
-
+        function renderTokenChart(container, data) {
             var maxVal = Math.max.apply(null, data.map(totalTokens)) || 1;
-            if (!maxVal) { setChartMarkup(container, '<p class="chart-empty">该时间窗口无 token 数据。</p>'); return; }
             var rangeTotal = data.reduce(function(sum, d) { return sum + totalTokens(d); }, 0);
             var yHtml = yAxisHtml([maxVal, Math.round(2 / 3 * maxVal), Math.round(1 / 3 * maxVal), 0], formatTokens);
 
@@ -684,7 +675,8 @@
                 data.forEach(function(d, i) {
                     var value = d[layer.key] || 0;
                     var measurement = TokenProvenance.state(trendMeasurement(d), layer.token);
-                    if (plottableTokenTotal(d) == null || (!value && !['provider_reported', 'estimated'].includes(measurement))) {
+                    if (plottableTokenTotal(d) == null || !knownNumber(d[layer.key])
+                        || (!value && !['provider_reported', 'estimated'].includes(measurement))) {
                         closeArea();
                         return;
                     }
@@ -711,7 +703,7 @@
             });
 
             var legend = TOKEN_LAYERS.map(function(layer) {
-                var value = data.reduce(function(sum, d) { return sum + (d[layer.key] || 0); }, 0);
+                var value = observedSum(data, function(d) { return d[layer.key]; });
                 var p = data.reduce(function(previous, d) { return d.provenance ? TokenProvenance.merge(previous, d.provenance) : previous; }, null);
                 var tokens = { provenance: p };
                 tokens[layer.token] = value;
@@ -725,13 +717,7 @@
             TokenProvenance.bindTooltips(container);
         }
 
-        function renderPromptChart() {
-            var container = document.getElementById('prompt-activity-chart');
-            if (!container) return;
-            var data = applyScope(promptRawData, getPromptFields());
-            var trendData = applyScope(rawData, getTrendFields());
-            if (!data.length) { setChartMarkup(container, '<p class="chart-empty">该时间窗口无数据。</p>'); return; }
-
+        function renderPromptChart(container, data, trendData) {
             var trendByDate = {};
             trendData.forEach(function(d) { trendByDate[d.date] = d; });
             var maxVal = Math.max.apply(null, data.map(function(d) { return d.total_prompts || 0; })) || 1;
@@ -747,7 +733,7 @@
             var bars = '';
             data.forEach(function(d, i) {
                 var dateStr = formatDisplayDate(d.date);
-                var pctH = (d.total_prompts / maxVal) * 100;
+                var pctH = ((d.total_prompts || 0) / maxVal) * 100;
                 var total = d.total_prompts || 1;
                 var tip = buildPromptTooltip(dateStr, d, trendByDate[d.date]);
                 var edge = edgeClass(i, data.length, 'bar');
@@ -781,7 +767,7 @@
                 { prefix: 'codex', label: 'Codex', line: 'codex' }
             ].forEach(function(item) {
                 var ratio = cacheRatio(d, item.prefix);
-                rows.push(tooltipLineRow(item.line, item.label, ratio == null ? 'N/A' : ratio.toFixed(1) + '%', item.prefix === highlightPrefix ? 'selected' : ''));
+                rows.push(tooltipLineRow(item.line, item.label, formatCacheRatio(ratio), item.prefix === highlightPrefix ? 'selected' : ''));
             });
             var input = inputSide(d, highlightPrefix);
             if (!cacheMetricKnown(d, highlightPrefix)) {
@@ -827,21 +813,17 @@
             return (Math.abs(v - Math.round(v)) < 0.05 ? Math.round(v) : v.toFixed(1)) + '%';
         }
 
-        function renderCacheHealthChart() {
-            var container = document.getElementById('cache-health-chart');
-            if (!container) return;
-            var data = cacheCohorts();
-            if (!data.length) { setChartMarkup(container, '<p class="chart-empty">该时间窗口无数据。</p>'); return; }
-
-            var activeScope = getActiveScope();
-            var highlightPrefix = scopeToAgentKey(activeScope);
+        function cacheSeries(highlightPrefix) {
             var specs = [
                 { prefix: 'average', label: 'Average' },
                 { prefix: 'claude_code', label: 'Claude Code' },
                 { prefix: 'qoder', label: 'Qoder' },
                 { prefix: 'codex', label: 'Codex' }
             ];
-            if (activeScope !== 'all') specs = specs.filter(function(spec) { return spec.prefix === highlightPrefix; });
+            return highlightPrefix === 'average' ? specs : specs.filter(function(spec) { return spec.prefix === highlightPrefix; });
+        }
+
+        function renderCacheHealthChart(container, data, highlightPrefix, specs) {
             var domain = cacheAxisDomain(data, specs);
             var cacheY = function(value) { return yPctRange(value, domain.min, domain.max, 5); };
             var yHtml = yAxisHtml(domain.ticks, formatCacheTick);
@@ -890,6 +872,42 @@
 
         var dashboardSnapshot = window.IndexSnapshot.create();
         var dashboardParts = [];
+        var renderQueued = false;
+
+        function scheduleRender() {
+            if (renderQueued) return;
+            renderQueued = true;
+            queueMicrotask(function () {
+                renderQueued = false;
+                renderAll();
+            });
+        }
+
+        function trendJob(key, url) {
+            var trend = trends[key];
+            return {
+                key: 'dashboard/trends/' + key,
+                url: url,
+                validate: function (part) {
+                    if (!part || !Array.isArray(part.points) || part.points.some(function (point) {
+                        return !point || typeof point !== 'object' || Array.isArray(point);
+                    })) {
+                        throw new Error('Invalid trend response');
+                    }
+                },
+                apply: function (part) {
+                    trend.data = trend.rows(part);
+                    trend.failure = null;
+                    scheduleRender();
+                },
+                error: function (error, retry) {
+                    trend.data = undefined;
+                    trend.failure = { message: error.message, retry: retry };
+                    scheduleRender();
+                }
+            };
+        }
+
         function loadDashboardApiData() {
             if (!window.fetch) return Promise.resolve(null);
             var params = currentApiParams();
@@ -897,16 +915,14 @@
             var paths = ['summary', 'trends/sessions', 'trends/tokens', 'trends/prompts', 'trends/cache-health', 'agents/contribution', 'agents/efficiency',
                 'agents/' + encodeURIComponent(activeScope === 'all' ? 'claude-code' : activeScope) + '/deep-dive'];
             return dashboardSnapshot.load(paths.map(function (path, index) {
-                return { key: 'dashboard/' + path, url: '/api/dashboard/' + path + '?' + params.toString(), apply: function (part) {
+                var url = '/api/dashboard/' + path + '?' + params.toString();
+                if (path.indexOf('trends/') === 0) return trendJob(path.slice(7), url);
+                return { key: 'dashboard/' + path, url: url, apply: function (part) {
                     dashboardParts[index] = part;
                     if (index === 0) updateDashboardSummary(part);
-                    if (index === 1 || index === 2) rawData = mergeSessionTokenTrends(dashboardParts[1], dashboardParts[2]);
-                    if (index === 3) promptRawData = promptTrendRows(part);
-                    if (index === 4) cacheRawData = cacheHealthRows(part);
                     if (index === 5) updateAgentContribution(part);
                     if (index === 6 || index === 7) updateAgentEfficiency(dashboardParts[6], dashboardParts[7]);
-                    apiLoaded = true;
-                    renderAll();
+                    scheduleRender();
                 } };
             }));
         }
@@ -1001,43 +1017,38 @@
             }
         }
 
-        function mergeSessionTokenTrends(sessionResp, tokenResp) {
-            var byDate = {};
-            (sessionResp && sessionResp.points || []).forEach(function(point) {
-                byDate[point.date] = byDate[point.date] || { date: point.date };
-                byDate[point.date].total_count = point.totalCount || 0;
-                byDate[point.date].claude_count = point.claudeCount || 0;
-                byDate[point.date].codex_count = point.codexCount || 0;
-                byDate[point.date].qoder_count = point.qoderCount || 0;
-                byDate[point.date].tool_calls = point.toolCalls || 0;
-                byDate[point.date].failed_tools = point.failedTools || 0;
+        function sessionTrendRows(resp) {
+            return (resp && resp.points || []).map(function(point) {
+                return {
+                    date: point.date, total_count: point.totalCount, claude_count: point.claudeCount,
+                    codex_count: point.codexCount, qoder_count: point.qoderCount,
+                    failed_tools: point.failedTools
+                };
             });
-            (tokenResp && tokenResp.points || []).forEach(function(point) {
-                byDate[point.date] = byDate[point.date] || { date: point.date };
+        }
+
+        function tokenTrendRows(resp) {
+            return (resp && resp.points || []).map(function(point) {
                 var tokens = point.tokens || {};
-                byDate[point.date].provenance = tokens.provenance || {};
-                byDate[point.date].fresh_input_tokens = tokens.fresh || 0;
-                byDate[point.date].cache_read_tokens = tokens.cacheRead || 0;
-                byDate[point.date].cache_write_tokens = tokens.cacheWrite || 0;
-                byDate[point.date].output_tokens = tokens.output || 0;
-                byDate[point.date].total_tokens = tokens.total || 0;
-                byDate[point.date].claude_tokens = point.claudeTokens || 0;
-                byDate[point.date].codex_tokens = point.codexTokens || 0;
-                byDate[point.date].qoder_tokens = point.qoderTokens || 0;
+                return {
+                    date: point.date, provenance: tokens.provenance,
+                    fresh_input_tokens: tokens.fresh, cache_read_tokens: tokens.cacheRead,
+                    cache_write_tokens: tokens.cacheWrite, output_tokens: tokens.output,
+                    total_tokens: tokens.total
+                };
             });
-            return Object.keys(byDate).sort().map(function(key) { return byDate[key]; });
         }
 
         function promptTrendRows(resp) {
             return (resp && resp.points || []).map(function(point) {
                 var row = {
                     date: point.date,
-                    claude_prompts: point.claudePrompts || 0,
-                    codex_prompts: point.codexPrompts || 0,
-                    qoder_prompts: point.qoderPrompts || 0,
-                    total_prompts: point.totalPrompts || 0,
-                    assistant_turns: point.assistantTurns || 0,
-                    tool_calls: point.toolCalls || 0
+                    claude_prompts: point.claudePrompts,
+                    codex_prompts: point.codexPrompts,
+                    qoder_prompts: point.qoderPrompts,
+                    total_prompts: point.totalPrompts,
+                    assistant_turns: point.assistantTurns,
+                    tool_calls: point.toolCalls
                 };
                 [['', ''], ['claude_code_', 'claude'], ['codex_', 'codex'], ['qoder_', 'qoder']].forEach(function(pair) {
                     var apiPrefix = pair[1];
@@ -1065,81 +1076,86 @@
         }
 
         function copyCacheTuple(target, prefix, tuple) {
-            tuple = tuple || {};
-            target[prefix + '_fresh_input_tokens'] = tuple.fresh || 0;
-            target[prefix + '_cache_read_tokens'] = tuple.cacheRead || 0;
-            target[prefix + '_cache_write_tokens'] = tuple.cacheWrite || 0;
-            target[prefix + '_provenance'] = tuple.provenance || tuple.ratio && tuple.ratio.provenance || {};
-            target[prefix + '_cache_metric_known'] = TokenProvenance.measuredInput({ provenance: target[prefix + '_provenance'] })
+            if (!tuple) return;
+            var p = tuple.provenance || tuple.ratio && tuple.ratio.provenance || {};
+            var values = [tuple.fresh, tuple.cacheRead, tuple.cacheWrite];
+            // CacheInputDto's empty agent placeholder is not a missing measurement from a real cohort.
+            if (values.every(function(value) { return value === 0; }) && p.estimationMethod === ''
+                && ['freshInput', 'cacheRead', 'cacheWrite', 'output'].every(function(key) { return p[key] === 'unknown'; })
+                && ['unknownSessionCount', 'estimatedSessionCount', 'unavailableSessionCount'].every(function(key) { return p[key] === 0; })) return;
+            target[prefix + '_fresh_input_tokens'] = tuple.fresh;
+            target[prefix + '_cache_read_tokens'] = tuple.cacheRead;
+            target[prefix + '_cache_write_tokens'] = tuple.cacheWrite;
+            target[prefix + '_provenance'] = p;
+            target[prefix + '_cache_metric_known'] = values.every(knownNumber)
+                && TokenProvenance.measuredInput({ provenance: target[prefix + '_provenance'] })
                 && (Boolean(tuple.ratio && tuple.ratio.value != null) || inputSide(target, prefix) === 0);
         }
 
-        function updateChartStats() {
-            if (!apiLoaded) return;
-            var cohort = applyScope(rawData, getTrendFields());
-            var promptCohort = applyScope(promptRawData, getPromptFields());
-            var latestSession = cohort.length ? cohort[cohort.length - 1] : null;
-            var latestPrompt = promptCohort.length ? promptCohort[promptCohort.length - 1] : null;
-            var rangeTokens = cohort.reduce(function(total, point) {
-                total.total += totalTokens(point);
+        function observedSum(points, value) {
+            return points.reduce(function(sum, point) {
+                var amount = point.observed ? value(point) : null;
+                return knownNumber(amount) ? (sum || 0) + amount : sum;
+            }, null);
+        }
+
+        function updateChartStats(sessions, tokens, prompts, caches, prefix) {
+            var latestSession = sessions[sessions.length - 1];
+            var latestToken = tokens[tokens.length - 1];
+            var latestPrompt = prompts[prompts.length - 1];
+            var latestCache = caches[caches.length - 1];
+            var rangeTokens = tokens.reduce(function(total, point) {
                 if (point.provenance) total.provenance = TokenProvenance.merge(total.provenance, point.provenance);
                 return total;
-            }, { total: 0, provenance: null });
-            setStatText('latest-sessions', 'Latest: ' + (latestSession
-                ? formatNumber(latestSession.total_count)
-                : 'N/A'));
-            setStatText('latest-tokens', 'Latest: ' + (latestSession
-                ? TokenProvenance.amount(trendMeasurement(latestSession), 'total', formatTokens)
-                : 'N/A'));
-            setStatText('latest-prompts', 'Latest: ' + (latestPrompt
-                ? (promptTotal(latestPrompt, latestSession && latestSession.total_count || 0) == null ? 'N/A' : formatNumber(latestPrompt.total_prompts))
-                : 'N/A'));
-            setStatText('range-total-sessions', 'Range total: ' + formatNumber(cohort.reduce(function(sum, point) { return sum + (point.total_count || 0); }, 0)));
-            setStatText('range-total-tokens', 'Range total: ' + TokenProvenance.amount(rangeTokens, 'total', formatTokens));
+            }, { total: observedSum(tokens, plottableTokenTotal), provenance: null });
+            var sessionTotal = function(point) { return point.total_count; };
+            setTrendStat('sessions', 'latest-sessions', 'Latest', formatCount(latestSession && latestSession.total_count));
+            setTrendStat('sessions', 'range-total-sessions', 'Range total', formatCount(observedSum(sessions, sessionTotal)));
+            setTrendStat('tokens', 'latest-tokens', 'Latest', latestToken
+                ? TokenProvenance.amount(trendMeasurement(latestToken), 'total', formatTokens) : 'N/A');
+            setTrendStat('tokens', 'range-total-tokens', 'Range total', TokenProvenance.amount(rangeTokens, 'total', formatTokens));
+            setTrendStat('prompts', 'latest-prompts', 'Latest', formatCount(latestPrompt && promptTotal(latestPrompt)));
+            setTrendStat('prompts', 'range-total-prompts', 'Range total', formatCount(observedSum(prompts, promptTotal)));
             var tokenChart = document.getElementById('token-trend-chart');
             TokenProvenance.attach(tokenChart && tokenChart.parentElement, rangeTokens);
-            var cacheCohort = cacheCohorts();
-            var prefix = scopeToAgentKey(getActiveScope());
-            var latestCache = cacheCohort[cacheCohort.length - 1];
-            var latestRatio = latestCache ? cacheRatio(latestCache, prefix) : null;
-            var ratios = cacheCohort.map(function(point) { return cacheRatio(point, prefix); })
+            var latestRatio = cacheRatio(latestCache, prefix);
+            var ratios = caches.map(function(point) { return cacheRatio(point, prefix); })
                 .filter(function(value) { return value !== null; });
             var cacheChart = document.getElementById('cache-health-chart');
             TokenProvenance.attach(cacheChart && cacheChart.parentElement,
                 { provenance: latestCache && latestCache[prefix + '_provenance'] });
-            setStatText('range-total-prompts', 'Range total: ' + formatNumber(promptCohort.reduce(function(sum, point) { return sum + (point.total_prompts || 0); }, 0)));
-            setStatText('latest-ratio', 'Latest ratio: ' + (latestRatio === null ? 'N/A' : formatPct(latestRatio)));
-            setStatText('lowest-ratio', 'Lowest ratio: ' + (ratios.length ? formatPct(Math.min.apply(null, ratios)) : 'N/A'));
+            setTrendStat('cache-health', 'latest-ratio', 'Latest ratio', formatCacheRatio(latestRatio));
+            setTrendStat('cache-health', 'lowest-ratio', 'Lowest ratio', formatCacheRatio(ratios.length ? Math.min.apply(null, ratios) : null));
             var evidence = document.querySelector('[data-trend-first-evidence]');
-            if (evidence && [1, 2, 3, 4].every(function(index) { return dashboardParts[index]; })) {
-                var sessions = new Map(cohort.map(function(point) { return [point.date, point.total_count]; }));
-                function first(points, predicate) {
-                    var match = points.find(predicate);
-                    return match ? match.date : '窗口内无证据';
-                }
-                evidence.textContent = '窗口内首个有数据的桶：Session ' + first(cohort, function(p) { return p.total_count > 0; })
-                    + ' · Prompt ' + first(promptCohort, function(p) { return sessions.get(p.date) > 0 && promptTotal(p, sessions.get(p.date)) != null; })
-                    + ' · Token ' + first(cohort, function(p) { return plottableTokenTotal(p) != null; })
-                    + ' · Cache ' + first(cacheCohort, function(p) { return cacheRatio(p, prefix) != null; });
+            function first(key, points, value) {
+                var trend = trends[key];
+                if (trendLoading(trend)) return '加载中';
+                if (trend.failure) return '加载失败';
+                var match = points.find(function(point) { return point.observed && knownNumber(value(point)); });
+                return match ? match.date : '窗口内无证据';
             }
+            if (evidence) evidence.textContent = '窗口内首个有数据的桶：Session ' + first('sessions', sessions, sessionTotal)
+                + ' · Prompt ' + first('prompts', prompts, promptTotal)
+                + ' · Token ' + first('tokens', tokens, plottableTokenTotal)
+                + ' · Cache ' + first('cache-health', caches, function(point) { return cacheRatio(point, prefix); });
             var window = calendarWindow();
             document.querySelectorAll('[data-stat]').forEach(function(el) {
                 el.setAttribute('aria-description', 'UTC session-start cohort ' + window.start + ' — ' + window.end
                     + '; ' + getGrain() + ' buckets; 当前桶未完成。Lowest ratio 仅比较窗口内可计算桶。');
             });
-            updateCohortBadges(cohort, promptCohort, cacheCohort, prefix);
+            updateCohortBadges(sessions, tokens, prompts, caches, prefix);
         }
 
-        function updateCohortBadges(cohort, prompts, caches, prefix) {
-            var latest = cohort[cohort.length - 1];
-            var previous = cohort[cohort.length - 2];
+        function updateCohortBadges(sessions, tokens, prompts, caches, prefix) {
+            var latest = sessions[sessions.length - 1] || {};
+            var previous = sessions[sessions.length - 2] || {};
+            var latestToken = tokens[tokens.length - 1];
+            var previousToken = tokens[tokens.length - 2];
             var latestPrompt = prompts[prompts.length - 1];
             var previousPrompt = prompts[prompts.length - 2];
             var latestCache = caches[caches.length - 1];
             var previousCache = caches[caches.length - 2];
-            if (!latest || !previous) return;
-            var description = 'UTC ' + getGrain() + ' session-start cohort：当前桶 ' + latest.date
-                + ' 对比紧邻前桶 ' + previous.date + '；当前桶未完成。会话整段累计，不是事件实际发生日。';
+            var description = 'UTC ' + getGrain() + ' session-start cohort：当前桶对比紧邻前桶；当前桶未完成。会话整段累计，不是事件实际发生日。';
             function setBadge(label, value, tone) {
                 var target = Array.from(document.querySelectorAll('.metric-card--kpi')).find(function(card) {
                     var name = card.querySelector('.metric-card__label');
@@ -1148,6 +1164,7 @@
                 var badge = target && target.querySelector('.metric-card__badge');
                 if (!target) return;
                 if (!badge) {
+                    if (value === 'N/A') return;
                     var primary = target.querySelector('.metric-card__value');
                     if (!primary) return;
                     badge = document.createElement('span');
@@ -1168,21 +1185,26 @@
                 badge.setAttribute('aria-label', label + ' badge：' + detail);
             }
             function delta(label, current, prior, inverted) {
-                var value = Number(current || 0) - Number(prior || 0);
+                if (!knownNumber(current) || !knownNumber(prior)) { setBadge(label, 'N/A', 'neutral'); return; }
+                var value = current - prior;
                 setBadge(label, (value > 0 ? '+' : '') + formatNumber(value),
                     value === 0 ? 'neutral' : ((value > 0) !== inverted ? 'positive' : 'negative'));
             }
-            delta('Sessions', latest.total_count, previous.total_count, false);
-            delta('Prompt Activity', latestPrompt.total_prompts, previousPrompt.total_prompts, false);
-            delta('Failed Tools', latest.failed_tools, previous.failed_tools, true);
-            var tokenKnown = [latest, previous].every(function(point) {
-                return ['freshInput', 'cacheRead', 'cacheWrite', 'output'].every(function(key) {
-                    return TokenProvenance.state({ provenance: point.provenance }, key) === 'provider_reported';
+            var sessionKnown = sessions.some(function(point) { return point.observed && knownNumber(point.total_count); });
+            var promptKnown = prompts.some(function(point) { return point.observed && promptTotal(point) !== null; });
+            var failuresKnown = sessions.some(function(point) { return point.observed && knownNumber(point.failed_tools); });
+            delta('Sessions', sessionKnown ? latest.total_count : null, previous.total_count, false);
+            delta('Prompt Activity', promptKnown && latestPrompt ? promptTotal(latestPrompt) : null,
+                previousPrompt && promptTotal(previousPrompt), false);
+            delta('Failed Tools', failuresKnown ? latest.failed_tools : null, previous.failed_tools, true);
+            var tokenKnown = [latestToken, previousToken].every(function(point) {
+                return point && TOKEN_LAYERS.every(function(layer) {
+                    return knownNumber(point[layer.key]) && TokenProvenance.state(trendMeasurement(point), layer.token) === 'provider_reported';
                 });
             });
-            var previousTokens = totalTokens(previous);
+            var previousTokens = previousToken && totalTokens(previousToken);
             var percent = tokenKnown && previousTokens > 0
-                ? (totalTokens(latest) - previousTokens) / previousTokens * 100 : null;
+                ? (totalTokens(latestToken) - previousTokens) / previousTokens * 100 : null;
             setBadge('Total Tokens', percent === null ? 'N/A' : (percent > 0 ? '+' : '') + percent.toFixed(1) + '%', 'neutral');
             var currentRatio = cacheRatio(latestCache, prefix);
             var priorRatio = cacheRatio(previousCache, prefix);
@@ -1191,9 +1213,9 @@
                 pp === null || pp === 0 ? 'neutral' : (pp > 0 ? 'positive' : 'negative'));
         }
 
-        function setStatText(name, text) {
+        function setTrendStat(key, name, label, text) {
             var el = document.querySelector('[data-stat="' + name + '"]');
-            if (el) el.textContent = text;
+            if (el) el.textContent = label + ': ' + (trendLoading(trends[key]) ? 'Loading…' : text);
         }
 
         function updateAgentContribution(resp) {
@@ -1206,9 +1228,9 @@
             var tbody = table.querySelector('tbody');
             if (!tbody) return;
             setTableBodyMarkup(tbody, resp.rows.map(function(row) {
-                var scope = row.agent === 'claude_code' ? 'claude-code' : row.agent;
-                return '<tr class="agent-row" data-action="switch-agent-scope" data-scope="' + escapeHtml(scope) + '">' +
-                    '<td data-sort-value="' + escapeHtml(row.label) + '"><span class="agent-badge agent-badge--' + escapeHtml(row.agent) + '">' + escapeHtml(row.label) + '</span></td>' +
+                return '<tr class="agent-row" data-drilldown>' +
+                    '<td data-sort-value="' + escapeHtml(row.label) + '"><a data-drilldown-link class="agent-badge agent-badge--' + escapeHtml(row.agent) +
+                    '" href="' + escapeHtml(agentScopeUrl(dashboardScope(row.agent))) + '">' + escapeHtml(row.label) + '</a></td>' +
                     '<td class="numeric" data-sort-value="' + escapeHtml(row.sessionCount) + '">' + formatNumber(row.sessionCount) + ' <span class="muted">· ' + formatPct(row.sessionShare) + '</span></td>' +
                     '<td class="numeric token-cell" data-sort-value="' + escapeHtml(row.tokens && row.tokens.total) + '">' + escapeHtml(TokenProvenance.total(row.tokens, formatTokens)) + ' <span class="muted">· ' + formatPct(row.tokenShare) + '</span></td>' +
                     '<td class="numeric" data-sort-value="' + escapeHtml(row.prompts) + '">' + formatNumber(row.prompts) + ' <span class="muted">· ' + formatPct(row.promptShare) + '</span></td>' +
@@ -1306,20 +1328,23 @@
                 + ', content ' + row.contentSampleCount + '/' + row.sessionCount;
         }
 
+        function modelDrilldownLink(row) {
+            var query = new URLSearchParams({ agent: row.agent, model: row.model });
+            return '<a data-drilldown-link href="/sessions?' + escapeHtml(query.toString()) + '">' + escapeHtml(row.model) + '</a>';
+        }
+
         function modelMixRowHtml(row) {
-            var scope = row.agent === 'claude_code' ? 'claude-code' : row.agent;
-            return '<tr class="clickable-row" data-action="go-sessions-agent-model" data-agent="' + escapeHtml(scope) + '" data-model="' + escapeHtml(row.model) + '">' +
-                '<td class="mono">' + escapeHtml(row.model) + '</td>' +
+            return '<tr class="clickable-row" data-drilldown>' +
+                '<td class="mono">' + modelDrilldownLink(row) + '</td>' +
                 '<td class="numeric">' + formatNumber(row.sessionCount) + '</td>' +
                 '<td class="numeric">' + escapeHtml(efficiencyTokenMean(row)) + '</td>' +
                 '<td class="numeric">' + escapeHtml(TokenProvenance.ratio(null, { value: row.cacheReuseRatio, provenance: row.provenance })) + '</td></tr>';
         }
 
         function efficiencyRowHtml(row) {
-            var scope = row.agent === 'claude_code' ? 'claude-code' : row.agent;
-            return '<tr class="clickable-row" data-action="go-sessions-agent-model" data-agent="' + escapeHtml(scope) + '" data-model="' + escapeHtml(row.model) + '">' +
+            return '<tr class="clickable-row" data-drilldown>' +
                 '<td data-sort-value="' + escapeHtml(row.agent) + '"><span class="agent-badge agent-badge--' + escapeHtml(row.agent) + '">' + escapeHtml(row.agent) + '</span></td>' +
-                '<td class="mono" data-sort-value="' + escapeHtml(row.model) + '">' + escapeHtml(row.model) + '</td>' +
+                '<td class="mono" data-sort-value="' + escapeHtml(row.model) + '">' + modelDrilldownLink(row) + '</td>' +
                 '<td class="numeric" data-sort-value="' + escapeHtml(row.sessionCount) + '">' + formatNumber(row.sessionCount) + '</td>' +
                 '<td class="numeric" data-sort-value="' + escapeHtml(row.avgTokensPerSession) + '">' + escapeHtml(efficiencyTokenMean(row)) + '</td>' +
                 '<td class="numeric" data-sort-value="' + escapeHtml(row.cacheReuseRatio || 0) + '">' + escapeHtml(TokenProvenance.ratio(null, { value: row.cacheReuseRatio, provenance: row.provenance })) + '</td>' +
@@ -1327,9 +1352,8 @@
         }
 
         function efficiencyDetailRowHtml(row) {
-            var scope = row.agent === 'claude_code' ? 'claude-code' : row.agent;
-            return '<tr class="clickable-row" data-action="go-sessions-agent-model" data-agent="' + escapeHtml(scope) + '" data-model="' + escapeHtml(row.model) + '">' +
-                '<td class="mono">' + escapeHtml(row.model) + '</td><td class="numeric">' + formatNumber(row.sessionCount) + '</td>' +
+            return '<tr class="clickable-row" data-drilldown>' +
+                '<td class="mono">' + modelDrilldownLink(row) + '</td><td class="numeric">' + formatNumber(row.sessionCount) + '</td>' +
                 '<td class="numeric">' + escapeHtml(efficiencyTokenMean(row)) + '</td>' +
                 '<td class="numeric">' + (row.durationSampleCount === 0 ? 'N/A' : formatDuration(row.avgDurationSeconds)) + '</td>' +
                 '<td class="numeric">' + escapeHtml(TokenProvenance.ratio(null, { value: row.cacheReuseRatio, provenance: row.provenance })) + '</td>' +
@@ -1338,12 +1362,91 @@
                 '<td></td></tr>';
         }
 
+        function trendLoading(trend) {
+            return trend.retrying || (!trend.failure && !trend.data);
+        }
+
+        function renderTrend(key, points, value, render, dependency) {
+            var trend = trends[key];
+            var state = trendLoading(trend) ? 'loading' : trend.failure ? 'error' : !points.length ? 'empty'
+                : points.some(function(point) { return point.observed && knownNumber(value(point)); }) ? 'ready' : 'unavailable';
+            var container = document.querySelector('[data-dashboard-chart="' + key + '"]');
+            if (!container) return [];
+            var previousState = container.getAttribute('data-trend-state');
+            container.setAttribute('data-trend-state', state);
+            container.setAttribute('aria-busy', state === 'loading' ? 'true' : 'false');
+            if (state === 'ready') {
+                var windowEnd = calendarWindow().end;
+                // 保留无关卡片的交互节点，避免其他卡片重试时丢失键盘焦点。
+                if (previousState !== state || !container.firstChild || trend.displayedData !== trend.data
+                    || trend.displayedDependency !== dependency || trend.displayedWindowEnd !== windowEnd) {
+                    render(container, points);
+                    trend.displayedData = trend.data;
+                    trend.displayedDependency = dependency;
+                    trend.displayedWindowEnd = windowEnd;
+                }
+                return points;
+            }
+            var failure = trend.failure;
+            if (state === previousState && container.firstChild && failure === trend.displayedFailure) return [];
+            trend.displayedFailure = failure;
+            var message = document.createElement('p');
+            message.className = 'chart-empty';
+            message.setAttribute('role', state === 'error' ? 'alert' : 'status');
+            if (state === 'error') {
+                var path = 'dashboard/trends/' + key;
+                message.setAttribute('data-snapshot-error', path);
+                message.textContent = 'Unable to load ' + path + ': ' + failure.message + '. ';
+                var button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'btn';
+                button.textContent = 'Retry';
+                button.addEventListener('click', function () {
+                    var restoreFocus = document.activeElement === button;
+                    button.disabled = true;
+                    trend.retrying = true;
+                    renderAll();
+                    Promise.resolve().then(failure.retry).catch(function (error) {
+                        console.error('Dashboard trend retry failed:', error);
+                    }).finally(function () {
+                        trend.retrying = false;
+                        renderAll();
+                        if (!restoreFocus || document.activeElement !== document.body || container.closest('[hidden]')) return;
+                        var target = container.querySelector('[data-snapshot-error] button') || container;
+                        if (target === container) container.tabIndex = -1;
+                        target.focus({ preventScroll: true });
+                    });
+                });
+                message.appendChild(button);
+            } else {
+                message.textContent = {
+                    loading: '正在加载趋势数据…',
+                    empty: '该时间窗口无数据。',
+                    unavailable: '该时间窗口内的记录缺少可用计量。'
+                }[state];
+            }
+            container.replaceChildren(message);
+            return [];
+        }
+
         function renderAll() {
-            updateChartStats();
-            renderSessionChart();
-            renderTokenChart();
-            renderPromptChart();
-            renderCacheHealthChart();
+            var prefix = scopeToAgentKey(getActiveScope());
+            var sessionPoints = windowCohorts(trends.sessions.data || [], getSessionFields());
+            var tokenPoints = windowCohorts(trends.tokens.data || [], getTokenFields());
+            var promptPoints = windowCohorts(trends.prompts.data || [], getPromptFields());
+            var cachePoints = windowCohorts(trends['cache-health'].data || [], getCacheFields());
+            var sessions = renderTrend('sessions', sessionPoints, function(point) { return point.total_count; }, renderSessionChart);
+            var tokens = renderTrend('tokens', tokenPoints, plottableTokenTotal, renderTokenChart);
+            var prompts = renderTrend('prompts', promptPoints, promptTotal, function(container, points) {
+                renderPromptChart(container, points, sessions);
+            }, sessions.length ? trends.sessions.data : null);
+            var cacheSpecs = cacheSeries(prefix);
+            var caches = renderTrend('cache-health', cachePoints, function(point) {
+                return cacheSpecs.some(function(spec) { return cacheRatio(point, spec.prefix) !== null; }) ? 1 : null;
+            }, function(container, points) {
+                renderCacheHealthChart(container, points, prefix, cacheSpecs);
+            });
+            updateChartStats(sessions, tokens, prompts, caches, prefix);
         }
 
         renderAll();

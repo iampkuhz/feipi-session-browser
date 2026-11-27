@@ -14,9 +14,13 @@ import com.feipi.session.browser.source.codex.CodexSourceAdapter;
 import com.feipi.session.browser.source.qoder.QoderSourceAdapter;
 import com.feipi.session.browser.source.spi.SourceAdapter;
 import com.feipi.session.browser.testsupport.sqlite.SqliteTestHelper;
+import com.feipi.session.browser.web.IndexSnapshotGuard;
 import com.feipi.session.browser.web.WebCompositionRoot;
 import com.feipi.session.browser.web.WebConfig;
-import io.javalin.testtools.JavalinTest;
+import io.javalin.Javalin;
+import io.javalin.testtools.TestCase;
+import java.net.ProxySelector;
+import java.net.http.HttpClient;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.DriverManager;
@@ -94,11 +98,15 @@ class ScannedSessionContentContractTest {
       var web =
           new WebCompositionRoot(
               ContractTestComposition.queryRoot(index, new SchemaVersion(1)), WebConfig.defaults());
-      JavalinTest.test(
+      withLoopbackServer(
           web.app(),
           (app, client) -> {
             var rowsResponse = client.get("/api/sessions/rows");
-            assertThat(rowsResponse.code()).isEqualTo(200);
+            assertThat(rowsResponse.code())
+                .as(
+                    "GET /api/sessions/rows: loopback port %s, snapshot header present: %s",
+                    app.port(), rowsResponse.headers().get(IndexSnapshotGuard.HEADER) != null)
+                .isEqualTo(200);
             var rows = JSON.readTree(rowsResponse.body().string()).path("rows");
             assertThat(rows.size()).isEqualTo(1);
             var row = rows.get(0);
@@ -175,6 +183,16 @@ class ScannedSessionContentContractTest {
             assertThat(detail.code()).isEqualTo(200);
             assertThat(detail.body().string()).contains("round");
           });
+    }
+  }
+
+  private static void withLoopbackServer(Javalin app, TestCase check) throws Exception {
+    // 每个扫描样例拥有独立的直连客户端，避免复用其他测试的连接或系统代理。
+    try (var transport = HttpClient.newBuilder().proxy(ProxySelector.of(null)).build()) {
+      app.start("127.0.0.1", 0);
+      check.accept(app, new io.javalin.testtools.HttpClient(app, transport));
+    } finally {
+      app.stop();
     }
   }
 

@@ -402,8 +402,8 @@ Cache Health 固定作为 Trend 总览区第二行右侧 chart card；`Token Tre
 - hover 任意趋势图或 Cache Health 图时，最近 range point 必须显示竖向虚线参考线。
 - hover 图表 legend 时，高亮对应序列，非对应序列降低透明度到 30%。
 - hover tokenbar 时使用 `common.md` 的 `Chart Tooltip` 布局展示 Fresh、Cache Read、Cache Write、Output 的数量和占比。
-- 点击 All agents 模式中的 agent 行切换 Dashboard scope，不进入新页面。
-- 点击 model efficiency 行进入带 agent/model 参数的 Sessions。
+- All agents 表格的 Agent 链接切换 Dashboard scope，保留时间粒度；普通鼠标点击该行的非交互单元格也可切换。
+- Model Mix、Agent / Model Efficiency 和 Model Efficiency Detail 的模型链接打开带对应 `agent`、`model` 筛选的 Sessions。链接支持 Tab 和 Enter，不拦截行内计量详情等独立交互。
 - 点击单 agent `View Sessions CTA` 进入 `/sessions?agent=<agent>`。
 - 图表无数据时显示卡片内空态，不渲染空坐标轴。
 
@@ -416,7 +416,7 @@ Cache Health 固定作为 Trend 总览区第二行右侧 chart card；`Token Tre
 - 当前 scope 无数据：保留 scope selector，页面标题下显示当前 scope 无数据，所有图表卡显示空态。
 - 当前时间粒度无数据：Trend 总览区和 Cache Health 区显示该时间窗口无数据，KPI 继续显示当前 scope 全量数据。
 - 指标无法计算：显示 `N/A`，tooltip 说明缺少字段、分母为 0、历史窗口不足中的具体原因。
-- 数据加载失败：展示错误状态，不展示部分旧数据。
+- 趋势卡按自身取数结果区分加载、失败、窗口无记录和实际零。失败不填入零值，重试成功后恢复对应卡片；其余同一索引代次的成功卡片可以正常展示，不拼接不同代次的数据。
 
 ## 禁止项
 

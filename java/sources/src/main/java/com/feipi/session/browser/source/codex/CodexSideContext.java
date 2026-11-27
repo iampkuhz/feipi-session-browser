@@ -25,6 +25,14 @@ final class CodexSideContext {
           """
           + "Do not modify files";
   private static final String VARIANT_END = "avoid disrupting the main thread.";
+  private static final String PAGINATED_STARTUP_TAIL =
+      """
+      , source, git state, permissions, configuration, or workspace state unless the user explicitly asks for that mutation after this boundary. You may request escalated permissions or broader sandbox access for an operation the user explicitly asks for after this boundary, including a read-only operation, when that access is necessary and the thread's approval policy permits it. If the user explicitly requests a mutation, keep it minimal, local to the request, and avoid disrupting the main thread.
+
+      Parent chat: {"threadId":"%s","hostId":"local"}
+      Use this reference with read_thread, send_message_to_thread, or wait_threads when those tools are available. Sending a message requires explicit user authorization in this side conversation.
+      """
+          .stripTrailing();
   private static final String REQUEST_HEADING = "## My request for Codex:";
   private static final String END =
       "\n\n"
@@ -35,7 +43,15 @@ final class CodexSideContext {
 
   private CodexSideContext() {}
 
-  static int prefixLength(JsonNode event, JsonNode previous, boolean fork) {
+  /** 过滤要求整条消息准确匹配启动模板及父引用，不使用宽松的前缀展示判断。 */
+  static boolean isStartupOnlyBoundary(JsonNode event, String parentId) {
+    if (event.path("payload").path("content").size() != 1) return false;
+    String text = userInputText(event);
+    return CodexActivityRange.canonicalBoundary(text)
+        || text.equals(VARIANT_HEAD + PAGINATED_STARTUP_TAIL.formatted(parentId));
+  }
+
+  private static String userInputText(JsonNode event) {
     JsonNode payload = event.path("payload");
     JsonNode first = payload.path("content").path(0);
     if (!"response_item".equals(event.path("type").asText())
@@ -45,8 +61,12 @@ final class CodexSideContext {
         || payload.path("forwarded").asBoolean()
         || payload.path("is_forwarded").asBoolean()
         || payload.hasNonNull("forwarded_from")
-        || payload.hasNonNull("forwarded_from_thread_id")) return -1;
-    String text = first.path("text").asText("");
+        || payload.hasNonNull("forwarded_from_thread_id")) return "";
+    return first.path("text").asText("");
+  }
+
+  static int prefixLength(JsonNode event, JsonNode previous, boolean fork) {
+    String text = userInputText(event);
     if (!text.startsWith(HEAD)) return -1;
     int variant = variantPrefix(text, fork);
     if (variant >= 0) return variant;

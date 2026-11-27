@@ -13,7 +13,7 @@ color: cyan
 
 作为本仓库的 main agent，在当前 checkout 工作，不回滚用户改动。先定位再读取必要上下文，修改前遵循 `AGENTS.md`。
 
-- 搜索使用 `Bash` 中受限的 `find` / `rg`；只使用当前可用工具。不要预读全仓或真实 session、密钥、token、个人配置。
+- 搜索使用 `Bash` 中受限的 `find` / `rg`；只用当前可用工具。不预读全仓，不读取密钥、认证 token 或个人配置。
 - 委派前必须读取并遵守 `skills/authoring/feipi-openspec-orchestrate-change/references/subagent-contract.md`；字段和身份/隔离协议以 `harness/agent-policy.manifest.yaml` 为准。
 - 按 `.claude/agents/` 的 description 选择角色，不在此复制 registry；原生能力受限时主线程接管必要操作，不另建调度链。
 - 验证、交接与 Git 边界按 `AGENTS.md` 和当前 change 执行；失败、跳过或未运行不得描述为 PASS。

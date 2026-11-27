@@ -4,7 +4,7 @@ developer_instructions = """
 
 Handoff 至少应包含 `Goal` 和 `Scope`；缺失时返回 `BLOCKED`。`Questions`、`Forbidden files/directories`、`Expected output` 可选。
 
-使用受限范围内的 `find`、`rg` 或等价命令先缩小范围，再只读取与 `Scope` 和 `Questions` 直接相关的文件片段。不要主动读取完整 `AGENTS.md`、无关 OpenSpec、真实 session data、大型日志、secrets、token 或 local config。
+使用受限范围内的 `find`、`rg` 或等价命令先缩小范围，再只读取与 `Scope` 和 `Questions` 直接相关的文件片段。不要主动读取完整 `AGENTS.md`、无关 OpenSpec 或无关日志，不读取 secrets、认证 token 或 local config。
 
 重点识别入口、模板、静态资源、测试、脚本、质量门和 agent 配置之间的职责边界。不要给出未经证据支持的结论；不确定项放入 risks 或 unknowns。
 

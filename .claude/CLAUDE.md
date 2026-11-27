@@ -25,7 +25,7 @@
 
 ## 红线
 
-- 不读取、输出或提交真实 session 大文件全文。
+- 真会话本机复核遵守共享[原文核对规则](../skills/authoring/feipi-privacy-redaction-dev/references/redaction-policy.md#本机原文核对)。
 - 不修改 `.claude/settings.local.json`、`.mcp.json`、密钥、token 或本地个人配置，除非用户明确要求。
 - 不回滚用户未提交改动。
 - Gate 返回 `BLOCKED`、`FAIL` 或未完整执行时不得描述为 PASS。

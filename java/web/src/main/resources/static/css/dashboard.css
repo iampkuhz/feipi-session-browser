@@ -1060,6 +1060,11 @@
   background: var(--table-row-hover-bg);
 }
 
+[data-drilldown-link] {
+  text-decoration: underline;
+  text-underline-offset: .15em;
+}
+
 /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Badge styles are in ui-primitives.css` */
 
 /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Tooltip dot colors for dashboard charts ==============================` */

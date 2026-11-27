@@ -14,6 +14,8 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class CodexSideConversationTest {
   private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -44,6 +46,101 @@ class CodexSideConversationTest {
           "Synthetic section: " + "x".repeat(364) + "\n\nSub-agents are off-limits");
 
   @TempDir Path directory;
+
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "bootstrap",
+        "interrupted",
+        "question",
+        "answer",
+        "tool",
+        "zero-usage",
+        "extra-text",
+        "forwarded",
+        "wrong-parent",
+        "ordinal-gap",
+        "unknown-event",
+        "malformed"
+      })
+  void onlyProvenEmptyPaginatedLaunchIsExcluded(String scenario) throws Exception {
+    List<String> events =
+        new ArrayList<>(
+            List.of(
+                """
+                {"type":"session_meta","payload":{"id":"synthetic-side",
+                  "attached_thread":true,"history_mode":"paginated",
+                  "forked_from_id":"synthetic-parent","forked_from_ordinal_exclusive":4,
+                  "history_base":{"thread_id":"synthetic-parent","end_ordinal_exclusive":4,"end_byte_offset":100}}}
+                """,
+                "{\"type\":\"event_msg\",\"payload\":{\"type\":\"thread_settings_applied\"}}"));
+    if ("interrupted".equals(scenario)) {
+      events.add(message("developer", "Synthetic settings."));
+      events.add(
+          "{\"type\":\"event_msg\",\"payload\":{\"type\":\"turn_aborted\",\"reason\":\"interrupted\"}}");
+    }
+    String startup =
+        BOUNDARY.replace(
+                "Do not request escalated permissions or broader sandbox access unless the user explicitly asks for a mutation that requires it.",
+                "You may request escalated permissions or broader sandbox access for an operation the user explicitly asks for after this boundary, including a read-only operation, when that access is necessary and the thread's approval policy permits it.")
+            + "\n\n"
+            + """
+            Parent chat: {"threadId":"%s","hostId":"local"}
+            Use this reference with read_thread, send_message_to_thread, or wait_threads when those tools are available. Sending a message requires explicit user authorization in this side conversation.
+            """
+                .formatted(
+                    "wrong-parent".equals(scenario) ? "different-parent" : "synthetic-parent")
+                .stripTrailing();
+    if ("extra-text".equals(scenario)) startup += "\n\nSynthetic unwrapped question.";
+    String boundary = message("user", startup);
+    if ("forwarded".equals(scenario)) {
+      var forwarded = (com.fasterxml.jackson.databind.node.ObjectNode) MAPPER.readTree(boundary);
+      forwarded.withObject("payload").put("forwarded", true);
+      boundary = forwarded.toString();
+    }
+    events.add(boundary);
+    switch (scenario) {
+      case "question" -> events.add(message("user", "Synthetic unanswered question."));
+      case "answer" -> events.add(message("assistant", "Synthetic answer without usage."));
+      case "tool" ->
+          events.add(
+              "{\"type\":\"response_item\",\"payload\":{\"type\":\"function_call_output\",\"call_id\":\"test\",\"output\":\"synthetic result\"}}");
+      case "zero-usage" -> events.add(usage("measured-zero", 0));
+      case "unknown-event" ->
+          events.add(events.size() - 1, "{\"type\":\"synthetic_future_event\",\"payload\":{}}");
+      default -> {}
+    }
+    var lines = new ArrayList<String>();
+    for (int i = 0; i < events.size(); i++) {
+      var event = (com.fasterxml.jackson.databind.node.ObjectNode) MAPPER.readTree(events.get(i));
+      lines.add(
+          event
+              .put("ordinal", 4 + i + ("ordinal-gap".equals(scenario) && i > 0 ? 1 : 0))
+              .toString());
+    }
+    if ("malformed".equals(scenario)) lines.add(2, "{broken}");
+    Path file =
+        Files.writeString(
+            directory.resolve("synthetic-empty-side.jsonl"), String.join("\n", lines) + "\n");
+    var adapter = new CodexSourceAdapter();
+    var result =
+        adapter.parse(
+            new Candidate(adapter.fingerprint(file), "codex:synthetic-side", "", Map.of()), null);
+    if ("bootstrap".equals(scenario) || "interrupted".equals(scenario)) {
+      assertThat(result)
+          .isInstanceOfSatisfying(
+              SourceResult.Skipped.class,
+              skipped -> {
+                assertThat(skipped.reason()).isEqualTo("CODEX_EMPTY_SIDE_CHAT");
+                assertThat(skipped.diagnostics()).isEmpty();
+              });
+    } else {
+      assertThat(result).isInstanceOf(SourceResult.Success.class);
+      try (var success = (SourceResult.Success) result) {
+        if ("malformed".equals(scenario)) assertThat(success.diagnostics()).isNotEmpty();
+      }
+    }
+  }
 
   @Test
   void nativeCheckpointKeepsOnlyActiveMessagesAndExplicitUsageAtTheirOriginalPositions()

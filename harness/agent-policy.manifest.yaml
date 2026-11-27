@@ -24,8 +24,10 @@ gate_semantics:
   - "required gate 由维护者显式运行"
   - "最终 javaBuildVerification 的根 check 已覆盖全模块测试与零跳过检查时，承接产品 test 证明，不重复执行；缓存命中不得称测试重跑"
 privacy:
-  forbidden_inputs:
+  local_session_read_policy: skills/authoring/feipi-privacy-redaction-dev/references/redaction-policy.md
+  forbidden_repository_data:
     - real-session-data
+  forbidden_inputs:
     - secrets
     - tokens
     - runtime-cache

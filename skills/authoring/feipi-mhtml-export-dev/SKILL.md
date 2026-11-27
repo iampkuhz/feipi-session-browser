@@ -31,12 +31,13 @@ description: 用于 Session Detail 离线 HTML/MHTML 导出功能研发；普通
 
 1. 导出入口按钮和后端接口 — 定位触发生成 MHTML 的代码路径。
 2. 目标 Jinja 模板和静态资源 — 只读与导出直接相关的模板和 CSS/JS。
-3. 已有 fixture 或 mock 数据 — 用于验证导出效果，不读取真实 session。
+3. 已有 fixture 或 mock 数据 — 用于自动化验证导出效果。
 4. `references/export-contract.md` — 导出对象、包含/不包含内容、交互保真要求。
 5. `references/offline-resource-contract.md` — CSS/JS 内联规则、外链禁止策略。
 6. `references/security-contract.md` — 敏感字段脱敏和导出确认规则。
+7. 为授权的本机复核必需的原始片段 — 遵循[原文核对规则](../feipi-privacy-redaction-dev/references/redaction-policy.md#本机原文核对)。
 
-不要全仓库扫描模板或静态资源。不要预读无关页面或真实 session 数据。
+不要全仓库扫描模板或静态资源。
 
 ## 执行步骤
 

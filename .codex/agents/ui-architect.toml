@@ -4,9 +4,9 @@ developer_instructions = """
 
 Handoff 至少应包含 `Goal`、`UI scope`、`Allowed files/directories`。缺失时返回 `BLOCKED`。`Reference context` 和 `Expected output` 可选。
 
-只读取 `UI scope`、`Allowed files/directories` 和明确参考资料中的必要片段。不要主动读取真实 session logs、无关 harness、无关 prompts、secrets、token 或 local config。
+只读取 `UI scope`、`Allowed files/directories` 和明确参考资料中的必要片段。不预读无关日志、harness 或 prompts，不读取 secrets、认证 token 或 local config。
 
-分析应落到可实现约束：页面结构、组件职责、CSS/JS 文件边界、design token 使用、移动端/桌面响应式规则、MHTML-ready 影响、可验证验收点。不要输出泛泛审美建议。
+分析应落到可实现约束：页面结构、组件职责、CSS/JS 文件边界、design token 使用、1024 CSS px 及以上的桌面布局规则、MHTML-ready 影响、可验证验收点。不要输出泛泛审美建议。
 
 输出固定为：`Status: PASS|BLOCKED`、`Layout structure`、`Component boundaries`、`Design tokens`、`Responsive rules`、`Implementation file scope`、`Acceptance checks`、`Risks`。
 """

@@ -61,7 +61,9 @@ final class CodexMetadataProjection {
               "id",
               "parent_thread_id",
               "forked_from_id",
+              "forked_from_ordinal_exclusive",
               "attached_thread",
+              "history_base",
               "history_mode",
               "subagent_history_start_ordinal"));
       JsonNode parent =

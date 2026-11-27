@@ -37,6 +37,18 @@ final class CodexTokenProvenance {
         && freshInput(usage, responseUsage) != null;
   }
 
+  /** 仅为已由现代记录证实为零的缓存写入接受旧镜像省略字段，不补齐旧记录的计量。 */
+  static boolean hasLegacyMirrorUsage(
+      JsonNode usage, boolean inclusive, boolean modernCacheWriteIsZero) {
+    return hasCompleteUsage(usage, inclusive)
+        || (modernCacheWriteIsZero
+            && FIELDS.get("cacheWriteTokenPrecision").stream().noneMatch(usage::has)
+            && FIELDS.entrySet().stream()
+                .filter(field -> !"cacheWriteTokenPrecision".equals(field.getKey()))
+                .allMatch(field -> readUsageLong(usage, field.getValue()) != null)
+            && freshInput(usage, false) != null);
+  }
+
   static Map<String, String> forUsage(JsonNode usage, boolean responseUsage) {
     Map<String, String> result = new LinkedHashMap<>();
     FIELDS.forEach(

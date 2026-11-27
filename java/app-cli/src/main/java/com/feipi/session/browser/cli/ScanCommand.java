@@ -85,6 +85,11 @@ final class ScanCommand implements Callable<Integer> {
       description = "索引目录（默认使用当前版本的 macOS 应用数据目录）")
   private String indexDirOption;
 
+  @Option(
+      names = {"--token-audit"},
+      description = "成功发布后在索引目录生成脱敏 Token 计量诊断 TSV（默认关闭）")
+  private boolean tokenAudit;
+
   @Override
   public Integer call() {
     if (full && incremental) {
@@ -102,9 +107,6 @@ final class ScanCommand implements Callable<Integer> {
       return 1;
     }
 
-    Path dbPath = paths.dbPath();
-    Path artifactDir = paths.artifactDir();
-
     Set<String> agentFilter;
     try {
       agentFilter = resolveAgentFilter();
@@ -113,20 +115,19 @@ final class ScanCommand implements Callable<Integer> {
       return 1;
     }
 
-    return acquireLockAndExecuteScan(indexDir, dbPath, artifactDir, agentFilter);
+    return acquireLockAndExecuteScan(paths, agentFilter);
   }
 
   /** 获取扫描锁并执行扫描。 */
-  private int acquireLockAndExecuteScan(
-      Path indexDir, Path dbPath, Path artifactDir, Set<String> agentFilter) {
-    ScanLock scanLock = new ScanLock(indexDir);
+  private int acquireLockAndExecuteScan(RuntimePaths paths, Set<String> agentFilter) {
+    ScanLock scanLock = new ScanLock(paths.dataDir());
     long lockTimeoutMs = resolveLockTimeout();
     try (ScanLock.ScanLockHandle handle = scanLock.acquire("foreground scan", lockTimeoutMs)) {
       // 扫描锁持有期间执行扫描；handle 确保锁在完成后释放
       if (handle == null) {
         return 1;
       }
-      return executeScan(dbPath, artifactDir, agentFilter);
+      return executeScan(paths, agentFilter);
     } catch (ScanLockUnavailableException e) {
       System.err.println("错误：扫描锁不可用");
       System.err.println("  锁文件: " + e.lockPath());
@@ -143,8 +144,8 @@ final class ScanCommand implements Callable<Integer> {
   }
 
   /** 执行扫描并返回退出码。 */
-  private int executeScan(Path dbPath, Path artifactDir, Set<String> agentFilter) {
-    String jdbcUrl = "jdbc:sqlite:" + dbPath.toAbsolutePath();
+  private int executeScan(RuntimePaths paths, Set<String> agentFilter) {
+    String jdbcUrl = "jdbc:sqlite:" + paths.dbPath().toAbsolutePath();
     List<ScanConfig.SourceEntry> sourceEntries = buildSourceEntries(agentFilter);
 
     try (Connection conn =
@@ -159,13 +160,24 @@ final class ScanCommand implements Callable<Integer> {
         return 0;
       }
 
-      ScanConfig config = new ScanConfig(sourceEntries, artifactDir, agentFilter, 1);
+      ScanConfig config = new ScanConfig(sourceEntries, paths.artifactDir(), agentFilter, 1);
       String agentLabel = agent != null ? " (" + agent + ")" : "";
-      if (incremental && !full) {
-        return runIncremental(new SqliteIndexWriter(conn), config, agentLabel);
-      } else {
-        return runFull(new SqliteIndexWriter(conn), config, agentLabel);
+      var writer = new SqliteIndexWriter(conn);
+      var outcome =
+          incremental && !full
+              ? runIncremental(writer, config, agentLabel)
+              : runFull(writer, config, agentLabel);
+      if (tokenAudit && outcome.exitCode() == 0) {
+        try {
+          ScanTokenAudit.write(
+              conn, paths, agentFilter.stream().findFirst().orElse(""), outcome.scanLogId());
+        } catch (IOException | SQLException e) {
+          System.err.printf(
+              "TOKEN_AUDIT_FAILED scanLogId=%d published=true%n", outcome.scanLogId());
+          return 1;
+        }
       }
+      return outcome.exitCode();
     } catch (SQLException e) {
       if (isDatabaseLocked(e)) {
         System.err.println("错误：数据库被锁定 code=SCAN_DATABASE_LOCKED");
@@ -186,7 +198,8 @@ final class ScanCommand implements Callable<Integer> {
   }
 
   /** 运行增量扫描。 */
-  private int runIncremental(IndexWriterPort indexWriter, ScanConfig config, String agentLabel) {
+  private ScanOutcome runIncremental(
+      IndexWriterPort indexWriter, ScanConfig config, String agentLabel) {
     System.out.println("Starting incremental scan" + agentLabel + "...");
     long startMs = System.currentTimeMillis();
 
@@ -203,11 +216,11 @@ final class ScanCommand implements Callable<Integer> {
             : "FAILED; previous published index retained",
         elapsed);
     printFailures(summary.scanLogId(), summary.issues());
-    return summary.errorCount() == 0 ? 0 : 1;
+    return new ScanOutcome(summary.errorCount() == 0 ? 0 : 1, summary.scanLogId());
   }
 
   /** 运行全量扫描。 */
-  private int runFull(IndexWriterPort indexWriter, ScanConfig config, String agentLabel) {
+  private ScanOutcome runFull(IndexWriterPort indexWriter, ScanConfig config, String agentLabel) {
     System.out.println("Starting full scan" + agentLabel + "...");
     long startMs = System.currentTimeMillis();
 
@@ -224,8 +237,16 @@ final class ScanCommand implements Callable<Integer> {
             : "FAILED; previous published index retained",
         elapsed);
     printFailures(summary.scanLogId(), summary.issues());
-    return summary.errorCount() == 0 ? 0 : 1;
+    return new ScanOutcome(summary.errorCount() == 0 ? 0 : 1, summary.scanLogId());
   }
+
+  /**
+   * 一次前台扫描的退出结果。
+   *
+   * @param exitCode 命令退出码
+   * @param scanLogId 扫描批次号
+   */
+  private record ScanOutcome(int exitCode, long scanLogId) {}
 
   /** 构建源条目列表，根据 agent 过滤选择用户主目录下的默认源目录。 */
   private List<ScanConfig.SourceEntry> buildSourceEntries(Set<String> agentFilter) {

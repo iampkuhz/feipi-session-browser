@@ -33,8 +33,9 @@ description: 用于 request/response、token、路径、环境变量、真实 se
 2. 测试 fixture 文件（仅检查是否 synthetic）。
 3. 导出或展示逻辑中的字段映射。
 4. 隐私 gate 的脚本和输出。
+5. 为授权的本机核对必需的真实 session 原始片段。
 
-不要全仓库扫描。不要读取真实 session 数据。不要复制真实 token 或密钥。
+不要全仓库扫描。需要本机核对真实 session 时，按[原文核对规则](references/redaction-policy.md#本机原文核对)定向读取。不要复制真实 token 或密钥。
 
 ## 执行步骤
 

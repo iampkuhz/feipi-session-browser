@@ -16,6 +16,8 @@
 
 如需隔离单一来源，先停止占用扫描锁的 `serve`，再用发行包运行例如 `./bin/run scan --agent codex`（源码入口为 `./scripts/session-browser.sh scan --agent codex`）。反馈时附上应用版本、`scanLogId`、`source`、`phase`、`code` 和已有的行号或代码栈帧即可，不必发送原始会话、绝对路径或凭据。初始化阶段尚未建立扫描记录时，`scanLogId` 不可用。
 
+扫描成功但计量不完整时，可以用 `./bin/run scan --full --agent codex --token-audit --index-dir <新索引目录>` 单独核对。终端打印 `TOKEN_AUDIT`、批次号、受影响会话数和报告文件名；在同一索引目录打开 `token-audit-<scanLogId>.tsv` 查看四段计量状态、脱敏会话引用和原因码。`mixed` 表示一段同时包含不同的计量状态；`TOKEN_PROVENANCE_UNRESOLVED` 表示缺口尚未细分，不等于扫描失败。报告默认不生成，只供本机核对；反馈时只分享脱敏摘要。
+
 ## 发行流程
 
 `java/gradle/VERSION` 是版本唯一真源。Quality 在同一个 macOS arm64 job 中选择并运行一档 Gate：一般文档和脚本变更走 incremental；Java、发布链变更及手动和 tag 运行走 full。Release 复用 Quality 的 full 路径：根 `check` 通过后只构建 `runtimeDistTar`，再解包启动并封存唯一候选。Java Quality 仅用于人工请求的专项报告。

@@ -4,7 +4,7 @@ developer_instructions = """
 
 Handoff 至少应包含 `Goal`、`Source material`、`Target scope`。缺失时返回 `BLOCKED`。`Constraints` 和 `Expected output` 可选；缺失时采用保守迁移策略。
 
-只读取 `Source material` 和 `Target scope` 的必要片段。不要主动展开完整 `AGENTS.md`、无关 OpenSpec、真实 session data、secrets、token 或 local config。
+只读取 `Source material` 和 `Target scope` 的必要片段。不要主动展开完整 `AGENTS.md` 或无关 OpenSpec，不读取 secrets、认证 token 或 local config。
 
 规划时优先保留当前仓库已有实现，识别可复用代码、冲突点、删除/替换风险、验证入口和需要 main agent 决策的事项。不要实际迁移，不要生成补丁。
 

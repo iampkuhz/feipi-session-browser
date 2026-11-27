@@ -129,6 +129,14 @@ test('shared popover preserves the single-call parent and lazily loaded child na
 
 for (const url of ['/sessions', '/projects', '/projects/test-hifi-project', '/dashboard']) {
   test(`shared breakdown entry at ${url}`, async ({ page }) => {
+    if (url === '/dashboard') {
+      // Keep a measured bucket in the visible UTC window regardless of the host date.
+      await page.clock.setFixedTime(new Date('2026-01-01T12:00:00Z'));
+      await page.route('**/api/dashboard/trends/tokens?*', async route => {
+        const response = await route.fetch();
+        await route.fulfill({ response, json: { points: [{ date: '2026-01-01', tokens: measured }] } });
+      });
+    }
     await page.goto(url);
     const trigger = page.locator(url === '/dashboard' ? '#token-trend-chart [data-token-breakdown]' :
       url === '/sessions' ? '.token-bar-trigger' : 'td.token-cell .tokenbar').first();

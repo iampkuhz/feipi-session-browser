@@ -84,8 +84,9 @@ main agent 调用 `Agent(implementer)` 时，应传入以下字段。字段说�
 - 完整 `AGENTS.md`；
 - 无关 `openspec/changes/*`；
 - 无关 `harness/`；
-- 大型真实 session logs；
-- secrets、token、local config 或 private runtime data。
+- secrets、token、local config 或无关 private runtime data。
+
+需要核对真实 session 时，遵守共享原文核对规则及 handoff 授权范围。
 
 ## Change / task boundary
 

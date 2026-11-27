@@ -21,11 +21,13 @@ import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
-/** 按来源明确的分叉截止点重放父级历史。仅传出类别估算，绝不复制父级正文。 */
+/** 按来源明确的分叉截止点读取类别估算和用量锚点，绝不复制父级正文。 */
 final class CodexForkReadingEvidence {
-  private static final long MAX_BYTES = 64L * 1024 * 1024;
+  private static final long MAX_READING_BYTES = 64L * 1024 * 1024;
+  private static final long MAX_COUNTER_BYTES = 128L * 1024 * 1024;
   private static final int MAX_LINE = 8 * 1024 * 1024;
   private static final int MAX_ORDINAL = 100_000;
   private static final Pattern THREAD =
@@ -37,6 +39,42 @@ final class CodexForkReadingEvidence {
 
   static List<SourceReadingEvidence> read(
       Path child, JsonNode metaEvent, CancellationSignal cancellation) {
+    var cut = cut(metaEvent, MAX_READING_BYTES);
+    if (cut == null) return List.of();
+    var parts = new EnumMap<Kind, Counter>(Kind.class);
+    return visitPrefix(child, cut, cancellation, event -> collect(event, cut, parts))
+        ? evidence(parts)
+        : List.of();
+  }
+
+  /** 父历史中最后一个现代与旧式累计锚点，只读精确分叉前缀。 */
+  static List<JsonNode> counters(Path child, JsonNode metaEvent, CancellationSignal cancellation) {
+    var cut = cut(metaEvent, MAX_COUNTER_BYTES);
+    if (cut == null) return List.of();
+    JsonNode[] counters = new JsonNode[2];
+    boolean complete =
+        visitPrefix(
+            child,
+            cut,
+            cancellation,
+            event -> {
+              var payload = event.path("payload");
+              if ("token_usage_record".equals(event.path("type").asText())) {
+                counters[0] = payload.path("thread_token_usage");
+              } else if ("event_msg".equals(event.path("type").asText())
+                  && "token_count".equals(payload.path("type").asText())) {
+                var usage = payload.path("info").path("total_token_usage");
+                if (!usage.isObject()) usage = payload.path("total_token_usage");
+                if (usage.isObject()) counters[1] = usage;
+              }
+              return true;
+            });
+    return complete && counters[0] != null && counters[1] != null
+        ? List.of(counters[0], counters[1])
+        : List.of();
+  }
+
+  private static Cut cut(JsonNode metaEvent, long maxBytes) {
     var meta = metaEvent.path("payload");
     var history = meta.path("history_base");
     var id = history.path("thread_id").asText();
@@ -51,22 +89,19 @@ final class CodexForkReadingEvidence {
         || !positiveBound(limit, MAX_ORDINAL)
         || !limit.equals(meta.path("forked_from_ordinal_exclusive"))
         || !limit.equals(metaEvent.path("ordinal"))
-        || !positiveBound(bytes, MAX_BYTES)) return List.of();
+        || !positiveBound(bytes, maxBytes)) return null;
+    return new Cut(
+        id, limit.asInt(), bytes.asLong(), meta.path("base_instructions").path("text").asText(""));
+  }
+
+  private static boolean visitPrefix(
+      Path child, Cut cut, CancellationSignal cancellation, Predicate<JsonNode> visitor) {
     try {
-      Path parent = findParent(child, id);
-      return parent == null
-          ? List.of()
-          : replay(
-              parent,
-              new Cut(
-                  id,
-                  limit.asInt(),
-                  bytes.asLong(),
-                  meta.path("base_instructions").path("text").asText("")),
-              cancellation);
+      Path parent = findParent(child, cut.thread());
+      return parent != null && replay(parent, cut, cancellation, visitor);
     } catch (IOException | SecurityException invalid) {
       // 文件缺失或边界不完整时不加归因；不影响侧聊自身索引。
-      return List.of();
+      return false;
     }
   }
 
@@ -108,47 +143,53 @@ final class CodexForkReadingEvidence {
     return found.size() == 1 ? found.getFirst() : null;
   }
 
-  private static List<SourceReadingEvidence> replay(
-      Path parent, Cut cut, CancellationSignal cancellation) throws IOException {
+  private static boolean replay(
+      Path parent, Cut cut, CancellationSignal cancellation, Predicate<JsonNode> visitor)
+      throws IOException {
     try (var channel =
         FileChannel.open(parent, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS)) {
       var last = ByteBuffer.allocate(1);
-      if (channel.read(last, cut.bytes() - 1) != 1 || last.get(0) != '\n') return List.of();
+      if (channel.read(last, cut.bytes() - 1) != 1 || last.get(0) != '\n') return false;
       try (var in =
           new BufferedReader(
               new InputStreamReader(
                   new BoundedInput(Channels.newInputStream(channel), cut.bytes()),
                   StandardCharsets.UTF_8.newDecoder()))) {
-        var parts = new EnumMap<Kind, Counter>(Kind.class);
         for (int ordinal = 0; ordinal < cut.ordinal(); ordinal++) {
-          if (cancellation != null && cancellation.isCancelled()) return List.of();
+          if (cancellation != null && cancellation.isCancelled()) return false;
           String line = in.readLine();
-          if (line == null || line.length() > MAX_LINE) return List.of();
+          if (line == null || line.length() > MAX_LINE) return false;
           var event = JSON.readTree(line);
-          if (event == null) return List.of();
+          if (event == null) return false;
           var n = event.path("ordinal");
-          if (!n.isIntegralNumber() || !n.canConvertToInt() || n.asInt() != ordinal)
-            return List.of();
+          if (!n.isIntegralNumber() || !n.canConvertToInt() || n.asInt() != ordinal) return false;
           String type = event.path("type").asText();
           var payload = event.path("payload");
           if (ordinal == 0
               && (!"session_meta".equals(type)
-                  || !cut.thread().equals(payload.path("id").asText()))) return List.of();
-          if ("compacted".equals(type)) {
-            var snapshot = payload.path("replacement_history");
-            if (!snapshot.isArray()) return List.of();
-            parts.clear();
-            snapshot.forEach(item -> project(parts, item, cut.sharedBase()));
-          } else if ("response_item".equals(type)) {
-            project(parts, payload, cut.sharedBase());
-          } else if ("event_msg".equals(type)
-              && "thread_rolled_back".equals(payload.path("type").asText())) {
-            return List.of();
-          }
+                  || !cut.thread().equals(payload.path("id").asText()))) return false;
+          if ("event_msg".equals(type)
+              && "thread_rolled_back".equals(payload.path("type").asText())) return false;
+          if (!visitor.test(event)) return false;
         }
-        return in.readLine() == null ? evidence(parts) : List.of();
+        return in.readLine() == null;
       }
     }
+  }
+
+  private static boolean collect(JsonNode event, Cut cut, Map<Kind, Counter> parts) {
+    var payload = event.path("payload");
+    switch (event.path("type").asText()) {
+      case "compacted" -> {
+        var snapshot = payload.path("replacement_history");
+        if (!snapshot.isArray()) return false;
+        parts.clear();
+        snapshot.forEach(item -> project(parts, item, cut.sharedBase()));
+      }
+      case "response_item" -> project(parts, payload, cut.sharedBase());
+      default -> {}
+    }
+    return true;
   }
 
   private static void project(Map<Kind, Counter> parts, JsonNode item, String sharedBase) {

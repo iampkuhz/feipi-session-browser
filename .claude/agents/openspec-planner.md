@@ -38,7 +38,7 @@ color: purple
 
 - 优先读取 handoff 中列出的 `Existing context` 和 `Allowed files/directories`。
 - 只在需要澄清当前长期行为时读取相关 `openspec/specs/**` 片段。
-- 不主动读取完整 `.claude/CLAUDE.md`、完整 `AGENTS.md`、无关 `openspec/changes/*`、`src/`、`scripts/tests/`、`java/tests/` 或真实 session data。
+- 不主动读取完整 `.claude/CLAUDE.md`、完整 `AGENTS.md`、无关 `openspec/changes/*`、`src/`、`scripts/tests/` 或 `java/tests/`。
 - “不读取”指不要主动通过 `Read` 或 `Bash` + 搜索命令展开；如果 runtime 已注入相关上下文，只当背景约束使用。
 
 ## 必须加载的 skill

@@ -23,3 +23,4 @@
 1. 首轮和后续轮都在子卡评论里写 **现象／复现、期望、验收**。只登记用 `/note`，不提及 Agent；不粘贴真实会话、凭据或运行数据。
 2. 用户明确要求开工后，回复该轮需求评论。在 Multica 的 `@` 候选中选择项目工程执行 Agent（本项目当前为 `session-browser-agent`），CLI 用平台核实的 Agent UUID；不粘贴普通文本、不加 `/note`、不重复触发。单轮 Run 不依赖给整卡设置常驻 Assignee。
 3. 看触发预览，再以对应评论的 Run 回执确认是否启动；已有冲突 Run 或别的执行者在写时不重复发送。Agent 在触发线程中回填改动、验证和剩余问题，不把 Run 终态当作验收，不自行宣布已发布。
+4. 提交待验收前，Agent 按[共享修复闭环](../../skills/authoring/feipi-quality-gate-diagnosis/references/repair-loop.md)完成必验项并附证据。未定位指定样例时先自行追溯；确实无法继续时报告阻塞和最小缺口，不把业务自测转给用户。

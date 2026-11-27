@@ -61,6 +61,7 @@ class ScanCommandTest {
       assertThat(result.stdout()).contains("--agent");
       assertThat(result.stdout()).contains("--force");
       assertThat(result.stdout()).contains("--index-dir");
+      assertThat(result.stdout()).contains("--token-audit");
     }
 
     @Test
@@ -173,6 +174,7 @@ class ScanCommandTest {
                 "--full",
                 "--agent",
                 "codex",
+                "--token-audit",
                 "--index-dir",
                 tempDir.resolve("fatal-scan-index").toString());
         assertThat(result.exitCode()).isEqualTo(1);
@@ -184,6 +186,58 @@ class ScanCommandTest {
                 "No partial results were published")
             .doesNotContain(
                 "synthetic-private-session", "synthetic-private-body", source.toString());
+        assertThat(tempDir.resolve("fatal-scan-index/token-audit-1.tsv")).doesNotExist();
+      } finally {
+        System.setProperty("user.home", oldHome);
+      }
+    }
+
+    @Test
+    void tokenAuditIsOptInAndWritesOnlyPrivateSanitizedIndexEvidence() throws Exception {
+      Path home = tempDir.resolve("audit-home");
+      Path sessions = Files.createDirectories(home.resolve(".codex/sessions"));
+      String id = "12345678-0000-4000-8000-0000abcdef01";
+      Files.writeString(
+          sessions.getParent().resolve("session_index.jsonl"), "{\"id\":\"" + id + "\"}\n");
+      Path source = sessions.resolve("rollout-" + id + ".jsonl");
+      Files.writeString(
+          source,
+          """
+          {"type":"session_meta","payload":{"id":"%s"}}
+          {"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"synthetic-private-audit-body"}]}}
+          {"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":25,"cached_input_tokens":6,"output_tokens":8}}}}
+          {"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":2,"cached_input_tokens":1,"output_tokens":1}}}}
+          """
+              .formatted(id));
+      String oldHome = System.getProperty("user.home");
+      Path index = tempDir.resolve("audit-index");
+      try {
+        System.setProperty("user.home", home.toString());
+        var normal = execute("scan", "--full", "--index-dir", index.toString());
+        assertThat(normal.exitCode()).as(normal.stderr()).isZero();
+        assertThat(normal.stdout()).doesNotContain("TOKEN_AUDIT");
+        assertThat(index.resolve("token-audit-1.tsv")).doesNotExist();
+        var audited =
+            execute(
+                "scan",
+                "--incremental",
+                "--agent",
+                "codex",
+                "--index-dir",
+                index.toString(),
+                "--token-audit");
+        assertThat(audited.exitCode()).as(audited.stderr()).isZero();
+        assertThat(audited.stdout())
+            .contains(
+                "Processed Codex:  0 sessions",
+                "TOKEN_AUDIT scanLogId=2 affectedSessions=1 report=token-audit-2.tsv")
+            .doesNotContain(id, "...abcdef01");
+        Path report = index.resolve("token-audit-2.tsv");
+        assertThat(Files.getPosixFilePermissions(report))
+            .isEqualTo(java.nio.file.attribute.PosixFilePermissions.fromString("rw-------"));
+        assertThat(Files.readString(report))
+            .contains("...abcdef01", "TOKEN_COUNTER_RESET", "TOKEN_USAGE_AMBIGUOUS")
+            .doesNotContain(id, "synthetic-private-audit-body", source.toString());
       } finally {
         System.setProperty("user.home", oldHome);
       }
